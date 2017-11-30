@@ -96,7 +96,7 @@ func (rcf *RecordControlFlags) setController()  { rcf.setBit(6) }
 func (rcf RecordControlFlags) Responder() bool  { return rcf&0x40 == 0x00 }
 func (rcf *RecordControlFlags) setResponder()   { rcf.clearBit(6) }
 
-func (rcf *RecordControlFlags) String() string {
+func (rcf RecordControlFlags) String() string {
 	str := "A"
 	if rcf.InUse() {
 		str = "U"
@@ -128,7 +128,7 @@ type Link struct {
 }
 
 func (l *Link) String() string {
-	return fmt.Sprintf("%v %s %s 0x%02x 0x%02x 0x%02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
+	return fmt.Sprintf("%s %s %s 0x%02x 0x%02x 0x%02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
 }
 
 func (l *Link) Equals(other *Link) bool {
