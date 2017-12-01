@@ -41,7 +41,6 @@ func TestSendingCommands(t *testing.T) {
 		err       error
 	}{
 		{true, CmdPing, []*Command{CmdPing}, []Flags{StandardDirectAck}, nil},
-		{true, CmdPing, []*Command{CmdPing}, []Flags{StandardDirectNak}, ErrDeviceNak},
 		{true, CmdPing, []*Command{CmdPing}, []Flags{StandardDirectMessage}, ErrUnexpectedResponse},
 		{true, CmdPing, []*Command{CmdIDReq}, []Flags{StandardDirectMessage}, ErrUnexpectedResponse},
 		{false, CmdPing, []*Command{CmdPing}, []Flags{ExtendedDirectAck}, nil},

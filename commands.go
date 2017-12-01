@@ -32,7 +32,12 @@ func (cf *CommandRegistry) FindExt(cmd []byte) *Command {
 }
 
 func (cf *CommandRegistry) FindStd(cmd []byte) *Command {
-	return cf.standardCommands[[2]byte{cmd[0], cmd[1]}]
+	if cmd, found := cf.standardCommands[[2]byte{cmd[0], cmd[1]}]; found {
+		return cmd
+	}
+
+	// fail safe so nobody is ever referring to a nil command
+	return &Command{name: "", cmd: [2]byte{cmd[0], cmd[1]}}
 }
 
 func (cf *CommandRegistry) RegisterExt(name string, b1, b2 byte, generator PayloadGenerator) *Command {

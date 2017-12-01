@@ -12,8 +12,10 @@ var (
 	ErrWriteTimeout           = errors.New("Write Timeout")
 	ErrAckTimeout             = errors.New("Timeout waiting for ACK")
 	ErrNotImplemented         = errors.New("Command is not yet implemented")
-	ErrDeviceNak              = errors.New("Device responded with a NAK")
 	ErrUnexpectedResponse     = errors.New("Unexpected response from device")
+	ErrNotLinked              = errors.New("Not in All-Link group")
+	ErrNoLoadDetected         = errors.New("No load detected")
+	ErrUnknownCommand         = errors.New("Unknown command")
 )
 
 type ProductKey [3]byte

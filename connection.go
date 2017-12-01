@@ -37,13 +37,19 @@ func (dc *DeviceConnection) send(msg *Message) error {
 		var rxMsg *Message
 		rxMsg, err = dc.Receive()
 		if err == nil {
-			if rxMsg.Command == msg.Command {
-				if rxMsg.Flags.Type() == MsgTypeDirectAck {
+			if rxMsg.Flags.Type() == MsgTypeDirectAck {
+				if rxMsg.Command.cmd == msg.Command.cmd {
 					Log.Debugf("INSTEON ACK received")
-				} else if rxMsg.Flags.Type() == MsgTypeDirectNak {
-					err = ErrDeviceNak
 				} else {
 					err = ErrUnexpectedResponse
+				}
+			} else if rxMsg.Flags.Type() == MsgTypeDirectNak {
+				if rxMsg.Command.cmd[1] == 0xfd {
+					err = ErrUnknownCommand
+				} else if rxMsg.Command.cmd[1] == 0xfe {
+					err = ErrNoLoadDetected
+				} else if rxMsg.Command.cmd[1] == 0xff {
+					err = ErrNotLinked
 				}
 			} else {
 				err = ErrUnexpectedResponse
