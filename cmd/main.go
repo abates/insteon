@@ -141,7 +141,6 @@ func main() {
 	}
 
 	if logLevelFlag > insteon.LevelNone {
-		insteon.Log = insteon.StderrLogger
 		insteon.Log.Level(insteon.LogLevel(logLevelFlag))
 	}
 

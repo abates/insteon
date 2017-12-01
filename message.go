@@ -8,7 +8,11 @@ const (
 	StandardMsgLen        = 9
 	ExtendedMsgLen        = 23
 	StandardDirectMessage = Flags(0x0f)
+	StandardDirectAck     = Flags(0x2f)
+	StandardDirectNak     = Flags(0xaf)
 	ExtendedDirectMessage = Flags(0x1f)
+	ExtendedDirectAck     = Flags(0x3f)
+	ExtendedDirectNak     = Flags(0xbf)
 )
 
 type MessageType int

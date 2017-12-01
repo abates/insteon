@@ -1,7 +1,6 @@
 package insteon
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -31,6 +30,30 @@ type DeviceConnection struct {
 	bridge  Bridge
 }
 
+func (dc *DeviceConnection) send(msg *Message) error {
+	err := dc.bridge.Send(dc.timeout, msg)
+
+	if err == nil {
+		var rxMsg *Message
+		rxMsg, err = dc.Receive()
+		if err == nil {
+			if rxMsg.Command == msg.Command {
+				if rxMsg.Flags.Type() == MsgTypeDirectAck {
+					Log.Debugf("INSTEON ACK received")
+				} else if rxMsg.Flags.Type() == MsgTypeDirectNak {
+					err = ErrDeviceNak
+				} else {
+					err = ErrUnexpectedResponse
+				}
+			} else {
+				err = ErrUnexpectedResponse
+			}
+		}
+	}
+
+	return err
+}
+
 func (dc *DeviceConnection) SendStandardCommandAndWait(command *Command) (msg *Message, err error) {
 	err = dc.SendStandardCommand(command)
 	if err == nil {
@@ -40,34 +63,15 @@ func (dc *DeviceConnection) SendStandardCommandAndWait(command *Command) (msg *M
 }
 
 func (dc *DeviceConnection) SendStandardCommand(command *Command) error {
-	err := dc.bridge.Send(dc.timeout, &Message{
+	return dc.send(&Message{
 		Dst:     dc.address,
 		Flags:   StandardDirectMessage,
 		Command: command,
 	})
-
-	if err == nil {
-		msg, err := dc.Receive()
-		if err == nil {
-			if msg.Command == command {
-				if msg.Flags.Type() == MsgTypeDirectAck {
-					Log.Debugf("INSTEON ACK received")
-				} else if msg.Flags.Type() == MsgTypeDirectNak {
-					err = ErrDeviceNak
-				} else {
-					err = fmt.Errorf("Unexpected response from device: %v", msg)
-				}
-			} else {
-				err = fmt.Errorf("Unexpected messge: %v", msg)
-			}
-		}
-	}
-
-	return err
 }
 
 func (dc *DeviceConnection) SendExtendedCommand(command *Command, payload Payload) error {
-	return dc.bridge.Send(dc.timeout, &Message{
+	return dc.send(&Message{
 		Dst:     dc.address,
 		Flags:   ExtendedDirectMessage,
 		Command: command,

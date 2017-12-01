@@ -13,6 +13,7 @@ var (
 	ErrAckTimeout             = errors.New("Timeout waiting for ACK")
 	ErrNotImplemented         = errors.New("Command is not yet implemented")
 	ErrDeviceNak              = errors.New("Device responded with a NAK")
+	ErrUnexpectedResponse     = errors.New("Unexpected response from device")
 )
 
 type ProductKey [3]byte

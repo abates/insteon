@@ -34,11 +34,3 @@ func (bp *BufPayload) String() string {
 	}
 	return strings.Join(str, " ")
 }
-
-func payloadFactory(cmd *Command) Payload {
-	generator := cmd.generator
-	if generator != nil {
-		return generator()
-	}
-	return &BufPayload{}
-}

@@ -6,8 +6,7 @@ import (
 	"os"
 )
 
-var Log = Logger(&bitbucketLogger{})
-var StderrLogger = &stderrLogger{level: LevelInfo, logger: log.New(os.Stderr, "", log.LstdFlags)}
+var Log = &Logger{level: LevelInfo, logger: log.New(os.Stderr, "", log.LstdFlags)}
 
 type LogLevel int
 
@@ -32,44 +31,30 @@ const (
 	LevelTrace
 )
 
-type Logger interface {
-	Level(LogLevel)
-	Infof(format string, v ...interface{})
-	Debugf(format string, v ...interface{})
-	Tracef(format string, v ...interface{})
-}
-
-type bitbucketLogger struct{}
-
-func (*bitbucketLogger) Level(LogLevel)                {}
-func (*bitbucketLogger) Infof(string, ...interface{})  {}
-func (*bitbucketLogger) Debugf(string, ...interface{}) {}
-func (*bitbucketLogger) Tracef(string, ...interface{}) {}
-
-type stderrLogger struct {
+type Logger struct {
 	level  LogLevel
 	logger *log.Logger
 }
 
-func (s *stderrLogger) Level(level LogLevel) {
+func (s *Logger) Level(level LogLevel) {
 	s.level = level
 }
 
-func (s *stderrLogger) logf(level LogLevel, format string, v ...interface{}) {
+func (s *Logger) logf(level LogLevel, format string, v ...interface{}) {
 	if s.level >= level {
 		format = fmt.Sprintf("%5s %s", s.level, format)
 		s.logger.Printf(format, v...)
 	}
 }
 
-func (s *stderrLogger) Infof(format string, v ...interface{}) {
+func (s *Logger) Infof(format string, v ...interface{}) {
 	s.logf(LevelInfo, format, v...)
 }
 
-func (s *stderrLogger) Debugf(format string, v ...interface{}) {
+func (s *Logger) Debugf(format string, v ...interface{}) {
 	s.logf(LevelDebug, format, v...)
 }
 
-func (s *stderrLogger) Tracef(format string, v ...interface{}) {
+func (s *Logger) Tracef(format string, v ...interface{}) {
 	s.logf(LevelTrace, format, v...)
 }
