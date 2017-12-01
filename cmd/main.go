@@ -49,29 +49,9 @@ var (
 	commands = make(map[string]*command)
 )
 
-func info(args []string, plm plm.PLM) error {
-	if len(args) < 1 {
-		return fmt.Errorf("device id must be specified")
-	}
-
-	addr, err := insteon.ParseAddress(args[0])
-	if err == nil {
-		var device insteon.Device
-		device, err = plm.Connect(addr)
-		if err == nil {
-			fmt.Printf("Device type: %T\n", device)
-			for _, link := range device.Links() {
-				fmt.Printf("\t%v\n", link)
-			}
-		}
-	}
-	return err
-}
-
 func init() {
 	flag.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
 	flag.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
-	commands["info"] = &command{usage: "<device id>", callback: info}
 }
 
 func run(args []string, command func([]string, plm.PLM) error) error {
