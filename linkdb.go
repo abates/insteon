@@ -131,7 +131,7 @@ func (l *Link) String() string {
 	return fmt.Sprintf("%s %s %s 0x%02x 0x%02x 0x%02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
 }
 
-func (l *Link) Equals(other *Link) bool {
+func (l *Link) Equal(other *Link) bool {
 	if l == other {
 		return true
 	}
@@ -140,7 +140,7 @@ func (l *Link) Equals(other *Link) bool {
 		return false
 	}
 
-	return l.Flags == other.Flags && l.Group == other.Group && l.Address == other.Address
+	return l.Flags.InUse() == other.Flags.InUse() && l.Flags.Controller() == other.Flags.Controller() && l.Group == other.Group && l.Address == other.Address
 }
 
 func (l *Link) MarshalBinary() ([]byte, error) {
@@ -204,13 +204,18 @@ func (ldb *LinearLinkDB) Refresh() error {
 	return err
 }
 
+func (ldb *LinearLinkDB) WriteLink(memAddress MemAddress, link *Link) error {
+	request := &LinkRequest{Type: WriteLink, Link: link}
+	return ldb.device.SendExtendedCommand(CmdReadWriteALDB, request)
+}
+
 func (ldb *LinearLinkDB) RemoveLink(oldLink *Link) error {
 	memAddress := MemAddress(0x0fff)
 	for _, link := range ldb.links {
 		memAddress -= 8
-		if link.Equals(oldLink) {
+		if link.Equal(oldLink) {
 			link.Flags.setAvailable()
-			return ldb.device.WriteLink(memAddress, link)
+			return ldb.WriteLink(memAddress, link)
 		}
 	}
 	return nil
@@ -236,5 +241,5 @@ func (ldb *LinearLinkDB) AddLink(newLink *Link) error {
 
 	// if this fails, then the local link database
 	// could be different from the remove database
-	return ldb.device.WriteLink(memAddress, newLink)
+	return ldb.WriteLink(memAddress, newLink)
 }

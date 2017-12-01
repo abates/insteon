@@ -2,7 +2,6 @@ package insteon
 
 import (
 	"testing"
-	"time"
 )
 
 type testBridge struct {
@@ -10,11 +9,11 @@ type testBridge struct {
 	respFlags []Flags
 }
 
-func (tb *testBridge) Send(timeout time.Duration, message *Message) error {
+func (tb *testBridge) Send(message *Message) error {
 	return nil
 }
 
-func (tb *testBridge) Receive(timeout time.Duration) (*Message, error) {
+func (tb *testBridge) Receive() (*Message, error) {
 	response := tb.responses[0]
 	tb.responses = tb.responses[1:]
 
@@ -52,7 +51,7 @@ func TestSendingCommands(t *testing.T) {
 			responses: test.responses,
 			respFlags: test.respFlags,
 		}
-		conn := NewDeviceConnection(time.Second, Address([3]byte{0x00, 0x00, 0x00}), tb)
+		conn := NewDeviceConnection(Address([3]byte{0x00, 0x00, 0x00}), tb)
 		if len(test.responses) > 1 {
 			if test.standard {
 				_, err := conn.SendStandardCommandAndWait(test.command)

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/plm"
@@ -37,14 +40,16 @@ func (llf *LogLevelFlag) String() string {
 }
 
 type command struct {
-	usage    string
-	flags    *flag.FlagSet
-	callback func(args []string, plm plm.PLM) error
+	usage       string
+	description string
+	flags       *flag.FlagSet
+	callback    func(args []string, plm *plm.PLM) error
 }
 
 var (
 	logLevelFlag   LogLevelFlag
 	serialPortFlag string
+	timeoutFlag    time.Duration
 
 	commands = make(map[string]*command)
 )
@@ -52,9 +57,29 @@ var (
 func init() {
 	flag.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
 	flag.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
+	flag.DurationVar(&timeoutFlag, "timeout", 10*time.Second, "read/write timeout duration")
 }
 
-func run(args []string, command func([]string, plm.PLM) error) error {
+func getResponse(message string, acceptable ...string) (resp string) {
+	accept := make(map[string]bool, len(acceptable))
+	for _, a := range acceptable {
+		accept[a] = true
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Print(message)
+		resp, _ = reader.ReadString('\n')
+		resp = strings.ToLower(strings.TrimSpace(resp))
+		if accept[resp] {
+			break
+		}
+		fmt.Printf("Invalid input\n")
+	}
+	return resp
+}
+
+func run(args []string, command func([]string, *plm.PLM) error) error {
 	c := &serial.Config{
 		Name: serialPortFlag,
 		Baud: 19200,
@@ -64,7 +89,7 @@ func run(args []string, command func([]string, plm.PLM) error) error {
 	if err == nil {
 		defer s.Close()
 
-		plm := plm.New(s)
+		plm := plm.New(s, timeoutFlag)
 		err = command(args, plm)
 	}
 	return err
@@ -79,7 +104,8 @@ func usage() {
 		}
 		commandNames = append(commandNames, name)
 	}
-	nameFmt := fmt.Sprintf("%%%ds %%s\n", maxNameLen+5)
+	maxNameLen += 5
+	nameFmt := fmt.Sprintf("%%%ds %%s\n", maxNameLen)
 
 	sort.Strings(commandNames)
 
@@ -91,9 +117,13 @@ func usage() {
 	for _, commandName := range commandNames {
 		command := commands[commandName]
 		fmt.Fprintf(os.Stderr, nameFmt, commandName, command.usage)
+		if command.description != "" {
+			fmt.Fprintf(os.Stderr, "%s %s\n", strings.Repeat(" ", maxNameLen), command.description)
+		}
 		if command.flags != nil {
 			command.flags.PrintDefaults()
 		}
+		fmt.Fprintf(os.Stderr, "\n")
 	}
 }
 
@@ -111,7 +141,7 @@ func main() {
 	args = args[1:]
 	command := commands[cmdName]
 	if command == nil {
-		fmt.Fprintf(os.Stderr, "Unknown command %s", cmdName)
+		fmt.Fprintf(os.Stderr, "Unknown command %s\n", cmdName)
 		os.Exit(3)
 	}
 

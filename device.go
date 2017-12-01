@@ -2,7 +2,6 @@ package insteon
 
 import (
 	"strings"
-	"time"
 )
 
 type FactoryFunc func(Connection, Address, *ProductData) Device
@@ -48,8 +47,6 @@ var (
 	CmdPing                    = Commands.RegisterStd("Ping", 0x0f, 0x00)
 	CmdIDReq                   = Commands.RegisterStd("ID Req", 0x10, 0x00)
 	CmdReadWriteALDB           = Commands.RegisterExt("Read/Write ALDB", 0x2f, 0x00, func() Payload { return &LinkRequest{} })
-
-	DeviceTimeout = time.Second * 10
 )
 
 type Device interface {
@@ -63,9 +60,7 @@ type Device interface {
 	EnterUnlinkingMode(Group) error
 	InsteonEngineVersion() (int, error)
 	Ping() error
-	ReadLink(MemAddress) (*Link, error)
-	WriteLink(MemAddress, *Link) error
-	Links() []*Link
+	LinkDB() (LinkDB, error)
 }
 
 func DeviceFactory(conn Connection, address Address) (Device, error) {
@@ -150,26 +145,10 @@ func (sd *StandardDevice) Ping() error {
 	return ErrNotImplemented
 }
 
-func (sd *StandardDevice) ReadLink(memAddress MemAddress) (*Link, error) {
-	// TODO implement
-	return nil, ErrNotImplemented
-}
-
-func (sd *StandardDevice) WriteLink(memAddress MemAddress, link *Link) error {
-	request := &LinkRequest{Type: WriteLink, Link: link}
-	return sd.SendExtendedCommand(CmdReadWriteALDB, request)
-}
-
-func (sd *StandardDevice) RefreshLinkDB() error {
+func (sd *StandardDevice) LinkDB() (ldb LinkDB, err error) {
 	if sd.ldb == nil {
 		sd.ldb = &LinearLinkDB{device: sd}
+		err = sd.ldb.Refresh()
 	}
-	return sd.ldb.Refresh()
-}
-
-func (sd *StandardDevice) Links() []*Link {
-	if sd.ldb == nil {
-		sd.RefreshLinkDB()
-	}
-	return sd.ldb.Links()
+	return sd.ldb, err
 }

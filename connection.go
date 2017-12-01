@@ -1,12 +1,8 @@
 package insteon
 
-import (
-	"time"
-)
-
 type Bridge interface {
-	Send(timeout time.Duration, message *Message) error
-	Receive(timeout time.Duration) (*Message, error)
+	Send(message *Message) error
+	Receive() (*Message, error)
 }
 
 type Connection interface {
@@ -16,22 +12,20 @@ type Connection interface {
 	Receive() (*Message, error)
 }
 
-func NewDeviceConnection(timeout time.Duration, address Address, bridge Bridge) Connection {
+func NewDeviceConnection(address Address, bridge Bridge) Connection {
 	return &DeviceConnection{
-		timeout: timeout,
 		address: address,
 		bridge:  bridge,
 	}
 }
 
 type DeviceConnection struct {
-	timeout time.Duration
 	address Address
 	bridge  Bridge
 }
 
 func (dc *DeviceConnection) send(msg *Message) error {
-	err := dc.bridge.Send(dc.timeout, msg)
+	err := dc.bridge.Send(msg)
 
 	if err == nil {
 		var rxMsg *Message
@@ -86,5 +80,5 @@ func (dc *DeviceConnection) SendExtendedCommand(command *Command, payload Payloa
 }
 
 func (dc *DeviceConnection) Receive() (message *Message, err error) {
-	return dc.bridge.Receive(dc.timeout)
+	return dc.bridge.Receive()
 }

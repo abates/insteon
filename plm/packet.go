@@ -40,16 +40,19 @@ func (p *Packet) String() string {
 	return fmt.Sprintf("%-24s %v", cmd, p.Payload)
 }
 
-func (p *Packet) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, 2)
+func (p *Packet) MarshalBinary() (buf []byte, err error) {
+	buf = make([]byte, 2)
 	buf[0] = 0x02
 	buf[1] = byte(p.Command)
-	payload, err := p.Payload.MarshalBinary()
-	if _, ok := p.Payload.(*insteon.Message); ok {
-		// slice off the source address
-		payload = payload[3:]
+	if p.Payload != nil {
+		var payload []byte
+		payload, err = p.Payload.MarshalBinary()
+		if _, ok := p.Payload.(*insteon.Message); ok {
+			// slice off the source address
+			payload = payload[3:]
+		}
+		buf = append(buf, payload...)
 	}
-	buf = append(buf, payload...)
 	return buf, err
 }
 
@@ -59,23 +62,28 @@ func (p *Packet) UnmarshalBinary(buf []byte) (err error) {
 	}
 
 	p.Command = Command(buf[1])
-	switch {
-	case p.Command == CmdStdMsgReceived || p.Command == CmdExtMsgReceived:
-		msg := &insteon.Message{}
-		err = msg.UnmarshalBinary(buf[2:])
-		p.Payload = msg
-	case p.Command == CmdSendInsteonMsg:
-		msg := &insteon.Message{}
-		data := make([]byte, len(buf[2:])+3)
-		copy(data[3:], buf[2:len(buf)-1])
-		err = msg.UnmarshalBinary(data)
-		p.Payload = msg
-		p.Ack = buf[len(buf)-1]
-	default:
-		payload := &insteon.BufPayload{}
-		err = payload.UnmarshalBinary(buf[2 : len(buf)-1])
-		p.Payload = payload
-		p.Ack = buf[len(buf)-1]
+	buf = buf[2:]
+
+	if generator := payloadGenerators[byte(p.Command)]; generator != nil {
+		p.Payload = generator()
+	} else {
+		p.Payload = &insteon.BufPayload{}
 	}
+
+	// responses to locally generated insteon messages need
+	// some padding at the front since the source address
+	// is removed
+	if p.Command == CmdSendInsteonMsg {
+		newBuf := make([]byte, len(buf)+3)
+		copy(newBuf[3:], buf)
+		buf = newBuf
+	}
+
+	if 0x60 <= p.Command && p.Command <= 0x7f {
+		p.Ack = buf[len(buf)-1]
+		buf = buf[0 : len(buf)-1]
+	}
+
+	err = p.Payload.UnmarshalBinary(buf)
 	return err
 }

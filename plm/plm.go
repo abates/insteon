@@ -18,43 +18,38 @@ var (
 
 type Config byte
 
-type PLM interface {
-	Info() (*IMInfo, error)
-	Reset() error
-	Config() (Config, error)
-	SetConfig(Config) error
-	SetDeviceCategory(insteon.Category) error
-	RFSleep() error
-	Connect(insteon.Address) (insteon.Device, error)
-	//Links() []*insteon.Link
-}
-
 type connectionInfo struct {
 	address insteon.Address
 	ch      chan *Packet
 }
 
 type txPacketInfo struct {
-	pkt   *Packet
-	ackCh chan *Packet
+	packet *Packet
+	ackCh  chan *Packet
 }
 
-type plm struct {
-	in  *bufio.Reader
-	out io.Writer
+type PLM struct {
+	in      *bufio.Reader
+	out     io.Writer
+	timeout time.Duration
 
 	txPktCh      chan *txPacketInfo
 	rxPktCh      chan *Packet
+	plmCh        chan *Packet
 	connectionCh chan connectionInfo
+
+	linkDb *PLMLinkDB
 }
 
-func New(port io.ReadWriter) PLM {
-	plm := &plm{
-		in:  bufio.NewReader(port),
-		out: port,
+func New(port io.ReadWriter, timeout time.Duration) *PLM {
+	plm := &PLM{
+		in:      bufio.NewReader(port),
+		out:     port,
+		timeout: timeout,
 
 		txPktCh:      make(chan *txPacketInfo, 1),
 		rxPktCh:      make(chan *Packet, 1),
+		plmCh:        make(chan *Packet, 1),
 		connectionCh: make(chan connectionInfo, 1),
 	}
 	go plm.readPktLoop()
@@ -70,190 +65,224 @@ func traceBuf(prefix string, buf []byte) {
 	insteon.Log.Tracef("%-05s BUFFER %s", prefix, strings.Join(bb, " "))
 }
 
-func tracePkt(prefix string, pkt *Packet) {
-	insteon.Log.Tracef("%-05s %s", prefix, pkt)
+func tracePkt(prefix string, packet *Packet) {
+	insteon.Log.Tracef("%-05s %s", prefix, packet)
 }
 
 func traceMsg(prefix string, msg *insteon.Message) {
 	insteon.Log.Tracef("%-05s %s", prefix, msg)
 }
 
-func (p *plm) read(buf []byte) error {
-	_, err := io.ReadAtLeast(p.in, buf, len(buf))
+func (plm *PLM) read(buf []byte) error {
+	_, err := io.ReadAtLeast(plm.in, buf, len(buf))
 	return err
 }
 
-func (p *plm) readPacket() (pkt *Packet, err error) {
+func (plm *PLM) readPacket() (packet *Packet, err error) {
 	var buf []byte
-	b, err := p.in.ReadByte()
+	b, err := plm.in.ReadByte()
 	if err == nil && b != 0x02 {
 		return nil, fmt.Errorf("Expected first byte to be 0x02 got 0x%02x", b)
 	}
 	buf = append(buf, b)
 
-	b, err = p.in.ReadByte()
+	b, err = plm.in.ReadByte()
 
 	if err == nil {
 		buf = append(buf, b)
 		// TODO commandLens should only be written during
 		// initialization, but, technically speaking, this
 		// access could cause a concurrent access violation
-		if pktLen, ok := commandLens[b]; ok {
-			buf = append(buf, make([]byte, pktLen)...)
-			_, err = io.ReadAtLeast(p.in, buf[2:], pktLen)
+		if packetLen, ok := commandLens[b]; ok {
+			buf = append(buf, make([]byte, packetLen)...)
+			_, err = io.ReadAtLeast(plm.in, buf[2:], packetLen)
 			if err == nil {
 				traceBuf("RX", buf)
 				// read some more if it's an extended message
 				if buf[1] == 0x62 && insteon.Flags(buf[5]).IsExtended() {
 					buf = append(buf, make([]byte, 14)...)
-					_, err = io.ReadAtLeast(p.in, buf[9:], 14)
+					_, err = io.ReadAtLeast(plm.in, buf[9:], 14)
 				}
-				pkt = &Packet{}
-				err = pkt.UnmarshalBinary(buf)
+				packet = &Packet{}
+				err = packet.UnmarshalBinary(buf)
 			}
 		} else {
 			err = fmt.Errorf("PLM Received unknown command 0x%02x", b)
 		}
 	}
-	return pkt, err
+	return packet, err
 }
 
-func (p *plm) readPktLoop() {
+func (plm *PLM) readPktLoop() {
 	for {
-		pkt, err := p.readPacket()
+		packet, err := plm.readPacket()
 		if err == nil {
-			tracePkt("RX", pkt)
-			p.rxPktCh <- pkt
+			tracePkt("RX", packet)
+			plm.rxPktCh <- packet
 		} else {
 			insteon.Log.Infof("Error reading packet: %v", err)
 		}
 	}
 }
 
-func (p *plm) writePacket(pkt *Packet) error {
-	payload, err := pkt.MarshalBinary()
+func (plm *PLM) writePacket(packet *Packet) error {
+	payload, err := packet.MarshalBinary()
 	traceBuf("TX", payload)
 
 	if err == nil {
-		_, err = p.out.Write(payload)
+		_, err = plm.out.Write(payload)
 	}
 	return err
 }
 
-func (p *plm) readWriteLoop() {
+func (plm *PLM) readWriteLoop() {
 	connections := make(map[insteon.Address]chan *Packet)
 	ackChannels := make(map[Command]chan *Packet)
 	for {
-		var pkt *Packet
+		var packet *Packet
 		insteon.Log.Debugf("readWriteLoop wait...")
 		select {
-		case send := <-p.txPktCh:
-			ackChannels[send.pkt.Command] = send.ackCh
-			err := p.writePacket(send.pkt)
+		case send := <-plm.txPktCh:
+			ackChannels[send.packet.Command] = send.ackCh
+			err := plm.writePacket(send.packet)
 			if err == nil {
-				tracePkt("TX", send.pkt)
+				tracePkt("TX", send.packet)
 			}
-		case pkt = <-p.rxPktCh:
+		case packet = <-plm.rxPktCh:
 			switch {
-			case pkt.Command == 0x50 || pkt.Command == 0x51:
-				msg := pkt.Payload.(*insteon.Message)
+			case packet.Command == 0x50 || packet.Command == 0x51:
+				msg := packet.Payload.(*insteon.Message)
 				insteon.Log.Debugf("Received INSTEON Message %v", msg)
 				if conn, ok := connections[msg.Src]; ok {
 					insteon.Log.Debugf("Dispatching message to device connection")
-					conn <- pkt
+					conn <- packet
 				}
-			case 0x52 <= pkt.Command && pkt.Command <= 0x58:
-				// handle event
+			case 0x52 <= packet.Command && packet.Command <= 0x58:
+				// 0x52 to 0x58 are modem commands and should be dispatched
+				// to functions communicating with the modem itself, however
+				// we don't want to hold things up
+				select {
+				case plm.plmCh <- packet:
+				default:
+					insteon.Log.Infof("Received modem response, but no one was listening for it")
+				}
 			default:
 				// handle ack/nak
-				if ackCh, ok := ackChannels[pkt.Command]; ok {
+				if ackCh, ok := ackChannels[packet.Command]; ok {
 					select {
-					case ackCh <- pkt:
+					case ackCh <- packet:
 						close(ackCh)
-						ackChannels[pkt.Command] = nil
+						ackChannels[packet.Command] = nil
 					default:
 					}
 				}
 			}
-		case info := <-p.connectionCh:
+		case info := <-plm.connectionCh:
 			connections[info.address] = info.ch
 		}
 	}
 }
 
-func (p *plm) Info() (*IMInfo, error) {
-	return nil, ErrNotImplemented
+func (plm *PLM) Receive() (packet *Packet, err error) {
+	select {
+	case packet = <-plm.plmCh:
+		tracePkt("PLM Receive", packet)
+	case <-time.After(plm.timeout):
+		err = insteon.ErrAckTimeout
+	}
+	return packet, err
 }
 
-func (p *plm) Reset() error {
+func (plm *PLM) Send(packet *Packet) (ack *Packet, err error) {
+	tracePkt("PLM Send", packet)
+	ackCh := make(chan *Packet, 1)
+	txPktInfo := &txPacketInfo{
+		packet: packet,
+		ackCh:  ackCh,
+	}
+
+	select {
+	case plm.txPktCh <- txPktInfo:
+		select {
+		case ack = <-ackCh:
+			insteon.Log.Debugf("PLM ACK Received")
+		case <-time.After(plm.timeout):
+			err = insteon.ErrAckTimeout
+		}
+	case <-time.After(plm.timeout):
+		err = insteon.ErrWriteTimeout
+	}
+	return
+}
+
+func (plm *PLM) Info() (*IMInfo, error) {
+	ack, err := plm.Send(&Packet{
+		retryCount: 3,
+		Command:    CmdGetInfo,
+	})
+	return ack.Payload.(*IMInfo), err
+}
+
+func (plm *PLM) Reset() error {
 	return ErrNotImplemented
 }
 
-func (p *plm) Config() (Config, error) {
+func (plm *PLM) Config() (Config, error) {
 	return Config(0x00), ErrNotImplemented
 }
 
-func (p *plm) SetConfig(Config) error {
+func (plm *PLM) SetConfig(Config) error {
 	return ErrNotImplemented
 }
 
-func (p *plm) SetDeviceCategory(insteon.Category) error {
+func (plm *PLM) SetDeviceCategory(insteon.Category) error {
 	return ErrNotImplemented
 }
 
-func (p *plm) RFSleep() error {
+func (plm *PLM) RFSleep() error {
 	return ErrNotImplemented
 }
 
 type plmBridge struct {
-	rx chan *Packet
-	tx chan *txPacketInfo
+	plm *PLM
+	rx  chan *Packet
 }
 
-func (pb *plmBridge) Send(timeout time.Duration, msg *insteon.Message) (err error) {
-	pkt := &Packet{
+func (pb *plmBridge) Send(msg *insteon.Message) error {
+	packet := &Packet{
 		retryCount: 3,
 		Command:    CmdSendInsteonMsg,
 		Payload:    msg,
 	}
-	tracePkt("BR TX", pkt)
-	ackCh := make(chan *Packet, 1)
-	txPktInfo := &txPacketInfo{
-		pkt:   pkt,
-		ackCh: ackCh,
-	}
-
-	select {
-	case pb.tx <- txPktInfo:
-		select {
-		case <-ackCh:
-			insteon.Log.Debugf("PLM ACK Received")
-		case <-time.After(timeout):
-			err = insteon.ErrAckTimeout
-		}
-	case <-time.After(timeout):
-		err = insteon.ErrWriteTimeout
-	}
+	_, err := pb.plm.Send(packet)
 	return err
 }
 
-func (pb *plmBridge) Receive(timeout time.Duration) (msg *insteon.Message, err error) {
+func (pb *plmBridge) Receive() (msg *insteon.Message, err error) {
 	select {
-	case pkt := <-pb.rx:
-		msg = pkt.Payload.(*insteon.Message)
-	case <-time.After(timeout):
+	case packet := <-pb.rx:
+		msg = packet.Payload.(*insteon.Message)
+	case <-time.After(pb.plm.timeout):
 		err = insteon.ErrReadTimeout
 	}
 	return
 }
 
-func (p *plm) Connect(dst insteon.Address) (insteon.Device, error) {
+func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
 	rx := make(chan *Packet, 1)
 	bridge := &plmBridge{
-		tx: p.txPktCh,
-		rx: rx,
+		plm: plm,
+		rx:  rx,
 	}
-	connection := insteon.NewDeviceConnection(insteon.DeviceTimeout, dst, bridge)
-	p.connectionCh <- connectionInfo{dst, rx}
+	connection := insteon.NewDeviceConnection(dst, bridge)
+	plm.connectionCh <- connectionInfo{dst, rx}
 	return insteon.DeviceFactory(connection, dst)
+}
+
+func (plm *PLM) LinkDB() (ldb insteon.LinkDB, err error) {
+	if plm.linkDb == nil {
+		plm.linkDb = &PLMLinkDB{plm: plm}
+		err = plm.linkDb.Refresh()
+	}
+	return plm.linkDb, err
 }
