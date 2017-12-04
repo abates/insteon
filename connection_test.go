@@ -9,11 +9,11 @@ type testBridge struct {
 	respFlags []Flags
 }
 
-func (tb *testBridge) Send(message *Message) error {
+func (tb *testBridge) Send(payload Payload) error {
 	return nil
 }
 
-func (tb *testBridge) Receive() (*Message, error) {
+func (tb *testBridge) Receive() (Payload, error) {
 	response := tb.responses[0]
 	tb.responses = tb.responses[1:]
 
@@ -51,20 +51,20 @@ func TestSendingCommands(t *testing.T) {
 			responses: test.responses,
 			respFlags: test.respFlags,
 		}
-		conn := NewDeviceConnection(Address([3]byte{0x00, 0x00, 0x00}), tb)
+		conn := NewI1Connection(Address([3]byte{0x00, 0x00, 0x00}), tb)
 		if len(test.responses) > 1 {
 			if test.standard {
-				_, err := conn.SendStandardCommandAndWait(test.command)
+				_, err := SendStandardCommandAndWait(conn, test.command)
 				testErr(t, i, test.err, err)
 			} else {
 				t.Errorf("Can't wait for an extended response")
 			}
 		} else {
 			if test.standard {
-				err := conn.SendStandardCommand(test.command)
+				_, err := SendStandardCommand(conn, test.command)
 				testErr(t, i, test.err, err)
 			} else {
-				err := conn.SendExtendedCommand(test.command, &BufPayload{})
+				_, err := SendExtendedCommand(conn, test.command, &BufPayload{})
 				testErr(t, i, test.err, err)
 			}
 		}

@@ -25,7 +25,7 @@ func plmCmd(args []string, plm *plm.PLM) (err error) {
 		var db insteon.LinkDB
 		db, err = plm.LinkDB()
 		for _, link := range db.Links() {
-			fmt.Printf("%s\n", link)
+			fmt.Printf("\t%s\n", link)
 		}
 	}
 	return err

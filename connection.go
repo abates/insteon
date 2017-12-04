@@ -1,48 +1,72 @@
 package insteon
 
+func SendStandardCommandAndWait(conn Connection, command *Command) (msg *Message, err error) {
+	_, err = SendStandardCommand(conn, command)
+	if err == nil {
+		msg, err = conn.Receive()
+	}
+	return
+}
+
+func SendStandardCommand(conn Connection, command *Command) (*Message, error) {
+	return conn.Send(&Message{
+		Flags:   StandardDirectMessage,
+		Command: command,
+	})
+}
+
+func SendExtendedCommand(conn Connection, command *Command, payload Payload) (*Message, error) {
+	return conn.Send(&Message{
+		Flags:   ExtendedDirectMessage,
+		Command: command,
+		Payload: payload,
+	})
+}
+
 type Bridge interface {
-	Send(message *Message) error
-	Receive() (*Message, error)
+	Send(Payload) error
+	Receive() (Payload, error)
 }
 
 type Connection interface {
-	SendStandardCommandAndWait(*Command) (*Message, error)
-	SendStandardCommand(*Command) error
-	SendExtendedCommand(*Command, Payload) error
+	Send(*Message) (*Message, error)
 	Receive() (*Message, error)
 }
 
-func NewDeviceConnection(address Address, bridge Bridge) Connection {
-	return &DeviceConnection{
+func NewI1Connection(address Address, bridge Bridge) Connection {
+	return &I1Connection{
 		address: address,
 		bridge:  bridge,
 	}
 }
 
-type DeviceConnection struct {
+type I1Connection struct {
 	address Address
 	bridge  Bridge
 }
 
-func (dc *DeviceConnection) send(msg *Message) error {
-	err := dc.bridge.Send(msg)
+func (i1c *I1Connection) Send(msg *Message) (ack *Message, err error) {
+	if msg.Flags.Type().Direct() {
+		msg.Dst = i1c.address
+	}
+
+	err = i1c.bridge.Send(msg)
 
 	if err == nil {
-		var rxMsg *Message
-		rxMsg, err = dc.Receive()
+		ack, err = i1c.Receive()
 		if err == nil {
-			if rxMsg.Flags.Type() == MsgTypeDirectAck {
-				if rxMsg.Command.cmd == msg.Command.cmd {
+			if ack.Flags.Type() == MsgTypeDirectAck {
+				if ack.Command.cmd[0] == msg.Command.cmd[0] {
 					Log.Debugf("INSTEON ACK received")
 				} else {
 					err = ErrUnexpectedResponse
 				}
-			} else if rxMsg.Flags.Type() == MsgTypeDirectNak {
-				if rxMsg.Command.cmd[1] == 0xfd {
+			} else if ack.Flags.Type() == MsgTypeDirectNak {
+				if ack.Command.cmd[1] == 0xfd {
 					err = ErrUnknownCommand
-				} else if rxMsg.Command.cmd[1] == 0xfe {
+				} else if ack.Command.cmd[1] == 0xfe {
 					err = ErrNoLoadDetected
-				} else if rxMsg.Command.cmd[1] == 0xff {
+				} else if ack.Command.cmd[1] == 0xff {
 					err = ErrNotLinked
 				}
 			} else {
@@ -54,34 +78,81 @@ func (dc *DeviceConnection) send(msg *Message) error {
 		}
 	}
 
-	return err
-}
-
-func (dc *DeviceConnection) SendStandardCommandAndWait(command *Command) (msg *Message, err error) {
-	err = dc.SendStandardCommand(command)
-	if err == nil {
-		msg, err = dc.Receive()
-	}
 	return
 }
 
-func (dc *DeviceConnection) SendStandardCommand(command *Command) error {
-	return dc.send(&Message{
-		Dst:     dc.address,
-		Flags:   StandardDirectMessage,
-		Command: command,
-	})
+func (i1c *I1Connection) Receive() (message *Message, err error) {
+	payload, err := i1c.bridge.Receive()
+	if msg, ok := payload.(*Message); ok {
+		return msg, err
+	}
+	return nil, ErrUnexpectedResponse
 }
 
-func (dc *DeviceConnection) SendExtendedCommand(command *Command, payload Payload) error {
-	return dc.send(&Message{
-		Dst:     dc.address,
-		Flags:   ExtendedDirectMessage,
-		Command: command,
-		Payload: payload,
-	})
+func NewI2Connection(address Address, bridge Bridge) Connection {
+	return &I2Connection{
+		address: address,
+		bridge:  bridge,
+	}
 }
 
-func (dc *DeviceConnection) Receive() (message *Message, err error) {
-	return dc.bridge.Receive()
+type I2Connection struct {
+	address Address
+	bridge  Bridge
+}
+
+func (i2c *I2Connection) Send(msg *Message) (ack *Message, err error) {
+	if msg.Flags.Type().Direct() {
+		msg.Dst = i2c.address
+	}
+
+	// update checksum prior to sending
+	if msg.Flags.Extended() {
+		err = i2c.bridge.Send(&I2CsMessage{msg})
+	} else {
+		err = i2c.bridge.Send(msg)
+	}
+
+	if err == nil {
+		ack, err = i2c.Receive()
+		if err == nil {
+			if ack.Flags.Type() == MsgTypeDirectAck {
+				if ack.Command.cmd[0] == msg.Command.cmd[0] {
+					Log.Debugf("INSTEON ACK received")
+				} else {
+					err = ErrUnexpectedResponse
+				}
+			} else if ack.Flags.Type() == MsgTypeDirectNak {
+				switch ack.Command.cmd[1] {
+				case 0xfb:
+					err = ErrIllegalValue
+				case 0xfc:
+					err = ErrPreNak
+				case 0xfd:
+					err = ErrIncorrectChecksum
+				case 0xfe:
+					err = ErrNoLoadDetected
+				case 0xff:
+					err = ErrNotLinked
+				default:
+					err = ErrUnknown
+				}
+			} else {
+				err = ErrUnexpectedResponse
+			}
+		} else if err == ErrReadTimeout {
+			// timed out waiting to read the Ack
+			err = ErrAckTimeout
+		}
+	}
+
+	return
+}
+
+func (i2c *I2Connection) Receive() (message *Message, err error) {
+	payload, err := i2c.bridge.Receive()
+	if msg, ok := payload.(*Message); ok {
+		return msg, err
+	}
+	return nil, ErrUnexpectedResponse
 }

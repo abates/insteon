@@ -26,17 +26,17 @@ func init() {
 }
 
 type DimmableDevice struct {
-	*StandardDevice
+	Device
 }
 
-func dimmableLightingFactory(conn Connection, address Address, pd *ProductData) Device {
-	return &DimmableDevice{NewStandardDevice(conn, address)}
+func dimmableLightingFactory(device Device) Device {
+	return &DimmableDevice{device}
 }
 
 type SwitchedDevice struct {
-	*StandardDevice
+	Device
 }
 
-func switchedLightingFactory(conn Connection, address Address, pd *ProductData) Device {
-	return &SwitchedDevice{NewStandardDevice(conn, address)}
+func switchedLightingFactory(device Device) Device {
+	return &SwitchedDevice{device}
 }

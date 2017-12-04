@@ -99,7 +99,7 @@ func (plm *PLM) readPacket() (packet *Packet, err error) {
 			if err == nil {
 				traceBuf("RX", buf)
 				// read some more if it's an extended message
-				if buf[1] == 0x62 && insteon.Flags(buf[5]).IsExtended() {
+				if buf[1] == 0x62 && insteon.Flags(buf[5]).Extended() {
 					buf = append(buf, make([]byte, 14)...)
 					_, err = io.ReadAtLeast(plm.in, buf[9:], 14)
 				}
@@ -249,43 +249,55 @@ type plmBridge struct {
 	rx  chan *Packet
 }
 
-func (pb *plmBridge) Send(msg *insteon.Message) error {
+func (pb *plmBridge) Send(payload insteon.Payload) error {
 	packet := &Packet{
 		retryCount: 3,
 		Command:    CmdSendInsteonMsg,
-		Payload:    msg,
+		Payload:    payload,
 	}
 	_, err := pb.plm.Send(packet)
 	return err
 }
 
-func (pb *plmBridge) Receive() (msg *insteon.Message, err error) {
+func (pb *plmBridge) Receive() (payload insteon.Payload, err error) {
 	select {
 	case packet := <-pb.rx:
-		msg = packet.Payload.(*insteon.Message)
+		payload = packet.Payload
 	case <-time.After(pb.plm.timeout):
 		err = insteon.ErrReadTimeout
 	}
 	return
 }
 
-func (plm *PLM) Dial(dst insteon.Address) insteon.Connection {
+func (plm *PLM) Dial(dst insteon.Address) insteon.Bridge {
 	rx := make(chan *Packet, 1)
 	bridge := &plmBridge{
 		plm: plm,
 		rx:  rx,
 	}
-	connection := insteon.NewDeviceConnection(dst, bridge)
 	plm.connectionCh <- connectionInfo{dst, rx}
-	return connection
-}
-
-func (plm *PLM) StandardConnect(dst insteon.Address) insteon.Device {
-	return insteon.NewStandardDevice(plm.Dial(dst), dst)
+	return bridge
 }
 
 func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
-	return insteon.DeviceFactory(plm.Dial(dst), dst)
+	bridge := plm.Dial(dst)
+	device := insteon.Device(insteon.NewI1Device(dst, bridge))
+	version, err := device.EngineVersion()
+	switch version {
+	case insteon.VerI2:
+		device = insteon.NewI2Device(dst, bridge)
+	case insteon.VerI2Cs:
+		device = insteon.NewI2CsDevice(dst, bridge)
+	}
+	return device, err
+}
+
+func (plm *PLM) ConnectAndInitialize(dst insteon.Address) (insteon.Device, error) {
+	device, err := plm.Connect(dst)
+	if err == nil {
+		device, err = insteon.InitializeDevice(device)
+	}
+	return device, err
 }
 
 func (plm *PLM) LinkDB() (ldb insteon.LinkDB, err error) {
@@ -325,7 +337,7 @@ func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 	ack, err := plm.Send(&Packet{
 		retryCount: 3,
 		Command:    CmdStartAllLink,
-		Payload:    &AllLinkReq{Flags: 0x03, Group: group},
+		Payload:    &AllLinkReq{Flags: 0x01, Group: group},
 	})
 
 	if ack.NAK() {

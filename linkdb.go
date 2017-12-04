@@ -199,7 +199,7 @@ func (ldb *LinearLinkDB) Links() []*Link {
 func (ldb *LinearLinkDB) Refresh() error {
 	ldb.links = make([]*Link, 0)
 	request := &LinkRequest{Type: ReadLink, NumRecords: 0}
-	err := ldb.conn.SendExtendedCommand(CmdReadWriteALDB, request)
+	_, err := SendExtendedCommand(ldb.conn, CmdReadWriteALDB, request)
 	if err != nil {
 		return err
 	}
@@ -223,7 +223,8 @@ func (ldb *LinearLinkDB) Refresh() error {
 
 func (ldb *LinearLinkDB) WriteLink(memAddress MemAddress, link *Link) error {
 	request := &LinkRequest{Type: WriteLink, Link: link}
-	return ldb.conn.SendExtendedCommand(CmdReadWriteALDB, request)
+	_, err := SendExtendedCommand(ldb.conn, CmdReadWriteALDB, request)
+	return err
 }
 
 func (ldb *LinearLinkDB) RemoveLink(oldLink *Link) error {

@@ -3,20 +3,21 @@ package insteon
 import "fmt"
 
 var (
-	CmdAssignToAllLinkGroup    = Commands.RegisterStd("All Link Assign", 0x01, 0x00)
-	CmdDeleteFromAllLinkGroup  = Commands.RegisterStd("All Link Delete", 0x02, 0x00)
-	CmdProductDataReq          = Commands.RegisterStd("Product Data Req", 0x03, 0x00)
-	CmdProductDataResp         = Commands.RegisterExt("Product Data Resp", 0x03, 0x00, func() Payload { return &ProductData{} })
-	CmdFxUsernameReq           = Commands.RegisterStd("FX Username Req", 0x03, 0x01)
-	CmdFxUsernameResp          = Commands.RegisterExt("FX Username Resp", 0x03, 0x01, nil)
-	CmdDeviceTextStringReq     = Commands.RegisterStd("Text String Req", 0x03, 0x02)
-	CmdDeviceTextStringResp    = Commands.RegisterExt("Text String Resp", 0x03, 0x02, nil)
-	CmdEnterLinkingMode        = Commands.RegisterStd("Enter Link Mode", 0x09, 0x00)
-	CmdEnterUnlinkingMode      = Commands.RegisterStd("Enter Unlink Mode", 0x0a, 0x00)
-	CmdGetInsteonEngineVersion = Commands.RegisterStd("Get INSTEON Ver", 0x0d, 0x00)
-	CmdPing                    = Commands.RegisterStd("Ping", 0x0f, 0x00)
-	CmdIDReq                   = Commands.RegisterStd("ID Req", 0x10, 0x00)
-	CmdReadWriteALDB           = Commands.RegisterExt("Read/Write ALDB", 0x2f, 0x00, func() Payload { return &LinkRequest{} })
+	CmdAssignToAllLinkGroup     = Commands.RegisterStd("All Link Assign", 0x01, 0x00)
+	CmdDeleteFromAllLinkGroup   = Commands.RegisterStd("All Link Delete", 0x02, 0x00)
+	CmdProductDataReq           = Commands.RegisterStd("Product Data Req", 0x03, 0x00)
+	CmdProductDataResp          = Commands.RegisterExt("Product Data Resp", 0x03, 0x00, func() Payload { return &ProductData{} })
+	CmdFxUsernameReq            = Commands.RegisterStd("FX Username Req", 0x03, 0x01)
+	CmdFxUsernameResp           = Commands.RegisterExt("FX Username Resp", 0x03, 0x01, nil)
+	CmdDeviceTextStringReq      = Commands.RegisterStd("Text String Req", 0x03, 0x02)
+	CmdDeviceTextStringResp     = Commands.RegisterExt("Text String Resp", 0x03, 0x02, nil)
+	CmdEnterLinkingMode         = Commands.RegisterStd("Enter Link Mode", 0x09, 0x00)
+	CmdEnterLinkingModeExtended = Commands.RegisterExt("Enter Link Mode", 0x09, 0x00, nil)
+	CmdEnterUnlinkingMode       = Commands.RegisterStd("Enter Unlink Mode", 0x0a, 0x00)
+	CmdGetEngineVersion         = Commands.RegisterStd("Get INSTEON Ver", 0x0d, 0x00)
+	CmdPing                     = Commands.RegisterStd("Ping", 0x0f, 0x00)
+	CmdIDReq                    = Commands.RegisterStd("ID Req", 0x10, 0x00)
+	CmdReadWriteALDB            = Commands.RegisterExt("Read/Write ALDB", 0x2f, 0x00, func() Payload { return &LinkRequest{} })
 )
 
 var Commands CommandRegistry
@@ -45,7 +46,12 @@ func (c *Command) String() string {
 }
 
 func (cf *CommandRegistry) FindExt(cmd []byte) *Command {
-	return cf.extendedCommands[[2]byte{cmd[0], cmd[1]}]
+	if cmd, found := cf.extendedCommands[[2]byte{cmd[0], cmd[1]}]; found {
+		return cmd
+	}
+
+	// fail safe so nobody is ever referring to a nil command
+	return &Command{name: "", cmd: [2]byte{cmd[0], cmd[1]}, generator: func() Payload { return &BufPayload{} }}
 }
 
 func (cf *CommandRegistry) FindStd(cmd []byte) *Command {
@@ -58,6 +64,9 @@ func (cf *CommandRegistry) FindStd(cmd []byte) *Command {
 }
 
 func (cf *CommandRegistry) RegisterExt(name string, b1, b2 byte, generator PayloadGenerator) *Command {
+	if generator == nil {
+		generator = func() Payload { return &BufPayload{} }
+	}
 	command := &Command{name: name, cmd: [2]byte{b1, b2}, generator: generator}
 	if cf.extendedCommands == nil {
 		cf.extendedCommands = make(map[[2]byte]*Command)

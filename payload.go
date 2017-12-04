@@ -13,6 +13,12 @@ type Payload interface {
 	String() string
 }
 
+func NewBufPayload(size int) *BufPayload {
+	return &BufPayload{
+		Buf: make([]byte, size),
+	}
+}
+
 type BufPayload struct {
 	Buf []byte
 }

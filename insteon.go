@@ -17,6 +17,11 @@ var (
 	ErrNoLoadDetected         = errors.New("No load detected")
 	ErrUnknownCommand         = errors.New("Unknown command")
 	ErrNak                    = errors.New("NAK received")
+	ErrUnknownEngineVersion   = errors.New("Unknown Insteon Version number")
+	ErrUnknown                = errors.New("Device returned unknown error")
+	ErrIllegalValue           = errors.New("Illegal value in command")
+	ErrIncorrectChecksum      = errors.New("I2CS invalid checksum")
+	ErrPreNak                 = errors.New("Database search took too long")
 )
 
 type ProductKey [3]byte

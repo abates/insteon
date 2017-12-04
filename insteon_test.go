@@ -53,11 +53,11 @@ func TestFlags(t *testing.T) {
 		}
 
 		if test.extended {
-			if flags.IsStandard() || !flags.IsExtended() {
+			if flags.Standard() || !flags.Extended() {
 				t.Errorf("tests[%d] Expected Extended Flag", i)
 			}
 		} else {
-			if !flags.IsStandard() || flags.IsExtended() {
+			if !flags.Standard() || flags.Extended() {
 				t.Errorf("tests[%d] Expected Standard Flag", i)
 			}
 		}
