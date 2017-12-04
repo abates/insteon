@@ -9,23 +9,12 @@ import (
 
 func init() {
 	commands["plm"] = &command{
-		usage:       "{info}",
 		description: "Display information about the connected PLM",
 		callback:    plmCmd,
 	}
 }
 
 func plmCmd(args []string, plm *plm.PLM) (err error) {
-	switch args[0] {
-	case "info":
-		err = plmInfoCmd(plm)
-	default:
-		err = fmt.Errorf("Unknown command %s", args[0])
-	}
-	return err
-}
-
-func plmInfoCmd(plm *plm.PLM) error {
 	fmt.Printf("PLM Info\n")
 	info, err := plm.Info()
 	if err == nil {

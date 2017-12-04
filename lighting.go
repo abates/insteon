@@ -20,6 +20,11 @@ var (
 	CmdLightOffRamp         = Commands.RegisterStd("Light Off Ramp", 0x2f, 0x00)
 )
 
+func init() {
+	Devices.Register(0x01, dimmableLightingFactory)
+	Devices.Register(0x02, switchedLightingFactory)
+}
+
 type DimmableDevice struct {
 	*StandardDevice
 }
@@ -33,11 +38,5 @@ type SwitchedDevice struct {
 }
 
 func switchedLightingFactory(conn Connection, address Address, pd *ProductData) Device {
-	subCategory := pd.Category.SubCategory()
-	if 0x06 <= subCategory && subCategory <= 0x15 {
-		return &SwitchedDevice{NewStandardDevice(conn, address)}
-	}
-
-	//TODO log something here about an unknown dimmable device sub-category
-	return defaultFactory(conn, address, pd)
+	return &SwitchedDevice{NewStandardDevice(conn, address)}
 }

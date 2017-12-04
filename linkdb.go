@@ -1,12 +1,20 @@
 package insteon
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type LinkRequestType byte
 
 const (
 	ReadLink  LinkRequestType = 0x00
 	WriteLink LinkRequestType = 0x02
+)
+
+var (
+	ErrLinkNotFound  = errors.New("Link not found in database")
+	ErrAlreadyLinked = errors.New("Responder already linked to controller")
 )
 
 func (lrt LinkRequestType) String() string {
@@ -163,6 +171,15 @@ func (l *Link) UnmarshalBinary(buf []byte) error {
 	return nil
 }
 
+type Linkable interface {
+	Address() Address
+	AssignToAllLinkGroup(Group) error
+	DeleteFromAllLinkGroup(Group) error
+	EnterLinkingMode(Group) error
+	EnterUnlinkingMode(Group) error
+	LinkDB() (LinkDB, error)
+}
+
 type LinkDB interface {
 	AddLink(*Link) error
 	RemoveLink(*Link) error
@@ -171,8 +188,8 @@ type LinkDB interface {
 }
 
 type LinearLinkDB struct {
-	device Device
-	links  []*Link
+	conn  Connection
+	links []*Link
 }
 
 func (ldb *LinearLinkDB) Links() []*Link {
@@ -182,14 +199,14 @@ func (ldb *LinearLinkDB) Links() []*Link {
 func (ldb *LinearLinkDB) Refresh() error {
 	ldb.links = make([]*Link, 0)
 	request := &LinkRequest{Type: ReadLink, NumRecords: 0}
-	err := ldb.device.SendExtendedCommand(CmdReadWriteALDB, request)
+	err := ldb.conn.SendExtendedCommand(CmdReadWriteALDB, request)
 	if err != nil {
 		return err
 	}
 
 	var msg *Message
 	for {
-		msg, err = ldb.device.Receive()
+		msg, err = ldb.conn.Receive()
 		if err != nil {
 			break
 		}
@@ -206,7 +223,7 @@ func (ldb *LinearLinkDB) Refresh() error {
 
 func (ldb *LinearLinkDB) WriteLink(memAddress MemAddress, link *Link) error {
 	request := &LinkRequest{Type: WriteLink, Link: link}
-	return ldb.device.SendExtendedCommand(CmdReadWriteALDB, request)
+	return ldb.conn.SendExtendedCommand(CmdReadWriteALDB, request)
 }
 
 func (ldb *LinearLinkDB) RemoveLink(oldLink *Link) error {
@@ -242,4 +259,69 @@ func (ldb *LinearLinkDB) AddLink(newLink *Link) error {
 	// if this fails, then the local link database
 	// could be different from the remove database
 	return ldb.WriteLink(memAddress, newLink)
+}
+
+func FindLink(db LinkDB, controller bool, address Address, group Group) *Link {
+	for _, link := range db.Links() {
+		if link.Flags.Controller() == controller && link.Address == address && link.Group == group {
+			return link
+		}
+	}
+	return nil
+}
+
+func CrossLink(l1, l2 Linkable, group Group) error {
+	err := CreateLink(l1, l2, group)
+	if err == nil || err == ErrAlreadyLinked {
+		err = nil
+		err = CreateLink(l2, l1, group)
+		if err == ErrAlreadyLinked {
+			err = nil
+		}
+	}
+
+	return err
+}
+
+func CreateLink(controller Linkable, responder Linkable, group Group) (err error) {
+	// check for existing link
+	Log.Tracef("Retrieving link databases...")
+	var controllerDB, responderDB LinkDB
+	controllerDB, err = controller.LinkDB()
+	if err == nil || err == ErrNotLinked {
+		responderDB, err = responder.LinkDB()
+	}
+
+	if err == nil || err == ErrNotLinked {
+		Log.Tracef("Looking for existing links")
+		controllerLink := FindLink(controllerDB, true, responder.Address(), group)
+		responderLink := FindLink(responderDB, false, controller.Address(), group)
+
+		if controllerLink != nil && responderLink != nil {
+			err = ErrAlreadyLinked
+		} else {
+			// correct a mismatch by deleting the one link found
+			// and recreating both
+			if controllerLink != nil {
+				Log.Tracef("Controller link already exists, deleting it")
+				err = controllerDB.RemoveLink(controllerLink)
+			}
+
+			if err == nil && responderLink != nil {
+				Log.Tracef("Responder link already exists, deleting it")
+				err = responderDB.RemoveLink(controllerLink)
+			}
+
+			// controller enters all-linking mode
+			Log.Tracef("Putting controller into linking mode")
+			controller.EnterLinkingMode(group)
+
+			// responder pushes the set button responder
+			if err == nil {
+				Log.Tracef("Assigning responder to group")
+				err = responder.EnterLinkingMode(group)
+			}
+		}
+	}
+	return err
 }

@@ -57,7 +57,7 @@ var (
 func init() {
 	flag.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
 	flag.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
-	flag.DurationVar(&timeoutFlag, "timeout", 10*time.Second, "read/write timeout duration")
+	flag.DurationVar(&timeoutFlag, "timeout", 5*time.Second, "read/write timeout duration")
 }
 
 func getResponse(message string, acceptable ...string) (resp string) {

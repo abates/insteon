@@ -2,6 +2,23 @@ package insteon
 
 import "fmt"
 
+var (
+	CmdAssignToAllLinkGroup    = Commands.RegisterStd("All Link Assign", 0x01, 0x00)
+	CmdDeleteFromAllLinkGroup  = Commands.RegisterStd("All Link Delete", 0x02, 0x00)
+	CmdProductDataReq          = Commands.RegisterStd("Product Data Req", 0x03, 0x00)
+	CmdProductDataResp         = Commands.RegisterExt("Product Data Resp", 0x03, 0x00, func() Payload { return &ProductData{} })
+	CmdFxUsernameReq           = Commands.RegisterStd("FX Username Req", 0x03, 0x01)
+	CmdFxUsernameResp          = Commands.RegisterExt("FX Username Resp", 0x03, 0x01, nil)
+	CmdDeviceTextStringReq     = Commands.RegisterStd("Text String Req", 0x03, 0x02)
+	CmdDeviceTextStringResp    = Commands.RegisterExt("Text String Resp", 0x03, 0x02, nil)
+	CmdEnterLinkingMode        = Commands.RegisterStd("Enter Link Mode", 0x09, 0x00)
+	CmdEnterUnlinkingMode      = Commands.RegisterStd("Enter Unlink Mode", 0x0a, 0x00)
+	CmdGetInsteonEngineVersion = Commands.RegisterStd("Get INSTEON Ver", 0x0d, 0x00)
+	CmdPing                    = Commands.RegisterStd("Ping", 0x0f, 0x00)
+	CmdIDReq                   = Commands.RegisterStd("ID Req", 0x10, 0x00)
+	CmdReadWriteALDB           = Commands.RegisterExt("Read/Write ALDB", 0x2f, 0x00, func() Payload { return &LinkRequest{} })
+)
+
 var Commands CommandRegistry
 
 type CommandRegistry struct {

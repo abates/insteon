@@ -144,9 +144,10 @@ func (plm *PLM) readWriteLoop() {
 		select {
 		case send := <-plm.txPktCh:
 			ackChannels[send.packet.Command] = send.ackCh
+			tracePkt("TX", send.packet)
 			err := plm.writePacket(send.packet)
-			if err == nil {
-				tracePkt("TX", send.packet)
+			if err != nil {
+				insteon.Log.Infof("Failed to write packet: %v", err)
 			}
 		case packet = <-plm.rxPktCh:
 			switch {
@@ -268,7 +269,7 @@ func (pb *plmBridge) Receive() (msg *insteon.Message, err error) {
 	return
 }
 
-func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
+func (plm *PLM) Dial(dst insteon.Address) insteon.Connection {
 	rx := make(chan *Packet, 1)
 	bridge := &plmBridge{
 		plm: plm,
@@ -276,7 +277,15 @@ func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
 	}
 	connection := insteon.NewDeviceConnection(dst, bridge)
 	plm.connectionCh <- connectionInfo{dst, rx}
-	return insteon.DeviceFactory(connection, dst)
+	return connection
+}
+
+func (plm *PLM) StandardConnect(dst insteon.Address) insteon.Device {
+	return insteon.NewStandardDevice(plm.Dial(dst), dst)
+}
+
+func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
+	return insteon.DeviceFactory(plm.Dial(dst), dst)
 }
 
 func (plm *PLM) LinkDB() (ldb insteon.LinkDB, err error) {
@@ -285,4 +294,52 @@ func (plm *PLM) LinkDB() (ldb insteon.LinkDB, err error) {
 		err = plm.linkDb.Refresh()
 	}
 	return plm.linkDb, err
+}
+
+func (plm *PLM) AssignToAllLinkGroup(insteon.Group) error   { return ErrNotImplemented }
+func (plm *PLM) DeleteFromAllLinkGroup(insteon.Group) error { return ErrNotImplemented }
+
+type AllLinkReq struct {
+	Flags byte
+	Group insteon.Group
+}
+
+func (alr *AllLinkReq) MarshalBinary() ([]byte, error) {
+	return []byte{alr.Flags, byte(alr.Group)}, nil
+}
+
+func (alr *AllLinkReq) UnmarshalBinary(buf []byte) error {
+	if len(buf) < 2 {
+		return fmt.Errorf("Needed 2 bytes to unmarshal all link request.  Got %d", len(buf))
+	}
+	alr.Flags = buf[0]
+	alr.Group = insteon.Group(buf[1])
+	return nil
+}
+
+func (alr *AllLinkReq) String() string {
+	return fmt.Sprintf("%02x %d", alr.Flags, alr.Group)
+}
+
+func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
+	ack, err := plm.Send(&Packet{
+		retryCount: 3,
+		Command:    CmdStartAllLink,
+		Payload:    &AllLinkReq{Flags: 0x03, Group: group},
+	})
+
+	if ack.NAK() {
+		err = insteon.ErrNak
+	}
+	return err
+}
+
+func (plm *PLM) EnterUnlinkingMode(insteon.Group) error { return ErrNotImplemented }
+
+func (plm *PLM) Address() insteon.Address {
+	info, err := plm.Info()
+	if err == nil {
+		return info.Address
+	}
+	return insteon.Address([3]byte{})
 }

@@ -16,6 +16,7 @@ var (
 	ErrNotLinked              = errors.New("Not in All-Link group")
 	ErrNoLoadDetected         = errors.New("No load detected")
 	ErrUnknownCommand         = errors.New("Unknown command")
+	ErrNak                    = errors.New("NAK received")
 )
 
 type ProductKey [3]byte

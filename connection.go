@@ -48,6 +48,9 @@ func (dc *DeviceConnection) send(msg *Message) error {
 			} else {
 				err = ErrUnexpectedResponse
 			}
+		} else if err == ErrReadTimeout {
+			// timed out waiting to read the Ack
+			err = ErrAckTimeout
 		}
 	}
 
