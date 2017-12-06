@@ -27,7 +27,7 @@ func infoCmd(args []string, plm *plm.PLM) error {
 		if err == insteon.ErrNotLinked {
 			msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 			if getResponse(msg, "y", "n") == "y" {
-				err = linkCmd([]string{args[0], "1"}, plm)
+				err = linkCmd([]string{args[0]}, plm)
 			}
 		}
 
