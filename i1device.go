@@ -7,7 +7,7 @@ import (
 type I1Device struct {
 	Connection
 	address Address
-	ldb     *LinearLinkDB
+	ldb     LinkDB
 }
 
 func NewI1Device(address Address, bridge Bridge) *I1Device {
@@ -60,16 +60,6 @@ func (i1 *I1Device) DeviceTextString() (string, error) {
 	return strings.TrimSpace(text), err
 }
 
-func (i1 *I1Device) EnterLinkingMode(group Group) error {
-	_, err := SendStandardCommand(i1.Connection, CmdEnterLinkingMode.SubCommand(int(group)))
-	return err
-}
-
-func (i1 *I1Device) EnterUnlinkingMode(group Group) error {
-	_, err := SendStandardCommand(i1.Connection, CmdEnterUnlinkingMode.SubCommand(int(group)))
-	return err
-}
-
 func (i1 *I1Device) EngineVersion() (EngineVersion, error) {
 	ack, err := SendStandardCommand(i1.Connection, CmdGetEngineVersion)
 	version := EngineVersion(0)
@@ -86,7 +76,7 @@ func (i1 *I1Device) Ping() error {
 
 func (i1 *I1Device) LinkDB() (ldb LinkDB, err error) {
 	if i1.ldb == nil {
-		i1.ldb = &LinearLinkDB{conn: i1.Connection}
+		i1.ldb = NewI1LinkDB(i1.Connection)
 		err = i1.ldb.Refresh()
 	}
 	return i1.ldb, err

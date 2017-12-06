@@ -337,7 +337,7 @@ func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 	ack, err := plm.Send(&Packet{
 		retryCount: 3,
 		Command:    CmdStartAllLink,
-		Payload:    &AllLinkReq{Flags: 0x01, Group: group},
+		Payload:    &AllLinkReq{Flags: 0x03, Group: group},
 	})
 
 	if ack.NAK() {
@@ -346,7 +346,18 @@ func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 	return err
 }
 
-func (plm *PLM) EnterUnlinkingMode(insteon.Group) error { return ErrNotImplemented }
+func (plm *PLM) EnterUnlinkingMode(group insteon.Group) error {
+	ack, err := plm.Send(&Packet{
+		retryCount: 3,
+		Command:    CmdStartAllLink,
+		Payload:    &AllLinkReq{Flags: 0xff, Group: group},
+	})
+
+	if ack.NAK() {
+		err = insteon.ErrNak
+	}
+	return err
+}
 
 func (plm *PLM) Address() insteon.Address {
 	info, err := plm.Info()
