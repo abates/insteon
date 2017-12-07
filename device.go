@@ -45,7 +45,7 @@ func (dr *DeviceRegistry) Find(category Category) DeviceInitializer {
 }
 
 type Device interface {
-	//Linkable
+	Linkable
 	ProductData() (*ProductData, error)
 	FXUsername() (string, error)
 	DeviceTextString() (string, error)

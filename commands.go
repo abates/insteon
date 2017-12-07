@@ -46,8 +46,10 @@ func (c *Command) String() string {
 }
 
 func (cf *CommandRegistry) FindExt(cmd []byte) *Command {
-	if cmd, found := cf.extendedCommands[[2]byte{cmd[0], cmd[1]}]; found {
-		return cmd
+	if command, found := cf.extendedCommands[[2]byte{cmd[0], cmd[1]}]; found {
+		return command
+	} else if command, found := cf.extendedCommands[[2]byte{cmd[0], 0x00}]; found {
+		return command.SubCommand(int(cmd[1]))
 	}
 
 	// fail safe so nobody is ever referring to a nil command
@@ -55,8 +57,10 @@ func (cf *CommandRegistry) FindExt(cmd []byte) *Command {
 }
 
 func (cf *CommandRegistry) FindStd(cmd []byte) *Command {
-	if cmd, found := cf.standardCommands[[2]byte{cmd[0], cmd[1]}]; found {
-		return cmd
+	if command, found := cf.standardCommands[[2]byte{cmd[0], cmd[1]}]; found {
+		return command
+	} else if command, found := cf.standardCommands[[2]byte{cmd[0], 0x00}]; found {
+		return command.SubCommand(int(cmd[1]))
 	}
 
 	// fail safe so nobody is ever referring to a nil command

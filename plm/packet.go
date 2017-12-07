@@ -7,10 +7,9 @@ import (
 )
 
 type Packet struct {
-	retryCount int
-	Command    Command
-	Payload    insteon.Payload
-	Ack        byte
+	Command Command
+	Payload insteon.Payload
+	Ack     byte
 }
 
 func (p *Packet) ACK() bool {

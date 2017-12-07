@@ -10,14 +10,14 @@ import (
 )
 
 func init() {
-	commands["link"] = &command{
+	commands["unlink"] = &command{
 		usage:       "<device id> ...",
-		description: "Link the PLM to one or more devices",
-		callback:    linkCmd,
+		description: "Unlink the PLM from one or more devices",
+		callback:    unlinkCmd,
 	}
 }
 
-func linkCmd(args []string, plm *plm.PLM) error {
+func unlinkCmd(args []string, plm *plm.PLM) error {
 	if len(args) < 1 {
 		return fmt.Errorf("at least one device id must be specified")
 	}
@@ -25,18 +25,17 @@ func linkCmd(args []string, plm *plm.PLM) error {
 	for i, arg := range args {
 		addr, err := insteon.ParseAddress(arg)
 		if err == nil {
-			group := insteon.Group(0x01)
-			fmt.Printf("Linking to %s...", addr)
+			fmt.Printf("Unlinking from %s...", addr)
 			device, err := plm.Connect(addr)
 			if err == nil {
-				err = insteon.ForceCreateLink(plm, device, group)
+				err = insteon.Unlink(plm, device)
 				if err == nil {
 					fmt.Printf("successful\n")
 				} else {
 					fmt.Printf("failed: %v\n", err)
 				}
 			} else {
-				fmt.Fprintf(os.Stderr, "Failed to link to %s: %v", addr, err)
+				fmt.Fprintf(os.Stderr, "Failed to unlink from %s: %v", addr, err)
 			}
 
 			if i < len(args)-1 {

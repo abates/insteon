@@ -218,8 +218,7 @@ func (plm *PLM) Send(packet *Packet) (ack *Packet, err error) {
 
 func (plm *PLM) Info() (*IMInfo, error) {
 	ack, err := plm.Send(&Packet{
-		retryCount: 3,
-		Command:    CmdGetInfo,
+		Command: CmdGetInfo,
 	})
 	return ack.Payload.(*IMInfo), err
 }
@@ -251,9 +250,8 @@ type plmBridge struct {
 
 func (pb *plmBridge) Send(payload insteon.Payload) error {
 	packet := &Packet{
-		retryCount: 3,
-		Command:    CmdSendInsteonMsg,
-		Payload:    payload,
+		Command: CmdSendInsteonMsg,
+		Payload: payload,
 	}
 	_, err := pb.plm.Send(packet)
 	return err
@@ -283,11 +281,18 @@ func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
 	bridge := plm.Dial(dst)
 	device := insteon.Device(insteon.NewI1Device(dst, bridge))
 	version, err := device.EngineVersion()
-	switch version {
-	case insteon.VerI2:
-		device = insteon.NewI2Device(dst, bridge)
-	case insteon.VerI2Cs:
+
+	// ErrNotLinked here is only returned by i2cs devices
+	if err == insteon.ErrNotLinked {
+		err = nil
 		device = insteon.NewI2CsDevice(dst, bridge)
+	} else {
+		switch version {
+		case insteon.VerI2:
+			device = insteon.NewI2Device(dst, bridge)
+		case insteon.VerI2Cs:
+			device = insteon.NewI2CsDevice(dst, bridge)
+		}
 	}
 	return device, err
 }
@@ -335,9 +340,19 @@ func (alr *AllLinkReq) String() string {
 
 func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 	ack, err := plm.Send(&Packet{
-		retryCount: 3,
-		Command:    CmdStartAllLink,
-		Payload:    &AllLinkReq{Flags: 0x03, Group: group},
+		Command: CmdStartAllLink,
+		Payload: &AllLinkReq{Flags: 0x01, Group: group},
+	})
+
+	if ack.NAK() {
+		err = insteon.ErrNak
+	}
+	return err
+}
+
+func (plm *PLM) CancelLinkingMode() error {
+	ack, err := plm.Send(&Packet{
+		Command: CmdCancelAllLink,
 	})
 
 	if ack.NAK() {
@@ -348,9 +363,8 @@ func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 
 func (plm *PLM) EnterUnlinkingMode(group insteon.Group) error {
 	ack, err := plm.Send(&Packet{
-		retryCount: 3,
-		Command:    CmdStartAllLink,
-		Payload:    &AllLinkReq{Flags: 0xff, Group: group},
+		Command: CmdStartAllLink,
+		Payload: &AllLinkReq{Flags: 0xff, Group: group},
 	})
 
 	if ack.NAK() {

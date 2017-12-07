@@ -21,6 +21,16 @@ func (i1 *I1Device) Address() Address {
 	return i1.address
 }
 
+func (*I1Device) EnterLinkingMode(Group) error {
+	// TODO I have no idea how to do this for i1 devices
+	return ErrNotImplemented
+}
+
+func (*I1Device) EnterUnlinkingMode(Group) error {
+	// TODO I have no idea how to do this for i1 devices
+	return ErrNotImplemented
+}
+
 func (i1 *I1Device) AssignToAllLinkGroup(group Group) error {
 	_, err := SendStandardCommand(i1.Connection, CmdAssignToAllLinkGroup.SubCommand(int(group)))
 	return err

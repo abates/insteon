@@ -2,6 +2,7 @@ package insteon
 
 import (
 	"errors"
+	"time"
 )
 
 var (
@@ -9,19 +10,12 @@ var (
 	ErrAlreadyLinked = errors.New("Responder already linked to controller")
 )
 
-type I1Linkable interface {
-	TapSetButton(int) error
-}
-
-type I2Linkable interface {
-	EnterLinkingMode(Group) error
-	EnterUnlinkingMode(Group) error
-}
-
 type Linkable interface {
 	Address() Address
 	AssignToAllLinkGroup(Group) error
 	DeleteFromAllLinkGroup(Group) error
+	EnterLinkingMode(Group) error
+	EnterUnlinkingMode(Group) error
 	LinkDB() (LinkDB, error)
 }
 
@@ -102,11 +96,58 @@ func CrossLink(l1, l2 Linkable, group Group) error {
 	return err
 }
 
-func CreateLink(controller Linkable, responder Linkable, group Group) (err error) {
+// Don't look through the database first
+func ForceCreateLink(controller, responder Linkable, group Group) (err error) {
+	// controller enters all-linking mode
+	err = controller.EnterLinkingMode(group)
+
+	// wait a moment for messages to propogate
+	time.Sleep(time.Second)
+
+	// responder pushes the set button responder
+	if err == nil {
+		Log.Debugf("Assigning responder to group")
+		err = responder.EnterLinkingMode(group)
+	}
+	return
+}
+
+func Unlink(controller, responder Linkable) error {
+	controllerDB, err := controller.LinkDB()
+
+	if err == nil {
+		for _, link := range controllerDB.Links() {
+			if link.Address == responder.Address() {
+				err = DeleteLink(responder, controller, link.Group)
+				if err == nil {
+					err = DeleteLink(controller, responder, link.Group)
+				}
+			}
+		}
+	}
+	return err
+}
+
+func DeleteLink(controller, responder Linkable, group Group) (err error) {
+	// controller enters all-linking mode
+	err = controller.EnterUnlinkingMode(group)
+
+	// wait a moment for messages to propogate
+	time.Sleep(time.Second)
+
+	// responder pushes the set button responder
+	if err == nil {
+		Log.Debugf("Unlinking responder from group")
+		err = responder.EnterUnlinkingMode(group)
+	}
+	return
+}
+
+func CreateLink(controller, responder Linkable, group Group) error {
 	// check for existing link
 	Log.Debugf("Retrieving link databases...")
-	var controllerDB, responderDB LinkDB
-	controllerDB, err = controller.LinkDB()
+	var responderDB LinkDB
+	controllerDB, err := controller.LinkDB()
 	if err == nil || err == ErrNotLinked {
 		responderDB, err = responder.LinkDB()
 	}
@@ -131,24 +172,7 @@ func CreateLink(controller Linkable, responder Linkable, group Group) (err error
 				err = responderDB.RemoveLink(controllerLink)
 			}
 
-			// controller enters all-linking mode
-			switch dev := controller.(type) {
-			case I2Linkable:
-				err = dev.EnterLinkingMode(group)
-			case I1Linkable:
-				err = dev.TapSetButton(2)
-			}
-
-			// responder pushes the set button responder
-			if err == nil {
-				Log.Debugf("Assigning responder to group")
-				switch dev := controller.(type) {
-				case I2Linkable:
-					err = dev.EnterLinkingMode(group)
-				case I1Linkable:
-					err = dev.TapSetButton(1)
-				}
-			}
+			ForceCreateLink(controller, responder, group)
 		}
 	}
 	return err
