@@ -12,6 +12,7 @@ var (
 	CmdDeviceTextStringReq      = Commands.RegisterStd("Text String Req", 0x03, 0x02)
 	CmdDeviceTextStringResp     = Commands.RegisterExt("Text String Resp", 0x03, 0x02, nil)
 	CmdEnterLinkingMode         = Commands.RegisterStd("Enter Link Mode", 0x09, 0x00)
+	CmdExitLinkingMode          = Commands.RegisterStd("Exit Link Mode", 0x08, 0x00)
 	CmdEnterLinkingModeExtended = Commands.RegisterExt("Enter Link Mode", 0x09, 0x00, nil)
 	CmdEnterUnlinkingMode       = Commands.RegisterStd("Enter Unlink Mode", 0x0a, 0x00)
 	CmdGetEngineVersion         = Commands.RegisterStd("Get INSTEON Ver", 0x0d, 0x00)

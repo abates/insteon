@@ -59,7 +59,7 @@ func (i1c *I1Connection) Send(msg *Message) (ack *Message, err error) {
 				if ack.Command.cmd[0] == msg.Command.cmd[0] {
 					Log.Debugf("INSTEON ACK received")
 				} else {
-					err = ErrUnexpectedResponse
+					err = TraceError(ErrUnexpectedResponse)
 				}
 			} else if ack.Flags.Type() == MsgTypeDirectNak {
 				if ack.Command.cmd[1] == 0xfd {
@@ -70,7 +70,7 @@ func (i1c *I1Connection) Send(msg *Message) (ack *Message, err error) {
 					err = ErrNotLinked
 				}
 			} else {
-				err = ErrUnexpectedResponse
+				err = TraceError(ErrUnexpectedResponse)
 			}
 		} else if err == ErrReadTimeout {
 			// timed out waiting to read the Ack
@@ -83,10 +83,12 @@ func (i1c *I1Connection) Send(msg *Message) (ack *Message, err error) {
 
 func (i1c *I1Connection) Receive() (message *Message, err error) {
 	payload, err := i1c.bridge.Receive()
-	if msg, ok := payload.(*Message); ok {
-		return msg, err
+	if err == nil {
+		if msg, ok := payload.(*Message); ok {
+			return msg, err
+		}
 	}
-	return nil, ErrUnexpectedResponse
+	return nil, err
 }
 
 func NewI2Connection(address Address, bridge Bridge) Connection {
@@ -120,7 +122,7 @@ func (i2c *I2Connection) Send(msg *Message) (ack *Message, err error) {
 				if ack.Command.cmd[0] == msg.Command.cmd[0] {
 					Log.Debugf("INSTEON ACK received")
 				} else {
-					err = ErrUnexpectedResponse
+					err = TraceError(ErrUnexpectedResponse)
 				}
 			} else if ack.Flags.Type() == MsgTypeDirectNak {
 				switch ack.Command.cmd[1] {
@@ -138,7 +140,7 @@ func (i2c *I2Connection) Send(msg *Message) (ack *Message, err error) {
 					err = ErrUnknown
 				}
 			} else {
-				err = ErrUnexpectedResponse
+				err = TraceError(ErrUnexpectedResponse)
 			}
 		} else if err == ErrReadTimeout {
 			// timed out waiting to read the Ack
@@ -151,8 +153,11 @@ func (i2c *I2Connection) Send(msg *Message) (ack *Message, err error) {
 
 func (i2c *I2Connection) Receive() (message *Message, err error) {
 	payload, err := i2c.bridge.Receive()
-	if msg, ok := payload.(*Message); ok {
-		return msg, err
+	if err == nil {
+		if msg, ok := payload.(*Message); ok {
+			return msg, nil
+		}
 	}
-	return nil, ErrUnexpectedResponse
+
+	return nil, err
 }

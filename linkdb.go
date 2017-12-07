@@ -16,6 +16,7 @@ type Linkable interface {
 	DeleteFromAllLinkGroup(Group) error
 	EnterLinkingMode(Group) error
 	EnterUnlinkingMode(Group) error
+	ExitLinkingMode() error
 	LinkDB() (LinkDB, error)
 }
 
@@ -24,6 +25,7 @@ type LinkDB interface {
 	RemoveLink(*Link) error
 	Refresh() error
 	Links() []*Link
+	Cleanup() error
 }
 
 type LinkWriter interface {
@@ -63,15 +65,39 @@ func (db *BaseLinkDB) Links() []*Link {
 }
 
 func (db *BaseLinkDB) RemoveLink(oldLink *Link) error {
+	Log.Debugf("Attempting to remove %v", oldLink)
 	memAddress := MemAddress(0x0fff)
 	for _, link := range db.links {
 		memAddress -= 8
 		if link.Equal(oldLink) {
 			link.Flags.setAvailable()
+			Log.Debugf("Marking link available")
 			return db.WriteLink(memAddress, link)
 		}
 	}
+	Log.Debugf("Link not found in database")
 	return nil
+}
+
+func (db *BaseLinkDB) Cleanup() (err error) {
+	removeable := make([]*Link, 0)
+	for i, l1 := range db.links {
+		for _, l2 := range db.links[i+1:] {
+			if l1.Equal(l2) {
+				Log.Debugf("Link to be removed: %v", l2)
+				removeable = append(removeable, l2)
+			}
+		}
+	}
+
+	for _, link := range removeable {
+		err = db.RemoveLink(link)
+		if err != nil {
+			Log.Infof("Failed to remove link %s: %v", link, err)
+			break
+		}
+	}
+	return err
 }
 
 func FindLink(db LinkDB, controller bool, address Address, group Group) *Link {
@@ -98,30 +124,42 @@ func CrossLink(l1, l2 Linkable, group Group) error {
 
 // Don't look through the database first
 func ForceCreateLink(controller, responder Linkable, group Group) (err error) {
+	Log.Debugf("Putting controller %s into linking mode", controller)
 	// controller enters all-linking mode
 	err = controller.EnterLinkingMode(group)
+	defer controller.ExitLinkingMode()
 
 	// wait a moment for messages to propogate
-	time.Sleep(time.Second)
+	time.Sleep(1 * time.Second)
 
 	// responder pushes the set button responder
 	if err == nil {
 		Log.Debugf("Assigning responder to group")
 		err = responder.EnterLinkingMode(group)
+		defer responder.ExitLinkingMode()
 	}
+
+	// wait a moment for messages to propogate
+	time.Sleep(1 * time.Second)
+
 	return
 }
 
 func Unlink(controller, responder Linkable) error {
+	err := DeleteLinks(controller, responder)
+	if err == nil {
+		err = DeleteLinks(responder, controller)
+	}
+	return err
+}
+
+func DeleteLinks(controller, responder Linkable) (err error) {
 	controllerDB, err := controller.LinkDB()
 
 	if err == nil {
 		for _, link := range controllerDB.Links() {
 			if link.Address == responder.Address() {
 				err = DeleteLink(responder, controller, link.Group)
-				if err == nil {
-					err = DeleteLink(controller, responder, link.Group)
-				}
 			}
 		}
 	}
@@ -131,6 +169,7 @@ func Unlink(controller, responder Linkable) error {
 func DeleteLink(controller, responder Linkable, group Group) (err error) {
 	// controller enters all-linking mode
 	err = controller.EnterUnlinkingMode(group)
+	defer responder.ExitLinkingMode()
 
 	// wait a moment for messages to propogate
 	time.Sleep(time.Second)
@@ -139,7 +178,12 @@ func DeleteLink(controller, responder Linkable, group Group) (err error) {
 	if err == nil {
 		Log.Debugf("Unlinking responder from group")
 		err = responder.EnterUnlinkingMode(group)
+		defer controller.ExitLinkingMode()
 	}
+
+	// wait a moment for messages to propogate
+	time.Sleep(time.Second)
+
 	return
 }
 

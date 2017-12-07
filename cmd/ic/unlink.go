@@ -53,7 +53,6 @@ func unlinkCmd(args []string, plm *plm.PLM) error {
 			}
 		}
 	}
-	plm.CancelLinkingMode()
 	// TODO make this return a generic error if one or more of the links failed
 	return nil
 }

@@ -1,5 +1,7 @@
 package insteon
 
+import "fmt"
+
 type I2Device struct {
 	*I1Device
 }
@@ -24,4 +26,13 @@ func (i2 *I2Device) EnterLinkingMode(group Group) error {
 func (i2 *I2Device) EnterUnlinkingMode(group Group) error {
 	_, err := SendStandardCommand(i2.Connection, CmdEnterUnlinkingMode.SubCommand(int(group)))
 	return err
+}
+
+func (i2 *I2Device) ExitLinkingMode() error {
+	_, err := SendStandardCommand(i2.I1Device.Connection, CmdExitLinkingMode)
+	return err
+}
+
+func (i2 *I2Device) String() string {
+	return fmt.Sprintf("I2 Device (%s)", i2.Address())
 }

@@ -1,5 +1,7 @@
 package insteon
 
+import "fmt"
+
 type I2CsDevice struct {
 	*I2Device
 }
@@ -23,4 +25,8 @@ func (i2cs *I2CsDevice) EnterLinkingMode(group Group) error {
 func (i2cs *I2CsDevice) EnterUnlinkingMode(group Group) error {
 	_, err := SendExtendedCommand(i2cs.I1Device.Connection, CmdEnterUnlinkingMode.SubCommand(int(group)), NewBufPayload(14))
 	return err
+}
+
+func (i2cs *I2CsDevice) String() string {
+	return fmt.Sprintf("I2CS Device (%s)", i2cs.Address())
 }

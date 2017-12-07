@@ -140,7 +140,6 @@ func (plm *PLM) readWriteLoop() {
 	ackChannels := make(map[Command]chan *Packet)
 	for {
 		var packet *Packet
-		insteon.Log.Debugf("readWriteLoop wait...")
 		select {
 		case send := <-plm.txPktCh:
 			ackChannels[send.packet.Command] = send.ackCh
@@ -267,18 +266,13 @@ func (pb *plmBridge) Receive() (payload insteon.Payload, err error) {
 	return
 }
 
-func (plm *PLM) Dial(dst insteon.Address) insteon.Bridge {
+func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
 	rx := make(chan *Packet, 1)
 	bridge := &plmBridge{
 		plm: plm,
 		rx:  rx,
 	}
 	plm.connectionCh <- connectionInfo{dst, rx}
-	return bridge
-}
-
-func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
-	bridge := plm.Dial(dst)
 	device := insteon.Device(insteon.NewI1Device(dst, bridge))
 	version, err := device.EngineVersion()
 
@@ -297,8 +291,8 @@ func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
 	return device, err
 }
 
-func (plm *PLM) ConnectAndInitialize(dst insteon.Address) (insteon.Device, error) {
-	device, err := plm.Connect(dst)
+func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
+	device, err := plm.Dial(dst)
 	if err == nil {
 		device, err = insteon.InitializeDevice(device)
 	}
@@ -350,7 +344,7 @@ func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 	return err
 }
 
-func (plm *PLM) CancelLinkingMode() error {
+func (plm *PLM) ExitLinkingMode() error {
 	ack, err := plm.Send(&Packet{
 		Command: CmdCancelAllLink,
 	})
@@ -379,4 +373,8 @@ func (plm *PLM) Address() insteon.Address {
 		return info.Address
 	}
 	return insteon.Address([3]byte{})
+}
+
+func (plm *PLM) String() string {
+	return fmt.Sprintf("PLM (%s)", plm.Address())
 }

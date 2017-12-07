@@ -31,11 +31,11 @@ func TestLogging(t *testing.T) {
 	levels := []LogLevel{LevelNone, LevelInfo, LevelDebug, LevelTrace}
 	for _, level := range levels {
 		messages := []string{}
-		for _, _ = range levels {
-			if level == LevelNone {
+		for _, l := range levels {
+			if l == LevelNone {
 				continue
 			}
-			messages = append(messages, fmt.Sprintf("%5s message", level))
+			messages = append(messages, fmt.Sprintf("%5s message", l))
 		}
 
 		buffer := bytes.NewBuffer([]byte{})

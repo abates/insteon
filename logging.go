@@ -42,7 +42,7 @@ func (s *Logger) Level(level LogLevel) {
 
 func (s *Logger) logf(level LogLevel, format string, v ...interface{}) {
 	if s.level >= level {
-		format = fmt.Sprintf("%5s %s", s.level, format)
+		format = fmt.Sprintf("%5s %s", level, format)
 		s.logger.Printf(format, v...)
 	}
 }

@@ -24,7 +24,7 @@ func (tb *testBridge) Receive() (Payload, error) {
 }
 
 func testErr(t *testing.T, testNum int, expected, got error) {
-	if expected == got {
+	if IsError(expected, got) {
 		return
 	}
 

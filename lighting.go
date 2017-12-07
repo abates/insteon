@@ -1,5 +1,7 @@
 package insteon
 
+import "fmt"
+
 var (
 	CmdLightOn              = Commands.RegisterStd("Light On", 0x11, 0x00)
 	CmdLightOnFast          = Commands.RegisterStd("Light On Fast", 0x12, 0x00)
@@ -29,12 +31,21 @@ type DimmableDevice struct {
 	Device
 }
 
+func (dd *DimmableDevice) String() string {
+	return fmt.Sprintf("Dimmable Light (%s)", dd.Address())
+}
+
 func dimmableLightingFactory(device Device) Device {
+	Log.Debugf("Returning dimmable device with underlying device %T", device)
 	return &DimmableDevice{device}
 }
 
 type SwitchedDevice struct {
 	Device
+}
+
+func (sd *SwitchedDevice) String() string {
+	return fmt.Sprintf("Switch (%s)", sd.Address())
 }
 
 func switchedLightingFactory(device Device) Device {

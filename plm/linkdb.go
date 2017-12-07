@@ -45,24 +45,24 @@ type PLMLinkDB struct {
 	links []*insteon.Link
 }
 
-func (ldb *PLMLinkDB) Links() []*insteon.Link {
-	if ldb.links == nil {
-		ldb.Refresh()
+func (db *PLMLinkDB) Links() []*insteon.Link {
+	if db.links == nil {
+		db.Refresh()
 	}
-	return ldb.links
+	return db.links
 }
 
-func (ldb *PLMLinkDB) Refresh() error {
-	ldb.links = make([]*insteon.Link, 0)
+func (db *PLMLinkDB) Refresh() error {
+	db.links = make([]*insteon.Link, 0)
 
-	resp, err := ldb.plm.Send(&Packet{Command: CmdGetFirstAllLink})
+	resp, err := db.plm.Send(&Packet{Command: CmdGetFirstAllLink})
 	if err == nil && resp.ACK() {
 		for {
-			packet, err := ldb.plm.Receive()
+			packet, err := db.plm.Receive()
 			if err == nil {
 				link := packet.Payload.(*insteon.Link)
-				ldb.links = append(ldb.links, link)
-				resp, err = ldb.plm.Send(&Packet{Command: CmdGetNextAllLink})
+				db.links = append(db.links, link)
+				resp, err = db.plm.Send(&Packet{Command: CmdGetNextAllLink})
 				if resp.NAK() {
 					break
 				}
@@ -75,20 +75,20 @@ func (ldb *PLMLinkDB) Refresh() error {
 	return err
 }
 
-func (ldb *PLMLinkDB) RemoveLink(oldLink *insteon.Link) (err error) {
+func (db *PLMLinkDB) RemoveLink(oldLink *insteon.Link) (err error) {
 	var resp *Packet
 	deletedLinks := make([]*insteon.Link, 0)
 	for {
-		resp, err = ldb.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: LinkCmdFindFirst, link: oldLink}})
+		resp, err = db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: LinkCmdFindFirst, link: oldLink}})
 		if resp.NAK() {
 			break
 		} else {
-			resp, err = ldb.plm.Receive()
+			resp, err = db.plm.Receive()
 			if err == nil {
 				if !oldLink.Equal(resp.Payload.(*insteon.Link)) {
 					deletedLinks = append(deletedLinks, resp.Payload.(*insteon.Link))
 				}
-				_, err = ldb.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: LinkCmdDeleteFirst, link: oldLink}})
+				_, err = db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: LinkCmdDeleteFirst, link: oldLink}})
 				if err != nil {
 					break
 				}
@@ -100,23 +100,42 @@ func (ldb *PLMLinkDB) RemoveLink(oldLink *insteon.Link) (err error) {
 
 	// add back links that we didn't want deleted
 	for _, link := range deletedLinks {
-		ldb.AddLink(link)
+		db.AddLink(link)
 	}
 	return err
 }
 
-func (ldb *PLMLinkDB) AddLink(newLink *insteon.Link) error {
+func (db *PLMLinkDB) AddLink(newLink *insteon.Link) error {
 	var command recordRequestCommand
 	if newLink.Flags.Controller() {
 		command = LinkCmdModFirstCtrl
 	} else {
 		command = LinkCmdModFirstResp
 	}
-	resp, err := ldb.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: command, link: newLink}})
+	resp, err := db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: command, link: newLink}})
 
 	if resp.NAK() {
 		err = fmt.Errorf("Failed to add link back to ALDB")
 	}
 
+	return err
+}
+
+func (db *PLMLinkDB) Cleanup() (err error) {
+	removeable := make([]*insteon.Link, 0)
+	for i, l1 := range db.links {
+		for _, l2 := range db.links[i+1:] {
+			if l1.Equal(l2) {
+				removeable = append(removeable, l2)
+			}
+		}
+	}
+
+	for _, link := range removeable {
+		err = db.RemoveLink(link)
+		if err != nil {
+			break
+		}
+	}
 	return err
 }

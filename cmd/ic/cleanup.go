@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/abates/insteon"
@@ -10,14 +9,14 @@ import (
 )
 
 func init() {
-	commands["link"] = &command{
+	commands["cleanup"] = &command{
 		usage:       "<device id> ...",
-		description: "Link the PLM to one or more devices",
-		callback:    linkCmd,
+		description: "Remove duplicate links from the device link DB",
+		callback:    cleanupCmd,
 	}
 }
 
-func linkCmd(args []string, plm *plm.PLM) error {
+func cleanupCmd(args []string, plm *plm.PLM) error {
 	if len(args) < 1 {
 		return fmt.Errorf("at least one device id must be specified")
 	}
@@ -25,18 +24,19 @@ func linkCmd(args []string, plm *plm.PLM) error {
 	for i, arg := range args {
 		addr, err := insteon.ParseAddress(arg)
 		if err == nil {
-			group := insteon.Group(0x01)
-			fmt.Printf("Linking to %s...", addr)
-			device, err := plm.Dial(addr)
+			fmt.Printf("Cleaning %s...", addr)
+			device, err := plm.Connect(addr)
 			if err == nil {
-				err = insteon.ForceCreateLink(plm, device, group)
+				linkdb, err := device.LinkDB()
 				if err == nil {
-					fmt.Printf("successful\n")
-				} else {
-					fmt.Printf("failed: %v\n", err)
+					err = linkdb.Cleanup()
 				}
+			}
+
+			if err == nil {
+				fmt.Printf("done\n")
 			} else {
-				fmt.Fprintf(os.Stderr, "Failed to link to %s: %v", addr, err)
+				fmt.Printf("failed: %v\n", err)
 			}
 
 			if i < len(args)-1 {

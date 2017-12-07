@@ -1,6 +1,7 @@
 package insteon
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -21,15 +22,10 @@ func (i1 *I1Device) Address() Address {
 	return i1.address
 }
 
-func (*I1Device) EnterLinkingMode(Group) error {
-	// TODO I have no idea how to do this for i1 devices
-	return ErrNotImplemented
-}
-
-func (*I1Device) EnterUnlinkingMode(Group) error {
-	// TODO I have no idea how to do this for i1 devices
-	return ErrNotImplemented
-}
+// TODO I have no idea how to do this for i1 devices
+func (*I1Device) EnterLinkingMode(Group) error   { return ErrNotImplemented }
+func (*I1Device) EnterUnlinkingMode(Group) error { return ErrNotImplemented }
+func (*I1Device) ExitLinkingMode() error         { return ErrNotImplemented }
 
 func (i1 *I1Device) AssignToAllLinkGroup(group Group) error {
 	_, err := SendStandardCommand(i1.Connection, CmdAssignToAllLinkGroup.SubCommand(int(group)))
@@ -90,4 +86,8 @@ func (i1 *I1Device) LinkDB() (ldb LinkDB, err error) {
 		err = i1.ldb.Refresh()
 	}
 	return i1.ldb, err
+}
+
+func (i1 *I1Device) String() string {
+	return fmt.Sprintf("I1 Device (%s)", i1.Address())
 }

@@ -32,7 +32,7 @@ func infoCmd(args []string, plm *plm.PLM) error {
 		}
 
 		if err == nil {
-			fmt.Printf("Device type: %T\n", device)
+			fmt.Printf("%s\n", device)
 			var db insteon.LinkDB
 			db, err = device.LinkDB()
 			for _, link := range db.Links() {
