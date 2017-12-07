@@ -41,12 +41,6 @@ type Group byte
 
 func (g Group) String() string { return fmt.Sprintf("%d", byte(g)) }
 
-type MemAddress int
-
-func (ma MemAddress) String() string {
-	return fmt.Sprintf("%02x.%02x", byte(ma>>8), byte(ma&0xff))
-}
-
 type Link struct {
 	Flags   RecordControlFlags
 	Group   Group

@@ -23,6 +23,12 @@ func (lrt LinkRequestType) String() string {
 	return "Unknown"
 }
 
+type MemAddress int
+
+func (ma MemAddress) String() string {
+	return fmt.Sprintf("%02x.%02x", byte(ma>>8), byte(ma&0xff))
+}
+
 type LinkRequest struct {
 	Type       LinkRequestType
 	MemAddress MemAddress

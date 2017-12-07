@@ -11,7 +11,6 @@ func (testLinkWriter) WriteLink(MemAddress, *Link) error { return nil }
 
 func TestCleanup(t *testing.T) {
 	var flags RecordControlFlags
-	flags.setInUse()
 	flags.setController()
 
 	link1 := func(available bool) *Link {

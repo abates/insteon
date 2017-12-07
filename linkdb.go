@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+const (
+	BaseLinkDBAddress = MemAddress(0x0fff)
+)
+
 var (
 	ErrLinkNotFound  = errors.New("Link not found in database")
 	ErrAlreadyLinked = errors.New("Responder already linked to controller")
@@ -39,7 +43,7 @@ type BaseLinkDB struct {
 
 func (db *BaseLinkDB) AddLink(newLink *Link) error {
 	linkPos := -1
-	memAddress := MemAddress(0x0fff)
+	memAddress := BaseLinkDBAddress
 	for i, link := range db.links {
 		if link.Flags.Available() {
 			linkPos = i
@@ -66,7 +70,7 @@ func (db *BaseLinkDB) Links() []*Link {
 
 func (db *BaseLinkDB) RemoveLink(oldLink *Link) error {
 	Log.Debugf("Attempting to remove %v", oldLink)
-	memAddress := MemAddress(0x0fff)
+	memAddress := BaseLinkDBAddress
 	for _, link := range db.links {
 		memAddress -= 8
 		if link.Equal(oldLink) {
@@ -80,18 +84,24 @@ func (db *BaseLinkDB) RemoveLink(oldLink *Link) error {
 }
 
 func (db *BaseLinkDB) Cleanup() (err error) {
+	addresses := make([]MemAddress, 0)
 	removeable := make([]*Link, 0)
 	for i, l1 := range db.links {
+		memAddress := BaseLinkDBAddress - (8 * (MemAddress(i) + 1))
 		for _, l2 := range db.links[i+1:] {
+			memAddress -= 8
 			if l1.Equal(l2) {
 				Log.Debugf("Link to be removed: %v", l2)
+				addresses = append(addresses, memAddress)
 				removeable = append(removeable, l2)
 			}
 		}
 	}
 
-	for _, link := range removeable {
-		err = db.RemoveLink(link)
+	for i, link := range removeable {
+		link.Flags.setAvailable()
+		Log.Debugf("Marking link available")
+		err = db.WriteLink(addresses[i], link)
 		if err != nil {
 			Log.Infof("Failed to remove link %s: %v", link, err)
 			break

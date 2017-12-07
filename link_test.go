@@ -32,7 +32,45 @@ func TestRecordControlFlags(t *testing.T) {
 			t.Errorf("tests[%d] expected %v got %v", i, !test.controller, flags.Responder())
 		}
 	}
+}
 
+func TestRecordControlFlagsString(t *testing.T) {
+	tests := []struct {
+		input    RecordControlFlags
+		expected string
+	}{
+		{0x40, "AC"},
+		{0x00, "AR"},
+		{0xc0, "UC"},
+		{0x80, "UR"},
+	}
+
+	for i, test := range tests {
+		str := test.input.String()
+		if str != test.expected {
+			t.Errorf("tests[%d] expected %q got %q", i, test.expected, str)
+		}
+	}
+}
+
+func TestSettingRecordControlFlags(t *testing.T) {
+	flags := RecordControlFlags(0xff)
+	tests := []struct {
+		set      func()
+		expected byte
+	}{
+		{flags.setAvailable, 0x7f},
+		{flags.setInUse, 0xff},
+		{flags.setResponder, 0xbf},
+		{flags.setController, 0xff},
+	}
+
+	for i, test := range tests {
+		test.set()
+		if byte(flags) != test.expected {
+			t.Errorf("tests[%d] expected 0x%02x got 0x%02x", i, test.expected, byte(flags))
+		}
+	}
 }
 
 func TestLinkEqual(t *testing.T) {
@@ -42,7 +80,10 @@ func TestLinkEqual(t *testing.T) {
 	usedResponder := RecordControlFlags(0x80)
 
 	newLink := func(flags RecordControlFlags, group Group, address Address) *Link {
-		return &Link{flags, group, address, [3]byte{0x00, 0x00, 0x00}}
+		buffer := []byte{byte(flags), byte(group), address[0], address[1], address[2], 0x00, 0x00, 0x00}
+		link := &Link{}
+		link.UnmarshalBinary(buffer)
+		return link
 	}
 
 	tests := []struct {
@@ -55,6 +96,7 @@ func TestLinkEqual(t *testing.T) {
 		{newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), true},
 		{newLink(availableResponder, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
 		{newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x04}), false},
+		{newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), nil, false},
 	}
 
 	for i, test := range tests {
