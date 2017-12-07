@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/abates/insteon"
@@ -27,19 +26,30 @@ func unlinkCmd(args []string, plm *plm.PLM) error {
 		if err == nil {
 			fmt.Printf("Unlinking from %s...", addr)
 			device, err := plm.Connect(addr)
-			if err == nil {
-				err = insteon.Unlink(plm, device)
-				if err == nil {
-					fmt.Printf("successful\n")
-				} else {
-					fmt.Printf("failed: %v\n", err)
-				}
-			} else {
-				fmt.Fprintf(os.Stderr, "Failed to unlink from %s: %v", addr, err)
+			if err != nil {
+				fmt.Printf("failed: %v\n", err)
+				continue
 			}
+
+			err = insteon.Unlink(plm, device)
+			if err != nil {
+				fmt.Printf("failed: %v\n", err)
+				continue
+			}
+
+			fmt.Printf("successful\n")
 
 			if i < len(args)-1 {
 				time.Sleep(time.Second)
+			}
+		}
+
+		plmDB, err := plm.LinkDB()
+		if err == nil {
+			for _, link := range plmDB.Links() {
+				if link.Address == addr {
+					err = plmDB.RemoveLink(link)
+				}
 			}
 		}
 	}
