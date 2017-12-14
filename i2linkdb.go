@@ -104,6 +104,7 @@ func (db *I2LinkDB) Refresh() error {
 		return err
 	}
 
+	var lastAddress MemAddress
 	var msg *Message
 	for {
 		msg, err = db.conn.Receive()
@@ -112,6 +113,10 @@ func (db *I2LinkDB) Refresh() error {
 		}
 
 		if lr, ok := msg.Payload.(*LinkRequest); ok {
+			if lr.MemAddress == lastAddress {
+				continue
+			}
+			lastAddress = lr.MemAddress
 			if lr.Link.Flags == 0x00 {
 				break
 			}

@@ -40,61 +40,95 @@ func (mrr *manageRecordRequest) UnmarshalBinary(buf []byte) error {
 	return mrr.link.UnmarshalBinary(buf[1:])
 }
 
-type PLMLinkDB struct {
-	plm   *PLM
-	links []*insteon.Link
+type LinkDB struct {
+	plm       *PLM
+	rrCh      chan *Packet
+	refreshCh chan chan bool
+	linkCh    chan chan []*insteon.Link
 }
 
-func (db *PLMLinkDB) Links() []*insteon.Link {
-	if db.links == nil {
-		db.Refresh()
+func NewLinkDB(plm *PLM) *LinkDB {
+	db := &LinkDB{
+		plm:       plm,
+		rrCh:      make(chan *Packet),
+		refreshCh: make(chan chan bool),
+		linkCh:    make(chan chan []*insteon.Link),
 	}
-	return db.links
+
+	go db.controlLoop()
+	return db
 }
 
-func (db *PLMLinkDB) Refresh() error {
-	db.links = make([]*insteon.Link, 0)
-
-	resp, err := db.plm.Send(&Packet{Command: CmdGetFirstAllLink})
-	if err == nil && resp.ACK() {
-		for {
-			packet, err := db.plm.Receive()
-			if err == nil {
+func (db *LinkDB) controlLoop() {
+	links := make([]*insteon.Link, 0)
+	var refreshCh chan bool
+	for {
+		select {
+		case refreshCh = <-db.refreshCh:
+			links = make([]*insteon.Link, 0)
+			resp, err := db.plm.Send(&Packet{Command: CmdGetFirstAllLink})
+			if resp.NAK() {
+				refreshCh <- true
+				close(refreshCh)
+				refreshCh = nil
+			} else if err != nil {
+				insteon.Log.Infof("Error sending GetNextAllLink command: %v", err)
+			}
+		case packet := <-db.rrCh:
+			// only do something if we are in the process of refreshing
+			if refreshCh != nil {
 				link := packet.Payload.(*insteon.Link)
-				db.links = append(db.links, link)
-				resp, err = db.plm.Send(&Packet{Command: CmdGetNextAllLink})
+				links = append(links, link)
+				resp, err := db.plm.Send(&Packet{Command: CmdGetNextAllLink})
 				if resp.NAK() {
-					break
+					refreshCh <- true
+					close(refreshCh)
+					refreshCh = nil
+				} else if err != nil {
+					insteon.Log.Infof("Error sending GetNextAllLink command: %v", err)
 				}
-			} else {
-				break
+			}
+		case linkCh := <-db.linkCh:
+			newLinks := make([]*insteon.Link, len(links))
+			for i, link := range links {
+				newLink := *link
+				newLinks[i] = &newLink
+			}
+			linkCh <- newLinks
+			close(linkCh)
+		}
+	}
+}
+
+func (db *LinkDB) Links() []*insteon.Link {
+	ch := make(chan []*insteon.Link)
+	db.linkCh <- ch
+	return <-ch
+}
+
+func (db *LinkDB) Refresh() error {
+	ch := make(chan bool)
+	db.refreshCh <- ch
+	<-ch
+	return nil
+}
+
+func (db *LinkDB) RemoveLink(oldLink *insteon.Link) (err error) {
+	numDelete := 0
+	deletedLinks := make([]*insteon.Link, 0)
+	for _, link := range db.Links() {
+		if link.Group == oldLink.Group && link.Address == oldLink.Address {
+			numDelete++
+			if !oldLink.Equal(link) {
+				deletedLinks = append(deletedLinks, link)
 			}
 		}
 	}
 
-	return err
-}
-
-func (db *PLMLinkDB) RemoveLink(oldLink *insteon.Link) (err error) {
-	var resp *Packet
-	deletedLinks := make([]*insteon.Link, 0)
-	for {
-		resp, err = db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: LinkCmdFindFirst, link: oldLink}})
-		if resp.NAK() {
-			break
-		} else {
-			resp, err = db.plm.Receive()
-			if err == nil {
-				if !oldLink.Equal(resp.Payload.(*insteon.Link)) {
-					deletedLinks = append(deletedLinks, resp.Payload.(*insteon.Link))
-				}
-				_, err = db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: LinkCmdDeleteFirst, link: oldLink}})
-				if err != nil {
-					break
-				}
-			} else {
-				break
-			}
+	for i := 0; i < numDelete; i++ {
+		_, err = db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: LinkCmdDeleteFirst, link: oldLink}})
+		if err != nil {
+			insteon.Log.Infof("Failed to remove link: %v", err)
 		}
 	}
 
@@ -105,7 +139,7 @@ func (db *PLMLinkDB) RemoveLink(oldLink *insteon.Link) (err error) {
 	return err
 }
 
-func (db *PLMLinkDB) AddLink(newLink *insteon.Link) error {
+func (db *LinkDB) AddLink(newLink *insteon.Link) error {
 	var command recordRequestCommand
 	if newLink.Flags.Controller() {
 		command = LinkCmdModFirstCtrl
@@ -121,8 +155,8 @@ func (db *PLMLinkDB) AddLink(newLink *insteon.Link) error {
 	return err
 }
 
-func (db *PLMLinkDB) Cleanup() (err error) {
-	removeable := make([]*insteon.Link, 0)
+func (db *LinkDB) Cleanup() (err error) {
+	/*removeable := make([]*insteon.Link, 0)
 	for i, l1 := range db.links {
 		for _, l2 := range db.links[i+1:] {
 			if l1.Equal(l2) {
@@ -137,5 +171,6 @@ func (db *PLMLinkDB) Cleanup() (err error) {
 			break
 		}
 	}
-	return err
+	return err*/
+	return ErrNotImplemented
 }

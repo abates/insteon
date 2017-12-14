@@ -7,12 +7,12 @@ import (
 const (
 	StandardMsgLen        = 9
 	ExtendedMsgLen        = 23
-	StandardDirectMessage = Flags(0x0f)
-	StandardDirectAck     = Flags(0x2f)
-	StandardDirectNak     = Flags(0xaf)
-	ExtendedDirectMessage = Flags(0x1f)
-	ExtendedDirectAck     = Flags(0x3f)
-	ExtendedDirectNak     = Flags(0xbf)
+	StandardDirectMessage = Flags(0x0a)
+	StandardDirectAck     = Flags(0x2a)
+	StandardDirectNak     = Flags(0xaa)
+	ExtendedDirectMessage = Flags(0x1a)
+	ExtendedDirectAck     = Flags(0x3a)
+	ExtendedDirectNak     = Flags(0xba)
 )
 
 type MessageType int

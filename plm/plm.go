@@ -38,7 +38,7 @@ type PLM struct {
 	plmCh        chan *Packet
 	connectionCh chan connectionInfo
 
-	linkDb *PLMLinkDB
+	linkDb *LinkDB
 }
 
 func New(port io.ReadWriter, timeout time.Duration) *PLM {
@@ -97,7 +97,6 @@ func (plm *PLM) readPacket() (packet *Packet, err error) {
 			buf = append(buf, make([]byte, packetLen)...)
 			_, err = io.ReadAtLeast(plm.in, buf[2:], packetLen)
 			if err == nil {
-				traceBuf("RX", buf)
 				// read some more if it's an extended message
 				if buf[1] == 0x62 && insteon.Flags(buf[5]).Extended() {
 					buf = append(buf, make([]byte, 14)...)
@@ -127,10 +126,12 @@ func (plm *PLM) readPktLoop() {
 
 func (plm *PLM) writePacket(packet *Packet) error {
 	payload, err := packet.MarshalBinary()
-	traceBuf("TX", payload)
 
 	if err == nil {
 		_, err = plm.out.Write(payload)
+	}
+	if err == nil {
+		tracePkt("TX", packet)
 	}
 	return err
 }
@@ -143,7 +144,6 @@ func (plm *PLM) readWriteLoop() {
 		select {
 		case send := <-plm.txPktCh:
 			ackChannels[send.packet.Command] = send.ackCh
-			tracePkt("TX", send.packet)
 			err := plm.writePacket(send.packet)
 			if err != nil {
 				insteon.Log.Infof("Failed to write packet: %v", err)
@@ -157,6 +157,9 @@ func (plm *PLM) readWriteLoop() {
 					insteon.Log.Debugf("Dispatching message to device connection")
 					conn <- packet
 				}
+			case CmdAllLinkComplete == packet.Command:
+			case CmdAllLinkRecordResp == packet.Command:
+				plm.linkDb.rrCh <- packet
 			case 0x52 <= packet.Command && packet.Command <= 0x58:
 				// 0x52 to 0x58 are modem commands and should be dispatched
 				// to functions communicating with the modem itself, however
@@ -183,18 +186,22 @@ func (plm *PLM) readWriteLoop() {
 	}
 }
 
+// TODO This really needs to accept a command that can be sent up to the
+// read/write loop so that it is more thread-safe.  The read/write loop
+// should be looking for any channel waiting for incoming packets
+// of a specific type and then deliver those to waiting go routines,
+// as it is right now, two routines could muck things up if the first
+// get's the second's packet and vice versa
 func (plm *PLM) Receive() (packet *Packet, err error) {
 	select {
 	case packet = <-plm.plmCh:
-		tracePkt("PLM Receive", packet)
 	case <-time.After(plm.timeout):
-		err = insteon.ErrAckTimeout
+		err = insteon.ErrReadTimeout
 	}
 	return packet, err
 }
 
 func (plm *PLM) Send(packet *Packet) (ack *Packet, err error) {
-	tracePkt("PLM Send", packet)
 	ackCh := make(chan *Packet, 1)
 	txPktInfo := &txPacketInfo{
 		packet: packet,
@@ -205,7 +212,11 @@ func (plm *PLM) Send(packet *Packet) (ack *Packet, err error) {
 	case plm.txPktCh <- txPktInfo:
 		select {
 		case ack = <-ackCh:
-			insteon.Log.Debugf("PLM ACK Received")
+			if ack.NAK() {
+				insteon.Log.Debugf("PLM NAK Received!")
+			} else {
+				insteon.Log.Debugf("PLM ACK Received")
+			}
 		case <-time.After(plm.timeout):
 			err = insteon.ErrAckTimeout
 		}
@@ -301,7 +312,7 @@ func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
 
 func (plm *PLM) LinkDB() (ldb insteon.LinkDB, err error) {
 	if plm.linkDb == nil {
-		plm.linkDb = &PLMLinkDB{plm: plm}
+		plm.linkDb = NewLinkDB(plm)
 		err = plm.linkDb.Refresh()
 	}
 	return plm.linkDb, err
@@ -310,32 +321,38 @@ func (plm *PLM) LinkDB() (ldb insteon.LinkDB, err error) {
 func (plm *PLM) AssignToAllLinkGroup(insteon.Group) error   { return ErrNotImplemented }
 func (plm *PLM) DeleteFromAllLinkGroup(insteon.Group) error { return ErrNotImplemented }
 
+type LinkingMode byte
+
 type AllLinkReq struct {
-	Flags byte
+	Mode  LinkingMode
 	Group insteon.Group
 }
 
 func (alr *AllLinkReq) MarshalBinary() ([]byte, error) {
-	return []byte{alr.Flags, byte(alr.Group)}, nil
+	return []byte{byte(alr.Mode), byte(alr.Group)}, nil
 }
 
 func (alr *AllLinkReq) UnmarshalBinary(buf []byte) error {
 	if len(buf) < 2 {
 		return fmt.Errorf("Needed 2 bytes to unmarshal all link request.  Got %d", len(buf))
 	}
-	alr.Flags = buf[0]
+	alr.Mode = LinkingMode(buf[0])
 	alr.Group = insteon.Group(buf[1])
 	return nil
 }
 
 func (alr *AllLinkReq) String() string {
-	return fmt.Sprintf("%02x %d", alr.Flags, alr.Group)
+	return fmt.Sprintf("%02x %d", alr.Mode, alr.Group)
+}
+
+func (plm *PLM) AddManualLink(group insteon.Group) error {
+	return plm.EnterLinkingMode(group)
 }
 
 func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 	ack, err := plm.Send(&Packet{
 		Command: CmdStartAllLink,
-		Payload: &AllLinkReq{Flags: 0x01, Group: group},
+		Payload: &AllLinkReq{Mode: LinkingMode(0x03), Group: group},
 	})
 
 	if ack.NAK() {
@@ -358,7 +375,7 @@ func (plm *PLM) ExitLinkingMode() error {
 func (plm *PLM) EnterUnlinkingMode(group insteon.Group) error {
 	ack, err := plm.Send(&Packet{
 		Command: CmdStartAllLink,
-		Payload: &AllLinkReq{Flags: 0xff, Group: group},
+		Payload: &AllLinkReq{Mode: LinkingMode(0xff), Group: group},
 	})
 
 	if ack.NAK() {

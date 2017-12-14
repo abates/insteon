@@ -8,6 +8,14 @@ func SendStandardCommandAndWait(conn Connection, command *Command) (msg *Message
 	return
 }
 
+func SendExtendedCommandAndWait(conn Connection, command *Command, payload Payload) (msg *Message, err error) {
+	_, err = SendExtendedCommand(conn, command, payload)
+	if err == nil {
+		msg, err = conn.Receive()
+	}
+	return
+}
+
 func SendStandardCommand(conn Connection, command *Command) (*Message, error) {
 	return conn.Send(&Message{
 		Flags:   StandardDirectMessage,

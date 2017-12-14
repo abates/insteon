@@ -18,8 +18,8 @@ func (i2 *I2Device) LinkDB() (ldb LinkDB, err error) {
 	return i2.ldb, err
 }
 
-func (i2 *I2Device) EnterLinkingMode(group Group) error {
-	_, err := SendStandardCommand(i2.Connection, CmdEnterLinkingMode.SubCommand(int(group)))
+func (i2 *I2Device) EnterLinkingMode(group Group) (err error) {
+	_, err = SendStandardCommand(i2.Connection, CmdEnterLinkingMode.SubCommand(int(group)))
 	return err
 }
 

@@ -138,9 +138,7 @@ func ForceCreateLink(controller, responder Linkable, group Group) (err error) {
 	// controller enters all-linking mode
 	err = controller.EnterLinkingMode(group)
 	defer controller.ExitLinkingMode()
-
-	// wait a moment for messages to propogate
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	// responder pushes the set button responder
 	if err == nil {
@@ -148,18 +146,19 @@ func ForceCreateLink(controller, responder Linkable, group Group) (err error) {
 		err = responder.EnterLinkingMode(group)
 		defer responder.ExitLinkingMode()
 	}
-
-	// wait a moment for messages to propogate
-	time.Sleep(1 * time.Second)
-
+	time.Sleep(time.Second)
 	return
 }
 
-func Unlink(controller, responder Linkable) error {
-	err := DeleteLinks(controller, responder)
+func Unlink(controller, responder Linkable, group Group) error {
+	err := controller.EnterUnlinkingMode(group)
+	defer controller.ExitLinkingMode()
+
 	if err == nil {
-		err = DeleteLinks(responder, controller)
+		err = responder.EnterUnlinkingMode(group)
+		defer responder.ExitLinkingMode()
 	}
+	time.Sleep(time.Second)
 	return err
 }
 
@@ -179,20 +178,20 @@ func DeleteLinks(controller, responder Linkable) (err error) {
 func DeleteLink(controller, responder Linkable, group Group) (err error) {
 	// controller enters all-linking mode
 	err = controller.EnterUnlinkingMode(group)
-	defer responder.ExitLinkingMode()
+	//defer responder.ExitLinkingMode()
 
 	// wait a moment for messages to propogate
-	time.Sleep(time.Second)
+	//time.Sleep(time.Second)
 
 	// responder pushes the set button responder
 	if err == nil {
 		Log.Debugf("Unlinking responder from group")
-		err = responder.EnterUnlinkingMode(group)
-		defer controller.ExitLinkingMode()
+		err = responder.EnterLinkingMode(group)
+		//defer controller.ExitLinkingMode()
 	}
 
 	// wait a moment for messages to propogate
-	time.Sleep(time.Second)
+	//time.Sleep(time.Second)
 
 	return
 }

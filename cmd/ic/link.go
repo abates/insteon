@@ -13,37 +13,51 @@ func init() {
 	commands["link"] = &command{
 		usage:       "<device id> ...",
 		description: "Link the PLM to one or more devices",
-		callback:    linkCmd,
+		callback:    plmLinkCmd,
+	}
+
+	commands["alllink"] = &command{
+		description: "Put the PLM into linking mode for manual linking",
+		callback:    plmAllLinkCmd,
 	}
 }
 
-func linkCmd(args []string, plm *plm.PLM) error {
+func plmLinkCmd(args []string, p *plm.PLM) error {
 	if len(args) < 1 {
 		return fmt.Errorf("at least one device id must be specified")
 	}
 
-	for i, arg := range args {
+	for _, arg := range args {
 		addr, err := insteon.ParseAddress(arg)
 		if err == nil {
 			group := insteon.Group(0x01)
 			fmt.Printf("Linking to %s...", addr)
-			device, err := plm.Dial(addr)
+			device, err := p.Connect(addr)
+			if err == insteon.ErrNotLinked {
+				err = nil
+			}
+
 			if err == nil {
-				err = insteon.ForceCreateLink(plm, device, group)
+				err = insteon.ForceCreateLink(device, p, group)
 				if err == nil {
-					fmt.Printf("successful\n")
+					err = insteon.ForceCreateLink(p, device, group)
+				}
+
+				if err == nil {
+					fmt.Printf("done\n")
 				} else {
 					fmt.Printf("failed: %v\n", err)
 				}
 			} else {
-				fmt.Fprintf(os.Stderr, "Failed to link to %s: %v", addr, err)
-			}
-
-			if i < len(args)-1 {
-				time.Sleep(time.Second)
+				fmt.Fprintf(os.Stderr, "Failed to connect to %s: %v\n", addr, err)
 			}
 		}
+		time.Sleep(time.Second)
 	}
 	// TODO make this return a generic error if one or more of the links failed
 	return nil
+}
+
+func plmAllLinkCmd(args []string, plm *plm.PLM) error {
+	return plm.AddManualLink(insteon.Group(0x01))
 }

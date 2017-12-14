@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/plm"
@@ -16,39 +15,52 @@ func init() {
 	}
 }
 
-func unlinkCmd(args []string, plm *plm.PLM) error {
+func unlinkCmd(args []string, p *plm.PLM) (err error) {
 	if len(args) < 1 {
 		return fmt.Errorf("at least one device id must be specified")
 	}
 
-	for i, arg := range args {
-		addr, err := insteon.ParseAddress(arg)
+	group := insteon.Group(0x01)
+
+	for _, arg := range args {
+		var device insteon.Device
+		var addr insteon.Address
+		addr, err = insteon.ParseAddress(arg)
 		if err == nil {
 			fmt.Printf("Unlinking from %s...", addr)
-			device, err := plm.Connect(addr)
-			if err != nil {
-				fmt.Printf("failed: %v\n", err)
-				continue
+			device, err = p.Dial(addr)
+
+			if err == nil {
+				err = insteon.Unlink(device, p, group)
 			}
 
-			err = insteon.Unlink(plm, device)
-			if err != nil {
-				fmt.Printf("failed: %v\n", err)
-				continue
+			if err == nil || err == insteon.ErrNotLinked {
+				err = insteon.Unlink(p, device, group)
 			}
 
-			fmt.Printf("successful\n")
+			if err == insteon.ErrNotLinked {
+				err = nil
+			}
 
-			if i < len(args)-1 {
-				time.Sleep(time.Second)
+			if err == nil {
+				fmt.Printf("successful\n")
+			} else {
+				fmt.Printf("failed: %v\n", err)
 			}
 		}
 
-		plmDB, err := plm.LinkDB()
+		var plmDB insteon.LinkDB
+		plmDB, err = p.LinkDB()
 		if err == nil {
 			for _, link := range plmDB.Links() {
 				if link.Address == addr {
+					fmt.Printf("Cleaning up old link...")
 					err = plmDB.RemoveLink(link)
+					if err == nil {
+						fmt.Printf("successful\n")
+					} else {
+						fmt.Printf("failed: %v\n", err)
+					}
 				}
 			}
 		}
