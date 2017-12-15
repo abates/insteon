@@ -42,17 +42,17 @@ func (mrr *manageRecordRequest) UnmarshalBinary(buf []byte) error {
 
 type LinkDB struct {
 	plm       *PLM
-	rrCh      chan *Packet
 	refreshCh chan chan bool
 	linkCh    chan chan []*insteon.Link
+	closeCh   chan chan error
 }
 
 func NewLinkDB(plm *PLM) *LinkDB {
 	db := &LinkDB{
 		plm:       plm,
-		rrCh:      make(chan *Packet),
 		refreshCh: make(chan chan bool),
 		linkCh:    make(chan chan []*insteon.Link),
+		closeCh:   make(chan chan error),
 	}
 
 	go db.controlLoop()
@@ -62,9 +62,15 @@ func NewLinkDB(plm *PLM) *LinkDB {
 func (db *LinkDB) controlLoop() {
 	links := make([]*insteon.Link, 0)
 	var refreshCh chan bool
+	var closeCh chan error
+	rrCh := make(chan *Packet)
+	db.plm.Subscribe(rrCh, []byte{0x57})
+
+loop:
 	for {
 		select {
 		case refreshCh = <-db.refreshCh:
+			insteon.Log.Debugf("Refreshing PLM link database")
 			links = make([]*insteon.Link, 0)
 			resp, err := db.plm.Send(&Packet{Command: CmdGetFirstAllLink})
 			if resp.NAK() {
@@ -74,10 +80,11 @@ func (db *LinkDB) controlLoop() {
 			} else if err != nil {
 				insteon.Log.Infof("Error sending GetNextAllLink command: %v", err)
 			}
-		case packet := <-db.rrCh:
+		case packet := <-rrCh:
 			// only do something if we are in the process of refreshing
 			if refreshCh != nil {
 				link := packet.Payload.(*insteon.Link)
+				insteon.Log.Debugf("Received PLM record response %v", link)
 				links = append(links, link)
 				resp, err := db.plm.Send(&Packet{Command: CmdGetNextAllLink})
 				if resp.NAK() {
@@ -88,7 +95,9 @@ func (db *LinkDB) controlLoop() {
 					insteon.Log.Infof("Error sending GetNextAllLink command: %v", err)
 				}
 			}
+			// TODO remind me why we would get a record response and not be in refresh mode?
 		case linkCh := <-db.linkCh:
+			insteon.Log.Debugf("Returning PLM link database")
 			newLinks := make([]*insteon.Link, len(links))
 			for i, link := range links {
 				newLink := *link
@@ -96,8 +105,15 @@ func (db *LinkDB) controlLoop() {
 			}
 			linkCh <- newLinks
 			close(linkCh)
+		case closeCh = <-db.closeCh:
+			break loop
 		}
 	}
+
+	if refreshCh != nil {
+		close(refreshCh)
+	}
+	closeCh <- nil
 }
 
 func (db *LinkDB) Links() []*insteon.Link {
@@ -173,4 +189,10 @@ func (db *LinkDB) Cleanup() (err error) {
 	}
 	return err*/
 	return ErrNotImplemented
+}
+
+func (db *LinkDB) Close() error {
+	ch := make(chan error)
+	db.closeCh <- ch
+	return <-ch
 }

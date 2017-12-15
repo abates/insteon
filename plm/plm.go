@@ -2,6 +2,7 @@ package plm
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -16,9 +17,28 @@ var (
 	ErrNotImplemented = errors.New("IM command not implemented")
 )
 
-type connectionInfo struct {
-	address insteon.Address
-	ch      chan *Packet
+type subscription struct {
+	matches     [][]byte
+	unsubscribe bool
+	ch          chan *Packet
+}
+
+func (s *subscription) match(buf []byte) bool {
+	for _, match := range s.matches {
+		if bytes.Equal(match, buf[0:len(match)]) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *subscription) dispatch(pkt *Packet) {
+	s.ch <- pkt
+}
+
+func (s *subscription) Close() error {
+	close(s.ch)
+	return nil
 }
 
 type txPacketInfo struct {
@@ -31,11 +51,10 @@ type PLM struct {
 	out     io.Writer
 	timeout time.Duration
 
-	txPktCh      chan *txPacketInfo
-	rxPktCh      chan *Packet
-	plmCh        chan *Packet
-	connectionCh chan connectionInfo
-	closeCh      chan chan error
+	txPktCh chan *txPacketInfo
+	rxPktCh chan []byte
+	subCh   chan *subscription
+	closeCh chan chan error
 
 	linkDb *LinkDB
 }
@@ -46,11 +65,10 @@ func New(port io.ReadWriter, timeout time.Duration) *PLM {
 		out:     port,
 		timeout: timeout,
 
-		txPktCh:      make(chan *txPacketInfo, 1),
-		rxPktCh:      make(chan *Packet, 1),
-		plmCh:        make(chan *Packet, 1),
-		connectionCh: make(chan connectionInfo),
-		closeCh:      make(chan chan error),
+		txPktCh: make(chan *txPacketInfo, 1),
+		rxPktCh: make(chan []byte, 1),
+		subCh:   make(chan *subscription),
+		closeCh: make(chan chan error),
 	}
 	go plm.readPktLoop()
 	go plm.readWriteLoop()
@@ -78,8 +96,7 @@ func (plm *PLM) read(buf []byte) error {
 	return err
 }
 
-func (plm *PLM) readPacket() (packet *Packet, err error) {
-	var buf []byte
+func (plm *PLM) readPacket() (buf []byte, err error) {
 	timeout := time.Now().Add(plm.timeout)
 
 	// synchronize
@@ -111,17 +128,14 @@ func (plm *PLM) readPacket() (packet *Packet, err error) {
 			buf = append(buf, make([]byte, 14)...)
 			_, err = io.ReadAtLeast(plm.in, buf[9:], 14)
 		}
-		packet = &Packet{}
-		err = packet.UnmarshalBinary(buf)
 	}
-	return packet, err
+	return buf, err
 }
 
 func (plm *PLM) readPktLoop() {
 	for {
 		packet, err := plm.readPacket()
 		if err == nil {
-			tracePkt("RX", packet)
 			plm.rxPktCh <- packet
 		} else {
 			insteon.Log.Infof("Error reading packet: %v", err)
@@ -142,7 +156,7 @@ func (plm *PLM) writePacket(packet *Packet) error {
 }
 
 func (plm *PLM) readWriteLoop() {
-	connections := make(map[insteon.Address]chan *Packet)
+	subscriptions := make(map[chan *Packet]*subscription)
 	ackChannels := make(map[Command]chan *Packet)
 	var closeCh chan error
 
@@ -156,28 +170,26 @@ loop:
 			if err != nil {
 				insteon.Log.Infof("Failed to write packet: %v", err)
 			}
-		case packet = <-plm.rxPktCh:
-			switch {
-			case packet.Command == 0x50 || packet.Command == 0x51:
-				msg := packet.Payload.(*insteon.Message)
-				insteon.Log.Debugf("Received INSTEON Message %v", msg)
-				if conn, ok := connections[msg.Src]; ok {
-					insteon.Log.Debugf("Dispatching message to device connection")
-					conn <- packet
+		case buf := <-plm.rxPktCh:
+			packet = &Packet{}
+			err := packet.UnmarshalBinary(buf)
+
+			if err != nil {
+				insteon.Log.Infof("Failed to unmarshal packet: %v", err)
+				continue
+			}
+
+			tracePkt("RX", packet)
+			if 0x50 <= packet.Command && packet.Command <= 0x58 {
+				insteon.Log.Debugf("Looking for subscriptions to %v", packet)
+				for _, subscription := range subscriptions {
+					// make sure to slice off the leading 0x02 from the
+					// buffer
+					if subscription.match(buf[1:]) {
+						subscription.dispatch(packet)
+					}
 				}
-			case CmdAllLinkComplete == packet.Command:
-			case CmdAllLinkRecordResp == packet.Command:
-				plm.linkDb.rrCh <- packet
-			case 0x52 <= packet.Command && packet.Command <= 0x58:
-				// 0x52 to 0x58 are modem commands and should be dispatched
-				// to functions communicating with the modem itself, however
-				// we don't want to hold things up
-				select {
-				case plm.plmCh <- packet:
-				default:
-					insteon.Log.Infof("Received modem response, but no one was listening for it")
-				}
-			default:
+			} else {
 				// handle ack/nak
 				if ackCh, ok := ackChannels[packet.Command]; ok {
 					select {
@@ -188,14 +200,23 @@ loop:
 					}
 				}
 			}
-		case info := <-plm.connectionCh:
-			connections[info.address] = info.ch
+		case sub := <-plm.subCh:
+			if sub.unsubscribe {
+				for ch, _ := range subscriptions {
+					if ch == sub.ch {
+						delete(subscriptions, ch)
+						close(ch)
+					}
+				}
+			} else {
+				subscriptions[sub.ch] = sub
+			}
 		case closeCh = <-plm.closeCh:
 			break loop
 		}
 	}
 
-	for _, ch := range connections {
+	for ch, _ := range subscriptions {
 		close(ch)
 	}
 
@@ -204,21 +225,6 @@ loop:
 	}
 
 	closeCh <- nil
-}
-
-// TODO This really needs to accept a command that can be sent up to the
-// read/write loop so that it is more thread-safe.  The read/write loop
-// should be looking for any channel waiting for incoming packets
-// of a specific type and then deliver those to waiting go routines,
-// as it is right now, two routines could muck things up if the first
-// get's the second's packet and vice versa
-func (plm *PLM) Receive() (packet *Packet, err error) {
-	select {
-	case packet = <-plm.plmCh:
-	case <-time.After(plm.timeout):
-		err = insteon.ErrReadTimeout
-	}
-	return packet, err
 }
 
 func (plm *PLM) Send(packet *Packet) (ack *Packet, err error) {
@@ -290,37 +296,16 @@ func (plm *PLM) RFSleep() error {
 	return ErrNotImplemented
 }
 
-type plmBridge struct {
-	plm *PLM
-	rx  chan *Packet
+func (plm *PLM) Subscribe(ch chan *Packet, matches ...[]byte) {
+	plm.subCh <- &subscription{ch: ch, matches: matches}
 }
 
-func (pb *plmBridge) Send(payload insteon.Payload) error {
-	packet := &Packet{
-		Command: CmdSendInsteonMsg,
-		Payload: payload,
-	}
-	_, err := pb.plm.Send(packet)
-	return err
-}
-
-func (pb *plmBridge) Receive() (payload insteon.Payload, err error) {
-	select {
-	case packet := <-pb.rx:
-		payload = packet.Payload
-	case <-time.After(pb.plm.timeout):
-		err = insteon.ErrReadTimeout
-	}
-	return
+func (plm *PLM) Unsubscribe(ch chan *Packet) {
+	plm.subCh <- &subscription{ch: ch, unsubscribe: true}
 }
 
 func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
-	rx := make(chan *Packet, 1)
-	bridge := &plmBridge{
-		plm: plm,
-		rx:  rx,
-	}
-	plm.connectionCh <- connectionInfo{dst, rx}
+	bridge := NewBridge(plm, dst)
 	device := insteon.Device(insteon.NewI1Device(dst, bridge))
 	version, err := device.EngineVersion()
 
