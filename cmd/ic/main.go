@@ -90,6 +90,7 @@ func run(args []string, command func([]string, *plm.PLM) error) error {
 		defer s.Close()
 
 		plm := plm.New(s, timeoutFlag)
+		defer plm.Close()
 		err = command(args, plm)
 	}
 	return err
