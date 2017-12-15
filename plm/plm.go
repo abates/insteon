@@ -16,8 +16,6 @@ var (
 	ErrNotImplemented = errors.New("IM command not implemented")
 )
 
-type Config byte
-
 type connectionInfo struct {
 	address insteon.Address
 	ch      chan *Packet
@@ -37,6 +35,7 @@ type PLM struct {
 	rxPktCh      chan *Packet
 	plmCh        chan *Packet
 	connectionCh chan connectionInfo
+	closeCh      chan chan error
 
 	linkDb *LinkDB
 }
@@ -50,7 +49,8 @@ func New(port io.ReadWriter, timeout time.Duration) *PLM {
 		txPktCh:      make(chan *txPacketInfo, 1),
 		rxPktCh:      make(chan *Packet, 1),
 		plmCh:        make(chan *Packet, 1),
-		connectionCh: make(chan connectionInfo, 1),
+		connectionCh: make(chan connectionInfo),
+		closeCh:      make(chan chan error),
 	}
 	go plm.readPktLoop()
 	go plm.readWriteLoop()
@@ -80,34 +80,39 @@ func (plm *PLM) read(buf []byte) error {
 
 func (plm *PLM) readPacket() (packet *Packet, err error) {
 	var buf []byte
-	b, err := plm.in.ReadByte()
-	if err == nil && b != 0x02 {
-		return nil, fmt.Errorf("Expected first byte to be 0x02 got 0x%02x", b)
-	}
-	buf = append(buf, b)
+	timeout := time.Now().Add(plm.timeout)
 
-	b, err = plm.in.ReadByte()
+	// synchronize
+	for err == nil {
+		var b byte
+		b, err = plm.in.ReadByte()
+		if b != 0x02 {
+			continue
+		} else {
+			b, err = plm.in.ReadByte()
+			if packetLen, found := commandLens[b]; found {
+				buf = append(buf, []byte{0x02, b}...)
+				buf = append(buf, make([]byte, packetLen)...)
+				_, err = io.ReadAtLeast(plm.in, buf[2:], packetLen)
+				break
+			} else {
+				err = plm.in.UnreadByte()
+			}
+		}
+		if time.Now().After(timeout) {
+			err = insteon.ErrReadTimeout
+			break
+		}
+	}
 
 	if err == nil {
-		buf = append(buf, b)
-		// TODO commandLens should only be written during
-		// initialization, but, technically speaking, this
-		// access could cause a concurrent access violation
-		if packetLen, ok := commandLens[b]; ok {
-			buf = append(buf, make([]byte, packetLen)...)
-			_, err = io.ReadAtLeast(plm.in, buf[2:], packetLen)
-			if err == nil {
-				// read some more if it's an extended message
-				if buf[1] == 0x62 && insteon.Flags(buf[5]).Extended() {
-					buf = append(buf, make([]byte, 14)...)
-					_, err = io.ReadAtLeast(plm.in, buf[9:], 14)
-				}
-				packet = &Packet{}
-				err = packet.UnmarshalBinary(buf)
-			}
-		} else {
-			err = fmt.Errorf("PLM Received unknown command 0x%02x", b)
+		// read some more if it's an extended message
+		if buf[1] == 0x62 && insteon.Flags(buf[5]).Extended() {
+			buf = append(buf, make([]byte, 14)...)
+			_, err = io.ReadAtLeast(plm.in, buf[9:], 14)
 		}
+		packet = &Packet{}
+		err = packet.UnmarshalBinary(buf)
 	}
 	return packet, err
 }
@@ -139,6 +144,9 @@ func (plm *PLM) writePacket(packet *Packet) error {
 func (plm *PLM) readWriteLoop() {
 	connections := make(map[insteon.Address]chan *Packet)
 	ackChannels := make(map[Command]chan *Packet)
+	var closeCh chan error
+
+loop:
 	for {
 		var packet *Packet
 		select {
@@ -175,15 +183,27 @@ func (plm *PLM) readWriteLoop() {
 					select {
 					case ackCh <- packet:
 						close(ackCh)
-						ackChannels[packet.Command] = nil
+						delete(ackChannels, packet.Command)
 					default:
 					}
 				}
 			}
 		case info := <-plm.connectionCh:
 			connections[info.address] = info.ch
+		case closeCh = <-plm.closeCh:
+			break loop
 		}
 	}
+
+	for _, ch := range connections {
+		close(ch)
+	}
+
+	for _, ch := range ackChannels {
+		close(ch)
+	}
+
+	closeCh <- nil
 }
 
 // TODO This really needs to accept a command that can be sent up to the
@@ -226,23 +246,40 @@ func (plm *PLM) Send(packet *Packet) (ack *Packet, err error) {
 	return
 }
 
-func (plm *PLM) Info() (*IMInfo, error) {
+func (plm *PLM) Info() (*Info, error) {
 	ack, err := plm.Send(&Packet{
 		Command: CmdGetInfo,
 	})
-	return ack.Payload.(*IMInfo), err
+	if err == nil {
+		return ack.Payload.(*Info), nil
+	}
+	return nil, err
 }
 
 func (plm *PLM) Reset() error {
 	return ErrNotImplemented
 }
 
-func (plm *PLM) Config() (Config, error) {
-	return Config(0x00), ErrNotImplemented
+func (plm *PLM) Config() (*Config, error) {
+	ack, err := plm.Send(&Packet{
+		Command: CmdGetConfig,
+	})
+	if ack.NAK() {
+		err = insteon.ErrNak
+	} else if err == nil {
+		return ack.Payload.(*Config), nil
+	}
+	return nil, err
 }
 
-func (plm *PLM) SetConfig(Config) error {
-	return ErrNotImplemented
+func (plm *PLM) SetConfig(config *Config) error {
+	ack, err := plm.Send(&Packet{
+		Command: CmdSetConfig,
+	})
+	if ack.NAK() {
+		err = insteon.ErrNak
+	}
+	return err
 }
 
 func (plm *PLM) SetDeviceCategory(insteon.Category) error {
@@ -320,6 +357,12 @@ func (plm *PLM) LinkDB() (ldb insteon.LinkDB, err error) {
 
 func (plm *PLM) AssignToAllLinkGroup(insteon.Group) error   { return ErrNotImplemented }
 func (plm *PLM) DeleteFromAllLinkGroup(insteon.Group) error { return ErrNotImplemented }
+
+func (plm *PLM) Close() error {
+	errCh := make(chan error)
+	plm.closeCh <- errCh
+	return <-errCh
+}
 
 type LinkingMode byte
 

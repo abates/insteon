@@ -10,28 +10,28 @@ type Version byte
 
 func (v Version) String() string { return fmt.Sprintf("%d", byte(v)) }
 
-type IMInfo struct {
+type Info struct {
 	Address  insteon.Address
 	Category insteon.Category
 	Firmware Version
 }
 
-func (imi *IMInfo) String() string {
-	return fmt.Sprintf("%s category %s version %s", imi.Address, imi.Category, imi.Firmware)
+func (info *Info) String() string {
+	return fmt.Sprintf("%s category %s version %s", info.Address, info.Category, info.Firmware)
 }
 
-func (imi *IMInfo) MarshalBinary() ([]byte, error) {
+func (info *Info) MarshalBinary() ([]byte, error) {
 	data := make([]byte, 6)
 
-	copy(data[0:3], imi.Address[:])
-	copy(data[3:5], imi.Category[:])
-	data[5] = byte(imi.Firmware)
+	copy(data[0:3], info.Address[:])
+	copy(data[3:5], info.Category[:])
+	data[5] = byte(info.Firmware)
 	return data, nil
 }
 
-func (imi *IMInfo) UnmarshalBinary(data []byte) error {
-	copy(imi.Address[:], data[0:3])
-	copy(imi.Category[:], data[3:5])
-	imi.Firmware = Version(data[5])
+func (info *Info) UnmarshalBinary(data []byte) error {
+	copy(info.Address[:], data[0:3])
+	copy(info.Category[:], data[3:5])
+	info.Firmware = Version(data[5])
 	return nil
 }
