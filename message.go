@@ -72,6 +72,7 @@ func (f Flags) String() string {
 }
 
 type Message struct {
+	version EngineVersion
 	Src     Address
 	Dst     Address
 	Flags   Flags
@@ -87,6 +88,14 @@ func (m *Message) String() string {
 	return str
 }
 
+func checksum(buf []byte) byte {
+	sum := byte(0)
+	for _, b := range buf {
+		sum += b
+	}
+	return ^sum + 1
+}
+
 func (m *Message) MarshalBinary() (data []byte, err error) {
 	data = make([]byte, StandardMsgLen)
 	copy(data[0:3], m.Src[:])
@@ -97,6 +106,10 @@ func (m *Message) MarshalBinary() (data []byte, err error) {
 		var payload []byte
 		payload, err = m.Payload.MarshalBinary()
 		data = append(data, payload...)
+	}
+
+	if m.Flags.Extended() && m.version == VerI2Cs {
+		data[len(data)-1] = checksum(data[7:])
 	}
 	return data, err
 }
@@ -123,24 +136,4 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 		m.Payload = payload
 	}
 	return err
-}
-
-type I2CsMessage struct {
-	*Message
-}
-
-func checksum(buf []byte) byte {
-	sum := byte(0)
-	for _, b := range buf {
-		sum += b
-	}
-	return ^sum + 1
-}
-
-func (i2m *I2CsMessage) MarshalBinary() ([]byte, error) {
-	payload, err := i2m.Message.MarshalBinary()
-	if err == nil && len(payload) == ExtendedMsgLen {
-		payload[len(payload)-1] = checksum(payload[7:])
-	}
-	return payload, err
 }

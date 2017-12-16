@@ -55,16 +55,15 @@ func NewLinkDB(plm *PLM) *LinkDB {
 		closeCh:   make(chan chan error),
 	}
 
-	go db.controlLoop()
+	go db.readWriteLoop()
 	return db
 }
 
-func (db *LinkDB) controlLoop() {
+func (db *LinkDB) readWriteLoop() {
 	links := make([]*insteon.Link, 0)
 	var refreshCh chan bool
 	var closeCh chan error
-	rrCh := make(chan *Packet)
-	db.plm.Subscribe(rrCh, []byte{0x57})
+	rrCh := db.plm.Subscribe([]byte{0x57})
 
 loop:
 	for {

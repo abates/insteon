@@ -75,11 +75,12 @@ func devExitLinkCmd(device insteon.Device) error {
 }
 
 func devCleanupCmd(device insteon.Device) error {
-	db, err := device.LinkDB()
+	/*db, err := device.LinkDB()
 	if err == nil {
 		err = db.Cleanup()
 	}
-	return err
+	return err*/
+	return nil
 }
 
 func devDumpCmd(device insteon.Device) error {

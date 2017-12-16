@@ -50,8 +50,6 @@ func (p *Packet) MarshalBinary() (buf []byte, err error) {
 		// slice off the source address
 		case *insteon.Message:
 			payload = payload[3:]
-		case *insteon.I2CsMessage:
-			payload = payload[3:]
 		}
 		buf = append(buf, payload...)
 	}

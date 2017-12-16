@@ -22,6 +22,7 @@ var (
 	ErrIllegalValue           = errors.New("Illegal value in command")
 	ErrIncorrectChecksum      = errors.New("I2CS invalid checksum")
 	ErrPreNak                 = errors.New("Database search took too long")
+	ErrNotSupported           = errors.New("Action/command is not supported on this device")
 )
 
 type ProductKey [3]byte

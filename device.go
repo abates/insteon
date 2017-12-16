@@ -51,6 +51,7 @@ type Device interface {
 	DeviceTextString() (string, error)
 	EngineVersion() (EngineVersion, error)
 	Ping() error
+	Close() error
 }
 
 func InitializeDevice(device Device) (Device, error) {

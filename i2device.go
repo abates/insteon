@@ -4,15 +4,16 @@ import "fmt"
 
 type I2Device struct {
 	*I1Device
+	ldb *DeviceLinkDB
 }
 
-func NewI2Device(address Address, bridge Bridge) *I2Device {
-	return &I2Device{NewI1Device(address, bridge)}
+func NewI2Device(i1device *I1Device) *I2Device {
+	return &I2Device{I1Device: i1device}
 }
 
 func (i2 *I2Device) LinkDB() (ldb LinkDB, err error) {
 	if i2.ldb == nil {
-		i2.ldb = NewI2LinkDB(i2.Connection)
+		i2.ldb = NewDeviceLinkDB(i2.Connection)
 		err = i2.ldb.Refresh()
 	}
 	return i2.ldb, err
@@ -35,4 +36,11 @@ func (i2 *I2Device) ExitLinkingMode() error {
 
 func (i2 *I2Device) String() string {
 	return fmt.Sprintf("I2 Device (%s)", i2.Address())
+}
+
+func (i2 *I2Device) Close() error {
+	if i2.ldb != nil {
+		i2.ldb.Close()
+	}
+	return i2.I1Device.Close()
 }

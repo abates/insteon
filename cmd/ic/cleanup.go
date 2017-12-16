@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/abates/insteon"
 	"github.com/abates/insteon/plm"
 )
 
@@ -21,7 +19,7 @@ func cleanupCmd(args []string, plm *plm.PLM) error {
 		return fmt.Errorf("at least one device id must be specified")
 	}
 
-	for i, arg := range args {
+	/*for i, arg := range args {
 		addr, err := insteon.ParseAddress(arg)
 		if err == nil {
 			fmt.Printf("Cleaning %s...", addr)
@@ -43,7 +41,7 @@ func cleanupCmd(args []string, plm *plm.PLM) error {
 				time.Sleep(time.Second)
 			}
 		}
-	}
+	}*/
 	// TODO make this return a generic error if one or more of the links failed
 	return nil
 }

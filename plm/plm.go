@@ -41,7 +41,7 @@ func (s *subscription) Close() error {
 	return nil
 }
 
-type txPacketInfo struct {
+type txPacketReq struct {
 	packet *Packet
 	ackCh  chan *Packet
 }
@@ -51,7 +51,7 @@ type PLM struct {
 	out     io.Writer
 	timeout time.Duration
 
-	txPktCh chan *txPacketInfo
+	txPktCh chan *txPacketReq
 	rxPktCh chan []byte
 	subCh   chan *subscription
 	closeCh chan chan error
@@ -65,7 +65,7 @@ func New(port io.ReadWriter, timeout time.Duration) *PLM {
 		out:     port,
 		timeout: timeout,
 
-		txPktCh: make(chan *txPacketInfo, 1),
+		txPktCh: make(chan *txPacketReq, 1),
 		rxPktCh: make(chan []byte, 1),
 		subCh:   make(chan *subscription),
 		closeCh: make(chan chan error),
@@ -186,6 +186,7 @@ loop:
 					// make sure to slice off the leading 0x02 from the
 					// buffer
 					if subscription.match(buf[1:]) {
+						insteon.Log.Debugf("Dispatching %v", packet)
 						subscription.dispatch(packet)
 					}
 				}
@@ -202,11 +203,9 @@ loop:
 			}
 		case sub := <-plm.subCh:
 			if sub.unsubscribe {
-				for ch, _ := range subscriptions {
-					if ch == sub.ch {
-						delete(subscriptions, ch)
-						close(ch)
-					}
+				if _, found := subscriptions[sub.ch]; found {
+					delete(subscriptions, sub.ch)
+					close(sub.ch)
 				}
 			} else {
 				subscriptions[sub.ch] = sub
@@ -229,7 +228,7 @@ loop:
 
 func (plm *PLM) Send(packet *Packet) (ack *Packet, err error) {
 	ackCh := make(chan *Packet, 1)
-	txPktInfo := &txPacketInfo{
+	txPktInfo := &txPacketReq{
 		packet: packet,
 		ackCh:  ackCh,
 	}
@@ -296,8 +295,10 @@ func (plm *PLM) RFSleep() error {
 	return ErrNotImplemented
 }
 
-func (plm *PLM) Subscribe(ch chan *Packet, matches ...[]byte) {
+func (plm *PLM) Subscribe(matches ...[]byte) chan *Packet {
+	ch := make(chan *Packet, 1)
 	plm.subCh <- &subscription{ch: ch, matches: matches}
+	return ch
 }
 
 func (plm *PLM) Unsubscribe(ch chan *Packet) {
@@ -305,20 +306,21 @@ func (plm *PLM) Unsubscribe(ch chan *Packet) {
 }
 
 func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
-	bridge := NewBridge(plm, dst)
-	device := insteon.Device(insteon.NewI1Device(dst, bridge))
-	version, err := device.EngineVersion()
+	connection := NewConnection(plm, dst)
+	i1device := insteon.NewI1Device(dst, connection.txCh, connection.rxCh)
+	device := insteon.Device(i1device)
+	version, err := i1device.EngineVersion()
 
 	// ErrNotLinked here is only returned by i2cs devices
 	if err == insteon.ErrNotLinked {
 		err = nil
-		device = insteon.NewI2CsDevice(dst, bridge)
+		device = insteon.NewI2CsDevice(insteon.NewI2Device(i1device))
 	} else {
 		switch version {
 		case insteon.VerI2:
-			device = insteon.NewI2Device(dst, bridge)
+			device = insteon.NewI2Device(i1device)
 		case insteon.VerI2Cs:
-			device = insteon.NewI2CsDevice(dst, bridge)
+			device = insteon.NewI2CsDevice(insteon.NewI2Device(i1device))
 		}
 	}
 	return device, err
@@ -344,9 +346,17 @@ func (plm *PLM) AssignToAllLinkGroup(insteon.Group) error   { return ErrNotImple
 func (plm *PLM) DeleteFromAllLinkGroup(insteon.Group) error { return ErrNotImplemented }
 
 func (plm *PLM) Close() error {
+	err := insteon.NewAggregateError()
+	if plm.linkDb != nil {
+		err.Append(plm.linkDb.Close())
+	}
 	errCh := make(chan error)
 	plm.closeCh <- errCh
-	return <-errCh
+	err.Append(<-errCh)
+	if err.Len() > 0 {
+		return err
+	}
+	return nil
 }
 
 type LinkingMode byte

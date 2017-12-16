@@ -8,12 +8,11 @@ import (
 type I1Device struct {
 	Connection
 	address Address
-	ldb     LinkDB
 }
 
-func NewI1Device(address Address, bridge Bridge) *I1Device {
+func NewI1Device(address Address, tx, rx chan *Message) *I1Device {
 	return &I1Device{
-		Connection: NewI1Connection(address, bridge),
+		Connection: NewI1Connection(address, tx, rx),
 		address:    address,
 	}
 }
@@ -39,7 +38,7 @@ func (i1 *I1Device) DeleteFromAllLinkGroup(group Group) error {
 
 func (i1 *I1Device) ProductData() (*ProductData, error) {
 	var data *ProductData
-	msg, err := SendStandardCommandAndWait(i1.Connection, CmdProductDataReq)
+	msg, err := SendStandardCommandAndWait(i1.Connection, CmdProductDataReq, CmdProductDataResp)
 	if err == nil {
 		data = msg.Payload.(*ProductData)
 	}
@@ -48,7 +47,7 @@ func (i1 *I1Device) ProductData() (*ProductData, error) {
 
 func (i1 *I1Device) FXUsername() (string, error) {
 	username := ""
-	msg, err := SendStandardCommandAndWait(i1.Connection, CmdFxUsernameReq)
+	msg, err := SendStandardCommandAndWait(i1.Connection, CmdFxUsernameReq, CmdFxUsernameResp)
 	if err == nil {
 		buf := msg.Payload.(*BufPayload)
 		username = string(buf.Buf)
@@ -58,7 +57,7 @@ func (i1 *I1Device) FXUsername() (string, error) {
 
 func (i1 *I1Device) DeviceTextString() (string, error) {
 	text := ""
-	msg, err := SendStandardCommandAndWait(i1.Connection, CmdDeviceTextStringReq)
+	msg, err := SendStandardCommandAndWait(i1.Connection, CmdDeviceTextStringReq, CmdDeviceTextStringResp)
 	if err == nil {
 		buf := msg.Payload.(*BufPayload)
 		text = string(buf.Buf)
@@ -81,13 +80,13 @@ func (i1 *I1Device) Ping() error {
 }
 
 func (i1 *I1Device) LinkDB() (ldb LinkDB, err error) {
-	if i1.ldb == nil {
-		i1.ldb = NewI1LinkDB(i1.Connection)
-		err = i1.ldb.Refresh()
-	}
-	return i1.ldb, err
+	return nil, ErrNotSupported
 }
 
 func (i1 *I1Device) String() string {
 	return fmt.Sprintf("I1 Device (%s)", i1.Address())
+}
+
+func (i1 *I1Device) Close() error {
+	return i1.Connection.Close()
 }
