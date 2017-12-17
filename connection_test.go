@@ -2,72 +2,106 @@ package insteon
 
 import (
 	"testing"
+	"time"
 )
 
-type testBridge struct {
-	responses []*Command
-	respFlags []Flags
+type testConnection struct {
+	message *Message
+	resp    chan *Message
+	timeout time.Duration
 }
 
-func (tb *testBridge) Send(payload Payload) error {
-	return nil
+func (*testConnection) Close() error { return nil }
+
+func (tc *testConnection) Subscribe(...*Command) <-chan *Message {
+	tc.resp = make(chan *Message, 1)
+	return tc.resp
 }
 
-func (tb *testBridge) Receive() (Payload, error) {
-	response := tb.responses[0]
-	tb.responses = tb.responses[1:]
-
-	respFlags := tb.respFlags[0]
-	tb.respFlags = tb.respFlags[1:]
-
-	return &Message{Flags: respFlags, Command: response}, nil
+func (*testConnection) Unsubscribe(<-chan *Message) {
 }
 
-func testErr(t *testing.T, testNum int, expected, got error) {
-	if IsError(expected, got) {
-		return
-	}
-
-	t.Errorf("test[%d] Expected \"%v\" got \"%v\"", testNum, expected, got)
+func (tc *testConnection) Write(message *Message) (*Message, error) {
+	tc.message = message
+	go func() {
+		time.Sleep(tc.timeout)
+		select {
+		case tc.resp <- message:
+		default:
+		}
+	}()
+	return nil, nil
 }
 
-/*
-func TestSendingCommands(t *testing.T) {
+func TestSendStandardCommand(t *testing.T) {
 	tests := []struct {
-		standard  bool
-		command   *Command
-		responses []*Command
-		respFlags []Flags
-		err       error
+		command *Command
 	}{
-		{true, CmdPing, []*Command{CmdPing}, []Flags{StandardDirectAck}, nil},
-		{true, CmdPing, []*Command{CmdPing}, []Flags{StandardDirectMessage}, ErrUnexpectedResponse},
-		{true, CmdPing, []*Command{CmdIDReq}, []Flags{StandardDirectMessage}, ErrUnexpectedResponse},
-		{false, CmdPing, []*Command{CmdPing}, []Flags{ExtendedDirectAck}, nil},
-		{true, CmdPing, []*Command{CmdPing, CmdPing}, []Flags{StandardDirectAck, StandardDirectAck}, nil},
+		{CmdProductDataReq},
 	}
 
 	for i, test := range tests {
-		tb := &testBridge{
-			responses: test.responses,
-			respFlags: test.respFlags,
+		conn := &testConnection{timeout: time.Millisecond}
+		SendStandardCommand(conn, test.command)
+		if conn.message.Command != test.command {
+			t.Errorf("tests[%d] expected %v got %v", i, test.command, conn.message.Command)
 		}
-		conn := NewConnection(Address([3]byte{0x00, 0x00, 0x00}), tb)
-		if len(test.responses) > 1 {
-			if test.standard {
-				_, err := SendStandardCommandAndWait(conn, test.command)
-				testErr(t, i, test.err, err)
-			} else {
-				t.Errorf("Can't wait for an extended response")
-			}
-		} else {
-			if test.standard {
-				_, err := SendStandardCommand(conn, test.command)
-				testErr(t, i, test.err, err)
-			} else {
-				_, err := SendExtendedCommand(conn, test.command, &BufPayload{})
-				testErr(t, i, test.err, err)
-			}
+
+		if conn.message.Flags != StandardDirectMessage {
+			t.Errorf("tests[%d] expected %v got %v", StandardDirectMessage, conn.message.Flags)
 		}
 	}
-}*/
+}
+
+func TestSendStandardCommandAndWait(t *testing.T) {
+	tests := []struct {
+		command *Command
+		timeout time.Duration
+		err     error
+	}{
+		{CmdProductDataReq, time.Millisecond, nil},
+		{CmdProductDataReq, Timeout * 2, ErrAckTimeout},
+	}
+
+	for i, test := range tests {
+		oldTimeout := Timeout
+		Timeout = 10 * time.Millisecond
+		conn := &testConnection{timeout: test.timeout}
+		msg, err := SendStandardCommandAndWait(conn, test.command, test.command)
+		if err != test.err {
+			t.Errorf("tests[%d] expected %v got %v", test.err, err)
+		}
+
+		if err == nil {
+			if msg.Command != test.command {
+				t.Errorf("tests[%d] expected %v got %v", i, test.command, msg.Command)
+			}
+		}
+		Timeout = oldTimeout
+	}
+}
+
+func TestSendExtendedCommand(t *testing.T) {
+	tests := []struct {
+		command *Command
+		payload Payload
+	}{
+		{CmdProductDataResp, &BufPayload{[]byte{0xfe, 0xfe, 0xaa, 0xbc}}},
+	}
+
+	for i, test := range tests {
+		conn := &testConnection{timeout: time.Millisecond}
+		SendExtendedCommand(conn, test.command, test.payload)
+		if conn.message.Command != test.command {
+			t.Errorf("tests[%d] expected %v got %v", i, test.command, conn.message.Command)
+		}
+
+		if conn.message.Flags != ExtendedDirectMessage {
+			t.Errorf("tests[%d] expected %v got %v", i, ExtendedDirectMessage, conn.message.Flags)
+		}
+
+		if conn.message.Payload != test.payload {
+			t.Errorf("tests[%d] expected %v got %v", i, test.payload, conn.message.Payload)
+		}
+	}
+}

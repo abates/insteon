@@ -1,6 +1,9 @@
 package insteon
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 func TestRecordControlFlags(t *testing.T) {
 	tests := []struct {
@@ -86,6 +89,9 @@ func TestLinkEqual(t *testing.T) {
 		return link
 	}
 
+	l1 := newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03})
+	l2 := l1
+
 	tests := []struct {
 		link1    *Link
 		link2    *Link
@@ -97,11 +103,61 @@ func TestLinkEqual(t *testing.T) {
 		{newLink(availableResponder, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
 		{newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x04}), false},
 		{newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), nil, false},
+		{l1, l2, true},
 	}
 
 	for i, test := range tests {
 		if test.link1.Equal(test.link2) != test.expected {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expected, !test.expected)
+		}
+	}
+}
+
+func TestLinkMarshalUnmarshal(t *testing.T) {
+	tests := []struct {
+		input           []byte
+		expectedFlags   RecordControlFlags
+		expectedGroup   Group
+		expectedAddress Address
+		expectedData    [3]byte
+		err             bool
+	}{
+		{[]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, RecordControlFlags(0x01), Group(0x02), Address{0x03, 0x04, 0x05}, [3]byte{0x06, 0x07, 0x08}, false},
+		{[]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, RecordControlFlags(0x01), Group(0x02), Address{0x03, 0x04, 0x05}, [3]byte{0x06, 0x07, 0x08}, true},
+	}
+
+	for i, test := range tests {
+		link := &Link{}
+		err := link.UnmarshalBinary(test.input)
+		if err != nil {
+			if !test.err {
+				t.Errorf("tests[%d] no error expected got %v", i, err)
+			}
+			continue
+		} else if test.err {
+			t.Errorf("tests[%d] expected err got none", i)
+		}
+
+		if link.Flags != test.expectedFlags {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedFlags, link.Flags)
+		}
+
+		if link.Group != test.expectedGroup {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedGroup, link.Group)
+		}
+
+		if link.Address != test.expectedAddress {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedAddress, link.Address)
+		}
+
+		if link.Data != test.expectedData {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedData, link.Data)
+		}
+
+		buf, _ := link.MarshalBinary()
+
+		if !bytes.Equal(buf, test.input) {
+			t.Errorf("tests[%d] expected %v got %v", i, test.input, buf)
 		}
 	}
 }

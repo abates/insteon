@@ -1,11 +1,5 @@
 package insteon
 
-type testConnection int
-
-func (testConnection) Write(*Message) (ack *Message, err error)  { return nil, nil }
-func (testConnection) Subscribe(match ...*Command) chan *Message { return nil }
-func (testConnection) Unsubscribe(chan *Message)                 {}
-
 /*
 func TestCleanup(t *testing.T) {
 	var flags RecordControlFlags
