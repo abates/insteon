@@ -159,7 +159,10 @@ loop:
 					if lr.Link.Flags != 0x00 {
 						links = append(links, lr.Link)
 					} else {
-						refreshCh <- true
+						select {
+						case refreshCh <- true:
+						default:
+						}
 						close(refreshCh)
 						refreshCh = nil
 					}
@@ -182,6 +185,7 @@ loop:
 	if refreshCh != nil {
 		close(refreshCh)
 	}
+	db.conn.Unsubscribe(rrCh)
 	closeCh <- nil
 }
 
@@ -266,11 +270,16 @@ func (db *DeviceLinkDB) Links() []*Link {
 	return <-ch
 }
 
-func (db *DeviceLinkDB) Refresh() error {
+func (db *DeviceLinkDB) Refresh() (err error) {
 	ch := make(chan bool)
 	db.refreshCh <- ch
-	<-ch
-	return nil
+	select {
+	case <-ch:
+	case <-time.After(Timeout):
+		err = ErrAckTimeout
+	}
+
+	return err
 }
 
 func (db *DeviceLinkDB) WriteLink(memAddress MemAddress, link *Link) error {

@@ -31,18 +31,18 @@ type CommandRegistry struct {
 
 type Command struct {
 	name      string
-	cmd       [2]byte
+	Cmd       [2]byte
 	subCmd    bool
 	generator PayloadGenerator
 }
 
 func (c *Command) SubCommand(value int) *Command {
-	return &Command{name: c.name, cmd: [2]byte{c.cmd[0], byte(value)}, subCmd: true, generator: c.generator}
+	return &Command{name: c.name, Cmd: [2]byte{c.Cmd[0], byte(value)}, subCmd: true, generator: c.generator}
 }
 
 func (c *Command) String() string {
 	if c.subCmd {
-		return fmt.Sprintf("%s(%d)", c.name, c.cmd[1])
+		return fmt.Sprintf("%s(%d)", c.name, c.Cmd[1])
 	}
 	return c.name
 }
@@ -55,7 +55,7 @@ func (cf *CommandRegistry) FindExt(cmd []byte) *Command {
 	}
 
 	// fail safe so nobody is ever referring to a nil command
-	return &Command{name: "", cmd: [2]byte{cmd[0], cmd[1]}, generator: func() Payload { return &BufPayload{} }}
+	return &Command{name: "", Cmd: [2]byte{cmd[0], cmd[1]}, generator: func() Payload { return &BufPayload{} }}
 }
 
 func (cf *CommandRegistry) FindStd(cmd []byte) *Command {
@@ -66,26 +66,26 @@ func (cf *CommandRegistry) FindStd(cmd []byte) *Command {
 	}
 
 	// fail safe so nobody is ever referring to a nil command
-	return &Command{name: "", cmd: [2]byte{cmd[0], cmd[1]}}
+	return &Command{name: "", Cmd: [2]byte{cmd[0], cmd[1]}}
 }
 
 func (cf *CommandRegistry) RegisterExt(name string, b1, b2 byte, generator PayloadGenerator) *Command {
 	if generator == nil {
 		generator = func() Payload { return &BufPayload{} }
 	}
-	command := &Command{name: name, cmd: [2]byte{b1, b2}, generator: generator}
+	command := &Command{name: name, Cmd: [2]byte{b1, b2}, generator: generator}
 	if cf.extendedCommands == nil {
 		cf.extendedCommands = make(map[[2]byte]*Command)
 	}
-	cf.extendedCommands[command.cmd] = command
+	cf.extendedCommands[command.Cmd] = command
 	return command
 }
 
 func (cf *CommandRegistry) RegisterStd(name string, b1, b2 byte) *Command {
-	command := &Command{name: name, cmd: [2]byte{b1, b2}}
+	command := &Command{name: name, Cmd: [2]byte{b1, b2}}
 	if cf.standardCommands == nil {
 		cf.standardCommands = make(map[[2]byte]*Command)
 	}
-	cf.standardCommands[command.cmd] = command
+	cf.standardCommands[command.Cmd] = command
 	return command
 }

@@ -101,7 +101,7 @@ func (m *Message) MarshalBinary() (data []byte, err error) {
 	copy(data[0:3], m.Src[:])
 	copy(data[3:6], m.Dst[:])
 	data[6] = byte(m.Flags)
-	copy(data[7:9], m.Command.cmd[:])
+	copy(data[7:9], m.Command.Cmd[:])
 	if m.Flags.Extended() {
 		var payload []byte
 		payload, err = m.Payload.MarshalBinary()

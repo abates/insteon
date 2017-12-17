@@ -29,22 +29,25 @@ func devCmd(args []string, plm *plm.PLM) error {
 	if err != nil {
 		return err
 	}
+	defer device.Close()
 
 	switch args[1] {
 	case "info":
-		return devInfoCmd(device)
+		err = devInfoCmd(device)
 	case "link":
-		return devLinkCmd(device)
+		err = devLinkCmd(device)
 	case "unlink":
-		return devUnlinkCmd(device)
+		err = devUnlinkCmd(device)
 	case "exitlink":
-		return devExitLinkCmd(device)
+		err = devExitLinkCmd(device)
 	case "cleanup":
-		return devCleanupCmd(device)
+		err = devCleanupCmd(device)
 	case "dump":
-		return devDumpCmd(device)
+		err = devDumpCmd(device)
+	default:
+		err = fmt.Errorf("Unknown command %q", args[1])
 	}
-	return fmt.Errorf("Unknown command %q", args[1])
+	return err
 }
 
 func devConnect(plm *plm.PLM, addr insteon.Address) (insteon.Device, error) {

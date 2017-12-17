@@ -15,30 +15,28 @@ import (
 var (
 	ErrNoSync         = errors.New("No sync byte received")
 	ErrNotImplemented = errors.New("IM command not implemented")
+	ErrAckTimeout     = errors.New("Timeout waiting for Ack from the PLM")
 )
 
-type subscription struct {
+type pktSubReq struct {
 	matches     [][]byte
 	unsubscribe bool
-	ch          chan *Packet
+	rxCh        <-chan *Packet
+	respCh      chan<- bool
 }
 
-func (s *subscription) match(buf []byte) bool {
-	for _, match := range s.matches {
+type pktSubscription struct {
+	matches [][]byte
+	ch      chan<- *Packet
+}
+
+func (sub *pktSubscription) match(buf []byte) bool {
+	for _, match := range sub.matches {
 		if bytes.Equal(match, buf[0:len(match)]) {
 			return true
 		}
 	}
 	return false
-}
-
-func (s *subscription) dispatch(pkt *Packet) {
-	s.ch <- pkt
-}
-
-func (s *subscription) Close() error {
-	close(s.ch)
-	return nil
 }
 
 type txPacketReq struct {
@@ -51,10 +49,10 @@ type PLM struct {
 	out     io.Writer
 	timeout time.Duration
 
-	txPktCh chan *txPacketReq
-	rxPktCh chan []byte
-	subCh   chan *subscription
-	closeCh chan chan error
+	txPktCh     chan *txPacketReq
+	rxPktCh     chan []byte
+	pktSubReqCh chan *pktSubReq
+	closeCh     chan chan error
 
 	linkDb *LinkDB
 }
@@ -65,10 +63,10 @@ func New(port io.ReadWriter, timeout time.Duration) *PLM {
 		out:     port,
 		timeout: timeout,
 
-		txPktCh: make(chan *txPacketReq, 1),
-		rxPktCh: make(chan []byte, 1),
-		subCh:   make(chan *subscription),
-		closeCh: make(chan chan error),
+		txPktCh:     make(chan *txPacketReq, 1),
+		rxPktCh:     make(chan []byte, 1),
+		pktSubReqCh: make(chan *pktSubReq, 1),
+		closeCh:     make(chan chan error),
 	}
 	go plm.readPktLoop()
 	go plm.readWriteLoop()
@@ -156,7 +154,7 @@ func (plm *PLM) writePacket(packet *Packet) error {
 }
 
 func (plm *PLM) readWriteLoop() {
-	subscriptions := make(map[chan *Packet]*subscription)
+	pktSubscriptions := make(map[<-chan *Packet]*pktSubscription)
 	ackChannels := make(map[Command]chan *Packet)
 	var closeCh chan error
 
@@ -181,13 +179,11 @@ loop:
 
 			tracePkt("RX", packet)
 			if 0x50 <= packet.Command && packet.Command <= 0x58 {
-				insteon.Log.Debugf("Looking for subscriptions to %v", packet)
-				for _, subscription := range subscriptions {
+				for _, pktSubscription := range pktSubscriptions {
 					// make sure to slice off the leading 0x02 from the
 					// buffer
-					if subscription.match(buf[1:]) {
-						insteon.Log.Debugf("Dispatching %v", packet)
-						subscription.dispatch(packet)
+					if pktSubscription.match(buf[1:]) {
+						pktSubscription.ch <- packet
 					}
 				}
 			} else {
@@ -201,22 +197,26 @@ loop:
 					}
 				}
 			}
-		case sub := <-plm.subCh:
-			if sub.unsubscribe {
-				if _, found := subscriptions[sub.ch]; found {
-					delete(subscriptions, sub.ch)
+		case pktSubReq := <-plm.pktSubReqCh:
+			if pktSubReq.unsubscribe {
+				if sub, found := pktSubscriptions[pktSubReq.rxCh]; found {
+					delete(pktSubscriptions, pktSubReq.rxCh)
 					close(sub.ch)
 				}
 			} else {
-				subscriptions[sub.ch] = sub
+				ch := make(chan *Packet, 1)
+				pktSubReq.rxCh = ch
+				pktSubscriptions[pktSubReq.rxCh] = &pktSubscription{ch: ch, matches: pktSubReq.matches}
+				pktSubReq.respCh <- true
+				close(pktSubReq.respCh)
 			}
 		case closeCh = <-plm.closeCh:
 			break loop
 		}
 	}
 
-	for ch, _ := range subscriptions {
-		close(ch)
+	for _, pktSubscription := range pktSubscriptions {
+		close(pktSubscription.ch)
 	}
 
 	for _, ch := range ackChannels {
@@ -243,7 +243,7 @@ func (plm *PLM) Send(packet *Packet) (ack *Packet, err error) {
 				insteon.Log.Debugf("PLM ACK Received")
 			}
 		case <-time.After(plm.timeout):
-			err = insteon.ErrAckTimeout
+			err = ErrAckTimeout
 		}
 	case <-time.After(plm.timeout):
 		err = insteon.ErrWriteTimeout
@@ -295,19 +295,20 @@ func (plm *PLM) RFSleep() error {
 	return ErrNotImplemented
 }
 
-func (plm *PLM) Subscribe(matches ...[]byte) chan *Packet {
-	ch := make(chan *Packet, 1)
-	plm.subCh <- &subscription{ch: ch, matches: matches}
-	return ch
+func (plm *PLM) Subscribe(matches ...[]byte) <-chan *Packet {
+	respCh := make(chan bool, 1)
+	req := &pktSubReq{respCh: respCh, matches: matches}
+	plm.pktSubReqCh <- req
+	<-respCh
+	return req.rxCh
 }
 
-func (plm *PLM) Unsubscribe(ch chan *Packet) {
-	plm.subCh <- &subscription{ch: ch, unsubscribe: true}
+func (plm *PLM) Unsubscribe(ch <-chan *Packet) {
+	plm.pktSubReqCh <- &pktSubReq{rxCh: ch, unsubscribe: true}
 }
 
 func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
-	connection := NewConnection(plm, dst)
-	i1device := insteon.NewI1Device(dst, connection.txCh, connection.rxCh)
+	i1device := insteon.NewI1Device(dst, NewConnection(plm, dst))
 	device := insteon.Device(i1device)
 	version, err := i1device.EngineVersion()
 

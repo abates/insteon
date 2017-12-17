@@ -10,9 +10,9 @@ type I1Device struct {
 	address Address
 }
 
-func NewI1Device(address Address, tx, rx chan *Message) *I1Device {
+func NewI1Device(address Address, connection Connection) *I1Device {
 	return &I1Device{
-		Connection: NewI1Connection(address, tx, rx),
+		Connection: connection,
 		address:    address,
 	}
 }
@@ -69,7 +69,7 @@ func (i1 *I1Device) EngineVersion() (EngineVersion, error) {
 	ack, err := SendStandardCommand(i1.Connection, CmdGetEngineVersion)
 	version := EngineVersion(0)
 	if err == nil {
-		version = EngineVersion(ack.Command.cmd[1])
+		version = EngineVersion(ack.Command.Cmd[1])
 	}
 	return version, err
 }
