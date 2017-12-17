@@ -79,15 +79,7 @@ func traceBuf(prefix string, buf []byte) {
 	for i, b := range buf {
 		bb[i] = fmt.Sprintf("%02x", b)
 	}
-	insteon.Log.Tracef("%-05s BUFFER %s", prefix, strings.Join(bb, " "))
-}
-
-func tracePkt(prefix string, packet *Packet) {
-	insteon.Log.Tracef("%-05s %s", prefix, packet)
-}
-
-func traceMsg(prefix string, msg *insteon.Message) {
-	insteon.Log.Tracef("%-05s %s", prefix, msg)
+	insteon.Log.Tracef("%s %s", prefix, strings.Join(bb, " "))
 }
 
 func (plm *PLM) read(buf []byte) error {
@@ -128,6 +120,9 @@ func (plm *PLM) readPacket() (buf []byte, err error) {
 			_, err = io.ReadAtLeast(plm.in, buf[9:], 14)
 		}
 	}
+	if err == nil {
+		traceBuf("Read packet off the wire", buf)
+	}
 	return buf, err
 }
 
@@ -136,6 +131,7 @@ func (plm *PLM) readPktLoop() {
 		packet, err := plm.readPacket()
 		if err == nil {
 			plm.rxPktCh <- packet
+			insteon.Log.Debugf("delivered packet to read/write loop")
 		} else {
 			insteon.Log.Infof("Error reading packet: %v", err)
 		}
@@ -149,7 +145,7 @@ func (plm *PLM) writePacket(packet *Packet) error {
 		_, err = plm.out.Write(payload)
 	}
 	if err == nil {
-		tracePkt("TX", packet)
+		traceBuf("Wrote packet to the wire", payload)
 	}
 	return err
 }
@@ -178,23 +174,29 @@ loop:
 				continue
 			}
 
-			tracePkt("RX", packet)
+			insteon.Log.Tracef("RX %v", packet)
 			if 0x50 <= packet.Command && packet.Command <= 0x58 {
 				for _, pktSubscription := range pktSubscriptions {
 					// make sure to slice off the leading 0x02 from the
 					// buffer
 					if pktSubscription.match(buf[1:]) {
-						pktSubscription.ch <- packet
+						select {
+						case pktSubscription.ch <- packet:
+						default:
+							insteon.Log.Infof("PLM Subscription exists, but buffer is full. discarding %v", packet)
+						}
 					}
 				}
 			} else {
 				// handle ack/nak
+				insteon.Log.Debugf("Dispatching PLM ACK/NAK %v", packet)
 				if ackCh, ok := ackChannels[packet.Command]; ok {
 					select {
 					case ackCh <- packet:
 						close(ackCh)
 						delete(ackChannels, packet.Command)
 					default:
+						insteon.Log.Debugf("PLM ACK/NAK channel was not ready, discarding %v", packet)
 					}
 				}
 			}
@@ -244,6 +246,7 @@ func (plm *PLM) Send(packet *Packet) (ack *Packet, err error) {
 				insteon.Log.Debugf("PLM ACK Received")
 			}
 		case <-time.After(plm.timeout):
+			insteon.Log.Debugf("PLM ACK Timeout")
 			err = ErrAckTimeout
 		}
 	case <-time.After(plm.timeout):
@@ -297,7 +300,7 @@ func (plm *PLM) RFSleep() error {
 }
 
 func (plm *PLM) Subscribe(matches ...[]byte) <-chan *Packet {
-	respCh := make(chan bool, 1)
+	respCh := make(chan bool)
 	req := &pktSubReq{respCh: respCh, matches: matches}
 	plm.pktSubReqCh <- req
 	<-respCh

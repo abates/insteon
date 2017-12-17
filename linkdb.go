@@ -78,7 +78,7 @@ func (lr *LinkRequest) UnmarshalBinary(buf []byte) (err error) {
 
 func (lr *LinkRequest) MarshalBinary() (buf []byte, err error) {
 	var linkData []byte
-	buf = make([]byte, 5)
+	buf = make([]byte, 14)
 	buf[1] = byte(lr.Type)
 	buf[2] = byte(lr.MemAddress >> 8)
 	buf[3] = byte(lr.MemAddress & 0xff)
@@ -88,12 +88,10 @@ func (lr *LinkRequest) MarshalBinary() (buf []byte, err error) {
 	case 0x01:
 		buf[4] = 0x00
 		linkData, err = lr.Link.MarshalBinary()
-		buf = append(buf, make([]byte, 9)...)
 		copy(buf[5:], linkData)
 	case 0x02:
 		buf[4] = 0x08
 		linkData, err = lr.Link.MarshalBinary()
-		buf = append(buf, make([]byte, 9)...)
 		copy(buf[5:], linkData)
 	}
 	return buf, err

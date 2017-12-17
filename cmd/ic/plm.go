@@ -24,7 +24,7 @@ func plmCmd(args []string, plm *plm.PLM) (err error) {
 		var db insteon.LinkDB
 		db, err = plm.LinkDB()
 		if err == nil {
-			printLinkDatabase(db)
+			err = printLinkDatabase(db)
 		}
 	}
 	return err

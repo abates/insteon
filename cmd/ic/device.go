@@ -89,7 +89,7 @@ func devCleanupCmd(device insteon.Device) error {
 func devDumpCmd(device insteon.Device) error {
 	db, err := device.LinkDB()
 	if err == nil {
-		dumpLinkDatabase(db)
+		err = dumpLinkDatabase(db)
 	}
 	return err
 }
@@ -104,7 +104,7 @@ func devInfoCmd(device insteon.Device) error {
 		var db insteon.LinkDB
 		db, err = device.LinkDB()
 		if err == nil {
-			printLinkDatabase(db)
+			err = printLinkDatabase(db)
 		}
 	}
 	return err

@@ -59,6 +59,7 @@ func (conn *Connection) readWriteLoop(plm *PLM, dst insteon.Address) {
 	ackChannels := make(map[byte]chan *insteon.Message)
 	rxChannels := make(map[<-chan *insteon.Message]*msgSubscription)
 	rxCh := plm.Subscribe([]byte{0x50, dst[0], dst[1], dst[2]}, []byte{0x51, dst[0], dst[1], dst[2]})
+	defer plm.Unsubscribe(rxCh)
 
 loop:
 	for {
@@ -88,6 +89,7 @@ loop:
 			}
 		case pkt := <-rxCh:
 			msg := pkt.Payload.(*insteon.Message)
+			insteon.Log.Debugf("Connection received %v", msg)
 			if msg.Flags.Type() == insteon.MsgTypeDirectAck || msg.Flags.Type() == insteon.MsgTypeDirectNak {
 				cmd := msg.Command.Cmd[0]
 				if ch, found := ackChannels[cmd]; found {
@@ -95,6 +97,7 @@ loop:
 					select {
 					case ch <- msg:
 					default:
+						insteon.Log.Debugf("insteon ACK/NAK channel was not ready, discarding %v", msg)
 					}
 					close(ch)
 					delete(ackChannels, cmd)
@@ -105,6 +108,7 @@ loop:
 						select {
 						case sub.ch <- msg:
 						default:
+							insteon.Log.Infof("Insteon subscription exists, but buffer is full. discarding %v", msg)
 						}
 					}
 				}
@@ -122,7 +126,6 @@ loop:
 		close(sub.ch)
 	}
 
-	plm.Unsubscribe(rxCh)
 	closeCh <- nil
 	close(closeCh)
 }
@@ -153,7 +156,7 @@ func (conn *Connection) Write(message *insteon.Message) (ack *insteon.Message, e
 	select {
 	case ack = <-ackCh:
 	case <-time.After(insteon.Timeout):
-		err = ErrAckTimeout
+		err = insteon.ErrAckTimeout
 	}
 	return
 }

@@ -58,7 +58,7 @@ func TestLinkRequest(t *testing.T) {
 		},
 		{
 			input:           []byte{0xff, 0x00, 0x0f, 0xff, 0x08},
-			marshal:         []byte{0x0, 0x00, 0x0f, 0xff, 0x08},
+			marshal:         []byte{0x0, 0x00, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			expectedType:    LinkRequestType(0x00),
 			expectedAddress: MemAddress(0x0fff),
 			expectedRecords: 8,

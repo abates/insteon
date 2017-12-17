@@ -52,14 +52,18 @@ func unlinkCmd(args []string, p *plm.PLM) (err error) {
 		var plmDB insteon.LinkDB
 		plmDB, err = p.LinkDB()
 		if err == nil {
-			for _, link := range plmDB.Links() {
-				if link.Address == addr {
-					fmt.Printf("Cleaning up old link...")
-					err = plmDB.RemoveLink(link)
-					if err == nil {
-						fmt.Printf("successful\n")
-					} else {
-						fmt.Printf("failed: %v\n", err)
+			var links []*insteon.Link
+			links, err = plmDB.Links()
+			if err == nil {
+				for _, link := range links {
+					if link.Address == addr {
+						fmt.Printf("Cleaning up old link...")
+						err = plmDB.RemoveLink(link)
+						if err == nil {
+							fmt.Printf("successful\n")
+						} else {
+							fmt.Printf("failed: %v\n", err)
+						}
 					}
 				}
 			}

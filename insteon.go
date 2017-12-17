@@ -9,7 +9,7 @@ var (
 	ErrBufferTooShort       = errors.New("Buffer is too short")
 	ErrReadTimeout          = errors.New("Read Timeout")
 	ErrWriteTimeout         = errors.New("Write Timeout")
-	ErrAckTimeout           = errors.New("Timeout waiting for ACK")
+	ErrAckTimeout           = errors.New("Timeout waiting for Device ACK")
 	ErrNotImplemented       = errors.New("Command is not yet implemented")
 	ErrUnexpectedResponse   = errors.New("Unexpected response from device")
 	ErrNotLinked            = errors.New("Not in All-Link group")
