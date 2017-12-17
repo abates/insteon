@@ -190,6 +190,7 @@ loop:
 }
 
 func (db *DeviceLinkDB) Close() error {
+	Log.Debugf("Closing DeviceLinkDB")
 	ch := make(chan error)
 	db.closeCh <- ch
 	return <-ch

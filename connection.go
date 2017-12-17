@@ -95,24 +95,25 @@ func (i2csw *I2CsConnection) Write(message *Message) (*Message, error) {
 }
 
 func SendStandardCommandAndWait(conn Connection, command *Command, waitCmd *Command) (msg *Message, err error) {
+	Log.Debugf("Subscribing to traffic for command %v", waitCmd)
 	rxCh := conn.Subscribe(waitCmd)
 	_, err = SendStandardCommand(conn, command)
 
 	if err == nil {
-		Log.Debugf("Waiting for %v", waitCmd)
+		Log.Debugf("Waiting for %v response", waitCmd)
 		select {
 		case msg = <-rxCh:
+			Log.Debugf("Received message %v", msg)
 		case <-time.After(Timeout):
 			err = ErrAckTimeout
 		}
-		Log.Debugf("Got response %v", msg)
 		conn.Unsubscribe(rxCh)
-		Log.Debugf("Unsubscribed!")
 	}
 	return
 }
 
 func SendStandardCommand(conn Connection, command *Command) (*Message, error) {
+	Log.Debugf("Sending standard command %v", command)
 	return conn.Write(&Message{
 		Flags:   StandardDirectMessage,
 		Command: command,
@@ -120,6 +121,7 @@ func SendStandardCommand(conn Connection, command *Command) (*Message, error) {
 }
 
 func SendExtendedCommand(conn Connection, command *Command, payload Payload) (*Message, error) {
+	Log.Debugf("Sending extended command %v %v", command, payload)
 	return conn.Write(&Message{
 		Flags:   ExtendedDirectMessage,
 		Command: command,

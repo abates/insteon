@@ -88,5 +88,6 @@ func (i1 *I1Device) String() string {
 }
 
 func (i1 *I1Device) Close() error {
+	Log.Debugf("Closing I1Device connection")
 	return i1.Connection.Close()
 }

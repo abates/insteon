@@ -80,7 +80,7 @@ loop:
 					close(sub.ch)
 				}
 			} else {
-				ch := make(chan *insteon.Message)
+				ch := make(chan *insteon.Message, 1)
 				msgSubReq.rxCh = ch
 				rxChannels[msgSubReq.rxCh] = &msgSubscription{matches: msgSubReq.matches, ch: ch}
 				msgSubReq.respCh <- true
@@ -102,7 +102,10 @@ loop:
 			} else {
 				for _, sub := range rxChannels {
 					if sub.match(msg) {
-						sub.ch <- msg
+						select {
+						case sub.ch <- msg:
+						default:
+						}
 					}
 				}
 			}
@@ -137,6 +140,7 @@ func (conn *Connection) Unsubscribe(rxCh <-chan *insteon.Message) {
 }
 
 func (conn *Connection) Close() error {
+	insteon.Log.Debugf("Closing PLM Connection")
 	ch := make(chan error)
 	conn.closeCh <- ch
 	return <-ch

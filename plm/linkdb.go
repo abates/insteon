@@ -191,6 +191,7 @@ func (db *LinkDB) Cleanup() (err error) {
 }
 
 func (db *LinkDB) Close() error {
+	insteon.Log.Debugf("Closing PLM LinkDB")
 	ch := make(chan error)
 	db.closeCh <- ch
 	return <-ch

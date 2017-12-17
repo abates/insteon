@@ -26,10 +26,10 @@ func devCmd(args []string, plm *plm.PLM) error {
 	}
 
 	device, err := devConnect(plm, addr)
+	defer device.Close()
 	if err != nil {
 		return err
 	}
-	defer device.Close()
 
 	switch args[1] {
 	case "info":

@@ -39,7 +39,9 @@ func (i2 *I2Device) String() string {
 }
 
 func (i2 *I2Device) Close() error {
+	Log.Debugf("Closing I2Device")
 	if i2.ldb != nil {
+		Log.Debugf("Closing link database")
 		i2.ldb.Close()
 	}
 	return i2.I1Device.Close()

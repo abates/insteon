@@ -347,6 +347,7 @@ func (plm *PLM) AssignToAllLinkGroup(insteon.Group) error   { return ErrNotImple
 func (plm *PLM) DeleteFromAllLinkGroup(insteon.Group) error { return ErrNotImplemented }
 
 func (plm *PLM) Close() error {
+	insteon.Log.Debugf("Closing PLM")
 	err := insteon.NewAggregateError()
 	if plm.linkDb != nil {
 		err.Append(plm.linkDb.Close())
