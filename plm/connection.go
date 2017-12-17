@@ -81,7 +81,7 @@ loop:
 					close(sub.ch)
 				}
 			} else {
-				ch := make(chan *insteon.Message, 1)
+				ch := make(chan *insteon.Message, 10)
 				msgSubReq.rxCh = ch
 				rxChannels[msgSubReq.rxCh] = &msgSubscription{matches: msgSubReq.matches, ch: ch}
 				msgSubReq.respCh <- true

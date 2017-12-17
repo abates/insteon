@@ -65,7 +65,7 @@ func New(port io.ReadWriter, timeout time.Duration) *PLM {
 		timeout: timeout,
 
 		txPktCh:     make(chan *txPacketReq, 1),
-		rxPktCh:     make(chan []byte, 1),
+		rxPktCh:     make(chan []byte, 10),
 		pktSubReqCh: make(chan *pktSubReq, 1),
 		closeCh:     make(chan chan error),
 	}
@@ -207,7 +207,7 @@ loop:
 					close(sub.ch)
 				}
 			} else {
-				ch := make(chan *Packet, 1)
+				ch := make(chan *Packet, 10)
 				pktSubReq.rxCh = ch
 				pktSubscriptions[pktSubReq.rxCh] = &pktSubscription{ch: ch, matches: pktSubReq.matches}
 				pktSubReq.respCh <- true
