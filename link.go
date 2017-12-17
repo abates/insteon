@@ -75,7 +75,7 @@ func (l *Link) MarshalBinary() ([]byte, error) {
 
 func (l *Link) UnmarshalBinary(buf []byte) error {
 	if len(buf) < 8 {
-		return fmt.Errorf("link is 8 bytes, got %d", len(buf))
+		return newBufError(ErrBufferTooShort, 8, len(buf))
 	}
 	l.Flags = RecordControlFlags(buf[0])
 	l.Group = Group(buf[1])

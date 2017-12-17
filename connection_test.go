@@ -6,9 +6,10 @@ import (
 )
 
 type testConnection struct {
-	message *Message
-	resp    chan *Message
-	timeout time.Duration
+	lastMessage *Message
+	responses   []*Message
+	resp        chan *Message
+	timeout     time.Duration
 }
 
 func (*testConnection) Close() error { return nil }
@@ -22,14 +23,21 @@ func (*testConnection) Unsubscribe(<-chan *Message) {
 }
 
 func (tc *testConnection) Write(message *Message) (*Message, error) {
-	tc.message = message
-	go func() {
+	tc.lastMessage = message
+	var response *Message
+	if len(tc.responses) > 0 {
+		response = tc.responses[0]
+		tc.responses = tc.responses[1:]
+	} else {
+		response = message
+	}
+	go func(response *Message) {
 		time.Sleep(tc.timeout)
 		select {
 		case tc.resp <- message:
 		default:
 		}
-	}()
+	}(response)
 	return nil, nil
 }
 
@@ -43,12 +51,12 @@ func TestSendStandardCommand(t *testing.T) {
 	for i, test := range tests {
 		conn := &testConnection{timeout: time.Millisecond}
 		SendStandardCommand(conn, test.command)
-		if conn.message.Command != test.command {
-			t.Errorf("tests[%d] expected %v got %v", i, test.command, conn.message.Command)
+		if conn.lastMessage.Command != test.command {
+			t.Errorf("tests[%d] expected %v got %v", i, test.command, conn.lastMessage.Command)
 		}
 
-		if conn.message.Flags != StandardDirectMessage {
-			t.Errorf("tests[%d] expected %v got %v", StandardDirectMessage, conn.message.Flags)
+		if conn.lastMessage.Flags != StandardDirectMessage {
+			t.Errorf("tests[%d] expected %v got %v", StandardDirectMessage, conn.lastMessage.Flags)
 		}
 	}
 }
@@ -92,16 +100,16 @@ func TestSendExtendedCommand(t *testing.T) {
 	for i, test := range tests {
 		conn := &testConnection{timeout: time.Millisecond}
 		SendExtendedCommand(conn, test.command, test.payload)
-		if conn.message.Command != test.command {
-			t.Errorf("tests[%d] expected %v got %v", i, test.command, conn.message.Command)
+		if conn.lastMessage.Command != test.command {
+			t.Errorf("tests[%d] expected %v got %v", i, test.command, conn.lastMessage.Command)
 		}
 
-		if conn.message.Flags != ExtendedDirectMessage {
-			t.Errorf("tests[%d] expected %v got %v", i, ExtendedDirectMessage, conn.message.Flags)
+		if conn.lastMessage.Flags != ExtendedDirectMessage {
+			t.Errorf("tests[%d] expected %v got %v", i, ExtendedDirectMessage, conn.lastMessage.Flags)
 		}
 
-		if conn.message.Payload != test.payload {
-			t.Errorf("tests[%d] expected %v got %v", i, test.payload, conn.message.Payload)
+		if conn.lastMessage.Payload != test.payload {
+			t.Errorf("tests[%d] expected %v got %v", i, test.payload, conn.lastMessage.Payload)
 		}
 	}
 }

@@ -1,11 +1,24 @@
 package insteon
 
 import (
-	"bytes"
 	"fmt"
 	"path"
 	"runtime"
 )
+
+type BufError struct {
+	Cause error
+	Need  int
+	Got   int
+}
+
+func newBufError(cause error, need int, got int) *BufError {
+	return &BufError{Cause: cause, Need: need, Got: got}
+}
+
+func (be *BufError) Error() string {
+	return fmt.Sprintf("%v: need %d bytes got %d", be.Cause, be.Need, be.Got)
+}
 
 type Error struct {
 	Cause error
@@ -13,7 +26,10 @@ type Error struct {
 }
 
 func IsError(check, err error) bool {
-	if e, ok := err.(*Error); ok {
+	switch e := err.(type) {
+	case *Error:
+		return e.Cause == check
+	case *BufError:
 		return e.Cause == check
 	}
 	return check == err
@@ -33,30 +49,4 @@ func TraceError(cause error) error {
 		Cause: cause,
 		Frame: frame,
 	}
-}
-
-type AggregateError struct {
-	Errors []error
-}
-
-func NewAggregateError() *AggregateError {
-	return &AggregateError{}
-}
-
-func (ae *AggregateError) Len() int {
-	return len(ae.Errors)
-}
-
-func (ae *AggregateError) Append(err error) {
-	if err != nil {
-		ae.Errors = append(ae.Errors, err)
-	}
-}
-
-func (ae *AggregateError) Error() string {
-	var buf bytes.Buffer
-	for _, err := range ae.Errors {
-		buf.WriteString(fmt.Sprintf("%s\n", err.Error()))
-	}
-	return buf.String()
 }

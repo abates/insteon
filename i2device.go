@@ -14,7 +14,6 @@ func NewI2Device(i1device *I1Device) *I2Device {
 func (i2 *I2Device) LinkDB() (ldb LinkDB, err error) {
 	if i2.ldb == nil {
 		i2.ldb = NewDeviceLinkDB(i2.Connection)
-		err = i2.ldb.Refresh()
 	}
 	return i2.ldb, err
 }
@@ -40,9 +39,5 @@ func (i2 *I2Device) String() string {
 
 func (i2 *I2Device) Close() error {
 	Log.Debugf("Closing I2Device")
-	if i2.ldb != nil {
-		Log.Debugf("Closing link database")
-		i2.ldb.Close()
-	}
 	return i2.I1Device.Close()
 }

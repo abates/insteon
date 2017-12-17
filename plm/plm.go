@@ -16,6 +16,7 @@ var (
 	ErrNoSync         = errors.New("No sync byte received")
 	ErrNotImplemented = errors.New("IM command not implemented")
 	ErrAckTimeout     = errors.New("Timeout waiting for Ack from the PLM")
+	ErrNak            = errors.New("PLM responded with a NAK.  Resend command")
 )
 
 type pktSubReq struct {
@@ -270,7 +271,7 @@ func (plm *PLM) Config() (*Config, error) {
 		Command: CmdGetConfig,
 	})
 	if ack.NAK() {
-		err = insteon.ErrNak
+		err = ErrNak
 	} else if err == nil {
 		return ack.Payload.(*Config), nil
 	}
@@ -282,7 +283,7 @@ func (plm *PLM) SetConfig(config *Config) error {
 		Command: CmdSetConfig,
 	})
 	if ack.NAK() {
-		err = insteon.ErrNak
+		err = ErrNak
 	}
 	return err
 }
@@ -338,7 +339,6 @@ func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
 func (plm *PLM) LinkDB() (ldb insteon.LinkDB, err error) {
 	if plm.linkDb == nil {
 		plm.linkDb = NewLinkDB(plm)
-		err = plm.linkDb.Refresh()
 	}
 	return plm.linkDb, err
 }
@@ -348,17 +348,10 @@ func (plm *PLM) DeleteFromAllLinkGroup(insteon.Group) error { return ErrNotImple
 
 func (plm *PLM) Close() error {
 	insteon.Log.Debugf("Closing PLM")
-	err := insteon.NewAggregateError()
-	if plm.linkDb != nil {
-		err.Append(plm.linkDb.Close())
-	}
 	errCh := make(chan error)
 	plm.closeCh <- errCh
-	err.Append(<-errCh)
-	if err.Len() > 0 {
-		return err
-	}
-	return nil
+	err := <-errCh
+	return err
 }
 
 type LinkingMode byte
@@ -396,7 +389,7 @@ func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 	})
 
 	if ack.NAK() {
-		err = insteon.ErrNak
+		err = ErrNak
 	}
 	return err
 }
@@ -407,7 +400,7 @@ func (plm *PLM) ExitLinkingMode() error {
 	})
 
 	if ack.NAK() {
-		err = insteon.ErrNak
+		err = ErrNak
 	}
 	return err
 }
@@ -419,7 +412,7 @@ func (plm *PLM) EnterUnlinkingMode(group insteon.Group) error {
 	})
 
 	if ack.NAK() {
-		err = insteon.ErrNak
+		err = ErrNak
 	}
 	return err
 }

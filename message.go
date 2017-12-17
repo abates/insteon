@@ -52,8 +52,13 @@ func (m MessageType) String() string {
 	return str
 }
 
-func (m MessageType) Direct() bool    { return int(m)&0xf0 == 0x00 }
-func (m MessageType) Broadcast() bool { return int(m)&0xf0 == 0x80 }
+func (m MessageType) Direct() bool {
+	return !m.Broadcast()
+}
+
+func (m MessageType) Broadcast() bool {
+	return m&0x0f == 0x04 || m&0x0f == 0x06
+}
 
 type Flags byte
 
@@ -117,7 +122,7 @@ func (m *Message) MarshalBinary() (data []byte, err error) {
 func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	// The CRC is not always present
 	if len(data) < StandardMsgLen {
-		return ErrBufferTooShort
+		return newBufError(ErrBufferTooShort, StandardMsgLen, len(data))
 	}
 	copy(m.Src[:], data[0:3])
 	copy(m.Dst[:], data[3:6])
@@ -129,7 +134,7 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	}
 	if m.Flags.Extended() {
 		if len(data) < ExtendedMsgLen {
-			return ErrExtendedBufferTooShort
+			return newBufError(ErrBufferTooShort, ExtendedMsgLen, len(data))
 		}
 		payload := m.Command.generator()
 		err = payload.UnmarshalBinary(data[9:23])

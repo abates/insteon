@@ -120,22 +120,31 @@ func TestLinkMarshalUnmarshal(t *testing.T) {
 		expectedGroup   Group
 		expectedAddress Address
 		expectedData    [3]byte
-		err             bool
+		expectedString  string
+		expectedError   error
 	}{
-		{[]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, RecordControlFlags(0x01), Group(0x02), Address{0x03, 0x04, 0x05}, [3]byte{0x06, 0x07, 0x08}, false},
-		{[]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07}, RecordControlFlags(0x01), Group(0x02), Address{0x03, 0x04, 0x05}, [3]byte{0x06, 0x07, 0x08}, true},
+		{
+			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+			expectedFlags:   RecordControlFlags(0x01),
+			expectedGroup:   Group(0x02),
+			expectedAddress: Address{0x03, 0x04, 0x05},
+			expectedData:    [3]byte{0x06, 0x07, 0x08},
+			expectedString:  "AR 2 03.04.05 0x06 0x07 0x08",
+		},
+		{
+			input:         []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07},
+			expectedError: ErrBufferTooShort,
+		},
 	}
 
 	for i, test := range tests {
 		link := &Link{}
 		err := link.UnmarshalBinary(test.input)
-		if err != nil {
-			if !test.err {
-				t.Errorf("tests[%d] no error expected got %v", i, err)
-			}
+		if !IsError(test.expectedError, err) {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
 			continue
-		} else if test.err {
-			t.Errorf("tests[%d] expected err got none", i)
+		} else if err != nil {
+			continue
 		}
 
 		if link.Flags != test.expectedFlags {
@@ -152,6 +161,10 @@ func TestLinkMarshalUnmarshal(t *testing.T) {
 
 		if link.Data != test.expectedData {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedData, link.Data)
+		}
+
+		if link.String() != test.expectedString {
+			t.Errorf("tests[%d] expected %q got %q", i, test.expectedString, link.String())
 		}
 
 		buf, _ := link.MarshalBinary()

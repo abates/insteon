@@ -6,23 +6,22 @@ import (
 )
 
 var (
-	ErrBufferTooShort         = errors.New("Buffer is too short to be an Insteon Message")
-	ErrExtendedBufferTooShort = errors.New("Buffer is too short to be an Insteon Extended Message")
-	ErrReadTimeout            = errors.New("Read Timeout")
-	ErrWriteTimeout           = errors.New("Write Timeout")
-	ErrAckTimeout             = errors.New("Timeout waiting for ACK")
-	ErrNotImplemented         = errors.New("Command is not yet implemented")
-	ErrUnexpectedResponse     = errors.New("Unexpected response from device")
-	ErrNotLinked              = errors.New("Not in All-Link group")
-	ErrNoLoadDetected         = errors.New("No load detected")
-	ErrUnknownCommand         = errors.New("Unknown command")
-	ErrNak                    = errors.New("NAK received")
-	ErrUnknownEngineVersion   = errors.New("Unknown Insteon Version number")
-	ErrUnknown                = errors.New("Device returned unknown error")
-	ErrIllegalValue           = errors.New("Illegal value in command")
-	ErrIncorrectChecksum      = errors.New("I2CS invalid checksum")
-	ErrPreNak                 = errors.New("Database search took too long")
-	ErrNotSupported           = errors.New("Action/command is not supported on this device")
+	ErrBufferTooShort       = errors.New("Buffer is too short")
+	ErrReadTimeout          = errors.New("Read Timeout")
+	ErrWriteTimeout         = errors.New("Write Timeout")
+	ErrAckTimeout           = errors.New("Timeout waiting for ACK")
+	ErrNotImplemented       = errors.New("Command is not yet implemented")
+	ErrUnexpectedResponse   = errors.New("Unexpected response from device")
+	ErrNotLinked            = errors.New("Not in All-Link group")
+	ErrNoLoadDetected       = errors.New("No load detected")
+	ErrUnknownCommand       = errors.New("Unknown command")
+	ErrNak                  = errors.New("NAK received")
+	ErrUnknownEngineVersion = errors.New("Unknown Insteon Version number")
+	ErrUnknown              = errors.New("Device returned unknown error")
+	ErrIllegalValue         = errors.New("Illegal value in command")
+	ErrIncorrectChecksum    = errors.New("I2CS invalid checksum")
+	ErrPreNak               = errors.New("Database search took too long")
+	ErrNotSupported         = errors.New("Action/command is not supported on this device")
 )
 
 type ProductKey [3]byte
@@ -56,7 +55,7 @@ func (pd *ProductData) String() string {
 
 func (pd *ProductData) UnmarshalBinary(buf []byte) error {
 	if len(buf) < 14 {
-		return ErrExtendedBufferTooShort
+		return newBufError(ErrBufferTooShort, 14, len(buf))
 	}
 
 	copy(pd.Key[:], buf[1:4])
