@@ -7,51 +7,37 @@ import (
 
 func TestRecordControlFlags(t *testing.T) {
 	tests := []struct {
-		input      byte
-		inUse      bool
-		controller bool
+		input              byte
+		expectedInUse      bool
+		expectedController bool
+		expectedString     string
 	}{
-		{0x40, false, true},
-		{0x00, false, false},
-		{0xc0, true, true},
-		{0x80, true, false},
+		{0x40, false, true, "AC"},
+		{0x00, false, false, "AR"},
+		{0xc0, true, true, "UC"},
+		{0x80, true, false, "UR"},
 	}
 
 	for i, test := range tests {
 		flags := RecordControlFlags(test.input)
-		if flags.InUse() != test.inUse {
-			t.Errorf("tests[%d] expected %v got %v", i, test.inUse, flags.InUse())
+		if flags.InUse() != test.expectedInUse {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedInUse, flags.InUse())
 		}
 
-		if flags.Available() == test.inUse {
-			t.Errorf("tests[%d] expected %v got %v", i, !test.inUse, flags.Available())
+		if flags.Available() == test.expectedInUse {
+			t.Errorf("tests[%d] expected %v got %v", i, !test.expectedInUse, flags.Available())
 		}
 
-		if flags.Controller() != test.controller {
-			t.Errorf("tests[%d] expected %v got %v", i, !test.controller, flags.Controller())
+		if flags.Controller() != test.expectedController {
+			t.Errorf("tests[%d] expected %v got %v", i, !test.expectedController, flags.Controller())
 		}
 
-		if flags.Responder() == test.controller {
-			t.Errorf("tests[%d] expected %v got %v", i, !test.controller, flags.Responder())
+		if flags.Responder() == test.expectedController {
+			t.Errorf("tests[%d] expected %v got %v", i, !test.expectedController, flags.Responder())
 		}
-	}
-}
 
-func TestRecordControlFlagsString(t *testing.T) {
-	tests := []struct {
-		input    RecordControlFlags
-		expected string
-	}{
-		{0x40, "AC"},
-		{0x00, "AR"},
-		{0xc0, "UC"},
-		{0x80, "UR"},
-	}
-
-	for i, test := range tests {
-		str := test.input.String()
-		if str != test.expected {
-			t.Errorf("tests[%d] expected %q got %q", i, test.expected, str)
+		if flags.String() != test.expectedString {
+			t.Errorf("tests[%d] expected %q got %q", i, test.expectedString, flags.String())
 		}
 	}
 }

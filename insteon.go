@@ -22,6 +22,7 @@ var (
 	ErrIncorrectChecksum    = errors.New("I2CS invalid checksum")
 	ErrPreNak               = errors.New("Database search took too long")
 	ErrNotSupported         = errors.New("Action/command is not supported on this device")
+	ErrAddrFormat           = errors.New("address format is xx.xx.xx (digits in hex)")
 )
 
 type ProductKey [3]byte

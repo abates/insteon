@@ -99,7 +99,8 @@ func (lr *LinkRequest) MarshalBinary() (buf []byte, err error) {
 
 type LinkDB interface {
 	Links() ([]*Link, error)
-	RemoveLink(oldLink *Link) error
+	AddLink(newLink *Link) error
+	RemoveLinks(oldLinks ...*Link) error
 }
 
 type Linkable interface {
@@ -121,78 +122,46 @@ func NewDeviceLinkDB(conn Connection) *DeviceLinkDB {
 }
 
 func (db *DeviceLinkDB) AddLink(newLink *Link) error {
-	linkPos := -1
-	memAddress := BaseLinkDBAddress
-	links, err := db.Links()
-	if err == nil {
-		for i, link := range links {
-			if link.Flags.Available() {
-				linkPos = i
-				break
-			}
-			memAddress -= 8
-		}
-
-		memAddress -= 8
-		if linkPos >= 0 {
-			links[linkPos] = newLink
-		} else {
-			links = append(links, newLink)
-		}
-
-		err = db.WriteLink(memAddress, newLink)
-	}
-	return err
-}
-
-func (db *DeviceLinkDB) RemoveLink(oldLink *Link) error {
-	Log.Debugf("Attempting to remove %v", oldLink)
-	memAddress := BaseLinkDBAddress
+	memAddress := BaseLinkDBAddress - 7
 	links, err := db.Links()
 	if err == nil {
 		for _, link := range links {
-			memAddress -= 8
-			if link.Equal(oldLink) {
-				link.Flags.setAvailable()
-				Log.Debugf("Marking link available")
-				err = db.WriteLink(memAddress, link)
-			}
-		}
-	}
-	return err
-}
-
-func (db *DeviceLinkDB) Cleanup() error {
-	addresses := make([]MemAddress, 0)
-	removeable := make([]*Link, 0)
-	links, err := db.Links()
-	if err == nil {
-		for i, l1 := range links {
-			memAddress := BaseLinkDBAddress - (8 * (MemAddress(i) + 1))
-			for _, l2 := range links[i+1:] {
-				memAddress -= 8
-				if l1.Equal(l2) {
-					Log.Debugf("Link to be removed: %v", l2)
-					addresses = append(addresses, memAddress)
-					removeable = append(removeable, l2)
-				}
-			}
-		}
-
-		for i, link := range removeable {
-			link.Flags.setAvailable()
-			Log.Debugf("Marking link available")
-			err = db.WriteLink(addresses[i], link)
-			if err != nil {
-				Log.Infof("Failed to remove link %s: %v", link, err)
+			if link.Flags.Available() {
 				break
 			}
+			memAddress -= 8
+		}
+
+		err = linkWriter(db.conn, memAddress, newLink)
+	}
+	return err
+}
+
+func (db *DeviceLinkDB) RemoveLinks(oldLinks ...*Link) error {
+	links, err := db.Links()
+	if err == nil {
+	top:
+		for _, oldLink := range oldLinks {
+			Log.Debugf("Attempting to remove %v", oldLink)
+			memAddress := BaseLinkDBAddress - 7
+			for i, link := range links {
+				if link.Equal(oldLink) {
+					link.Flags.setAvailable()
+					Log.Debugf("Marking link available")
+					err = linkWriter(db.conn, memAddress, link)
+					if err != nil {
+						break top
+					}
+					links = append(links[0:i], links[i+1:]...)
+				}
+				memAddress -= 8
+			}
 		}
 	}
 	return err
 }
 
-func links(conn Connection) ([]*Link, error) {
+func readLinks(conn Connection) ([]*Link, error) {
 	rrCh := conn.Subscribe(CmdReadWriteALDB)
 	defer conn.Unsubscribe(rrCh)
 	Log.Debugf("Retrieving Device link database")
@@ -224,16 +193,33 @@ loop:
 	return links, err
 }
 
-var linkFunc = links
+var linkReader = readLinks
 
 func (db *DeviceLinkDB) Links() ([]*Link, error) {
-	return linkFunc(db.conn)
+	return linkReader(db.conn)
 }
 
-func (db *DeviceLinkDB) WriteLink(memAddress MemAddress, link *Link) error {
+var linkWriter = writeLink
+
+func writeLink(conn Connection, memAddress MemAddress, link *Link) error {
 	request := &LinkRequest{Type: WriteLink, Link: link}
-	_, err := SendExtendedCommand(db.conn, CmdReadWriteALDB, request)
+	_, err := SendExtendedCommand(conn, CmdReadWriteALDB, request)
 	return err
+}
+
+func DuplicateLinks(db LinkDB) ([]*Link, error) {
+	duplicates := make([]*Link, 0)
+	links, err := db.Links()
+	if err == nil {
+		for i, l1 := range links {
+			for _, l2 := range links[i+1:] {
+				if l1.Equal(l2) {
+					duplicates = append(duplicates, l2)
+				}
+			}
+		}
+	}
+	return duplicates, err
 }
 
 func FindLink(db LinkDB, controller bool, address Address, group Group) (*Link, error) {
@@ -354,12 +340,12 @@ func CreateLink(controller, responder Linkable, group Group) error {
 					// and recreating both
 					if controllerLink != nil {
 						Log.Debugf("Controller link already exists, deleting it")
-						err = controllerDB.RemoveLink(controllerLink)
+						err = controllerDB.RemoveLinks(controllerLink)
 					}
 
 					if err == nil && responderLink != nil {
 						Log.Debugf("Responder link already exists, deleting it")
-						err = responderDB.RemoveLink(controllerLink)
+						err = responderDB.RemoveLinks(controllerLink)
 					}
 
 					ForceCreateLink(controller, responder, group)

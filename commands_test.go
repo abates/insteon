@@ -2,6 +2,7 @@ package insteon
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -18,17 +19,28 @@ func TestCommandRegistry(t *testing.T) {
 		{"cmd 3", 0xef, 0x00, 25, true},
 	}
 
+	commands := CommandRegistry{
+		standardCommands: make(map[[2]byte]*Command),
+		extendedCommands: make(map[[2]byte]*Command),
+	}
+
 	for i, test := range tests {
 		var cmd *Command
+
+		// make sure nil is never returned
+		if commands.FindStd([]byte{test.b1, test.b2}) == nil {
+			t.Errorf("tests[%d] expected FindStd to return non nil", i)
+		}
+
 		if test.extended {
-			cmd = Commands.RegisterExt(test.name, test.b1, test.b2, nil)
-			if cmd != Commands.FindExt([]byte{test.b1, test.b2}) {
-				t.Errorf("tests[%d] expected %v got %v", i, cmd, Commands.FindExt([]byte{test.b1, test.b2}))
+			cmd = commands.RegisterExt(test.name, test.b1, test.b2, nil)
+			if cmd != commands.FindExt([]byte{test.b1, test.b2}) {
+				t.Errorf("tests[%d] expected %v got %v", i, cmd, commands.FindExt([]byte{test.b1, test.b2}))
 			}
 		} else {
-			cmd = Commands.RegisterStd(test.name, test.b1, test.b2)
-			if cmd != Commands.FindStd([]byte{test.b1, test.b2}) {
-				t.Errorf("tests[%d] expected %v got %v", i, cmd, Commands.FindStd([]byte{test.b1, test.b2}))
+			cmd = commands.RegisterStd(test.name, test.b1, test.b2)
+			if cmd != commands.FindStd([]byte{test.b1, test.b2}) {
+				t.Errorf("tests[%d] expected %v got %v", i, cmd, commands.FindStd([]byte{test.b1, test.b2}))
 			}
 		}
 
@@ -41,6 +53,16 @@ func TestCommandRegistry(t *testing.T) {
 			testStr := fmt.Sprintf("%s(%d)", test.name, test.subcmd)
 			if testStr != subcmd.String() {
 				t.Errorf("tests[%d] expected %s got %s", i, testStr, subcmd.String())
+			}
+
+			if test.extended {
+				if !reflect.DeepEqual(subcmd, commands.FindExt(subcmd.Cmd[:])) {
+					t.Errorf("tests[%d] expected %v got %v", i, subcmd, commands.FindExt(subcmd.Cmd[:]))
+				}
+			} else {
+				if !reflect.DeepEqual(subcmd, commands.FindStd(subcmd.Cmd[:])) {
+					t.Errorf("tests[%d] expected %v got %v", i, subcmd, commands.FindStd(subcmd.Cmd[:]))
+				}
 			}
 		}
 	}

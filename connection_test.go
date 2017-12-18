@@ -56,7 +56,7 @@ func TestSendStandardCommand(t *testing.T) {
 		}
 
 		if conn.lastMessage.Flags != StandardDirectMessage {
-			t.Errorf("tests[%d] expected %v got %v", StandardDirectMessage, conn.lastMessage.Flags)
+			t.Errorf("tests[%d] expected %v got %v", i, StandardDirectMessage, conn.lastMessage.Flags)
 		}
 	}
 }
@@ -68,7 +68,7 @@ func TestSendStandardCommandAndWait(t *testing.T) {
 		err     error
 	}{
 		{CmdProductDataReq, time.Millisecond, nil},
-		{CmdProductDataReq, Timeout * 2, ErrAckTimeout},
+		{CmdProductDataReq, Timeout * 2, ErrReadTimeout},
 	}
 
 	for i, test := range tests {
@@ -77,7 +77,7 @@ func TestSendStandardCommandAndWait(t *testing.T) {
 		conn := &testConnection{timeout: test.timeout}
 		msg, err := SendStandardCommandAndWait(conn, test.command, test.command)
 		if err != test.err {
-			t.Errorf("tests[%d] expected %v got %v", test.err, err)
+			t.Errorf("tests[%d] expected %v got %v", i, test.err, err)
 		}
 
 		if err == nil {

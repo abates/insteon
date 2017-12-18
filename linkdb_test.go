@@ -115,6 +115,94 @@ func TestLinkRequest(t *testing.T) {
 	}
 }
 
+func availableLink(addr Address) *Link {
+	var flags RecordControlFlags
+	flags.setAvailable()
+	return &Link{Flags: flags, Group: Group(0x01), Address: addr, Data: [3]byte{0x04, 0x05, 0x06}}
+}
+
+func unavailableLink(addr Address) *Link {
+	var flags RecordControlFlags
+	flags.setInUse()
+	return &Link{Flags: flags, Group: Group(0x01), Address: addr, Data: [3]byte{0x04, 0x05, 0x06}}
+}
+
+func TestAddLink(t *testing.T) {
+	tests := []struct {
+		input    []*Link
+		expected MemAddress
+	}{
+		{nil, MemAddress(0x0ff8)},
+		{[]*Link{availableLink(Address{1, 2, 3})}, MemAddress(0x0ff8)},
+		{[]*Link{unavailableLink(Address{1, 2, 3})}, MemAddress(0x0ff0)},
+	}
+
+	for i, test := range tests {
+		oldLinkReader := linkReader
+		linkReader = func(Connection) ([]*Link, error) {
+			return test.input, nil
+		}
+
+		oldLinkWriter := linkWriter
+		var address MemAddress
+		linkWriter = func(conn Connection, addr MemAddress, link *Link) error {
+			address = addr
+			return nil
+		}
+
+		db := NewDeviceLinkDB(nil)
+		db.AddLink(nil)
+
+		if test.expected != address {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expected, address)
+		}
+
+		linkReader = oldLinkReader
+		linkWriter = oldLinkWriter
+	}
+}
+
+func TestRemoveLink(t *testing.T) {
+	tests := []struct {
+		links    []*Link
+		input    *Link
+		expected MemAddress
+	}{
+		{[]*Link{unavailableLink(Address{1, 2, 3})}, unavailableLink(Address{1, 2, 3}), 0x0ff8},
+		{[]*Link{unavailableLink(Address{1, 2, 3}), unavailableLink(Address{4, 5, 6})}, unavailableLink(Address{4, 5, 6}), 0x0ff0},
+	}
+
+	for i, test := range tests {
+		oldLinkReader := linkReader
+		linkReader = func(Connection) ([]*Link, error) {
+			return test.links, nil
+		}
+
+		oldLinkWriter := linkWriter
+		var writeAddress MemAddress
+		var writeLink *Link
+		linkWriter = func(conn Connection, addr MemAddress, link *Link) error {
+			writeAddress = addr
+			writeLink = link
+			return nil
+		}
+
+		db := NewDeviceLinkDB(nil)
+		db.RemoveLinks(test.input)
+
+		if test.expected != writeAddress {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expected, writeAddress)
+		}
+
+		if writeLink.Flags.InUse() {
+			t.Errorf("tests[%d] link should have been available", i)
+		}
+
+		linkReader = oldLinkReader
+		linkWriter = oldLinkWriter
+	}
+}
+
 func TestCleanup(t *testing.T) {
 	/*var flags RecordControlFlags
 	flags.setController()
