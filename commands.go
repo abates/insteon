@@ -91,6 +91,20 @@ func (c *Command) String() string {
 	return c.name
 }
 
+// Equal will compare two commands and return true if the fields (not including
+// the payload generator) are equivalent
+func (c *Command) Equal(other *Command) bool {
+	if c == other {
+		return true
+	}
+
+	if c != nil && other != nil {
+		return c.name == other.name && c.Cmd == other.Cmd && c.subCmd == other.subCmd
+	}
+
+	return false
+}
+
 func find(cmd []byte, commands map[[2]byte]*Command) *Command {
 	if command, found := commands[[2]byte{cmd[0], cmd[1]}]; found {
 		return command

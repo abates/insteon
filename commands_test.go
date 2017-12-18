@@ -2,7 +2,6 @@ package insteon
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 )
 
@@ -56,12 +55,12 @@ func TestCommandRegistry(t *testing.T) {
 			}
 
 			if test.extended {
-				if !reflect.DeepEqual(subcmd, commands.FindExt(subcmd.Cmd[:])) {
-					t.Errorf("tests[%d] expected %v got %v", i, subcmd, commands.FindExt(subcmd.Cmd[:]))
+				if !subcmd.Equal(commands.FindExt(subcmd.Cmd[:])) {
+					t.Errorf("tests[%d] expected %#v got %#v", i, subcmd, commands.FindExt(subcmd.Cmd[:]))
 				}
 			} else {
-				if !reflect.DeepEqual(subcmd, commands.FindStd(subcmd.Cmd[:])) {
-					t.Errorf("tests[%d] expected %v got %v", i, subcmd, commands.FindStd(subcmd.Cmd[:]))
+				if !subcmd.Equal(commands.FindStd(subcmd.Cmd[:])) {
+					t.Errorf("tests[%d] expected %+v got %+v", i, subcmd, commands.FindStd(subcmd.Cmd[:]))
 				}
 			}
 		}

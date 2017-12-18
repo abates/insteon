@@ -6,6 +6,7 @@ import (
 )
 
 type testConnection struct {
+	ackMessage  *Message
 	lastMessage *Message
 	responses   []*Message
 	resp        chan *Message
@@ -31,6 +32,7 @@ func (tc *testConnection) Write(message *Message) (*Message, error) {
 	} else {
 		response = message
 	}
+
 	go func(response *Message) {
 		time.Sleep(tc.timeout)
 		select {
@@ -38,7 +40,49 @@ func (tc *testConnection) Write(message *Message) (*Message, error) {
 		default:
 		}
 	}(response)
-	return nil, nil
+	return tc.ackMessage, nil
+}
+
+func TestI1ConnectionWrite(t *testing.T) {
+	tests := []struct {
+		ackMessage    *Message
+		expectedError error
+	}{
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfd})}, ErrUnknownCommand},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfe})}, ErrNoLoadDetected},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xff})}, ErrNotLinked},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0x0f})}, ErrUnexpectedResponse},
+	}
+
+	for i, test := range tests {
+		conn := NewI1Connection(&testConnection{ackMessage: test.ackMessage})
+		_, err := conn.Write(nil)
+		if !IsError(test.expectedError, err) {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
+		}
+	}
+}
+
+func TestI2CsConnectionWrite(t *testing.T) {
+	tests := []struct {
+		ackMessage    *Message
+		expectedError error
+	}{
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfb})}, ErrIllegalValue},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfc})}, ErrPreNak},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfd})}, ErrIncorrectChecksum},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfe})}, ErrNoLoadDetected},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xff})}, ErrNotLinked},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xf0})}, ErrUnexpectedResponse},
+	}
+
+	for i, test := range tests {
+		conn := NewI2CsConnection(&testConnection{ackMessage: test.ackMessage})
+		_, err := conn.Write(&Message{})
+		if !IsError(test.expectedError, err) {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
+		}
+	}
 }
 
 func TestSendStandardCommand(t *testing.T) {

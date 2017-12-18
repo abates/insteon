@@ -15,28 +15,27 @@ var (
 // any device bridging the local program and the Insteon
 // network. Any receiver implementing this interface must
 // only communicate with a single device
-//
-// Write sends a Message to a specific device on the network
-//
-// Subscribe provides a way to receive messages where the command
-// fields match one of the specified commands. Channels returned
-// by Subscribe must be closed using the Unsubscribe method
-//
-// Unsubscribe removes a channel from its subscription.  Calling unsubscribe
-// will close the channel on the Connection end
-//
-// Close will close the connection and any associated channels.  To
-// prevent reading from closed channels, Unsubscribe should be called
-// on any subscription channels prior to calling Close on the Connection
 type Connection interface {
+	// Write sends a Message to a specific device on the network
 	Write(*Message) (ack *Message, err error)
+
+	// Subscribe provides a way to receive messages where the command
+	// fields match one of the specified commands. Channels returned
+	// by Subscribe must be closed using the Unsubscribe method
 	Subscribe(match ...*Command) <-chan *Message
+
+	// Unsubscribe removes a channel from its subscription.  Calling unsubscribe
+	// will close the channel on the Connection end
 	Unsubscribe(<-chan *Message)
+
+	// Close will close the connection and any associated channels.  To
+	// prevent reading from closed channels, Unsubscribe should be called
+	// on any subscription channels prior to calling Close on the Connection
 	Close() error
 }
 
-// I1Connection is used as a base connection for all devices
-// it represents the capabilities provided by devices with
+// I1Connection is used as a base connection for all devices.
+// It represents the capabilities provided by devices with
 // Version 1 engines.  Most functions of the I1Connection are
 // used in the I2CSConnection
 type I1Connection struct {
@@ -110,7 +109,7 @@ func (i2csw *I2CsConnection) Write(message *Message) (*Message, error) {
 		case 0xff:
 			err = ErrNotLinked
 		default:
-			err = ErrUnknown
+			err = TraceError(ErrUnexpectedResponse)
 		}
 	}
 	return ack, err
