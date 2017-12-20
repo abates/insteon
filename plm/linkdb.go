@@ -84,27 +84,36 @@ func (db *LinkDB) Links() ([]*insteon.Link, error) {
 	return links, err
 }
 
-func (db *LinkDB) RemoveLink(oldLink *insteon.Link) (err error) {
-	numDelete := 0
+func (db *LinkDB) RemoveLinks(oldLinks ...*insteon.Link) (err error) {
 	deletedLinks := make([]*insteon.Link, 0)
-	links, err := db.Links()
-	if err == nil {
-		for _, link := range links {
-			if link.Group == oldLink.Group && link.Address == oldLink.Address {
-				numDelete++
-				if !oldLink.Equal(link) {
-					deletedLinks = append(deletedLinks, link)
+	for _, oldLink := range oldLinks {
+		numDelete := 0
+		var links []*insteon.Link
+		links, err = db.Links()
+		if err == nil {
+			for _, link := range links {
+				if link.Group == oldLink.Group && link.Address == oldLink.Address {
+					numDelete++
+					if !oldLink.Equal(link) {
+						deletedLinks = append(deletedLinks, link)
+					}
 				}
 			}
-		}
 
-		for i := 0; i < numDelete; i++ {
-			_, err = db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: LinkCmdDeleteFirst, link: oldLink}})
-			if err != nil {
-				insteon.Log.Infof("Failed to remove link: %v", err)
+			for i := 0; i < numDelete; i++ {
+				_, err = db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: LinkCmdDeleteFirst, link: oldLink}})
+				if err != nil {
+					insteon.Log.Infof("Failed to remove link: %v", err)
+					break
+				}
 			}
+		} else {
+			insteon.Log.Infof("Failed to retrieve links: %v", err)
+			break
 		}
+	}
 
+	if err == nil {
 		// add back links that we didn't want deleted
 		for _, link := range deletedLinks {
 			db.AddLink(link)
@@ -141,12 +150,7 @@ func (db *LinkDB) Cleanup() (err error) {
 			}
 		}
 
-		for _, link := range removeable {
-			err = db.RemoveLink(link)
-			if err != nil {
-				break
-			}
-		}
+		err = db.RemoveLinks(removeable...)
 	}
 	return err
 }
