@@ -3,7 +3,7 @@ language: go
 sudo: false
 
 go:
-  - tip
+  - master
 
 before_install:
   - go get golang.org/x/tools/cmd/cover
