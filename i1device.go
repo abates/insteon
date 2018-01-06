@@ -21,11 +21,6 @@ func (i1 *I1Device) Address() Address {
 	return i1.address
 }
 
-// TODO I have no idea how to do this for i1 devices
-func (*I1Device) EnterLinkingMode(Group) error   { return ErrNotImplemented }
-func (*I1Device) EnterUnlinkingMode(Group) error { return ErrNotImplemented }
-func (*I1Device) ExitLinkingMode() error         { return ErrNotImplemented }
-
 func (i1 *I1Device) AssignToAllLinkGroup(group Group) error {
 	_, err := SendStandardCommand(i1.Connection, CmdAssignToAllLinkGroup.SubCommand(int(group)))
 	return err
@@ -55,7 +50,7 @@ func (i1 *I1Device) FXUsername() (string, error) {
 	return username, err
 }
 
-func (i1 *I1Device) DeviceTextString() (string, error) {
+func (i1 *I1Device) TextString() (string, error) {
 	text := ""
 	msg, err := SendStandardCommandAndWait(i1.Connection, CmdDeviceTextStringReq, CmdDeviceTextStringResp)
 	if err == nil {
@@ -64,6 +59,10 @@ func (i1 *I1Device) DeviceTextString() (string, error) {
 	}
 	return strings.TrimSpace(text), err
 }
+
+func (*I1Device) EnterLinkingMode(Group) error   { return ErrNotImplemented }
+func (*I1Device) EnterUnlinkingMode(Group) error { return ErrNotImplemented }
+func (*I1Device) ExitLinkingMode() error         { return ErrNotImplemented }
 
 func (i1 *I1Device) EngineVersion() (EngineVersion, error) {
 	ack, err := SendStandardCommand(i1.Connection, CmdGetEngineVersion)
@@ -75,13 +74,38 @@ func (i1 *I1Device) EngineVersion() (EngineVersion, error) {
 }
 
 func (i1 *I1Device) Ping() error {
+	_, err := SendStandardCommand(i1.Connection, CmdPing)
+	return err
+}
+
+func (i1 *I1Device) IDRequest() error {
+	_, err := SendStandardCommand(i1.Connection, CmdIDReq)
+	return err
+}
+
+func (i1 *I1Device) SetTextString(str string) error {
+	textString := NewBufPayload(14)
+	copy(textString.Buf, []byte(str))
+	_, err := SendExtendedCommand(i1.Connection, CmdSetDeviceTextString, textString)
+	return err
+}
+
+func (i1 *I1Device) SetAllLinkCommandAlias(match, replace *Command) error {
 	// TODO implement
 	return ErrNotImplemented
 }
 
-func (i1 *I1Device) LinkDB() (ldb LinkDB, err error) {
-	return nil, ErrNotSupported
+func (i1 *I1Device) SetAllLinkCommandAliasData(data []byte) error {
+	// TODO implement
+	return ErrNotImplemented
 }
+
+func (i1 *I1Device) BlockDataTransfer() ([]byte, error) {
+	// TODO implement
+	return nil, ErrNotImplemented
+}
+
+func (*I1Device) LinkDB() (LinkDB, error) { return nil, ErrNotImplemented }
 
 func (i1 *I1Device) String() string {
 	return fmt.Sprintf("I1 Device (%s)", i1.Address())

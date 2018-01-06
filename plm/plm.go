@@ -267,6 +267,18 @@ func (plm *PLM) Reset() error {
 	return ErrNotImplemented
 }
 
+func (plm *PLM) Monitor(callback func(*insteon.Message)) {
+	ch := plm.Subscribe([]byte{})
+	defer plm.Unsubscribe(ch)
+
+	plm.StartMonitor()
+	defer plm.StopMonitor()
+
+	for msg := range <-ch {
+		callback(mst)
+	}
+}
+
 func (plm *PLM) StartMonitor() error {
 	config, err := plm.Config()
 	if err == nil {

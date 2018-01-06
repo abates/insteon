@@ -48,7 +48,7 @@ type Device interface {
 	Linkable
 	ProductData() (*ProductData, error)
 	FXUsername() (string, error)
-	DeviceTextString() (string, error)
+	TextString() (string, error)
 	EngineVersion() (EngineVersion, error)
 	Ping() error
 	Close() error
