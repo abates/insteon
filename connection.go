@@ -56,6 +56,7 @@ func NewI1Connection(conn Connection) Connection {
 // this error is returned back to the caller
 func (i1conn *I1Connection) Write(message *Message) (ack *Message, err error) {
 	ack, err = i1conn.Connection.Write(message)
+
 	if ack != nil && ack.Flags.Type() == MsgTypeDirectNak {
 		switch ack.Command.Cmd[1] {
 		case 0xfd:

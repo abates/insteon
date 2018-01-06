@@ -120,9 +120,6 @@ func (plm *PLM) readPacket() (buf []byte, err error) {
 			_, err = io.ReadAtLeast(plm.in, buf[9:], 14)
 		}
 	}
-	if err == nil {
-		traceBuf("Read packet off the wire", buf)
-	}
 	return buf, err
 }
 
@@ -144,8 +141,9 @@ func (plm *PLM) writePacket(packet *Packet) error {
 	if err == nil {
 		_, err = plm.out.Write(payload)
 	}
+
 	if err == nil {
-		traceBuf("Wrote packet to the wire", payload)
+		insteon.Log.Tracef("TX %v", packet)
 	}
 	return err
 }
@@ -269,6 +267,24 @@ func (plm *PLM) Reset() error {
 	return ErrNotImplemented
 }
 
+func (plm *PLM) StartMonitor() error {
+	config, err := plm.Config()
+	if err == nil {
+		config.setMonitorMode()
+		err = plm.SetConfig(config)
+	}
+	return err
+}
+
+func (plm *PLM) StopMonitor() error {
+	config, err := plm.Config()
+	if err == nil {
+		config.clearMonitorMode()
+		err = plm.SetConfig(config)
+	}
+	return err
+}
+
 func (plm *PLM) Config() (*Config, error) {
 	ack, err := plm.Send(&Packet{
 		Command: CmdGetConfig,
@@ -284,6 +300,7 @@ func (plm *PLM) Config() (*Config, error) {
 func (plm *PLM) SetConfig(config *Config) error {
 	ack, err := plm.Send(&Packet{
 		Command: CmdSetConfig,
+		Payload: config,
 	})
 	if ack.NAK() {
 		err = ErrNak
@@ -292,10 +309,12 @@ func (plm *PLM) SetConfig(config *Config) error {
 }
 
 func (plm *PLM) SetDeviceCategory(insteon.Category) error {
+	// TODO
 	return ErrNotImplemented
 }
 
 func (plm *PLM) RFSleep() error {
+	// TODO
 	return ErrNotImplemented
 }
 
@@ -312,20 +331,21 @@ func (plm *PLM) Unsubscribe(ch <-chan *Packet) {
 }
 
 func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
-	i1device := insteon.NewI1Device(dst, NewConnection(plm, dst))
-	device := insteon.Device(i1device)
-	version, err := i1device.EngineVersion()
+	connection := NewConnection(plm, dst)
+	i1Device := insteon.NewI1Device(dst, insteon.NewI1Connection(connection))
+	device := insteon.Device(i1Device)
+	version, err := device.EngineVersion()
 
 	// ErrNotLinked here is only returned by i2cs devices
 	if err == insteon.ErrNotLinked {
 		err = nil
-		device = insteon.NewI2CsDevice(insteon.NewI2Device(i1device))
+		device = insteon.NewI2CsDevice(insteon.NewI2Device(insteon.NewI1Device(dst, insteon.NewI2CsConnection(connection))))
 	} else {
 		switch version {
 		case insteon.VerI2:
-			device = insteon.NewI2Device(i1device)
+			device = insteon.NewI2Device(i1Device)
 		case insteon.VerI2Cs:
-			device = insteon.NewI2CsDevice(insteon.NewI2Device(i1device))
+			device = insteon.NewI2CsDevice(insteon.NewI2Device(insteon.NewI1Device(dst, insteon.NewI2CsConnection(connection))))
 		}
 	}
 	return device, err

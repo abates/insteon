@@ -36,6 +36,9 @@ func (p *Packet) String() string {
 		}
 	}
 
+	if p.Payload == nil {
+		return fmt.Sprintf("%-24s", cmd)
+	}
 	return fmt.Sprintf("%-24s %v", cmd, p.Payload)
 }
 

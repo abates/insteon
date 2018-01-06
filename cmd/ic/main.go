@@ -91,6 +91,11 @@ func run(args []string, command func([]string, *plm.PLM) error) error {
 
 		plm := plm.New(s, timeoutFlag)
 		defer plm.Close()
+		if logLevelFlag == insteon.LevelTrace {
+			plm.StartMonitor()
+			defer plm.StopMonitor()
+		}
+
 		err = command(args, plm)
 	}
 	return err
