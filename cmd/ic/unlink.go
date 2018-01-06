@@ -58,7 +58,13 @@ func unlinkCmd(args []string, p *plm.PLM) (err error) {
 				removeable := make([]*insteon.Link, 0)
 				for _, link := range links {
 					if link.Address == addr {
-						removeable = append(removeable, link)
+						fmt.Printf("Cleaning up old link...")
+						err = plmDB.RemoveLinks(link)
+						if err == nil {
+							fmt.Printf("successful\n")
+						} else {
+							fmt.Printf("failed: %v\n", err)
+						}
 					}
 				}
 
