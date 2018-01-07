@@ -7,6 +7,7 @@ import (
 )
 
 type Packet struct {
+	buf     []byte
 	Command Command
 	Payload insteon.Payload
 	Ack     byte

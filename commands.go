@@ -116,7 +116,8 @@ func find(cmd []byte, commands map[[2]byte]*Command) *Command {
 	}
 
 	// fail safe so nobody is ever referring to a nil command
-	return &Command{name: "UNKNOWN", Cmd: [2]byte{cmd[0], cmd[1]}, generator: func() Payload { return &BufPayload{} }}
+	name := fmt.Sprintf("UNKNOWN (%02x.%02x)", cmd[0], cmd[1])
+	return &Command{name: name, Cmd: [2]byte{cmd[0], cmd[1]}, generator: func() Payload { return &BufPayload{} }}
 }
 
 // FindExt returns either the registered extended command matching the 2 bytes passed in

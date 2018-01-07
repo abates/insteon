@@ -164,7 +164,9 @@ loop:
 				insteon.Log.Infof("Failed to write packet: %v", err)
 			}
 		case buf := <-plm.rxPktCh:
-			packet = &Packet{}
+			packet = &Packet{
+				buf: buf,
+			}
 			err := packet.UnmarshalBinary(buf)
 
 			if err != nil {
@@ -267,15 +269,17 @@ func (plm *PLM) Reset() error {
 	return ErrNotImplemented
 }
 
-func (plm *PLM) Monitor(callback func(*insteon.Message)) {
-	ch := plm.Subscribe([]byte{})
+func (plm *PLM) Monitor(callback func(buf []byte, msg *insteon.Message)) {
+	ch := plm.Subscribe([]byte{0x50}, []byte{0x51})
 	defer plm.Unsubscribe(ch)
 
 	plm.StartMonitor()
 	defer plm.StopMonitor()
 
-	for msg := range <-ch {
-		callback(mst)
+	for pkt := range ch {
+		msg := pkt.Payload.(*insteon.Message)
+		// slice off the packet header
+		callback(pkt.buf[2:], msg)
 	}
 }
 
