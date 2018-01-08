@@ -88,6 +88,11 @@ func (c *Command) SubCommand(value int) *Command {
 
 // String returns the description of the command
 func (c *Command) String() string {
+	name := c.name
+	if name == "" {
+		name = fmt.Sprintf("%02x.%02x", c.Cmd[0], c.Cmd[1])
+	}
+
 	if c.subCmd {
 		return fmt.Sprintf("%s(%d)", c.name, c.Cmd[1])
 	}
@@ -102,7 +107,7 @@ func (c *Command) Equal(other *Command) bool {
 	}
 
 	if c != nil && other != nil {
-		return c.name == other.name && c.Cmd == other.Cmd && c.subCmd == other.subCmd
+		return c.Cmd == other.Cmd && c.subCmd == other.subCmd
 	}
 
 	return false

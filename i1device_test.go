@@ -52,57 +52,78 @@ func TestI1DeviceFunctions(t *testing.T) {
 		response        *Message
 		ack             *Message
 		expectedValue   interface{}
-		expectedCommand [2]byte
+		expectedCommand *Command
 		expectedMatch   []*Command
 		expectedPayload []byte
 	}{
 		{
 			function:        func(device *I1Device) (interface{}, error) { return nil, device.AssignToAllLinkGroup(1) },
-			expectedCommand: [2]byte{0x01, 0x01},
+			expectedCommand: (&Command{Cmd: [2]byte{0x01, 0x00}}).SubCommand(0x01),
 		},
 		{
 			function:        func(device *I1Device) (interface{}, error) { return nil, device.DeleteFromAllLinkGroup(1) },
-			expectedCommand: [2]byte{0x02, 0x01},
+			expectedCommand: (&Command{Cmd: [2]byte{0x02, 0x00}}).SubCommand(0x01),
 		},
 		{
 			function:        func(device *I1Device) (interface{}, error) { return device.ProductData() },
 			response:        &Message{Payload: &ProductData{ProductKey([3]byte{0x04, 0x05, 0x06}), Category([2]byte{0x07, 0x08})}},
-			expectedCommand: [2]byte{0x03, 0x00},
+			expectedCommand: &Command{Cmd: [2]byte{0x03, 0x00}},
 			expectedValue:   &ProductData{ProductKey([3]byte{0x04, 0x05, 0x06}), Category([2]byte{0x07, 0x08})},
 			expectedMatch:   []*Command{CmdProductDataResp},
 		},
 		{
 			function:        func(device *I1Device) (interface{}, error) { return device.FXUsername() },
 			response:        &Message{Payload: &BufPayload{[]byte("ABCDEFGHIJKLMN")}},
-			expectedCommand: [2]byte{0x03, 0x01},
+			expectedCommand: &Command{Cmd: [2]byte{0x03, 0x01}},
 			expectedValue:   "ABCDEFGHIJKLMN",
 			expectedMatch:   []*Command{CmdFxUsernameResp},
 		},
 		{
 			function:        func(device *I1Device) (interface{}, error) { return device.TextString() },
 			response:        &Message{Payload: &BufPayload{[]byte("ABCDEFGHIJKLMN")}},
-			expectedCommand: [2]byte{0x03, 0x02},
+			expectedCommand: &Command{Cmd: [2]byte{0x03, 0x02}},
 			expectedValue:   "ABCDEFGHIJKLMN",
 			expectedMatch:   []*Command{CmdDeviceTextStringResp},
 		},
 		{
+			function: func(device *I1Device) (interface{}, error) { return nil, device.EnterLinkingMode(0) },
+		},
+		{
+			function: func(device *I1Device) (interface{}, error) { return nil, device.EnterUnlinkingMode(0) },
+		},
+		{
+			function: func(device *I1Device) (interface{}, error) { return nil, device.ExitLinkingMode() },
+		},
+		{
 			function:        func(device *I1Device) (interface{}, error) { return device.EngineVersion() },
-			expectedCommand: [2]byte{0x0d, 0x00},
+			expectedCommand: &Command{Cmd: [2]byte{0x0d, 0x00}},
 			ack:             &Message{Flags: StandardDirectAck, Command: CmdGetEngineVersion.SubCommand(2)},
 			expectedValue:   EngineVersion(2),
 		},
 		{
 			function:        func(device *I1Device) (interface{}, error) { return nil, device.Ping() },
-			expectedCommand: [2]byte{0x0f, 0x00},
+			expectedCommand: &Command{Cmd: [2]byte{0x0f, 0x00}},
 		},
 		{
 			function:        func(device *I1Device) (interface{}, error) { return nil, device.IDRequest() },
-			expectedCommand: [2]byte{0x10, 0x00},
+			expectedCommand: &Command{Cmd: [2]byte{0x10, 0x00}},
 		},
 		{
 			function:        func(device *I1Device) (interface{}, error) { return nil, device.SetTextString("OPQRSTUVWXYZAB") },
-			expectedCommand: [2]byte{0x03, 0x03},
+			expectedCommand: &Command{Cmd: [2]byte{0x03, 0x03}},
 			expectedPayload: []byte("OPQRSTUVWXYZAB"),
+		},
+		{
+			function: func(device *I1Device) (interface{}, error) { return nil, device.SetAllLinkCommandAlias(nil, nil) },
+		},
+		{
+			function: func(device *I1Device) (interface{}, error) { return nil, device.SetAllLinkCommandAliasData(nil) },
+		},
+		{
+			function: func(device *I1Device) (interface{}, error) { return device.BlockDataTransfer() },
+		},
+		{
+			function: func(device *I1Device) (interface{}, error) { return device.LinkDB() },
 		},
 	}
 
@@ -124,8 +145,8 @@ func TestI1DeviceFunctions(t *testing.T) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedValue, value)
 		}
 
-		if test.expectedCommand != conn.command.Cmd {
-			t.Errorf("tests[%d] expected 0x%04x got 0x%04x", i, test.expectedCommand, conn.command.Cmd)
+		if !test.expectedCommand.Equal(conn.command) {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedCommand, conn.command)
 		}
 
 		if !reflect.DeepEqual(conn.matchCommands, test.expectedMatch) {
