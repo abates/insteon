@@ -6,41 +6,61 @@ import (
 )
 
 type testConnection struct {
-	ackMessage  *Message
-	lastMessage *Message
-	responses   []*Message
-	resp        chan *Message
-	timeout     time.Duration
+	ackMessage    *Message
+	lastMessage   *Message
+	responses     []*Message
+	resp          chan *Message
+	payload       []byte
+	matchCommands []*Command
+	closed        bool
+	timeout       time.Duration
 }
 
-func (*testConnection) Close() error { return nil }
+func (conn *testConnection) Write(msg *Message) (ack *Message, err error) {
+	conn.lastMessage = msg
+	if msg != nil && msg.Payload != nil {
+		conn.payload, _ = msg.Payload.MarshalBinary()
+	}
 
-func (tc *testConnection) Subscribe(...*Command) <-chan *Message {
-	tc.resp = make(chan *Message, 1)
-	return tc.resp
-}
-
-func (*testConnection) Unsubscribe(<-chan *Message) {
-}
-
-func (tc *testConnection) Write(message *Message) (*Message, error) {
-	tc.lastMessage = message
 	var response *Message
-	if len(tc.responses) > 0 {
-		response = tc.responses[0]
-		tc.responses = tc.responses[1:]
+	if len(conn.responses) > 0 {
+		response = conn.responses[0]
+		conn.responses = conn.responses[1:]
 	} else {
-		response = message
+		response = msg
 	}
 
 	go func(response *Message) {
-		time.Sleep(tc.timeout)
+		time.Sleep(conn.timeout)
 		select {
-		case tc.resp <- message:
+		case conn.resp <- response:
 		default:
 		}
 	}(response)
-	return tc.ackMessage, nil
+
+	if conn.ackMessage == nil {
+		ack = &Message{}
+		buf, _ := msg.MarshalBinary()
+		ack.UnmarshalBinary(buf)
+		ack.Flags = StandardDirectAck
+	} else {
+		ack = conn.ackMessage
+	}
+	return ack, nil
+}
+
+func (conn *testConnection) Subscribe(match ...*Command) <-chan *Message {
+	conn.matchCommands = match
+	conn.resp = make(chan *Message, 1)
+	return conn.resp
+}
+
+func (conn *testConnection) Unsubscribe(ch <-chan *Message) {
+}
+
+func (conn *testConnection) Close() error {
+	conn.closed = true
+	return nil
 }
 
 func TestI1ConnectionWrite(t *testing.T) {

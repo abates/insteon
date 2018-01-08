@@ -6,46 +6,6 @@ import (
 	"testing"
 )
 
-type I1DeviceTestConnection struct {
-	command       *Command
-	payload       []byte
-	ack           *Message
-	matchCommands []*Command
-	response      *Message
-	closed        bool
-}
-
-func (conn *I1DeviceTestConnection) Write(msg *Message) (ack *Message, err error) {
-	conn.command = msg.Command
-	if msg.Payload != nil {
-		conn.payload, _ = msg.Payload.MarshalBinary()
-	}
-	if conn.ack == nil {
-		ack = &Message{}
-		buf, _ := msg.MarshalBinary()
-		ack.UnmarshalBinary(buf)
-		ack.Flags = StandardDirectAck
-	} else {
-		ack = conn.ack
-	}
-	return ack, nil
-}
-
-func (conn *I1DeviceTestConnection) Subscribe(match ...*Command) <-chan *Message {
-	conn.matchCommands = match
-	ch := make(chan *Message, 1)
-	ch <- conn.response
-	return ch
-}
-
-func (conn *I1DeviceTestConnection) Unsubscribe(ch <-chan *Message) {
-}
-
-func (conn *I1DeviceTestConnection) Close() error {
-	conn.closed = true
-	return nil
-}
-
 func TestI1DeviceFunctions(t *testing.T) {
 	tests := []struct {
 		function        func(*I1Device) (interface{}, error)
@@ -120,7 +80,8 @@ func TestI1DeviceFunctions(t *testing.T) {
 			function: func(device *I1Device) (interface{}, error) { return nil, device.SetAllLinkCommandAliasData(nil) },
 		},
 		{
-			function: func(device *I1Device) (interface{}, error) { return device.BlockDataTransfer() },
+			function:      func(device *I1Device) (interface{}, error) { return device.BlockDataTransfer() },
+			expectedValue: []byte(nil),
 		},
 		{
 			function: func(device *I1Device) (interface{}, error) { return device.LinkDB() },
@@ -128,7 +89,7 @@ func TestI1DeviceFunctions(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		conn := &I1DeviceTestConnection{response: test.response, ack: test.ack}
+		conn := &testConnection{responses: []*Message{test.response}, ackMessage: test.ack}
 		address := Address([3]byte{0x01, 0x02, 0x03})
 		device := NewI1Device(address, conn)
 
@@ -145,8 +106,10 @@ func TestI1DeviceFunctions(t *testing.T) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedValue, value)
 		}
 
-		if !test.expectedCommand.Equal(conn.command) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedCommand, conn.command)
+		if test.expectedCommand != nil {
+			if !test.expectedCommand.Equal(conn.lastMessage.Command) {
+				t.Errorf("tests[%d] expected %v got %v", i, test.expectedCommand, conn.lastMessage.Command)
+			}
 		}
 
 		if !reflect.DeepEqual(conn.matchCommands, test.expectedMatch) {
