@@ -116,7 +116,7 @@ func TestI1DeviceFunctions(t *testing.T) {
 		}
 
 		if device.String() != "I1 Device (01.02.03)" {
-			t.Errorf("tests[%d] expected %q got %q", "I1 Device (01.02.03)", device.String())
+			t.Errorf("tests[%d] expected %q got %q", i, "I1 Device (01.02.03)", device.String())
 		}
 
 		value, _ := test.function(device)
