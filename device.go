@@ -44,23 +44,13 @@ func (dr *DeviceRegistry) Find(category Category) DeviceInitializer {
 	return dr.devices[category[0]]
 }
 
-type Device interface {
-	Linkable
-	ProductData() (*ProductData, error)
-	FXUsername() (string, error)
-	TextString() (string, error)
-	EngineVersion() (EngineVersion, error)
-	Ping() error
-	Close() error
-}
-
-func InitializeDevice(device Device) (Device, error) {
+func (dr *DeviceRegistry) Initialize(device Device) (Device, error) {
 	// query the device
 	pd, err := device.ProductData()
 
 	// construct device for device type
 	if err == nil {
-		initializer := Devices.Find(pd.Category)
+		initializer := dr.Find(pd.Category)
 		if initializer != nil {
 			device = initializer(device)
 		}
@@ -70,4 +60,14 @@ func InitializeDevice(device Device) (Device, error) {
 	}
 
 	return device, err
+}
+
+type Device interface {
+	Linkable
+	ProductData() (*ProductData, error)
+	FXUsername() (string, error)
+	TextString() (string, error)
+	EngineVersion() (EngineVersion, error)
+	Ping() error
+	Close() error
 }

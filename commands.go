@@ -94,9 +94,9 @@ func (c *Command) String() string {
 	}
 
 	if c.subCmd {
-		return fmt.Sprintf("%s(%d)", c.name, c.Cmd[1])
+		return fmt.Sprintf("%s(%d)", name, c.Cmd[1])
 	}
-	return c.name
+	return name
 }
 
 // Equal will compare two commands and return true if the fields (not including

@@ -370,7 +370,7 @@ func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
 func (plm *PLM) Connect(dst insteon.Address) (insteon.Device, error) {
 	device, err := plm.Dial(dst)
 	if err == nil {
-		device, err = insteon.InitializeDevice(device)
+		device, err = insteon.Devices.Initialize(device)
 	}
 	return device, err
 }
