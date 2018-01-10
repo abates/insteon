@@ -299,7 +299,7 @@ func DeleteLink(controller, responder Linkable, group Group) (err error) {
 	err = controller.EnterUnlinkingMode(group)
 	//defer responder.ExitLinkingMode()
 
-	// wait a moment for messages to propogate
+	// wait a moment for messages to propagate
 	//time.Sleep(time.Second)
 
 	// responder pushes the set button responder
@@ -309,7 +309,7 @@ func DeleteLink(controller, responder Linkable, group Group) (err error) {
 		//defer controller.ExitLinkingMode()
 	}
 
-	// wait a moment for messages to propogate
+	// wait a moment for messages to propagate
 	//time.Sleep(time.Second)
 
 	return
