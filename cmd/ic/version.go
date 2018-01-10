@@ -10,7 +10,7 @@ import (
 func init() {
 	commands["version"] = &command{
 		usage:       "<device id>",
-		description: "Retreive the Insteon engine version",
+		description: "Retrieve the Insteon engine version",
 		callback:    versionCmd,
 	}
 }
