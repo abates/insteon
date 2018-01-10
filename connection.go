@@ -118,7 +118,7 @@ func (i2csw *I2CsConnection) Write(message *Message) (*Message, error) {
 
 // SendStandardCommandAndWait will prepare a standard length direct message
 // with the specified command and wait for a response matching waitCmd. If
-// no reponse is received prior to a Timeout then SendStandardCommandAndWait will return
+// no response is received prior to a Timeout then SendStandardCommandAndWait will return
 // ErrReadTimeout
 func SendStandardCommandAndWait(conn Connection, command *Command, waitCmd *Command) (msg *Message, err error) {
 	Log.Debugf("Subscribing to traffic for command %v", waitCmd)
