@@ -20,7 +20,7 @@ const (
 
 type manageRecordRequest struct {
 	command recordRequestCommand
-	link    *insteon.Link
+	link    *insteon.LinkRecord
 }
 
 func (mrr *manageRecordRequest) String() string {
@@ -37,7 +37,7 @@ func (mrr *manageRecordRequest) MarshalBinary() ([]byte, error) {
 
 func (mrr *manageRecordRequest) UnmarshalBinary(buf []byte) error {
 	mrr.command = recordRequestCommand(buf[0])
-	mrr.link = &insteon.Link{}
+	mrr.link = &insteon.LinkRecord{}
 	return mrr.link.UnmarshalBinary(buf[1:])
 }
 
@@ -51,8 +51,8 @@ func NewLinkDB(plm *PLM) *LinkDB {
 	return db
 }
 
-func (db *LinkDB) Links() ([]*insteon.Link, error) {
-	links := make([]*insteon.Link, 0)
+func (db *LinkDB) Links() ([]*insteon.LinkRecord, error) {
+	links := make([]*insteon.LinkRecord, 0)
 	rrCh := db.plm.Subscribe([]byte{0x57})
 	defer db.plm.Unsubscribe(rrCh)
 
@@ -67,7 +67,7 @@ func (db *LinkDB) Links() ([]*insteon.Link, error) {
 		for {
 			select {
 			case packet := <-rrCh:
-				link := packet.Payload.(*insteon.Link)
+				link := packet.Payload.(*insteon.LinkRecord)
 				insteon.Log.Debugf("Received PLM record response %v", link)
 				links = append(links, link)
 				var resp *Packet
@@ -84,11 +84,11 @@ func (db *LinkDB) Links() ([]*insteon.Link, error) {
 	return links, err
 }
 
-func (db *LinkDB) RemoveLinks(oldLinks ...*insteon.Link) (err error) {
-	deletedLinks := make([]*insteon.Link, 0)
+func (db *LinkDB) RemoveLinks(oldLinks ...*insteon.LinkRecord) (err error) {
+	deletedLinks := make([]*insteon.LinkRecord, 0)
 	for _, oldLink := range oldLinks {
 		numDelete := 0
-		var links []*insteon.Link
+		var links []*insteon.LinkRecord
 		links, err = db.Links()
 		if err == nil {
 			for _, link := range links {
@@ -122,7 +122,7 @@ func (db *LinkDB) RemoveLinks(oldLinks ...*insteon.Link) (err error) {
 	return err
 }
 
-func (db *LinkDB) AddLink(newLink *insteon.Link) error {
+func (db *LinkDB) AddLink(newLink *insteon.LinkRecord) error {
 	var command recordRequestCommand
 	if newLink.Flags.Controller() {
 		command = LinkCmdModFirstCtrl
@@ -139,7 +139,7 @@ func (db *LinkDB) AddLink(newLink *insteon.Link) error {
 }
 
 func (db *LinkDB) Cleanup() (err error) {
-	removeable := make([]*insteon.Link, 0)
+	removeable := make([]*insteon.LinkRecord, 0)
 	links, err := db.Links()
 	if err == nil {
 		for i, l1 := range links {

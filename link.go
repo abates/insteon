@@ -41,18 +41,18 @@ type Group byte
 
 func (g Group) String() string { return fmt.Sprintf("%d", byte(g)) }
 
-type Link struct {
+type LinkRecord struct {
 	Flags   RecordControlFlags
 	Group   Group
 	Address Address
 	Data    [3]byte
 }
 
-func (l *Link) String() string {
+func (l *LinkRecord) String() string {
 	return fmt.Sprintf("%s %s %s 0x%02x 0x%02x 0x%02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
 }
 
-func (l *Link) Equal(other *Link) bool {
+func (l *LinkRecord) Equal(other *LinkRecord) bool {
 	if l == other {
 		return true
 	}
@@ -64,7 +64,7 @@ func (l *Link) Equal(other *Link) bool {
 	return l.Flags.InUse() == other.Flags.InUse() && l.Flags.Controller() == other.Flags.Controller() && l.Group == other.Group && l.Address == other.Address
 }
 
-func (l *Link) MarshalBinary() ([]byte, error) {
+func (l *LinkRecord) MarshalBinary() ([]byte, error) {
 	data := make([]byte, 8)
 	data[0] = byte(l.Flags)
 	data[1] = byte(l.Group)
@@ -73,7 +73,7 @@ func (l *Link) MarshalBinary() ([]byte, error) {
 	return data, nil
 }
 
-func (l *Link) UnmarshalBinary(buf []byte) error {
+func (l *LinkRecord) UnmarshalBinary(buf []byte) error {
 	if len(buf) < 8 {
 		return newBufError(ErrBufferTooShort, 8, len(buf))
 	}

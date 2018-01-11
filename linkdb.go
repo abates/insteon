@@ -7,25 +7,31 @@ import (
 )
 
 var (
-	ErrLinkNotFound  = errors.New("Link not found in database")
+	// ErrAlreadyLinked is returned when creating a link and an existing matching link is found
 	ErrAlreadyLinked = errors.New("Responder already linked to controller")
 )
 
 const (
+	// BaseLinkDBAddress is the base address of devices All-Link database
 	BaseLinkDBAddress = MemAddress(0x0fff)
 )
 
+// MemAddress is an integer representing a specific location in a device's memory
 type MemAddress int
 
 func (ma MemAddress) String() string {
 	return fmt.Sprintf("%02x.%02x", byte(ma>>8), byte(ma&0xff))
 }
 
+// There are two link request types, one used to read the link database and
+// one used to write links
 const (
 	ReadLink  LinkRequestType = 0x00
 	WriteLink LinkRequestType = 0x02
 )
 
+// LinkRequestType is used to indicate whether an ALDB request is for reading
+// or writing the database
 type LinkRequestType byte
 
 func (lrt LinkRequestType) String() string {
@@ -40,11 +46,13 @@ func (lrt LinkRequestType) String() string {
 	return "Unknown"
 }
 
+// LinkRequest is the message sent to a device to request reading or writing
+// all-link database records
 type LinkRequest struct {
 	Type       LinkRequestType
 	MemAddress MemAddress
 	NumRecords int
-	Link       *Link
+	Link       *LinkRecord
 }
 
 func (lr *LinkRequest) String() string {
@@ -54,6 +62,7 @@ func (lr *LinkRequest) String() string {
 	return fmt.Sprintf("%s %s %d %s", lr.Type, lr.MemAddress, lr.NumRecords, lr.Link)
 }
 
+// UnmarshalBinary will take the byte slice and convert it to a LinkRequest object
 func (lr *LinkRequest) UnmarshalBinary(buf []byte) (err error) {
 	if len(buf) < 5 {
 		return newBufError(ErrBufferTooShort, 6, len(buf))
@@ -66,10 +75,10 @@ func (lr *LinkRequest) UnmarshalBinary(buf []byte) (err error) {
 	case 0x00:
 		lr.NumRecords = int(buf[4])
 	case 0x01:
-		lr.Link = &Link{}
+		lr.Link = &LinkRecord{}
 	case 0x02:
 		lr.NumRecords = int(buf[4])
-		lr.Link = &Link{}
+		lr.Link = &LinkRecord{}
 	}
 
 	if lr.Link != nil {
@@ -78,6 +87,8 @@ func (lr *LinkRequest) UnmarshalBinary(buf []byte) (err error) {
 	return err
 }
 
+// MarshalBinary will convert the LinkRequest to a byte slice appropriate for
+// sending out to the insteon network
 func (lr *LinkRequest) MarshalBinary() (buf []byte, err error) {
 	var linkData []byte
 	buf = make([]byte, 14)
@@ -100,9 +111,9 @@ func (lr *LinkRequest) MarshalBinary() (buf []byte, err error) {
 }
 
 type LinkDB interface {
-	Links() ([]*Link, error)
-	AddLink(newLink *Link) error
-	RemoveLinks(oldLinks ...*Link) error
+	Links() ([]*LinkRecord, error)
+	AddLink(newLink *LinkRecord) error
+	RemoveLinks(oldLinks ...*LinkRecord) error
 }
 
 type Linkable interface {
@@ -123,7 +134,7 @@ func NewDeviceLinkDB(conn Connection) *DeviceLinkDB {
 	return &DeviceLinkDB{conn}
 }
 
-func (db *DeviceLinkDB) AddLink(newLink *Link) error {
+func (db *DeviceLinkDB) AddLink(newLink *LinkRecord) error {
 	memAddress := BaseLinkDBAddress - 7
 	links, err := db.Links()
 	if err == nil {
@@ -139,7 +150,7 @@ func (db *DeviceLinkDB) AddLink(newLink *Link) error {
 	return err
 }
 
-func (db *DeviceLinkDB) RemoveLinks(oldLinks ...*Link) error {
+func (db *DeviceLinkDB) RemoveLinks(oldLinks ...*LinkRecord) error {
 	links, err := db.Links()
 	if err == nil {
 	top:
@@ -163,11 +174,11 @@ func (db *DeviceLinkDB) RemoveLinks(oldLinks ...*Link) error {
 	return err
 }
 
-func readLinks(conn Connection) ([]*Link, error) {
+func readLinks(conn Connection) ([]*LinkRecord, error) {
 	rrCh := conn.Subscribe(CmdReadWriteALDB)
 	defer conn.Unsubscribe(rrCh)
 	Log.Debugf("Retrieving Device link database")
-	links := make([]*Link, 0)
+	links := make([]*LinkRecord, 0)
 	lastAddress := MemAddress(0)
 	_, err := SendExtendedCommand(conn, CmdReadWriteALDB, &LinkRequest{Type: ReadLink, NumRecords: 0})
 	if err != nil {
@@ -197,20 +208,20 @@ loop:
 
 var linkReader = readLinks
 
-func (db *DeviceLinkDB) Links() ([]*Link, error) {
+func (db *DeviceLinkDB) Links() ([]*LinkRecord, error) {
 	return linkReader(db.conn)
 }
 
 var linkWriter = writeLink
 
-func writeLink(conn Connection, memAddress MemAddress, link *Link) error {
+func writeLink(conn Connection, memAddress MemAddress, link *LinkRecord) error {
 	request := &LinkRequest{Type: WriteLink, Link: link}
 	_, err := SendExtendedCommand(conn, CmdReadWriteALDB, request)
 	return err
 }
 
-func DuplicateLinks(db LinkDB) ([]*Link, error) {
-	duplicates := make([]*Link, 0)
+func DuplicateLinks(db LinkDB) ([]*LinkRecord, error) {
+	duplicates := make([]*LinkRecord, 0)
 	links, err := db.Links()
 	if err == nil {
 		for i, l1 := range links {
@@ -224,7 +235,7 @@ func DuplicateLinks(db LinkDB) ([]*Link, error) {
 	return duplicates, err
 }
 
-func FindLink(db LinkDB, controller bool, address Address, group Group) (*Link, error) {
+func FindLinkRecord(db LinkDB, controller bool, address Address, group Group) (*LinkRecord, error) {
 	links, err := db.Links()
 	if err == nil {
 		for _, link := range links {
@@ -237,10 +248,10 @@ func FindLink(db LinkDB, controller bool, address Address, group Group) (*Link, 
 }
 
 func CrossLink(l1, l2 Linkable, group Group) error {
-	err := CreateLink(l1, l2, group)
+	err := Link(l1, l2, group)
 	if err == nil || err == ErrAlreadyLinked {
 		err = nil
-		err = CreateLink(l2, l1, group)
+		err = Link(l2, l1, group)
 		if err == ErrAlreadyLinked {
 			err = nil
 		}
@@ -249,8 +260,10 @@ func CrossLink(l1, l2 Linkable, group Group) error {
 	return err
 }
 
-// Don't look through the database first
-func ForceCreateLink(controller, responder Linkable, group Group) (err error) {
+// ForceLink will create links in the controller and responder All-Link
+// databases without first checking if the links exist. The links are
+// created by simulating set button presses (using EnterLinkingMode)
+func ForceLink(controller, responder Linkable, group Group) (err error) {
 	Log.Debugf("Putting controller %s into linking mode", controller)
 	// controller enters all-linking mode
 	err = controller.EnterLinkingMode(group)
@@ -273,7 +286,7 @@ func UnlinkAll(controller, responder Linkable) (err error) {
 	controllerDB, err := controller.LinkDB()
 
 	if err == nil {
-		var links []*Link
+		var links []*LinkRecord
 		links, err = controllerDB.Links()
 		if err == nil {
 			for _, link := range links {
@@ -311,12 +324,12 @@ func Unlink(controller, responder Linkable, group Group) (err error) {
 	return
 }
 
-// CreateLink will add appropriate entries to the controller's and responder's All-Link
+// Link will add appropriate entries to the controller's and responder's All-Link
 // database. Each devices' ALDB will be searched for existing links, if both entries
 // exist (a controller link and a responder link) then nothing is done. If only one
 // entry exists than the other is deleted and new links are created. Once the link
-// check/cleanup has taken place the new links are created using ForceCreateLink
-func CreateLink(controller, responder Linkable, group Group) error {
+// check/cleanup has taken place the new links are created using ForceLink
+func Link(controller, responder Linkable, group Group) error {
 	// check for existing link
 	Log.Debugf("Retrieving link databases...")
 	var responderDB LinkDB
@@ -327,12 +340,12 @@ func CreateLink(controller, responder Linkable, group Group) error {
 
 	if err == nil || err == ErrNotLinked {
 		Log.Debugf("Looking for existing links")
-		var controllerLink *Link
-		controllerLink, err = FindLink(controllerDB, true, responder.Address(), group)
+		var controllerLink *LinkRecord
+		controllerLink, err = FindLinkRecord(controllerDB, true, responder.Address(), group)
 
 		if err == nil {
-			var responderLink *Link
-			responderLink, err = FindLink(responderDB, false, controller.Address(), group)
+			var responderLink *LinkRecord
+			responderLink, err = FindLinkRecord(responderDB, false, controller.Address(), group)
 
 			if err == nil {
 				if controllerLink != nil && responderLink != nil {
@@ -350,7 +363,7 @@ func CreateLink(controller, responder Linkable, group Group) error {
 						err = responderDB.RemoveLinks(controllerLink)
 					}
 
-					ForceCreateLink(controller, responder, group)
+					ForceLink(controller, responder, group)
 				}
 			}
 		}

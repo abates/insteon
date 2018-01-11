@@ -38,9 +38,9 @@ func plmLinkCmd(args []string, p *plm.PLM) error {
 			}
 
 			if err == nil {
-				err = insteon.ForceCreateLink(device, p, group)
+				err = insteon.ForceLink(device, p, group)
 				if err == nil {
-					err = insteon.ForceCreateLink(p, device, group)
+					err = insteon.ForceLink(p, device, group)
 				}
 
 				if err == nil {

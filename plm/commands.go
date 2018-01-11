@@ -36,7 +36,7 @@ var (
 	CmdButtonEventReport     = NewCommand("Button Event Report", 0x54, 1, nil)
 	CmdUserResetDetected     = NewCommand("User Reset Detected", 0x55, 0, nil)
 	CmdAllLinkCleanupFailure = NewCommand("Link Cleanup Report", 0x56, 5, nil)
-	CmdAllLinkRecordResp     = NewCommand("Link Record Resp", 0x57, 8, func() insteon.Payload { return &insteon.Link{} })
+	CmdAllLinkRecordResp     = NewCommand("Link Record Resp", 0x57, 8, func() insteon.Payload { return &insteon.LinkRecord{} })
 	CmdAllLinkCleanupStatus  = NewCommand("Link Cleanup Status", 0x58, 1, nil)
 	CmdGetInfo               = NewCommand("Get Info", 0x60, 7, func() insteon.Payload { return &Info{} })
 	CmdSendAllLink           = NewCommand("Send All Link", 0x61, 4, nil)

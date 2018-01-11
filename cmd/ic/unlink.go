@@ -52,10 +52,10 @@ func unlinkCmd(args []string, p *plm.PLM) (err error) {
 		var plmDB insteon.LinkDB
 		plmDB, err = p.LinkDB()
 		if err == nil {
-			var links []*insteon.Link
+			var links []*insteon.LinkRecord
 			links, err = plmDB.Links()
 			if err == nil {
-				removeable := make([]*insteon.Link, 0)
+				removeable := make([]*insteon.LinkRecord, 0)
 				for _, link := range links {
 					if link.Address == addr {
 						fmt.Printf("Cleaning up old link...")

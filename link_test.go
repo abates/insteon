@@ -68,9 +68,9 @@ func TestLinkEqual(t *testing.T) {
 	usedController := RecordControlFlags(0xc0)
 	usedResponder := RecordControlFlags(0x80)
 
-	newLink := func(flags RecordControlFlags, group Group, address Address) *Link {
+	newLink := func(flags RecordControlFlags, group Group, address Address) *LinkRecord {
 		buffer := []byte{byte(flags), byte(group), address[0], address[1], address[2], 0x00, 0x00, 0x00}
-		link := &Link{}
+		link := &LinkRecord{}
 		link.UnmarshalBinary(buffer)
 		return link
 	}
@@ -79,8 +79,8 @@ func TestLinkEqual(t *testing.T) {
 	l2 := l1
 
 	tests := []struct {
-		link1    *Link
-		link2    *Link
+		link1    *LinkRecord
+		link2    *LinkRecord
 		expected bool
 	}{
 		{newLink(usedController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
@@ -124,7 +124,7 @@ func TestLinkMarshalUnmarshal(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		link := &Link{}
+		link := &LinkRecord{}
 		err := link.UnmarshalBinary(test.input)
 		if !IsError(test.expectedError, err) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)

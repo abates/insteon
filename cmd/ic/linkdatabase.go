@@ -14,7 +14,7 @@ func printLinkDatabase(db insteon.LinkDB) error {
 		fmt.Printf("Link Database:\n")
 		fmt.Printf("Flags Group Address    Data\n")
 
-		links := make(map[string][]*insteon.Link)
+		links := make(map[string][]*insteon.LinkRecord)
 		for _, link := range dbLinks {
 			links[link.Address.String()] = append(links[link.Address.String()], link)
 		}

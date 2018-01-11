@@ -115,37 +115,37 @@ func TestLinkRequest(t *testing.T) {
 	}
 }
 
-func availableLink(addr Address) *Link {
+func availableLink(addr Address) *LinkRecord {
 	var flags RecordControlFlags
 	flags.setAvailable()
-	return &Link{Flags: flags, Group: Group(0x01), Address: addr, Data: [3]byte{0x04, 0x05, 0x06}}
+	return &LinkRecord{Flags: flags, Group: Group(0x01), Address: addr, Data: [3]byte{0x04, 0x05, 0x06}}
 }
 
-func unavailableLink(addr Address) *Link {
+func unavailableLink(addr Address) *LinkRecord {
 	var flags RecordControlFlags
 	flags.setInUse()
-	return &Link{Flags: flags, Group: Group(0x01), Address: addr, Data: [3]byte{0x04, 0x05, 0x06}}
+	return &LinkRecord{Flags: flags, Group: Group(0x01), Address: addr, Data: [3]byte{0x04, 0x05, 0x06}}
 }
 
 func TestAddLink(t *testing.T) {
 	tests := []struct {
-		input    []*Link
+		input    []*LinkRecord
 		expected MemAddress
 	}{
 		{nil, MemAddress(0x0ff8)},
-		{[]*Link{availableLink(Address{1, 2, 3})}, MemAddress(0x0ff8)},
-		{[]*Link{unavailableLink(Address{1, 2, 3})}, MemAddress(0x0ff0)},
+		{[]*LinkRecord{availableLink(Address{1, 2, 3})}, MemAddress(0x0ff8)},
+		{[]*LinkRecord{unavailableLink(Address{1, 2, 3})}, MemAddress(0x0ff0)},
 	}
 
 	for i, test := range tests {
 		oldLinkReader := linkReader
-		linkReader = func(Connection) ([]*Link, error) {
+		linkReader = func(Connection) ([]*LinkRecord, error) {
 			return test.input, nil
 		}
 
 		oldLinkWriter := linkWriter
 		var address MemAddress
-		linkWriter = func(conn Connection, addr MemAddress, link *Link) error {
+		linkWriter = func(conn Connection, addr MemAddress, link *LinkRecord) error {
 			address = addr
 			return nil
 		}
@@ -164,24 +164,24 @@ func TestAddLink(t *testing.T) {
 
 func TestRemoveLink(t *testing.T) {
 	tests := []struct {
-		links    []*Link
-		input    *Link
+		links    []*LinkRecord
+		input    *LinkRecord
 		expected MemAddress
 	}{
-		{[]*Link{unavailableLink(Address{1, 2, 3})}, unavailableLink(Address{1, 2, 3}), 0x0ff8},
-		{[]*Link{unavailableLink(Address{1, 2, 3}), unavailableLink(Address{4, 5, 6})}, unavailableLink(Address{4, 5, 6}), 0x0ff0},
+		{[]*LinkRecord{unavailableLink(Address{1, 2, 3})}, unavailableLink(Address{1, 2, 3}), 0x0ff8},
+		{[]*LinkRecord{unavailableLink(Address{1, 2, 3}), unavailableLink(Address{4, 5, 6})}, unavailableLink(Address{4, 5, 6}), 0x0ff0},
 	}
 
 	for i, test := range tests {
 		oldLinkReader := linkReader
-		linkReader = func(Connection) ([]*Link, error) {
+		linkReader = func(Connection) ([]*LinkRecord, error) {
 			return test.links, nil
 		}
 
 		oldLinkWriter := linkWriter
 		var writeAddress MemAddress
-		var writeLink *Link
-		linkWriter = func(conn Connection, addr MemAddress, link *Link) error {
+		var writeLink *LinkRecord
+		linkWriter = func(conn Connection, addr MemAddress, link *LinkRecord) error {
 			writeAddress = addr
 			writeLink = link
 			return nil
