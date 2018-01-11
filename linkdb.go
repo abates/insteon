@@ -267,19 +267,9 @@ func ForceCreateLink(controller, responder Linkable, group Group) (err error) {
 	return
 }
 
-func Unlink(controller, responder Linkable, group Group) error {
-	err := controller.EnterUnlinkingMode(group)
-	defer controller.ExitLinkingMode()
-
-	if err == nil {
-		err = responder.EnterUnlinkingMode(group)
-		defer responder.ExitLinkingMode()
-	}
-	time.Sleep(time.Second)
-	return err
-}
-
-func DeleteLinks(controller, responder Linkable) (err error) {
+// UnlinkAll will unlink all groups between a controller and
+// a responder device
+func UnlinkAll(controller, responder Linkable) (err error) {
 	controllerDB, err := controller.LinkDB()
 
 	if err == nil {
@@ -288,7 +278,7 @@ func DeleteLinks(controller, responder Linkable) (err error) {
 		if err == nil {
 			for _, link := range links {
 				if link.Address == responder.Address() {
-					err = DeleteLink(responder, controller, link.Group)
+					err = Unlink(responder, controller, link.Group)
 				}
 			}
 		}
@@ -296,7 +286,11 @@ func DeleteLinks(controller, responder Linkable) (err error) {
 	return err
 }
 
-func DeleteLink(controller, responder Linkable, group Group) (err error) {
+// Unlink will unlink a controller from a responder for a given Group. The
+// controller is put into UnlinkingMode (analogous to unlinking mode via
+// the set button) and then the responder is put into unlinking mode (also
+// analogous to the set button pressed)
+func Unlink(controller, responder Linkable, group Group) (err error) {
 	// controller enters all-linking mode
 	err = controller.EnterUnlinkingMode(group)
 	//defer responder.ExitLinkingMode()
@@ -317,6 +311,11 @@ func DeleteLink(controller, responder Linkable, group Group) (err error) {
 	return
 }
 
+// CreateLink will add appropriate entries to the controller's and responder's All-Link
+// database. Each devices' ALDB will be searched for existing links, if both entries
+// exist (a controller link and a responder link) then nothing is done. If only one
+// entry exists than the other is deleted and new links are created. Once the link
+// check/cleanup has taken place the new links are created using ForceCreateLink
 func CreateLink(controller, responder Linkable, group Group) error {
 	// check for existing link
 	Log.Debugf("Retrieving link databases...")
