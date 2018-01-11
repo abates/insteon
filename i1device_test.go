@@ -80,7 +80,9 @@ func TestI1DeviceFunctions(t *testing.T) {
 			function: func(device *I1Device) (interface{}, error) { return nil, device.SetAllLinkCommandAliasData(nil) },
 		},
 		{
-			function:      func(device *I1Device) (interface{}, error) { return device.BlockDataTransfer() },
+			function: func(device *I1Device) (interface{}, error) {
+				return device.BlockDataTransfer(0, 0, 0)
+			},
 			expectedValue: []byte(nil),
 		},
 		{

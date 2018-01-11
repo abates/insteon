@@ -328,7 +328,8 @@ func CreateLink(controller, responder Linkable, group Group) error {
 
 	if err == nil || err == ErrNotLinked {
 		Log.Debugf("Looking for existing links")
-		controllerLink, err := FindLink(controllerDB, true, responder.Address(), group)
+		var controllerLink *Link
+		controllerLink, err = FindLink(controllerDB, true, responder.Address(), group)
 
 		if err == nil {
 			var responderLink *Link
