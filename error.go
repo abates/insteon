@@ -26,7 +26,7 @@ func (be *BufError) Error() string {
 // the location in code where the error occurred.
 type Error struct {
 	Cause error         // the underlying cause of the error
-	Frame runtime.Frame // the runtime frame of the occurrance
+	Frame runtime.Frame // the runtime frame of the occurrence
 }
 
 // IsError will determine if `check` is wrapping an underlying error.
