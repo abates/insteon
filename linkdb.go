@@ -6,16 +6,13 @@ import (
 	"time"
 )
 
-const (
-	BaseLinkDBAddress = MemAddress(0x0fff)
-
-	ReadLink  LinkRequestType = 0x00
-	WriteLink LinkRequestType = 0x02
-)
-
 var (
 	ErrLinkNotFound  = errors.New("Link not found in database")
 	ErrAlreadyLinked = errors.New("Responder already linked to controller")
+)
+
+const (
+	BaseLinkDBAddress = MemAddress(0x0fff)
 )
 
 type MemAddress int
@@ -23,6 +20,11 @@ type MemAddress int
 func (ma MemAddress) String() string {
 	return fmt.Sprintf("%02x.%02x", byte(ma>>8), byte(ma&0xff))
 }
+
+const (
+	ReadLink  LinkRequestType = 0x00
+	WriteLink LinkRequestType = 0x02
+)
 
 type LinkRequestType byte
 

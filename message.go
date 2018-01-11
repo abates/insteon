@@ -5,18 +5,17 @@ import (
 )
 
 const (
-	StandardMsgLen        = 9
-	ExtendedMsgLen        = 23
-	StandardDirectMessage = Flags(0x0a)
-	StandardDirectAck     = Flags(0x2a)
-	StandardDirectNak     = Flags(0xaa)
-	ExtendedDirectMessage = Flags(0x1a)
-	ExtendedDirectAck     = Flags(0x3a)
-	ExtendedDirectNak     = Flags(0xba)
+	// StandardMsgLen is the length of an insteon standard message minus one byte (the crc byte)
+	StandardMsgLen = 9
+
+	// ExtendedMsgLen is the length of an insteon extended message minus one byte (the crc byte)
+	ExtendedMsgLen = 23
 )
 
+// MessageType is an integer representing one of a list of the following types
 type MessageType int
 
+// List of message types:
 const (
 	MsgTypeDirect = iota
 	MsgTypeDirectAck
@@ -52,21 +51,45 @@ func (m MessageType) String() string {
 	return str
 }
 
+// Direct will indicate whether the MessageType represents a direct message
 func (m MessageType) Direct() bool {
 	return !m.Broadcast()
 }
 
+// Broadcast will indicate whether the MessageType represents a broadcast message
 func (m MessageType) Broadcast() bool {
 	return m&0x0f == 0x04 || m&0x0f == 0x06
 }
 
+// Flags for the varius message types
+const (
+	StandardDirectMessage = Flags(0x0a)
+	StandardDirectAck     = Flags(0x2a)
+	StandardDirectNak     = Flags(0xaa)
+	ExtendedDirectMessage = Flags(0x1a)
+	ExtendedDirectAck     = Flags(0x3a)
+	ExtendedDirectNak     = Flags(0xba)
+)
+
+// Flags is the flags byte in an insteon message
 type Flags byte
 
+// Type will return the MessageType of the flags
 func (f Flags) Type() MessageType { return MessageType((f & 0xf0) >> 5) }
-func (f Flags) Standard() bool    { return f&0x10 == 0x00 }
-func (f Flags) Extended() bool    { return f&0x10 == 0x10 }
-func (f Flags) TTL() int          { return int((f & 0x0f) >> 2) }
-func (f Flags) MaxTTL() int       { return int(f & 0x03) }
+
+// Standard will indicate if the insteon message is standard length
+func (f Flags) Standard() bool { return f&0x10 == 0x00 }
+
+// Extended will indicate if the insteon message is extended length
+func (f Flags) Extended() bool { return f&0x10 == 0x10 }
+
+// TTL is the remaining number of times an insteon message will be
+// retransmitted. This is decremented each time a message is repeated
+func (f Flags) TTL() int { return int((f & 0x0f) >> 2) }
+
+// MaxTTL is the maximum number of times a message can be repeated
+func (f Flags) MaxTTL() int { return int(f & 0x03) }
+
 func (f Flags) String() string {
 	msg := "S"
 	if f.Extended() {
@@ -76,6 +99,7 @@ func (f Flags) String() string {
 	return fmt.Sprintf("%s%-5s %d:%d", msg, f.Type(), f.MaxTTL(), f.TTL())
 }
 
+// Message is a single insteon message
 type Message struct {
 	version EngineVersion
 	Src     Address
@@ -101,6 +125,8 @@ func checksum(buf []byte) byte {
 	return ^sum + 1
 }
 
+// MarshalBinary will convert the Message to a byte slice appropriate for
+// sending out onto the insteon network
 func (m *Message) MarshalBinary() (data []byte, err error) {
 	data = make([]byte, StandardMsgLen)
 	copy(data[0:3], m.Src[:])
@@ -119,6 +145,8 @@ func (m *Message) MarshalBinary() (data []byte, err error) {
 	return data, err
 }
 
+// UnmarshalBinary will take a byte slice and unmarshal it into the Message
+// fields
 func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	// The CRC is not always present
 	if len(data) < StandardMsgLen {

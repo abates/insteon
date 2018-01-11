@@ -20,7 +20,7 @@ func printLinkDatabase(db insteon.LinkDB) error {
 		}
 
 		linkAddresses := []string{}
-		for linkAddress, _ := range links {
+		for linkAddress := range links {
 			linkAddresses = append(linkAddresses, linkAddress)
 		}
 		sort.Strings(linkAddresses)

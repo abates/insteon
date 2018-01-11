@@ -19,7 +19,7 @@ func init() {
 
 func dump(buf []byte) string {
 	str := make([]string, len(buf))
-	for i, _ := range str {
+	for i := range str {
 		str[i] = fmt.Sprintf("%02x", buf[i])
 	}
 	return strings.Join(str, " ")

@@ -104,7 +104,7 @@ func run(args []string, command func([]string, *plm.PLM) error) error {
 func usage() {
 	maxNameLen := 0
 	var commandNames []string
-	for name, _ := range commands {
+	for name := range commands {
 		if len(name) > maxNameLen {
 			maxNameLen = len(name)
 		}
