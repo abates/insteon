@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -39,25 +38,24 @@ func (llf *LogLevelFlag) String() string {
 	return insteon.LogLevel(*llf).String()
 }
 
-type command struct {
-	usage       string
-	description string
-	flags       *flag.FlagSet
-	callback    func(args []string, plm *plm.PLM) error
-}
-
 var (
+	modem          *plm.PLM
 	logLevelFlag   LogLevelFlag
 	serialPortFlag string
 	timeoutFlag    time.Duration
 
-	commands = make(map[string]*command)
+	Commands = &Command{
+		subCommands: make(map[string]*Command),
+		out:         os.Stderr,
+		Flags:       flag.NewFlagSet(os.Args[0], flag.ExitOnError),
+	}
 )
 
 func init() {
-	flag.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
-	flag.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
-	flag.DurationVar(&timeoutFlag, "timeout", 5*time.Second, "read/write timeout duration")
+	Commands.Flags.SetOutput(Commands.out)
+	Commands.Flags.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
+	Commands.Flags.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
+	Commands.Flags.DurationVar(&timeoutFlag, "timeout", 5*time.Second, "read/write timeout duration")
 }
 
 func getResponse(message string, acceptable ...string) (resp string) {
@@ -79,7 +77,11 @@ func getResponse(message string, acceptable ...string) (resp string) {
 	return resp
 }
 
-func run(args []string, command func([]string, *plm.PLM) error) error {
+func run(args []string, subCommand *Command) error {
+	if logLevelFlag > insteon.LevelNone {
+		insteon.Log.Level(insteon.LogLevel(logLevelFlag))
+	}
+
 	c := &serial.Config{
 		Name: serialPortFlag,
 		Baud: 19200,
@@ -89,78 +91,18 @@ func run(args []string, command func([]string, *plm.PLM) error) error {
 	if err == nil {
 		defer s.Close()
 
-		plm := plm.New(s, timeoutFlag)
-		defer plm.Close()
+		modem = plm.New(s, timeoutFlag)
+		defer modem.Close()
 		if logLevelFlag == insteon.LevelTrace {
-			plm.StartMonitor()
-			defer plm.StopMonitor()
+			modem.StartMonitor()
+			defer modem.StopMonitor()
 		}
-
-		err = command(args, plm)
 	}
-	return err
-}
-
-func usage() {
-	maxNameLen := 0
-	var commandNames []string
-	for name := range commands {
-		if len(name) > maxNameLen {
-			maxNameLen = len(name)
-		}
-		commandNames = append(commandNames, name)
-	}
-	maxNameLen += 5
-	nameFmt := fmt.Sprintf("%%%ds %%s\n", maxNameLen)
-
-	sort.Strings(commandNames)
-
-	fmt.Fprintf(os.Stderr, "Usage: %s [global options] <command> [command options]\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "\nGlobal Options:\n")
-	flag.PrintDefaults()
-
-	fmt.Fprintf(os.Stderr, "\nCommands:\n")
-	for _, commandName := range commandNames {
-		command := commands[commandName]
-		fmt.Fprintf(os.Stderr, nameFmt, commandName, command.usage)
-		if command.description != "" {
-			fmt.Fprintf(os.Stderr, "%s %s\n", strings.Repeat(" ", maxNameLen), command.description)
-		}
-		if command.flags != nil {
-			command.flags.PrintDefaults()
-		}
-		fmt.Fprintf(os.Stderr, "\n")
-	}
+	return subCommand.Run(args)
 }
 
 func main() {
-	flag.Usage = usage
-	flag.Parse()
-
-	if len(flag.Args()) < 1 {
-		usage()
-		os.Exit(2)
-	}
-
-	args := flag.Args()
-	cmdName := args[0]
-	args = args[1:]
-	command := commands[cmdName]
-	if command == nil {
-		fmt.Fprintf(os.Stderr, "Unknown command %s\n", cmdName)
-		os.Exit(3)
-	}
-
-	if command.flags != nil {
-		command.flags.Parse(args)
-		args = command.flags.Args()
-	}
-
-	if logLevelFlag > insteon.LevelNone {
-		insteon.Log.Level(insteon.LogLevel(logLevelFlag))
-	}
-
-	err := run(args, command.callback)
+	err := Commands.Run(os.Args[1:])
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		os.Exit(1)

@@ -2,19 +2,13 @@ package main
 
 import (
 	"fmt"
-
-	"github.com/abates/insteon/plm"
 )
 
 func init() {
-	commands["cleanup"] = &command{
-		usage:       "<device id> ...",
-		description: "Remove duplicate links from the device link DB",
-		callback:    cleanupCmd,
-	}
+	Commands.Register("cleanup", "<device id> ...", "Remove duplicate links from the device link DB", cleanupCmd)
 }
 
-func cleanupCmd(args []string, plm *plm.PLM) error {
+func cleanupCmd(args []string, subCommand *Command) error {
 	if len(args) < 1 {
 		return fmt.Errorf("at least one device id must be specified")
 	}

@@ -6,23 +6,14 @@ import (
 	"time"
 
 	"github.com/abates/insteon"
-	"github.com/abates/insteon/plm"
 )
 
 func init() {
-	commands["link"] = &command{
-		usage:       "<device id> ...",
-		description: "Link the PLM to one or more devices",
-		callback:    plmLinkCmd,
-	}
-
-	commands["alllink"] = &command{
-		description: "Put the PLM into linking mode for manual linking",
-		callback:    plmAllLinkCmd,
-	}
+	Commands.Register("link", "<device id> ...", "Link the PLM to one or more devices", modemLinkCmd)
+	Commands.Register("alllink", "<device id> ...", "Put the PLM into linking mode for manual linking", modemAllLinkCmd)
 }
 
-func plmLinkCmd(args []string, p *plm.PLM) error {
+func modemLinkCmd(args []string, subCommand *Command) error {
 	if len(args) < 1 {
 		return fmt.Errorf("at least one device id must be specified")
 	}
@@ -32,15 +23,15 @@ func plmLinkCmd(args []string, p *plm.PLM) error {
 		if err == nil {
 			group := insteon.Group(0x01)
 			fmt.Printf("Linking to %s...", addr)
-			device, err := p.Connect(addr)
+			device, err := modem.Connect(addr)
 			if err == insteon.ErrNotLinked {
 				err = nil
 			}
 
 			if err == nil {
-				err = insteon.ForceLink(device, p, group)
+				err = insteon.ForceLink(device, modem, group)
 				if err == nil {
-					err = insteon.ForceLink(p, device, group)
+					err = insteon.ForceLink(modem, device, group)
 				}
 
 				if err == nil {
@@ -58,6 +49,6 @@ func plmLinkCmd(args []string, p *plm.PLM) error {
 	return nil
 }
 
-func plmAllLinkCmd(args []string, plm *plm.PLM) error {
-	return plm.AddManualLink(insteon.Group(0x01))
+func modemAllLinkCmd(args []string, subCommand *Command) error {
+	return modem.AddManualLink(insteon.Group(0x01))
 }

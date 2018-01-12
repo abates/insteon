@@ -7,15 +7,19 @@ import (
 	"github.com/abates/insteon/plm"
 )
 
+var device insteon.Device
+
 func init() {
-	commands["device"] = &command{
-		usage:       "<device id> [info|link|unlink|cleanup|dump]",
-		description: "Interact with a specific device",
-		callback:    devCmd,
-	}
+	cmd := Commands.Register("device", "<device id> [info|link|unlink|cleanup|dump]", "Interact with a specific device", devCmd)
+	cmd.Register("info", "", "retrieve device info", devInfoCmd)
+	cmd.Register("link", "", "enter linking mode", devLinkCmd)
+	cmd.Register("unlink", "", "enter unlinking mode", devUnlinkCmd)
+	cmd.Register("exitlink", "", "exit linking mode", devExitLinkCmd)
+	cmd.Register("cleanup", "", "remove duplicate links in the all-link database", devCleanupCmd)
+	cmd.Register("dump", "", "dump the device all-link database", devDumpCmd)
 }
 
-func devCmd(args []string, plm *plm.PLM) error {
+func devCmd(args []string, subCommand *Command) (err error) {
 	if len(args) < 2 {
 		return fmt.Errorf("device id and action must be specified")
 	}
@@ -25,59 +29,42 @@ func devCmd(args []string, plm *plm.PLM) error {
 		return fmt.Errorf("invalid device address: %v", err)
 	}
 
-	device, err := devConnect(plm, addr)
+	device, err = devConnect(modem, addr)
 	defer device.Close()
-	if err != nil {
-		return err
-	}
-
-	switch args[1] {
-	case "info":
-		err = devInfoCmd(device)
-	case "link":
-		err = devLinkCmd(device)
-	case "unlink":
-		err = devUnlinkCmd(device)
-	case "exitlink":
-		err = devExitLinkCmd(device)
-	case "cleanup":
-		err = devCleanupCmd(device)
-	case "dump":
-		err = devDumpCmd(device)
-	default:
-		err = fmt.Errorf("Unknown command %q", args[1])
+	if err == nil {
+		err = subCommand.Run(args)
 	}
 	return err
 }
 
-func devConnect(plm *plm.PLM, addr insteon.Address) (insteon.Device, error) {
-	device, err := plm.Connect(addr)
+func devConnect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
+	device, err := modem.Connect(addr)
 	if err == insteon.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if getResponse(msg, "y", "n") == "y" {
-			err = plmLinkCmd([]string{addr.String()}, plm)
+			err = modemLinkCmd([]string{addr.String()}, nil)
 		}
 
 		if err == nil {
-			device, err = plm.Connect(addr)
+			device, err = modem.Connect(addr)
 		}
 	}
 	return device, err
 }
 
-func devLinkCmd(device insteon.Device) error {
+func devLinkCmd([]string, *Command) error {
 	return device.EnterLinkingMode(insteon.Group(0x01))
 }
 
-func devUnlinkCmd(device insteon.Device) error {
+func devUnlinkCmd([]string, *Command) error {
 	return device.EnterUnlinkingMode(insteon.Group(0x01))
 }
 
-func devExitLinkCmd(device insteon.Device) error {
+func devExitLinkCmd([]string, *Command) error {
 	return device.ExitLinkingMode()
 }
 
-func devCleanupCmd(device insteon.Device) error {
+func devCleanupCmd([]string, *Command) error {
 	/*db, err := device.LinkDB()
 	if err == nil {
 		err = db.Cleanup()
@@ -86,7 +73,7 @@ func devCleanupCmd(device insteon.Device) error {
 	return nil
 }
 
-func devDumpCmd(device insteon.Device) error {
+func devDumpCmd([]string, *Command) error {
 	db, err := device.LinkDB()
 	if err == nil {
 		err = dumpLinkDatabase(db)
@@ -94,7 +81,7 @@ func devDumpCmd(device insteon.Device) error {
 	return err
 }
 
-func devInfoCmd(device insteon.Device) error {
+func devInfoCmd([]string, *Command) error {
 	pd, err := device.ProductData()
 
 	if err == nil {

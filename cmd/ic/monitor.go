@@ -6,15 +6,10 @@ import (
 	"strings"
 
 	"github.com/abates/insteon"
-	"github.com/abates/insteon/plm"
 )
 
 func init() {
-	commands["monitor"] = &command{
-		usage:       "",
-		description: "Monitor the Insteon network",
-		callback:    monCmd,
-	}
+	Commands.Register("monitor", "", "Monitor the Insteon network", monCmd)
 }
 
 func dump(buf []byte) string {
@@ -25,9 +20,9 @@ func dump(buf []byte) string {
 	return strings.Join(str, " ")
 }
 
-func monCmd(args []string, plm *plm.PLM) error {
+func monCmd(args []string, subCommand *Command) error {
 	log.Printf("Starting monitor...")
-	plm.Monitor(func(buf []byte, msg *insteon.Message) {
+	modem.Monitor(func(buf []byte, msg *insteon.Message) {
 		log.Printf("%-71s %s", dump(buf), msg)
 	})
 	return nil

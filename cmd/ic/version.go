@@ -4,18 +4,13 @@ import (
 	"fmt"
 
 	"github.com/abates/insteon"
-	"github.com/abates/insteon/plm"
 )
 
 func init() {
-	commands["version"] = &command{
-		usage:       "<device id>",
-		description: "Retrieve the Insteon engine version",
-		callback:    versionCmd,
-	}
+	Commands.Register("version", "<device id>", "Retrieve the Insteon engine version", versionCmd)
 }
 
-func versionCmd(args []string, plm *plm.PLM) error {
+func versionCmd(args []string, subCommand *Command) error {
 	if len(args) < 1 {
 		return fmt.Errorf("device id must be specified")
 	}
@@ -23,7 +18,7 @@ func versionCmd(args []string, plm *plm.PLM) error {
 	addr, err := insteon.ParseAddress(args[0])
 	if err == nil {
 		var device insteon.Device
-		device, err = plm.Connect(addr)
+		device, err = modem.Connect(addr)
 
 		if err == nil {
 			version := insteon.EngineVersion(0)
