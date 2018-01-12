@@ -59,10 +59,8 @@ func (db *LinkDB) Links() ([]*insteon.LinkRecord, error) {
 	insteon.Log.Debugf("Retrieving PLM link database")
 	resp, err := db.plm.Send(&Packet{Command: CmdGetFirstAllLink})
 	if resp.NAK() {
-		err = ErrNak
-	}
-
-	if err == nil {
+		err = nil
+	} else if err == nil {
 	loop:
 		for {
 			select {

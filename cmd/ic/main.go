@@ -47,6 +47,7 @@ var (
 	Commands = &Command{
 		subCommands: make(map[string]*Command),
 		out:         os.Stderr,
+		callback:    run,
 		Flags:       flag.NewFlagSet(os.Args[0], flag.ExitOnError),
 	}
 )
