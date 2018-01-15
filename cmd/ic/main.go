@@ -2,12 +2,12 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/abates/cli"
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/plm"
 	"github.com/tarm/serial"
@@ -44,16 +44,11 @@ var (
 	serialPortFlag string
 	timeoutFlag    time.Duration
 
-	Commands = &Command{
-		subCommands: make(map[string]*Command),
-		out:         os.Stderr,
-		callback:    run,
-		Flags:       flag.NewFlagSet(os.Args[0], flag.ExitOnError),
-	}
+	Commands = cli.New(os.Args[0], "", "", run)
 )
 
 func init() {
-	Commands.Flags.SetOutput(Commands.out)
+	Commands.SetOutput(os.Stderr)
 	Commands.Flags.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
 	Commands.Flags.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
 	Commands.Flags.DurationVar(&timeoutFlag, "timeout", 5*time.Second, "read/write timeout duration")
@@ -78,7 +73,7 @@ func getResponse(message string, acceptable ...string) (resp string) {
 	return resp
 }
 
-func run(args []string, subCommand *Command) error {
+func run(args []string, next cli.NextFunc) error {
 	if logLevelFlag > insteon.LevelNone {
 		insteon.Log.Level(insteon.LogLevel(logLevelFlag))
 	}
@@ -99,7 +94,7 @@ func run(args []string, subCommand *Command) error {
 			defer modem.StopMonitor()
 		}
 	}
-	return subCommand.Run(args)
+	return next()
 }
 
 func main() {

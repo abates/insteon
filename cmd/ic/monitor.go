@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/abates/cli"
 	"github.com/abates/insteon"
 )
 
@@ -20,7 +21,7 @@ func dump(buf []byte) string {
 	return strings.Join(str, " ")
 }
 
-func monCmd(args []string, subCommand *Command) error {
+func monCmd([]string, cli.NextFunc) error {
 	log.Printf("Starting monitor...")
 	modem.Monitor(func(buf []byte, msg *insteon.Message) {
 		log.Printf("%-71s %s", dump(buf), msg)

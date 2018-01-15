@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/abates/cli"
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/plm"
 )
@@ -17,9 +18,10 @@ func init() {
 	cmd.Register("exitlink", "", "exit linking mode", devExitLinkCmd)
 	cmd.Register("cleanup", "", "remove duplicate links in the all-link database", devCleanupCmd)
 	cmd.Register("dump", "", "dump the device all-link database", devDumpCmd)
+	cmd.Register("version", "<device id>", "Retrieve the Insteon engine version", devVersionCmd)
 }
 
-func devCmd(args []string, subCommand *Command) (err error) {
+func devCmd(args []string, next cli.NextFunc) (err error) {
 	if len(args) < 2 {
 		return fmt.Errorf("device id and action must be specified")
 	}
@@ -32,7 +34,7 @@ func devCmd(args []string, subCommand *Command) (err error) {
 	device, err = devConnect(modem, addr)
 	defer device.Close()
 	if err == nil {
-		err = subCommand.Run(args)
+		err = next()
 	}
 	return err
 }
@@ -42,7 +44,7 @@ func devConnect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 	if err == insteon.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if getResponse(msg, "y", "n") == "y" {
-			err = modemLinkCmd([]string{addr.String()}, nil)
+			err = plmLinkCmd([]string{addr.String()}, nil)
 		}
 
 		if err == nil {
@@ -52,28 +54,19 @@ func devConnect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 	return device, err
 }
 
-func devLinkCmd([]string, *Command) error {
+func devLinkCmd([]string, cli.NextFunc) error {
 	return device.EnterLinkingMode(insteon.Group(0x01))
 }
 
-func devUnlinkCmd([]string, *Command) error {
+func devUnlinkCmd([]string, cli.NextFunc) error {
 	return device.EnterUnlinkingMode(insteon.Group(0x01))
 }
 
-func devExitLinkCmd([]string, *Command) error {
+func devExitLinkCmd([]string, cli.NextFunc) error {
 	return device.ExitLinkingMode()
 }
 
-func devCleanupCmd([]string, *Command) error {
-	/*db, err := device.LinkDB()
-	if err == nil {
-		err = db.Cleanup()
-	}
-	return err*/
-	return nil
-}
-
-func devDumpCmd([]string, *Command) error {
+func devDumpCmd([]string, cli.NextFunc) error {
 	db, err := device.LinkDB()
 	if err == nil {
 		err = dumpLinkDatabase(db)
@@ -81,7 +74,7 @@ func devDumpCmd([]string, *Command) error {
 	return err
 }
 
-func devInfoCmd([]string, *Command) error {
+func devInfoCmd([]string, cli.NextFunc) error {
 	pd, err := device.ProductData()
 
 	if err == nil {
@@ -95,4 +88,40 @@ func devInfoCmd([]string, *Command) error {
 		}
 	}
 	return err
+}
+
+func devVersionCmd([]string, cli.NextFunc) error {
+	version, err := device.EngineVersion()
+	if err == nil {
+		fmt.Printf("Device version: %s\n", version)
+	}
+	return err
+}
+
+func devCleanupCmd([]string, cli.NextFunc) error {
+	/*for i, arg := range args {
+		addr, err := insteon.ParseAddress(arg)
+		if err == nil {
+			fmt.Printf("Cleaning %s...", addr)
+			device, err := plm.Connect(addr)
+			if err == nil {
+				linkdb, err := device.LinkDB()
+				if err == nil {
+					err = linkdb.Cleanup()
+				}
+			}
+
+			if err == nil {
+				fmt.Printf("done\n")
+			} else {
+				fmt.Printf("failed: %v\n", err)
+			}
+
+			if i < len(args)-1 {
+				time.Sleep(time.Second)
+			}
+		}
+	}*/
+	// TODO make this return a generic error if one or more of the links failed
+	return nil
 }
