@@ -15,8 +15,8 @@ const (
 // MessageType is an integer representing one of a list of the following types
 type MessageType int
 
+// All of the valid message types
 const (
-	// List of message types:
 	MsgTypeDirect = iota
 	MsgTypeDirectAck
 	MsgTypeAllLinkCleanup
@@ -61,8 +61,8 @@ func (m MessageType) Broadcast() bool {
 	return m&0x0f == 0x04 || m&0x0f == 0x06
 }
 
+// Flags for common message types
 const (
-	// Flags for the varius message types
 	StandardDirectMessage = Flags(0x0a)
 	StandardDirectAck     = Flags(0x2a)
 	StandardDirectNak     = Flags(0xaa)
