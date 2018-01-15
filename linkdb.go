@@ -110,12 +110,27 @@ func (lr *LinkRequest) MarshalBinary() (buf []byte, err error) {
 	return buf, err
 }
 
+// LinkDB is the interface implemented by devices' link databases
+// All Insteon devices have link databases, but the underlying
+// implementations (PLM versus SwitchLinc, for instance) have
+// different mechanisms for access and management
 type LinkDB interface {
+	// Links will return a list of LinkRecords that are present in
+	// the All-Link database
 	Links() ([]*LinkRecord, error)
+
+	// AddLink will either add the link to the All-Link database
+	// or it will replace an existing link-record that has been marked
+	// as deleted
 	AddLink(newLink *LinkRecord) error
+
+	// RemoveLinks will either remove the link records from the device
+	// All-Link database, or it will simply mark them as deleted
 	RemoveLinks(oldLinks ...*LinkRecord) error
 }
 
+// Linkable is the interface any device needs to implement if
+// it has a Link database and can have Insteon All-Links
 type Linkable interface {
 	Address() Address
 	AssignToAllLinkGroup(Group) error
@@ -126,14 +141,21 @@ type Linkable interface {
 	LinkDB() (LinkDB, error)
 }
 
+// DeviceLinkDB is the base/generic link database structure
+// used by I2 and I2CS devices
 type DeviceLinkDB struct {
 	conn Connection
 }
 
+// NewDeviceLinkDB will create a new link database structure
+// for the underlying connection
 func NewDeviceLinkDB(conn Connection) *DeviceLinkDB {
 	return &DeviceLinkDB{conn}
 }
 
+// AddLink will either add the link to the All-Link database
+// or it will replace an existing link-record that has been marked
+// as deleted
 func (db *DeviceLinkDB) AddLink(newLink *LinkRecord) error {
 	memAddress := BaseLinkDBAddress - 7
 	links, err := db.Links()
@@ -150,6 +172,8 @@ func (db *DeviceLinkDB) AddLink(newLink *LinkRecord) error {
 	return err
 }
 
+// RemoveLinks will either remove the link records from the device
+// All-Link database, or it will simply mark them as deleted
 func (db *DeviceLinkDB) RemoveLinks(oldLinks ...*LinkRecord) error {
 	links, err := db.Links()
 	if err == nil {
@@ -208,6 +232,8 @@ loop:
 
 var linkReader = readLinks
 
+// Links will retrieve the link-database from the device and
+// return a list of LinkRecords
 func (db *DeviceLinkDB) Links() ([]*LinkRecord, error) {
 	return linkReader(db.conn)
 }
@@ -220,7 +246,10 @@ func writeLink(conn Connection, memAddress MemAddress, link *LinkRecord) error {
 	return err
 }
 
-func DuplicateLinks(db LinkDB) ([]*LinkRecord, error) {
+// FindDuplicateLinks will perform a linear search of the
+// LinkDB and return any links that are duplicates. Duplicate
+// links are those that are equivalent as reported by LinkRecord.Equal
+func FindDuplicateLinks(db LinkDB) ([]*LinkRecord, error) {
 	duplicates := make([]*LinkRecord, 0)
 	links, err := db.Links()
 	if err == nil {
@@ -235,6 +264,9 @@ func DuplicateLinks(db LinkDB) ([]*LinkRecord, error) {
 	return duplicates, err
 }
 
+// FindLinkRecord will perform a linear search of the database and return
+// a LinkRecord that matches the group, address and controller/responder
+// indicator
 func FindLinkRecord(db LinkDB, controller bool, address Address, group Group) (*LinkRecord, error) {
 	links, err := db.Links()
 	if err == nil {
@@ -247,7 +279,27 @@ func FindLinkRecord(db LinkDB, controller bool, address Address, group Group) (*
 	return nil, err
 }
 
-func CrossLink(l1, l2 Linkable, group Group) error {
+// CrossLinkAll will create bi-directional links among all the devices
+// listed. This is useful for creating virtual N-Way connections
+func CrossLinkAll(group Group, linkable ...Linkable) error {
+	for i, l1 := range Linkable {
+		for _, l2 := range Linkable[i:] {
+			if l1 != l2 {
+				err := CrossLink(group, l1, l2)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// CrossLink will create bi-directional links between the two linkable
+// devices. Each device will get both a controller and responder
+// link for the given group. When using lighting control devices, this
+// will effectively create a 3-Way light switch configuration
+func CrossLink(group Group, l1, l2 Linkable) error {
 	err := Link(l1, l2, group)
 	if err == nil || err == ErrAlreadyLinked {
 		err = nil
@@ -263,7 +315,7 @@ func CrossLink(l1, l2 Linkable, group Group) error {
 // ForceLink will create links in the controller and responder All-Link
 // databases without first checking if the links exist. The links are
 // created by simulating set button presses (using EnterLinkingMode)
-func ForceLink(controller, responder Linkable, group Group) (err error) {
+func ForceLink(group Group, controller, responder Linkable) (err error) {
 	Log.Debugf("Putting controller %s into linking mode", controller)
 	// controller enters all-linking mode
 	err = controller.EnterLinkingMode(group)
@@ -303,7 +355,7 @@ func UnlinkAll(controller, responder Linkable) (err error) {
 // controller is put into UnlinkingMode (analogous to unlinking mode via
 // the set button) and then the responder is put into unlinking mode (also
 // analogous to the set button pressed)
-func Unlink(controller, responder Linkable, group Group) (err error) {
+func Unlink(group Group, controller, responder Linkable) (err error) {
 	// controller enters all-linking mode
 	err = controller.EnterUnlinkingMode(group)
 	//defer responder.ExitLinkingMode()
@@ -329,7 +381,7 @@ func Unlink(controller, responder Linkable, group Group) (err error) {
 // exist (a controller link and a responder link) then nothing is done. If only one
 // entry exists than the other is deleted and new links are created. Once the link
 // check/cleanup has taken place the new links are created using ForceLink
-func Link(controller, responder Linkable, group Group) error {
+func Link(group Group, controller, responder Linkable) error {
 	// check for existing link
 	Log.Debugf("Retrieving link databases...")
 	var responderDB LinkDB
