@@ -282,8 +282,8 @@ func FindLinkRecord(db LinkDB, controller bool, address Address, group Group) (*
 // CrossLinkAll will create bi-directional links among all the devices
 // listed. This is useful for creating virtual N-Way connections
 func CrossLinkAll(group Group, linkable ...Linkable) error {
-	for i, l1 := range Linkable {
-		for _, l2 := range Linkable[i:] {
+	for i, l1 := range linkable {
+		for _, l2 := range linkable[i:] {
 			if l1 != l2 {
 				err := CrossLink(group, l1, l2)
 				if err != nil {
@@ -300,10 +300,10 @@ func CrossLinkAll(group Group, linkable ...Linkable) error {
 // link for the given group. When using lighting control devices, this
 // will effectively create a 3-Way light switch configuration
 func CrossLink(group Group, l1, l2 Linkable) error {
-	err := Link(l1, l2, group)
+	err := Link(group, l1, l2)
 	if err == nil || err == ErrAlreadyLinked {
 		err = nil
-		err = Link(l2, l1, group)
+		err = Link(group, l2, l1)
 		if err == ErrAlreadyLinked {
 			err = nil
 		}
@@ -343,7 +343,7 @@ func UnlinkAll(controller, responder Linkable) (err error) {
 		if err == nil {
 			for _, link := range links {
 				if link.Address == responder.Address() {
-					err = Unlink(responder, controller, link.Group)
+					err = Unlink(link.Group, responder, controller)
 				}
 			}
 		}
@@ -415,7 +415,7 @@ func Link(group Group, controller, responder Linkable) error {
 						err = responderDB.RemoveLinks(controllerLink)
 					}
 
-					ForceLink(controller, responder, group)
+					ForceLink(group, controller, responder)
 				}
 			}
 		}

@@ -6,8 +6,10 @@ import (
 	"os"
 )
 
-// Log is the global log object. The default level is set to Info
-var Log = &Logger{level: LevelInfo, logger: log.New(os.Stderr, "", log.LstdFlags)}
+var (
+	// Log is the global log object. The default level is set to Info
+	Log = &Logger{level: LevelInfo, logger: log.New(os.Stderr, "", log.LstdFlags)}
+)
 
 // LogLevel indicates verbosity of logging
 type LogLevel int
@@ -26,13 +28,17 @@ func (ll LogLevel) String() string {
 	return ""
 }
 
-// Log levels are None, Info, Debug and Trace. Trace logging
-// should only be used to display packets and messages as they
-// are received or sent
 const (
+	// LevelNone - log nothing to Stderr
 	LevelNone = iota
+
+	// LevelInfo - log normal information (warnings) to Stderr
 	LevelInfo
+
+	// LevelDebug - log debug information (used for development and troubleshooting)
 	LevelDebug
+
+	// LevelTrace - log everything, including I/O
 	LevelTrace
 )
 

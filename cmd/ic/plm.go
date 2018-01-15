@@ -58,9 +58,9 @@ func plmLink(args []string, crosslink bool) error {
 			}
 
 			if err == nil {
-				err = insteon.ForceLink(device, modem, group)
+				err = insteon.ForceLink(group, device, modem)
 				if err == nil && crosslink {
-					err = insteon.ForceLink(modem, device, group)
+					err = insteon.ForceLink(group, modem, device)
 				}
 
 				if err == nil {
@@ -98,11 +98,11 @@ func plmUnlinkCmd(args []string, next cli.NextFunc) (err error) {
 			device, err = modem.Dial(addr)
 
 			if err == nil {
-				err = insteon.Unlink(device, modem, group)
+				err = insteon.Unlink(group, device, modem)
 			}
 
 			if err == nil || err == insteon.ErrNotLinked {
-				err = insteon.Unlink(modem, device, group)
+				err = insteon.Unlink(group, modem, device)
 			}
 
 			if err == insteon.ErrNotLinked {

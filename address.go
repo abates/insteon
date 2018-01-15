@@ -5,7 +5,11 @@ import "fmt"
 // Address is a 3 byte insteon address
 type Address [3]byte
 
-// String returns a human readable version of the address
+// String will format the Address object into a form
+// common to Insteon devices: 00.00.00 where each byte
+// is represented in hexadecimal form (e.g. 01.b4.a5) the
+// string will always be 8 characters long, bytes are zero
+// padded
 func (a Address) String() string { return fmt.Sprintf("%02x.%02x.%02x", a[0], a[1], a[2]) }
 
 // ParseAddress converts a human readable string into an

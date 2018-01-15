@@ -65,12 +65,14 @@ type CommandRegistry struct {
 	extendedCommands map[[2]byte]*Command
 }
 
-// Commands is the global CommandRegistry. This only needs to be accessed when adding
-// functionality (e.g. new device types)
-var Commands = CommandRegistry{
-	standardCommands: make(map[[2]byte]*Command),
-	extendedCommands: make(map[[2]byte]*Command),
-}
+var (
+	// Commands is the global CommandRegistry. This only needs to be accessed when adding
+	// functionality (e.g. new device types)
+	Commands = CommandRegistry{
+		standardCommands: make(map[[2]byte]*Command),
+		extendedCommands: make(map[[2]byte]*Command),
+	}
+)
 
 // Command is a 2 byte field present in all Insteon messages
 type Command struct {

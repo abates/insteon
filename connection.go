@@ -42,7 +42,8 @@ type I1Connection struct {
 	Connection
 }
 
-// NewI1Connection creates an I1Connection for the underlying Connection
+// NewI1Connection creates a connection for a device having a version 1
+// engine.
 func NewI1Connection(conn Connection) Connection {
 	return &I1Connection{conn}
 }
@@ -80,7 +81,9 @@ type I2CsConnection struct {
 	Connection
 }
 
-// NewI2CsConnection creates a new I2CsConnection for the underlying Connection
+// NewI2CsConnection creates a connection appropriate for communicating
+// with I2CS devices. All extended messages through an I2CsConnection will
+// have their checksum field computed and updated
 func NewI2CsConnection(conn Connection) Connection {
 	return &I2CsConnection{conn}
 }
