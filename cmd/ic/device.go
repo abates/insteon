@@ -11,7 +11,7 @@ import (
 var device insteon.Device
 
 func init() {
-	cmd := Commands.Register("device", "<device id> [info|link|unlink|cleanup|dump]", "Interact with a specific device", devCmd)
+	cmd := Commands.Register("device", "<command> <device id>", "Interact with a specific device", devCmd)
 	cmd.Register("info", "", "retrieve device info", devInfoCmd)
 	cmd.Register("link", "", "enter linking mode", devLinkCmd)
 	cmd.Register("unlink", "", "enter unlinking mode", devUnlinkCmd)
@@ -22,7 +22,7 @@ func init() {
 }
 
 func devCmd(args []string, next cli.NextFunc) (err error) {
-	if len(args) < 2 {
+	if len(args) < 1 {
 		return fmt.Errorf("device id and action must be specified")
 	}
 
