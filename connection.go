@@ -97,9 +97,9 @@ func NewI2CsConnection(conn Connection) Connection {
 //
 // If the underlying connection returns an error (such as a timeout) then
 // this error is returned back to the caller
-func (i2csw *I2CsConnection) Write(message *Message) (*Message, error) {
+func (i2cs *I2CsConnection) Write(message *Message) (*Message, error) {
 	message.version = VerI2Cs
-	ack, err := i2csw.Connection.Write(message)
+	ack, err := i2cs.Connection.Write(message)
 	if ack != nil && ack.Flags.Type() == MsgTypeDirectNak {
 		switch ack.Command.Cmd[1] {
 		case 0xfb:
