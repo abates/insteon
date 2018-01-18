@@ -19,6 +19,10 @@ var (
 	ErrNak            = errors.New("PLM responded with a NAK.  Resend command")
 )
 
+const (
+	writeDelay = 500 * time.Millisecond
+)
+
 type pktSubReq struct {
 	matches     [][]byte
 	unsubscribe bool
@@ -46,10 +50,10 @@ type txPacketReq struct {
 }
 
 type PLM struct {
-	in      *bufio.Reader
-	out     io.Writer
-	timeout time.Duration
-
+	in          *bufio.Reader
+	out         io.Writer
+	timeout     time.Duration
+	lastWrite   time.Time
 	txPktCh     chan *txPacketReq
 	rxPktCh     chan []byte
 	pktSubReqCh chan *pktSubReq
@@ -136,10 +140,15 @@ func (plm *PLM) readPktLoop() {
 }
 
 func (plm *PLM) writePacket(packet *Packet) error {
+	if plm.lastWrite.Add(writeDelay).After(time.Now()) {
+		time.Sleep(writeDelay)
+	}
+
 	payload, err := packet.MarshalBinary()
 
 	if err == nil {
 		_, err = plm.out.Write(payload)
+		plm.lastWrite = time.Now()
 	}
 
 	if err == nil {
@@ -229,6 +238,19 @@ loop:
 	closeCh <- nil
 }
 
+func (plm *PLM) Retry(packet *Packet, retries int) (ack *Packet, err error) {
+	for retries := 3; retries > 0; retries-- {
+		ack, err = plm.Send(packet)
+		if ack.NAK() {
+			insteon.Log.Debugf("PLM NAK received, resending packet")
+			time.Sleep(time.Second)
+		} else {
+			break
+		}
+	}
+	return ack, err
+}
+
 func (plm *PLM) Send(packet *Packet) (ack *Packet, err error) {
 	ackCh := make(chan *Packet, 1)
 	txPktInfo := &txPacketReq{
@@ -266,7 +288,18 @@ func (plm *PLM) Info() (*Info, error) {
 }
 
 func (plm *PLM) Reset() error {
-	return ErrNotImplemented
+	timeout := plm.timeout
+	plm.timeout = 20 * time.Second
+
+	ack, err := plm.Send(&Packet{
+		Command: CmdReset,
+	})
+
+	if err == nil && ack.NAK() {
+		err = ErrNak
+	}
+	plm.timeout = timeout
+	return err
 }
 
 func (plm *PLM) Monitor(callback func(buf []byte, msg *insteon.Message)) {
@@ -305,7 +338,7 @@ func (plm *PLM) Config() (*Config, error) {
 	ack, err := plm.Send(&Packet{
 		Command: CmdGetConfig,
 	})
-	if ack.NAK() {
+	if err == nil && ack.NAK() {
 		err = ErrNak
 	} else if err == nil {
 		return ack.Payload.(*Config), nil
@@ -318,7 +351,7 @@ func (plm *PLM) SetConfig(config *Config) error {
 		Command: CmdSetConfig,
 		Payload: config,
 	})
-	if ack.NAK() {
+	if err == nil && ack.NAK() {
 		err = ErrNak
 	}
 	return err
@@ -354,13 +387,16 @@ func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
 
 	// ErrNotLinked here is only returned by i2cs devices
 	if err == insteon.ErrNotLinked {
+		insteon.Log.Debugf("Got ErrNotLinked, creating I2CS device")
 		err = nil
 		device = insteon.NewI2CsDevice(insteon.NewI2Device(insteon.NewI1Device(dst, insteon.NewI2CsConnection(connection))))
 	} else {
 		switch version {
 		case insteon.VerI2:
+			insteon.Log.Debugf("Version 2 device detected")
 			device = insteon.NewI2Device(i1Device)
 		case insteon.VerI2Cs:
+			insteon.Log.Debugf("Version 2 CS device detected")
 			device = insteon.NewI2CsDevice(insteon.NewI2Device(insteon.NewI1Device(dst, insteon.NewI2CsConnection(connection))))
 		}
 	}
@@ -427,7 +463,7 @@ func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 		Payload: &AllLinkReq{Mode: LinkingMode(0x03), Group: group},
 	})
 
-	if ack.NAK() {
+	if err == nil && ack.NAK() {
 		err = ErrNak
 	}
 	return err
@@ -438,19 +474,19 @@ func (plm *PLM) ExitLinkingMode() error {
 		Command: CmdCancelAllLink,
 	})
 
-	if ack.NAK() {
+	if err == nil && ack.NAK() {
 		err = ErrNak
 	}
 	return err
 }
 
 func (plm *PLM) EnterUnlinkingMode(group insteon.Group) error {
-	ack, err := plm.Send(&Packet{
+	ack, err := plm.Retry(&Packet{
 		Command: CmdStartAllLink,
 		Payload: &AllLinkReq{Mode: LinkingMode(0xff), Group: group},
-	})
+	}, 3)
 
-	if ack.NAK() {
+	if err == nil && ack.NAK() {
 		err = ErrNak
 	}
 	return err

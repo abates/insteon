@@ -73,7 +73,7 @@ loop:
 				Command: CmdSendInsteonMsg,
 				Payload: txReq.message,
 			}
-			plm.Send(packet)
+			plm.Retry(packet, 3)
 		case msgSubReq := <-conn.msgSubReqCh:
 			if msgSubReq.unsubscribe {
 				if sub, found := rxChannels[msgSubReq.rxCh]; found {
