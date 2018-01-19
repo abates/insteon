@@ -371,7 +371,7 @@ func Unlink(group Group, controller, responder Linkable) (err error) {
 	}
 
 	// wait a moment for messages to propagate
-	time.Sleep(2 * time.Second)
+	time.Sleep(time.Second)
 
 	return
 }

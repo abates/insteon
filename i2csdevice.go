@@ -18,7 +18,8 @@ func (i2cs *I2CsDevice) EnterLinkingMode(group Group) (err error) {
 }
 
 func (i2cs *I2CsDevice) EnterUnlinkingMode(group Group) error {
-	_, err := SendExtendedCommand(i2cs, CmdEnterUnlinkingModeExt.SubCommand(int(group)), NewBufPayload(14))
+	//_, err := SendExtendedCommand(i2cs, CmdEnterUnlinkingModeExt.SubCommand(int(group)), NewBufPayload(14))
+	_, err := SendStandardCommand(i2cs, CmdEnterUnlinkingMode.SubCommand(int(group)))
 	return err
 }
 

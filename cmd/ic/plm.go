@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
@@ -109,10 +108,10 @@ func plmUnlinkCmd(args []string, next cli.NextFunc) (err error) {
 				err = insteon.Unlink(group, device, modem)
 			}
 
-			//if err == nil || err == insteon.ErrNotLinked {
-			//err = insteon.Unlink(group, modem, device)
-			//}
-			time.Sleep(10 * time.Second)
+			if err == nil || err == insteon.ErrNotLinked {
+				err = insteon.Unlink(group, modem, device)
+			}
+
 			if err == insteon.ErrNotLinked {
 				err = nil
 			}
