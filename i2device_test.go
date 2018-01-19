@@ -33,7 +33,7 @@ func TestI2DeviceFunctions(t *testing.T) {
 	for i, test := range tests {
 		conn := &testConnection{responses: []*Message{test.response}, ackMessage: test.ack}
 		address := Address([3]byte{0x01, 0x02, 0x03})
-		device := NewI2Device(NewI1Device(address, conn))
+		device := NewI2Device(address, conn)
 
 		if device.String() != "I2 Device (01.02.03)" {
 			t.Errorf("tests[%d] expected %q got %q", i, "I2 Device (01.02.03)", device.String())

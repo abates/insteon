@@ -7,8 +7,8 @@ type I2Device struct {
 	ldb *DeviceLinkDB
 }
 
-func NewI2Device(i1device *I1Device) *I2Device {
-	return &I2Device{I1Device: i1device}
+func NewI2Device(address Address, connection Connection) *I2Device {
+	return &I2Device{I1Device: NewI1Device(address, connection)}
 }
 
 func (i2 *I2Device) LinkDB() (ldb LinkDB, err error) {

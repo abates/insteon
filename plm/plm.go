@@ -383,15 +383,15 @@ func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
 	if err == insteon.ErrNotLinked {
 		insteon.Log.Debugf("Got ErrNotLinked, creating I2CS device")
 		err = nil
-		device = insteon.NewI2CsDevice(insteon.NewI2Device(insteon.NewI1Device(dst, insteon.NewI2CsConnection(connection))))
+		device = insteon.NewI2CsDevice(dst, connection)
 	} else {
 		switch version {
 		case insteon.VerI2:
 			insteon.Log.Debugf("Version 2 device detected")
-			device = insteon.NewI2Device(i1Device)
+			device = insteon.NewI2Device(dst, connection)
 		case insteon.VerI2Cs:
 			insteon.Log.Debugf("Version 2 CS device detected")
-			device = insteon.NewI2CsDevice(insteon.NewI2Device(insteon.NewI1Device(dst, insteon.NewI2CsConnection(connection))))
+			device = insteon.NewI2CsDevice(dst, connection)
 		}
 	}
 	return device, err
