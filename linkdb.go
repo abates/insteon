@@ -358,20 +358,20 @@ func UnlinkAll(controller, responder Linkable) (err error) {
 func Unlink(group Group, controller, responder Linkable) (err error) {
 	// controller enters all-linking mode
 	err = controller.EnterUnlinkingMode(group)
-	//defer responder.ExitLinkingMode()
+	defer controller.ExitLinkingMode()
 
 	// wait a moment for messages to propagate
-	//time.Sleep(time.Second)
+	time.Sleep(2 * time.Second)
 
 	// responder pushes the set button responder
 	if err == nil {
 		Log.Debugf("Unlinking responder from group")
 		err = responder.EnterLinkingMode(group)
-		//defer controller.ExitLinkingMode()
+		defer responder.ExitLinkingMode()
 	}
 
 	// wait a moment for messages to propagate
-	//time.Sleep(time.Second)
+	time.Sleep(2 * time.Second)
 
 	return
 }
