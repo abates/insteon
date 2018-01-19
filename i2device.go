@@ -13,23 +13,23 @@ func NewI2Device(i1device *I1Device) *I2Device {
 
 func (i2 *I2Device) LinkDB() (ldb LinkDB, err error) {
 	if i2.ldb == nil {
-		i2.ldb = NewDeviceLinkDB(i2.Connection)
+		i2.ldb = NewDeviceLinkDB(i2)
 	}
 	return i2.ldb, err
 }
 
 func (i2 *I2Device) EnterLinkingMode(group Group) (err error) {
-	_, err = SendStandardCommand(i2.Connection, CmdEnterLinkingMode.SubCommand(int(group)))
+	_, err = SendStandardCommand(i2, CmdEnterLinkingMode.SubCommand(int(group)))
 	return err
 }
 
 func (i2 *I2Device) EnterUnlinkingMode(group Group) error {
-	_, err := SendStandardCommand(i2.Connection, CmdEnterUnlinkingMode.SubCommand(int(group)))
+	_, err := SendStandardCommand(i2, CmdEnterUnlinkingMode.SubCommand(int(group)))
 	return err
 }
 
 func (i2 *I2Device) ExitLinkingMode() error {
-	_, err := SendStandardCommand(i2.I1Device.Connection, CmdExitLinkingMode)
+	_, err := SendStandardCommand(i2, CmdExitLinkingMode)
 	return err
 }
 
