@@ -30,20 +30,23 @@ var (
 	// CmdSetDeviceTextString sets the device text string
 	CmdSetDeviceTextString = Commands.RegisterStd("Set Text String", 0x03, 0x03)
 
-	// CmdEnterLinkingMode Enter Linking Mode
-	CmdEnterLinkingMode = Commands.RegisterStd("Enter Link Mode", 0x09, 0x00)
-
 	// CmdExitLinkingMode Exit Linking Mode
 	CmdExitLinkingMode = Commands.RegisterStd("Exit Link Mode", 0x08, 0x00)
 
-	// CmdEnterLinkingModeExtended Enter Linking Mode (extended command for I2CS devices)
-	CmdEnterLinkingModeExtended = Commands.RegisterExt("Enter Link Mode", 0x09, 0x00, nil)
+	// CmdExitLinkingModeExt Exit Linking Mode
+	CmdExitLinkingModeExt = Commands.RegisterExt("Exit Link Mode", 0x08, 0x00, nil)
+
+	// CmdEnterLinkingMode Enter Linking Mode
+	CmdEnterLinkingMode = Commands.RegisterStd("Enter Link Mode", 0x09, 0x00)
+
+	// CmdEnterLinkingModeExt Enter Linking Mode (extended command for I2CS devices)
+	CmdEnterLinkingModeExt = Commands.RegisterExt("Enter Link Mode", 0x09, 0x00, nil)
 
 	// CmdEnterUnlinkingMode Enter Unlinking Mode
 	CmdEnterUnlinkingMode = Commands.RegisterStd("Enter Unlink Mode", 0x0a, 0x00)
 
-	// CmdEnterUnlinkingModeExtended Enter Unlinking Mode (extended command for I2CS devices)
-	CmdEnterUnlinkingModeExtended = Commands.RegisterStd("Enter Unlink Mode", 0x0a, 0x00)
+	// CmdEnterUnlinkingModeExt Enter Unlinking Mode (extended command for I2CS devices)
+	CmdEnterUnlinkingModeExt = Commands.RegisterExt("Enter Unlink Mode", 0x0a, 0x00, nil)
 
 	// CmdGetEngineVersion Get Insteon Engine Version
 	CmdGetEngineVersion = Commands.RegisterStd("Get INSTEON Ver", 0x0d, 0x00)
