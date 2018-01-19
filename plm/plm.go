@@ -152,7 +152,7 @@ func (plm *PLM) writePacket(packet *Packet) error {
 	}
 
 	if err == nil {
-		insteon.Log.Tracef("TX %v", packet)
+		insteon.Log.Tracef("TX %x", payload)
 	}
 	return err
 }
