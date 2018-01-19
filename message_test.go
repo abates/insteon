@@ -122,7 +122,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			expectedSrc:     Address{0x01, 0x02, 0x03},
 			expectedDst:     Address{0x04, 0x05, 0x06},
 			expectedFlags:   ExtendedDirectMessage,
-			expectedCommand: CmdEnterLinkingModeExtended,
+			expectedCommand: CmdEnterLinkingModeExt,
 			expectedString:  "01.02.03 -> 04.05.06 ED     2:2",
 		},
 		{

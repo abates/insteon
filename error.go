@@ -21,7 +21,7 @@ func newBufError(cause error, need int, got int) *BufError {
 func (be *BufError) Error() string {
 	cause := ""
 	if be.Cause != nil {
-		cause = fmt.Sprintf("%v: ")
+		cause = fmt.Sprintf("%v: ", be.Cause)
 	}
 	return fmt.Sprintf("%sneed %d bytes got %d", cause, be.Need, be.Got)
 }
