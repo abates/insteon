@@ -40,7 +40,7 @@ func devCmd(args []string, next cli.NextFunc) (err error) {
 }
 
 func devConnect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
-	device, err := modem.Connect(addr)
+	device, err := modem.Dial(addr)
 	if err == insteon.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if getResponse(msg, "y", "n") == "y" {
@@ -48,7 +48,7 @@ func devConnect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 		}
 
 		if err == nil {
-			device, err = modem.Connect(addr)
+			device, err = modem.Dial(addr)
 		}
 	}
 	return device, err
@@ -74,7 +74,7 @@ func devDumpCmd([]string, cli.NextFunc) error {
 	return err
 }
 
-func devInfoCmd([]string, cli.NextFunc) error {
+func devInfoCmd([]string, cli.NextFunc) (err error) {
 	pd, err := device.ProductData()
 
 	if err == nil {

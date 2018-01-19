@@ -93,8 +93,9 @@ func run(args []string, next cli.NextFunc) error {
 			modem.StartMonitor()
 			defer modem.StopMonitor()
 		}
+		return next()
 	}
-	return next()
+	return err
 }
 
 func main() {

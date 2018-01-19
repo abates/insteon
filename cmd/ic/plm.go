@@ -16,6 +16,15 @@ func init() {
 	cmd.Register("unlink", "<device id> ...", "Unlink the PLM from one or more devices", plmUnlinkCmd)
 	cmd.Register("crosslink", "<device id> ...", "Crosslink the PLM to one or more devices", plmCrossLinkCmd)
 	cmd.Register("alllink", "<device id> ...", "Put the PLM into linking mode for manual linking", plmAllLinkCmd)
+	cmd.Register("reset", "", "Factory reset the IM", plmResetCmd)
+}
+
+func plmResetCmd(args []string, next cli.NextFunc) (err error) {
+	msg := "WARNING: This will erase the modem All-Link database and reset the modem to factory defaults\nProceed? (y/n) "
+	if getResponse(msg, "y", "n") == "y" {
+		err = modem.Reset()
+	}
+	return nil
 }
 
 func plmInfoCmd(args []string, next cli.NextFunc) (err error) {
@@ -52,15 +61,15 @@ func plmLink(args []string, crosslink bool) error {
 		if err == nil {
 			group := insteon.Group(0x01)
 			fmt.Printf("Linking to %s...", addr)
-			device, err := modem.Connect(addr)
+			device, err := modem.Dial(addr)
 			if err == insteon.ErrNotLinked {
 				err = nil
 			}
 
 			if err == nil {
-				err = insteon.ForceLink(group, device, modem)
+				err = insteon.ForceLink(group, modem, device)
 				if err == nil && crosslink {
-					err = insteon.ForceLink(group, modem, device)
+					err = insteon.ForceLink(group, device, modem)
 				}
 
 				if err == nil {
@@ -72,7 +81,6 @@ func plmLink(args []string, crosslink bool) error {
 				fmt.Fprintf(os.Stderr, "Failed to connect to %s: %v\n", addr, err)
 			}
 		}
-		time.Sleep(time.Second)
 	}
 	// TODO make this return a generic error if one or more of the links failed
 	return nil
@@ -101,10 +109,10 @@ func plmUnlinkCmd(args []string, next cli.NextFunc) (err error) {
 				err = insteon.Unlink(group, device, modem)
 			}
 
-			if err == nil || err == insteon.ErrNotLinked {
-				err = insteon.Unlink(group, modem, device)
-			}
-
+			//if err == nil || err == insteon.ErrNotLinked {
+			//err = insteon.Unlink(group, modem, device)
+			//}
+			time.Sleep(10 * time.Second)
 			if err == insteon.ErrNotLinked {
 				err = nil
 			}
@@ -116,7 +124,7 @@ func plmUnlinkCmd(args []string, next cli.NextFunc) (err error) {
 			}
 		}
 
-		var modemDB insteon.LinkDB
+		/*var modemDB insteon.LinkDB
 		modemDB, err = modem.LinkDB()
 		if err == nil {
 			var links []*insteon.LinkRecord
@@ -143,12 +151,12 @@ func plmUnlinkCmd(args []string, next cli.NextFunc) (err error) {
 					fmt.Printf("failed: %v\n", err)
 				}
 			}
-		}
+		}*/
 
-		if err != nil {
+		/*if err != nil {
 			break
-		}
+		}*/
 	}
 	// TODO make this return a generic error if one or more of the links failed
-	return nil
+	return err
 }
