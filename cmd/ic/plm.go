@@ -122,39 +122,6 @@ func plmUnlinkCmd(args []string, next cli.NextFunc) (err error) {
 				fmt.Printf("failed: %v\n", err)
 			}
 		}
-
-		/*var modemDB insteon.LinkDB
-		modemDB, err = modem.LinkDB()
-		if err == nil {
-			var links []*insteon.LinkRecord
-			links, err = modemDB.Links()
-			if err == nil {
-				removeable := make([]*insteon.LinkRecord, 0)
-				for _, link := range links {
-					if link.Address == addr {
-						fmt.Printf("Cleaning up old link...")
-						err = modemDB.RemoveLinks(link)
-						if err == nil {
-							fmt.Printf("successful\n")
-						} else {
-							fmt.Printf("failed: %v\n", err)
-						}
-					}
-				}
-
-				fmt.Printf("Cleaning up old link...")
-				err = modemDB.RemoveLinks(removeable...)
-				if err == nil {
-					fmt.Printf("successful\n")
-				} else {
-					fmt.Printf("failed: %v\n", err)
-				}
-			}
-		}*/
-
-		/*if err != nil {
-			break
-		}*/
 	}
 	// TODO make this return a generic error if one or more of the links failed
 	return err

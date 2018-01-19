@@ -81,11 +81,14 @@ func devInfoCmd([]string, cli.NextFunc) (err error) {
 		fmt.Printf("%s\n", device)
 		fmt.Printf("  Product Key: %s\n", pd.Key)
 		fmt.Printf("     Category: %s\n", pd.Category)
-		var db insteon.LinkDB
-		db, err = device.LinkDB()
-		if err == nil {
-			err = printLinkDatabase(db)
-		}
+	} else {
+		fmt.Printf("Failed to get product data: %v\n", err)
+	}
+
+	var db insteon.LinkDB
+	db, err = device.LinkDB()
+	if err == nil {
+		err = printLinkDatabase(db)
 	}
 	return err
 }
