@@ -19,7 +19,11 @@ func newBufError(cause error, need int, got int) *BufError {
 
 // Error will indicate what caused a buffer error to occur
 func (be *BufError) Error() string {
-	return fmt.Sprintf("%v: need %d bytes got %d", be.Cause, be.Need, be.Got)
+	cause := ""
+	if be.Cause != nil {
+		cause = fmt.Sprintf("%v: ")
+	}
+	return fmt.Sprintf("%sneed %d bytes got %d", cause, be.Need, be.Got)
 }
 
 // Error is used only when something failed that needs to bubble up
