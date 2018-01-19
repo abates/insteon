@@ -55,7 +55,7 @@ func (config *Config) String() string {
 }
 
 func (config *Config) MarshalBinary() ([]byte, error) {
-	return []byte{byte(*config)}, nil
+	return []byte{byte(*config) & 0xf0}, nil
 }
 
 func (config *Config) UnmarshalBinary(buf []byte) error {
