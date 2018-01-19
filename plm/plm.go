@@ -53,7 +53,6 @@ type PLM struct {
 	in          *bufio.Reader
 	out         io.Writer
 	timeout     time.Duration
-	lastWrite   time.Time
 	txPktCh     chan *txPacketReq
 	rxPktCh     chan []byte
 	pktSubReqCh chan *pktSubReq
@@ -140,15 +139,10 @@ func (plm *PLM) readPktLoop() {
 }
 
 func (plm *PLM) writePacket(packet *Packet) error {
-	if plm.lastWrite.Add(writeDelay).After(time.Now()) {
-		time.Sleep(writeDelay)
-	}
-
 	payload, err := packet.MarshalBinary()
 
 	if err == nil {
 		_, err = plm.out.Write(payload)
-		plm.lastWrite = time.Now()
 	}
 
 	if err == nil {
@@ -458,10 +452,10 @@ func (plm *PLM) AddManualLink(group insteon.Group) error {
 }
 
 func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
-	ack, err := plm.Send(&Packet{
+	ack, err := plm.Retry(&Packet{
 		Command: CmdStartAllLink,
 		Payload: &AllLinkReq{Mode: LinkingMode(0x03), Group: group},
-	})
+	}, 3)
 
 	if err == nil && ack.NAK() {
 		err = ErrNak
@@ -470,9 +464,9 @@ func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 }
 
 func (plm *PLM) ExitLinkingMode() error {
-	ack, err := plm.Send(&Packet{
+	ack, err := plm.Retry(&Packet{
 		Command: CmdCancelAllLink,
-	})
+	}, 3)
 
 	if err == nil && ack.NAK() {
 		err = ErrNak
