@@ -65,12 +65,18 @@ func (db *LinkDB) Links() ([]*insteon.LinkRecord, error) {
 		for {
 			select {
 			case packet := <-rrCh:
-				link := packet.Payload.(*insteon.LinkRecord)
-				insteon.Log.Debugf("Received PLM record response %v", link)
-				links = append(links, link)
-				var resp *Packet
-				resp, err = db.plm.Send(&Packet{Command: CmdGetNextAllLink})
-				if resp.NAK() || err != nil {
+				link := &insteon.LinkRecord{}
+				err := link.UnmarshalBinary(packet.payload)
+				if err == nil {
+					insteon.Log.Debugf("Received PLM record response %v", link)
+					links = append(links, link)
+					var resp *Packet
+					resp, err = db.plm.Send(&Packet{Command: CmdGetNextAllLink})
+					if resp.NAK() || err != nil {
+						break loop
+					}
+				} else {
+					insteon.Log.Infof("Failed to unmarshal link record: %v", err)
 					break loop
 				}
 			case <-time.After(insteon.Timeout):
@@ -99,7 +105,9 @@ func (db *LinkDB) RemoveLinks(oldLinks ...*insteon.LinkRecord) (err error) {
 			}
 
 			for i := 0; i < numDelete; i++ {
-				_, err = db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: LinkCmdDeleteFirst, link: oldLink}})
+				rr := &manageRecordRequest{command: LinkCmdDeleteFirst, link: oldLink}
+				payload, _ := rr.MarshalBinary()
+				_, err = db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, payload: payload})
 				if err != nil {
 					insteon.Log.Infof("Failed to remove link: %v", err)
 					break
@@ -127,7 +135,9 @@ func (db *LinkDB) AddLink(newLink *insteon.LinkRecord) error {
 	} else {
 		command = LinkCmdModFirstResp
 	}
-	resp, err := db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, Payload: &manageRecordRequest{command: command, link: newLink}})
+	rr := &manageRecordRequest{command: command, link: newLink}
+	payload, _ := rr.MarshalBinary()
+	resp, err := db.plm.Send(&Packet{Command: CmdManageAllLinkRecord, payload: payload})
 
 	if resp.NAK() {
 		err = fmt.Errorf("Failed to add link back to ALDB")

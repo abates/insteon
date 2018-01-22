@@ -101,6 +101,7 @@ func (f Flags) String() string {
 
 // Message is a single insteon message
 type Message struct {
+	DevCat  Category
 	version EngineVersion
 	Src     Address
 	Dst     Address
@@ -109,10 +110,18 @@ type Message struct {
 	Payload Payload
 }
 
-func (m *Message) String() string {
-	str := fmt.Sprintf("%s -> %s %s %s", m.Src, m.Dst, m.Flags, m.Command)
-	if m.Flags.Extended() {
-		str = fmt.Sprintf("%s %v", str, m.Payload)
+func (m *Message) Broadcast() bool {
+	return m.Flags.Type().Broadcast()
+}
+
+func (m *Message) String() (str string) {
+	if m.Broadcast() {
+		str = fmt.Sprintf("%s -> ff.ff.ff %s %s", m.Src, m.Flags, m.Command)
+	} else {
+		str = fmt.Sprintf("%s -> %s %s %s", m.Src, m.Dst, m.Flags, m.Command)
+		if m.Flags.Extended() {
+			str = fmt.Sprintf("%s %v", str, m.Payload)
+		}
 	}
 	return str
 }
@@ -156,10 +165,11 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	copy(m.Dst[:], data[3:6])
 	m.Flags = Flags(data[6])
 	if m.Flags.Standard() {
-		m.Command = Commands.FindStd(data[7:9])
+		m.Command = Commands.FindStd(m.DevCat.Category(), m.Flags.Type(), data[7:9])
 	} else {
-		m.Command = Commands.FindExt(data[7:9])
+		m.Command = Commands.FindExt(m.DevCat.Category(), m.Flags.Type(), data[7:9])
 	}
+
 	if m.Flags.Extended() {
 		if len(data) < ExtendedMsgLen {
 			return newBufError(ErrBufferTooShort, ExtendedMsgLen, len(data))

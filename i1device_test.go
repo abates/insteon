@@ -65,8 +65,11 @@ func TestI1DeviceFunctions(t *testing.T) {
 			expectedCommand: &Command{Cmd: [2]byte{0x0f, 0x00}},
 		},
 		{
-			function:        func(device *I1Device) (interface{}, error) { return nil, device.IDRequest() },
+			function:        func(device *I1Device) (interface{}, error) { return device.IDRequest() },
+			response:        &Message{Command: CmdSetButtonPressedController, Dst: Address{0x15, 0x22}},
 			expectedCommand: &Command{Cmd: [2]byte{0x10, 0x00}},
+			expectedMatch:   []*Command{CmdSetButtonPressedController, CmdSetButtonPressedResponder},
+			expectedValue:   Category{0x15, 0x22},
 		},
 		{
 			function:        func(device *I1Device) (interface{}, error) { return nil, device.SetTextString("OPQRSTUVWXYZAB") },

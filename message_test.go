@@ -113,6 +113,15 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			expectedString:  "01.02.03 -> 04.05.06 SD     2:2",
 		},
 		{
+			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x8a, 0x01, 0x00},
+			version:         VerI1,
+			expectedSrc:     Address{0x01, 0x02, 0x03},
+			expectedDst:     Address{0x04, 0x05, 0x06},
+			expectedFlags:   Flags(0x8a),
+			expectedCommand: CmdSetButtonPressedResponder,
+			expectedString:  "01.02.03 -> ff.ff.ff SB     2:2",
+		},
+		{
 			input:         []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x0a, 0x10},
 			expectedError: ErrBufferTooShort,
 		},

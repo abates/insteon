@@ -95,10 +95,15 @@ func (i1 *I1Device) Ping() error {
 	return err
 }
 
-// IDRequest will send an ID request to the device
-func (i1 *I1Device) IDRequest() error {
-	_, err := SendStandardCommand(i1, CmdIDReq)
-	return err
+// IDRequest will send an ID request to the device and return
+// the device category
+func (i1 *I1Device) IDRequest() (Category, error) {
+	category := Category([2]byte{0, 0})
+	msg, err := SendStandardCommandAndWait(i1, CmdIDReq, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
+	if msg != nil {
+		category = Category([2]byte{msg.Dst[0], msg.Dst[1]})
+	}
+	return category, err
 }
 
 // SetTextString will set the device text string

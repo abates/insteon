@@ -39,16 +39,13 @@ func TestCommandRegistry(t *testing.T) {
 		{"cmd 3", 0xef, 0x00, 25, true, "cmd 3(25)"},
 	}
 
-	commands := CommandRegistry{
-		standardCommands: make(map[[2]byte]*Command),
-		extendedCommands: make(map[[2]byte]*Command),
-	}
+	commands := newCommandRegistry()
 
 	for i, test := range tests {
 		var cmd *Command
 
 		// make sure nil is never returned
-		cmd = commands.FindStd([]byte{test.b1, test.b2})
+		cmd = commands.FindStd(0x00, MsgTypeDirect, []byte{test.b1, test.b2})
 		if cmd == nil {
 			t.Errorf("tests[%d] expected FindStd to return non nil", i)
 		} else if cmd.generator == nil {
@@ -58,14 +55,14 @@ func TestCommandRegistry(t *testing.T) {
 		}
 
 		if test.extended {
-			cmd = commands.RegisterExt(test.name, test.b1, test.b2, nil)
-			if cmd != commands.FindExt([]byte{test.b1, test.b2}) {
-				t.Errorf("tests[%d] expected %v got %v", i, cmd, commands.FindExt([]byte{test.b1, test.b2}))
+			cmd = commands.RegisterExt(test.name, []byte{0x00}, MsgTypeDirect, test.b1, test.b2, nil)
+			if cmd != commands.FindExt(0x00, MsgTypeDirect, []byte{test.b1, test.b2}) {
+				t.Errorf("tests[%d] expected %v got %v", i, cmd, commands.FindExt(0x00, MsgTypeDirect, []byte{test.b1, test.b2}))
 			}
 		} else {
-			cmd = commands.RegisterStd(test.name, test.b1, test.b2)
-			if cmd != commands.FindStd([]byte{test.b1, test.b2}) {
-				t.Errorf("tests[%d] expected %v got %v", i, cmd, commands.FindStd([]byte{test.b1, test.b2}))
+			cmd = commands.RegisterStd(test.name, []byte{0x00}, MsgTypeDirect, test.b1, test.b2)
+			if cmd != commands.FindStd(0x00, MsgTypeDirect, []byte{test.b1, test.b2}) {
+				t.Errorf("tests[%d] expected %v got %v", i, cmd, commands.FindStd(0x00, MsgTypeDirect, []byte{test.b1, test.b2}))
 			}
 		}
 
@@ -81,12 +78,12 @@ func TestCommandRegistry(t *testing.T) {
 			}
 
 			if test.extended {
-				if !subcmd.Equal(commands.FindExt(subcmd.Cmd[:])) {
-					t.Errorf("tests[%d] expected %#v got %#v", i, subcmd, commands.FindExt(subcmd.Cmd[:]))
+				if !subcmd.Equal(commands.FindExt(0x01, MsgTypeDirect, subcmd.Cmd[:])) {
+					t.Errorf("tests[%d] expected %#v got %#v", i, subcmd, commands.FindExt(0x01, MsgTypeDirect, subcmd.Cmd[:]))
 				}
 			} else {
-				if !subcmd.Equal(commands.FindStd(subcmd.Cmd[:])) {
-					t.Errorf("tests[%d] expected %+v got %+v", i, subcmd, commands.FindStd(subcmd.Cmd[:]))
+				if !subcmd.Equal(commands.FindStd(0x01, MsgTypeDirect, subcmd.Cmd[:])) {
+					t.Errorf("tests[%d] expected %+v got %+v", i, subcmd, commands.FindStd(0x01, MsgTypeDirect, subcmd.Cmd[:]))
 				}
 			}
 		}

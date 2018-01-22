@@ -2,14 +2,11 @@ package plm
 
 import (
 	"fmt"
-
-	"github.com/abates/insteon"
 )
 
 type Packet struct {
-	buf     []byte
+	payload []byte
 	Command Command
-	Payload insteon.Payload
 	Ack     byte
 }
 
@@ -37,25 +34,16 @@ func (p *Packet) String() string {
 		}
 	}
 
-	if p.Payload == nil {
-		return fmt.Sprintf("%-24s", cmd)
-	}
-	return fmt.Sprintf("%-24s %v", cmd, p.Payload)
+	// TODO dump payload
+	return fmt.Sprintf("%-24s", cmd)
 }
 
 func (p *Packet) MarshalBinary() (buf []byte, err error) {
 	buf = make([]byte, 2)
 	buf[0] = 0x02
 	buf[1] = byte(p.Command)
-	if p.Payload != nil {
-		var payload []byte
-		payload, err = p.Payload.MarshalBinary()
-		switch p.Payload.(type) {
-		// slice off the source address
-		case *insteon.Message:
-			payload = payload[3:]
-		}
-		buf = append(buf, payload...)
+	if len(p.payload) > 0 {
+		buf = append(buf, p.payload...)
 	}
 	return buf, err
 }
@@ -67,12 +55,6 @@ func (p *Packet) UnmarshalBinary(buf []byte) (err error) {
 
 	p.Command = Command(buf[1])
 	buf = buf[2:]
-
-	if generator := payloadGenerators[byte(p.Command)]; generator != nil {
-		p.Payload = generator()
-	} else {
-		p.Payload = &insteon.BufPayload{}
-	}
 
 	// responses to locally generated insteon messages need
 	// some padding at the front since the source address
@@ -88,6 +70,8 @@ func (p *Packet) UnmarshalBinary(buf []byte) (err error) {
 		buf = buf[0 : len(buf)-1]
 	}
 
-	err = p.Payload.UnmarshalBinary(buf)
+	p.payload = make([]byte, len(buf))
+	copy(p.payload, buf)
+
 	return err
 }

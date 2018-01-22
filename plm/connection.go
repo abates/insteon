@@ -25,7 +25,7 @@ type msgSubscription struct {
 
 func (sub *msgSubscription) match(msg *insteon.Message) bool {
 	for _, match := range sub.matches {
-		if match.Cmd == msg.Command.Cmd {
+		if match.Cmd[0] == msg.Command.Cmd[0] {
 			return true
 		}
 	}
@@ -33,6 +33,8 @@ func (sub *msgSubscription) match(msg *insteon.Message) bool {
 }
 
 type Connection struct {
+	dst         insteon.Address
+	devCat      insteon.Category
 	txCh        chan *insteon.Message
 	rxCh        chan *insteon.Message
 	txReqCh     chan *txReq
@@ -42,6 +44,7 @@ type Connection struct {
 
 func NewConnection(plm *PLM, dst insteon.Address) *Connection {
 	conn := &Connection{
+		dst:  dst,
 		txCh: make(chan *insteon.Message),
 		rxCh: make(chan *insteon.Message),
 
@@ -50,7 +53,8 @@ func NewConnection(plm *PLM, dst insteon.Address) *Connection {
 		closeCh:     make(chan chan error),
 	}
 
-	go conn.readWriteLoop(plm, dst)
+	go conn.readWriteLoop(plm, conn.dst)
+
 	return conn
 }
 
@@ -69,9 +73,12 @@ loop:
 			if txReq.message.Flags.Type() == insteon.MsgTypeDirect {
 				txReq.message.Dst = dst
 			}
+			payload, _ := txReq.message.MarshalBinary()
+			// slice off src address
+			payload = payload[3:]
 			packet := &Packet{
 				Command: CmdSendInsteonMsg,
-				Payload: txReq.message,
+				payload: payload,
 			}
 			plm.Retry(packet, 3)
 		case msgSubReq := <-conn.msgSubReqCh:
@@ -88,30 +95,36 @@ loop:
 				close(msgSubReq.respCh)
 			}
 		case pkt := <-rxCh:
-			msg := pkt.Payload.(*insteon.Message)
-			insteon.Log.Debugf("Connection received %v", msg)
-			if msg.Flags.Type() == insteon.MsgTypeDirectAck || msg.Flags.Type() == insteon.MsgTypeDirectNak {
-				cmd := msg.Command.Cmd[0]
-				if ch, found := ackChannels[cmd]; found {
-					insteon.Log.Debugf("Dispatching insteon ACK/NAK %v", msg)
-					select {
-					case ch <- msg:
-					default:
-						insteon.Log.Debugf("insteon ACK/NAK channel was not ready, discarding %v", msg)
-					}
-					close(ch)
-					delete(ackChannels, cmd)
-				}
-			} else {
-				for _, sub := range rxChannels {
-					if sub.match(msg) {
+			msg := &insteon.Message{}
+			msg.DevCat = conn.devCat
+			err := msg.UnmarshalBinary(pkt.payload)
+			if err == nil {
+				insteon.Log.Debugf("Connection received %v", msg)
+				if msg.Flags.Type() == insteon.MsgTypeDirectAck || msg.Flags.Type() == insteon.MsgTypeDirectNak {
+					cmd := msg.Command.Cmd[0]
+					if ch, found := ackChannels[cmd]; found {
+						insteon.Log.Debugf("Dispatching insteon ACK/NAK %v", msg)
 						select {
-						case sub.ch <- msg:
+						case ch <- msg:
 						default:
-							insteon.Log.Infof("Insteon subscription exists, but buffer is full. discarding %v", msg)
+							insteon.Log.Debugf("insteon ACK/NAK channel was not ready, discarding %v", msg)
+						}
+						close(ch)
+						delete(ackChannels, cmd)
+					}
+				} else {
+					for _, sub := range rxChannels {
+						if sub.match(msg) {
+							select {
+							case sub.ch <- msg:
+							default:
+								insteon.Log.Infof("Insteon subscription exists, but buffer is full. discarding %v", msg)
+							}
 						}
 					}
 				}
+			} else {
+				insteon.Log.Infof("Failed to unmarshal message: %v", err)
 			}
 		case closeCh = <-conn.closeCh:
 			break loop
@@ -128,6 +141,14 @@ loop:
 
 	closeCh <- nil
 	close(closeCh)
+}
+
+func (conn *Connection) DevCat() (devCat insteon.Category, err error) {
+	if [2]byte(conn.devCat) == [2]byte{0x00, 0x00} {
+		conn.devCat, err = insteon.NewI1Device(conn.dst, conn).IDRequest()
+	}
+
+	return conn.devCat, err
 }
 
 func (conn *Connection) Subscribe(matches ...*insteon.Command) <-chan *insteon.Message {

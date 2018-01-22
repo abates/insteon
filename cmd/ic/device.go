@@ -75,14 +75,13 @@ func devDumpCmd([]string, cli.NextFunc) error {
 }
 
 func devInfoCmd([]string, cli.NextFunc) (err error) {
-	pd, err := device.ProductData()
+	category, err := device.IDRequest()
 
 	if err == nil {
 		fmt.Printf("%s\n", device)
-		fmt.Printf("  Product Key: %s\n", pd.Key)
-		fmt.Printf("     Category: %s\n", pd.Category)
+		fmt.Printf("     Category: %s\n", category)
 	} else {
-		fmt.Printf("Failed to get product data: %v\n", err)
+		fmt.Printf("Failed to get device ID: %v\n", err)
 	}
 
 	var db insteon.LinkDB

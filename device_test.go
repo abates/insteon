@@ -37,6 +37,7 @@ func (td *TestDevice) ProductData() (*ProductData, error)    { return td.product
 func (td *TestDevice) FXUsername() (string, error)           { return "", nil }
 func (td *TestDevice) TextString() (string, error)           { return "", nil }
 func (td *TestDevice) EngineVersion() (EngineVersion, error) { return 1, nil }
+func (td *TestDevice) IDRequest() (Category, error)          { return td.productData.Category, td.productDataErr }
 func (td *TestDevice) Ping() error                           { return nil }
 func (td *TestDevice) Close() error                          { return nil }
 

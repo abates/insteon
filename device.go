@@ -68,16 +68,16 @@ func (dr *DeviceRegistry) Find(category Category) DeviceInitializer {
 // original device is returned
 func (dr *DeviceRegistry) Initialize(device Device) (Device, error) {
 	// query the device
-	pd, err := device.ProductData()
+	category, err := device.IDRequest()
 
 	// construct device for device type
 	if err == nil {
-		initializer := dr.Find(pd.Category)
+		initializer := dr.Find(category)
 		if initializer != nil {
 			device = initializer(device)
 		}
 	} else if err == ErrReadTimeout {
-		Log.Infof("Timed out waiting for product data response. Returning standard device")
+		Log.Infof("Timed out waiting for device ID. Returning standard device")
 		err = nil
 	}
 
@@ -92,5 +92,6 @@ type Device interface {
 	TextString() (string, error)
 	EngineVersion() (EngineVersion, error)
 	Ping() error
+	IDRequest() (Category, error)
 	Close() error
 }

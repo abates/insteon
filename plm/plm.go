@@ -58,7 +58,8 @@ type PLM struct {
 	pktSubReqCh chan *pktSubReq
 	closeCh     chan chan error
 
-	linkDb *LinkDB
+	linkDb   *LinkDB
+	devCatDB map[insteon.Address]insteon.Category
 }
 
 func New(port io.ReadWriter, timeout time.Duration) *PLM {
@@ -71,6 +72,8 @@ func New(port io.ReadWriter, timeout time.Duration) *PLM {
 		rxPktCh:     make(chan []byte, 10),
 		pktSubReqCh: make(chan *pktSubReq, 1),
 		closeCh:     make(chan chan error),
+
+		devCatDB: make(map[insteon.Address]insteon.Category),
 	}
 	go plm.readPktLoop()
 	go plm.readWriteLoop()
@@ -158,7 +161,6 @@ func (plm *PLM) readWriteLoop() {
 
 loop:
 	for {
-		var packet *Packet
 		select {
 		case send := <-plm.txPktCh:
 			ackChannels[send.packet.Command] = send.ackCh
@@ -167,9 +169,7 @@ loop:
 				insteon.Log.Infof("Failed to write packet: %v", err)
 			}
 		case buf := <-plm.rxPktCh:
-			packet = &Packet{
-				buf: buf,
-			}
+			packet := &Packet{}
 			err := packet.UnmarshalBinary(buf)
 
 			if err != nil {
@@ -276,7 +276,9 @@ func (plm *PLM) Info() (*Info, error) {
 		Command: CmdGetInfo,
 	})
 	if err == nil {
-		return ack.Payload.(*Info), nil
+		info := &Info{}
+		err := info.UnmarshalBinary(ack.payload)
+		return info, err
 	}
 	return nil, err
 }
@@ -304,9 +306,13 @@ func (plm *PLM) Monitor(callback func(buf []byte, msg *insteon.Message)) {
 	defer plm.StopMonitor()
 
 	for pkt := range ch {
-		msg := pkt.Payload.(*insteon.Message)
-		// slice off the packet header
-		callback(pkt.buf[2:], msg)
+		msg := &insteon.Message{}
+		msg.DevCat = plm.devCatDB[insteon.Address{pkt.payload[0], pkt.payload[1], pkt.payload[2]}]
+		err := msg.UnmarshalBinary(pkt.payload)
+		if err == nil {
+			// slice off the packet header
+			callback(pkt.payload, msg)
+		}
 	}
 }
 
@@ -335,15 +341,18 @@ func (plm *PLM) Config() (*Config, error) {
 	if err == nil && ack.NAK() {
 		err = ErrNak
 	} else if err == nil {
-		return ack.Payload.(*Config), nil
+		var config Config
+		err := config.UnmarshalBinary(ack.payload)
+		return &config, err
 	}
 	return nil, err
 }
 
 func (plm *PLM) SetConfig(config *Config) error {
+	payload, _ := config.MarshalBinary()
 	ack, err := plm.Send(&Packet{
 		Command: CmdSetConfig,
-		Payload: config,
+		payload: payload,
 	})
 	if err == nil && ack.NAK() {
 		err = ErrNak
@@ -377,7 +386,15 @@ func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
 	connection := NewConnection(plm, dst)
 	i1Device := insteon.NewI1Device(dst, insteon.NewI1Connection(connection))
 	device := insteon.Device(i1Device)
+
 	version, err := device.EngineVersion()
+
+	if err == nil {
+		category, err := device.IDRequest()
+		if err == nil {
+			plm.devCatDB[dst] = category
+		}
+	}
 
 	// ErrNotLinked here is only returned by i2cs devices
 	if err == insteon.ErrNotLinked {
@@ -452,9 +469,11 @@ func (plm *PLM) AddManualLink(group insteon.Group) error {
 }
 
 func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
+	lr := &AllLinkReq{Mode: LinkingMode(0x03), Group: group}
+	payload, _ := lr.MarshalBinary()
 	ack, err := plm.Retry(&Packet{
 		Command: CmdStartAllLink,
-		Payload: &AllLinkReq{Mode: LinkingMode(0x03), Group: group},
+		payload: payload,
 	}, 3)
 
 	if err == nil && ack.NAK() {
@@ -475,9 +494,11 @@ func (plm *PLM) ExitLinkingMode() error {
 }
 
 func (plm *PLM) EnterUnlinkingMode(group insteon.Group) error {
+	lr := &AllLinkReq{Mode: LinkingMode(0xff), Group: group}
+	payload, _ := lr.MarshalBinary()
 	ack, err := plm.Retry(&Packet{
 		Command: CmdStartAllLink,
-		Payload: &AllLinkReq{Mode: LinkingMode(0xff), Group: group},
+		payload: payload,
 	}, 3)
 
 	if err == nil && ack.NAK() {

@@ -16,6 +16,10 @@ type testConnection struct {
 	timeout       time.Duration
 }
 
+func (conn *testConnection) DevCat() (Category, error) {
+	return Category{0x00, 0x00}, nil
+}
+
 func (conn *testConnection) Write(msg *Message) (ack *Message, err error) {
 	conn.lastMessage = msg
 	if msg != nil && msg.Payload != nil {
@@ -68,10 +72,10 @@ func TestI1ConnectionWrite(t *testing.T) {
 		ackMessage    *Message
 		expectedError error
 	}{
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfd})}, ErrUnknownCommand},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfe})}, ErrNoLoadDetected},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xff})}, ErrNotLinked},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0x0f})}, ErrUnexpectedResponse},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfd})}, ErrUnknownCommand},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfe})}, ErrNoLoadDetected},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xff})}, ErrNotLinked},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0x0f})}, ErrUnexpectedResponse},
 	}
 
 	for i, test := range tests {
@@ -88,12 +92,12 @@ func TestI2CsConnectionWrite(t *testing.T) {
 		ackMessage    *Message
 		expectedError error
 	}{
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfb})}, ErrIllegalValue},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfc})}, ErrPreNak},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfd})}, ErrIncorrectChecksum},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xfe})}, ErrNoLoadDetected},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xff})}, ErrNotLinked},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd([]byte{0x00, 0xf0})}, ErrUnexpectedResponse},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfb})}, ErrIllegalValue},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfc})}, ErrPreNak},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfd})}, ErrIncorrectChecksum},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfe})}, ErrNoLoadDetected},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xff})}, ErrNotLinked},
+		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xf0})}, ErrUnexpectedResponse},
 	}
 
 	for i, test := range tests {
