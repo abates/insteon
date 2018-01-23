@@ -90,8 +90,9 @@ type Device interface {
 	ProductData() (*ProductData, error)
 	FXUsername() (string, error)
 	TextString() (string, error)
+	SetTextString(string) error
 	EngineVersion() (EngineVersion, error)
 	Ping() error
 	IDRequest() (Category, error)
-	Close() error
+	Connection() Connection
 }

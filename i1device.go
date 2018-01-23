@@ -7,15 +7,19 @@ import (
 
 // I1Device provides remote communication to version 1 engines
 type I1Device struct {
-	Connection
-	address Address
+	conn     Connection
+	address  Address
+	category Category
+	version  EngineVersion
 }
 
 // NewI1Device will construct an I1Device for the given address and connection
 func NewI1Device(address Address, connection Connection) *I1Device {
 	return &I1Device{
-		Connection: connection,
-		address:    address,
+		conn:     connection,
+		address:  address,
+		category: Category{0xff, 0xff},
+		version:  EngineVersion(0xff),
 	}
 }
 
@@ -27,21 +31,21 @@ func (i1 *I1Device) Address() Address {
 // AssignToAllLinkGroup will inform the device what group should be used during an All-Linking
 // session
 func (i1 *I1Device) AssignToAllLinkGroup(group Group) error {
-	_, err := SendStandardCommand(i1, CmdAssignToAllLinkGroup.SubCommand(int(group)))
+	_, err := SendStandardCommand(i1.conn, CmdAssignToAllLinkGroup.SubCommand(int(group)))
 	return err
 }
 
 // DeleteFromAllLinkGroup will inform the device which group should be unlinked during an
 // All-Link unlinking session
 func (i1 *I1Device) DeleteFromAllLinkGroup(group Group) error {
-	_, err := SendStandardCommand(i1, CmdDeleteFromAllLinkGroup.SubCommand(int(group)))
+	_, err := SendStandardCommand(i1.conn, CmdDeleteFromAllLinkGroup.SubCommand(int(group)))
 	return err
 }
 
 // ProductData will retrieve the device's product data
 func (i1 *I1Device) ProductData() (*ProductData, error) {
 	var data *ProductData
-	msg, err := SendStandardCommandAndWait(i1, CmdProductDataReq, CmdProductDataResp)
+	msg, err := SendStandardCommandAndWait(i1.conn, CmdProductDataReq, CmdProductDataResp)
 	if err == nil {
 		data = msg.Payload.(*ProductData)
 	}
@@ -51,7 +55,7 @@ func (i1 *I1Device) ProductData() (*ProductData, error) {
 // FXUsername will retrieve the device's FX username string
 func (i1 *I1Device) FXUsername() (string, error) {
 	username := ""
-	msg, err := SendStandardCommandAndWait(i1, CmdFxUsernameReq, CmdFxUsernameResp)
+	msg, err := SendStandardCommandAndWait(i1.conn, CmdFxUsernameReq, CmdFxUsernameResp)
 	if err == nil {
 		buf := msg.Payload.(*BufPayload)
 		username = string(buf.Buf)
@@ -62,7 +66,7 @@ func (i1 *I1Device) FXUsername() (string, error) {
 // TextString will retrieve the Device Text String
 func (i1 *I1Device) TextString() (string, error) {
 	text := ""
-	msg, err := SendStandardCommandAndWait(i1, CmdDeviceTextStringReq, CmdDeviceTextStringResp)
+	msg, err := SendStandardCommandAndWait(i1.conn, CmdDeviceTextStringReq, CmdDeviceTextStringResp)
 	if err == nil {
 		buf := msg.Payload.(*BufPayload)
 		text = string(buf.Buf)
@@ -80,37 +84,41 @@ func (*I1Device) EnterUnlinkingMode(Group) error { return ErrNotImplemented }
 func (*I1Device) ExitLinkingMode() error { return ErrNotImplemented }
 
 // EngineVersion will retrieve the device's EngineVersion
-func (i1 *I1Device) EngineVersion() (EngineVersion, error) {
-	ack, err := SendStandardCommand(i1, CmdGetEngineVersion)
-	version := EngineVersion(0)
-	if err == nil {
-		version = EngineVersion(ack.Command.Cmd[1])
+func (i1 *I1Device) EngineVersion() (version EngineVersion, err error) {
+	if i1.version == 0xff {
+		var ack *Message
+		ack, err = SendStandardCommand(i1.conn, CmdGetEngineVersion)
+		if err == nil {
+			i1.version = EngineVersion(ack.Command.Cmd[1])
+		}
 	}
-	return version, err
+	return i1.version, err
 }
 
 // Ping will send a Ping command to the device
 func (i1 *I1Device) Ping() error {
-	_, err := SendStandardCommand(i1, CmdPing)
+	_, err := SendStandardCommand(i1.conn, CmdPing)
 	return err
 }
 
 // IDRequest will send an ID request to the device and return
 // the device category
-func (i1 *I1Device) IDRequest() (Category, error) {
-	category := Category([2]byte{0, 0})
-	msg, err := SendStandardCommandAndWait(i1, CmdIDReq, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
-	if msg != nil {
-		category = Category([2]byte{msg.Dst[0], msg.Dst[1]})
+func (i1 *I1Device) IDRequest() (category Category, err error) {
+	if i1.category == Category([2]byte{0xff, 0xff}) {
+		var msg *Message
+		msg, err = SendStandardCommandAndWait(i1.conn, CmdIDReq, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
+		if msg != nil {
+			i1.category = Category([2]byte{msg.Dst[0], msg.Dst[1]})
+		}
 	}
-	return category, err
+	return i1.category, err
 }
 
 // SetTextString will set the device text string
 func (i1 *I1Device) SetTextString(str string) error {
 	textString := NewBufPayload(14)
 	copy(textString.Buf, []byte(str))
-	_, err := SendExtendedCommand(i1, CmdSetDeviceTextString, textString)
+	_, err := SendExtendedCommand(i1.conn, CmdSetDeviceTextString, textString)
 	return err
 }
 
@@ -145,5 +153,9 @@ func (i1 *I1Device) String() string {
 // Close closes the underlying connection
 func (i1 *I1Device) Close() error {
 	Log.Debugf("Closing I1Device connection")
-	return i1.Connection.Close()
+	return i1.conn.Close()
+}
+
+func (i1 *I1Device) Connection() Connection {
+	return i1.conn
 }

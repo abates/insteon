@@ -33,8 +33,10 @@ func (sub *msgSubscription) match(msg *insteon.Message) bool {
 }
 
 type Connection struct {
-	dst         insteon.Address
-	devCat      insteon.Category
+	dst    insteon.Address
+	plm    *PLM
+	devCat insteon.Category
+
 	txCh        chan *insteon.Message
 	rxCh        chan *insteon.Message
 	txReqCh     chan *txReq
@@ -45,6 +47,7 @@ type Connection struct {
 func NewConnection(plm *PLM, dst insteon.Address) *Connection {
 	conn := &Connection{
 		dst:  dst,
+		plm:  plm,
 		txCh: make(chan *insteon.Message),
 		rxCh: make(chan *insteon.Message),
 
@@ -58,9 +61,29 @@ func NewConnection(plm *PLM, dst insteon.Address) *Connection {
 	return conn
 }
 
+func (conn *Connection) writePacket(message *insteon.Message) error {
+	if message.Flags.Type() == insteon.MsgTypeDirect {
+		message.Dst = conn.dst
+	}
+
+	payload, err := message.MarshalBinary()
+	if err == nil {
+		// PLM expects that the payload begins with the
+		// destinations address so we have to slice off
+		// the src address
+		payload = payload[3:]
+		packet := &Packet{
+			Command: CmdSendInsteonMsg,
+			payload: payload,
+		}
+		_, err = conn.plm.Retry(packet, 3)
+	}
+	return err
+}
+
 func (conn *Connection) readWriteLoop(plm *PLM, dst insteon.Address) {
 	var closeCh chan error
-	ackChannels := make(map[byte]chan *insteon.Message)
+	txReqs := make([]*txReq, 0)
 	rxChannels := make(map[<-chan *insteon.Message]*msgSubscription)
 	rxCh := plm.Subscribe([]byte{0x50, dst[0], dst[1], dst[2]}, []byte{0x51, dst[0], dst[1], dst[2]})
 	defer plm.Unsubscribe(rxCh)
@@ -69,18 +92,10 @@ loop:
 	for {
 		select {
 		case txReq := <-conn.txReqCh:
-			ackChannels[txReq.message.Command.Cmd[0]] = txReq.ackCh
-			if txReq.message.Flags.Type() == insteon.MsgTypeDirect {
-				txReq.message.Dst = dst
+			if len(txReqs) == 0 {
+				conn.writePacket(txReq.message)
 			}
-			payload, _ := txReq.message.MarshalBinary()
-			// slice off src address
-			payload = payload[3:]
-			packet := &Packet{
-				Command: CmdSendInsteonMsg,
-				payload: payload,
-			}
-			plm.Retry(packet, 3)
+			txReqs = append(txReqs, txReq)
 		case msgSubReq := <-conn.msgSubReqCh:
 			if msgSubReq.unsubscribe {
 				if sub, found := rxChannels[msgSubReq.rxCh]; found {
@@ -101,8 +116,9 @@ loop:
 			if err == nil {
 				insteon.Log.Debugf("Connection received %v", msg)
 				if msg.Flags.Type() == insteon.MsgTypeDirectAck || msg.Flags.Type() == insteon.MsgTypeDirectNak {
-					cmd := msg.Command.Cmd[0]
-					if ch, found := ackChannels[cmd]; found {
+					if len(txReqs) > 0 {
+						ch := txReqs[0].ackCh
+						txReqs = txReqs[1:]
 						insteon.Log.Debugf("Dispatching insteon ACK/NAK %v", msg)
 						select {
 						case ch <- msg:
@@ -110,7 +126,12 @@ loop:
 							insteon.Log.Debugf("insteon ACK/NAK channel was not ready, discarding %v", msg)
 						}
 						close(ch)
-						delete(ackChannels, cmd)
+
+						if len(txReqs) > 0 {
+							conn.writePacket(txReqs[0].message)
+						}
+					} else {
+						insteon.Log.Debugf("received ACK/NAK but no ack channel present, discarding %v", msg)
 					}
 				} else {
 					for _, sub := range rxChannels {
@@ -131,8 +152,8 @@ loop:
 		}
 	}
 
-	for _, ch := range ackChannels {
-		close(ch)
+	for _, req := range txReqs {
+		close(req.ackCh)
 	}
 
 	for _, sub := range rxChannels {

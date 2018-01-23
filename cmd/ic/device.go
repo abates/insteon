@@ -13,6 +13,7 @@ var device insteon.Device
 func init() {
 	cmd := Commands.Register("device", "<command> <device id>", "Interact with a specific device", devCmd)
 	cmd.Register("info", "", "retrieve device info", devInfoCmd)
+	cmd.Register("settext", "<text string>", "set device text string", devSetTextCmd)
 	cmd.Register("link", "", "enter linking mode", devLinkCmd)
 	cmd.Register("unlink", "", "enter unlinking mode", devUnlinkCmd)
 	cmd.Register("exitlink", "", "exit linking mode", devExitLinkCmd)
@@ -32,7 +33,7 @@ func devCmd(args []string, next cli.NextFunc) (err error) {
 	}
 
 	device, err = devConnect(modem, addr)
-	defer device.Close()
+	defer device.Connection().Close()
 	if err == nil {
 		err = next()
 	}
@@ -40,7 +41,7 @@ func devCmd(args []string, next cli.NextFunc) (err error) {
 }
 
 func devConnect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
-	device, err := modem.Dial(addr)
+	device, err := modem.Connect(addr)
 	if err == insteon.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if getResponse(msg, "y", "n") == "y" {
@@ -48,7 +49,7 @@ func devConnect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 		}
 
 		if err == nil {
-			device, err = modem.Dial(addr)
+			device, err = modem.Connect(addr)
 		}
 	}
 	return device, err
@@ -84,12 +85,25 @@ func devInfoCmd([]string, cli.NextFunc) (err error) {
 		fmt.Printf("Failed to get device ID: %v\n", err)
 	}
 
+	textString, err := device.TextString()
+	if err == nil {
+		fmt.Printf("  Text String: %q\n", textString)
+	} else {
+		fmt.Printf("  Text String: error %v\n", err)
+	}
 	var db insteon.LinkDB
 	db, err = device.LinkDB()
 	if err == nil {
 		err = printLinkDatabase(db)
 	}
 	return err
+}
+
+func devSetTextCmd(args []string, next cli.NextFunc) (err error) {
+	if len(args) < 2 {
+		return fmt.Errorf("no text string given")
+	}
+	return device.SetTextString(args[1])
 }
 
 func devVersionCmd([]string, cli.NextFunc) error {

@@ -63,6 +63,10 @@ var (
 	// CmdIDReq ID Request
 	CmdIDReq = Commands.RegisterStd("ID Req", []byte{0x00}, MsgTypeDirect, 0x10, 0x00)
 
+	CmdGetOperatingFlags = Commands.RegisterStd("Get Operating Flags", []byte{0x00}, MsgTypeDirect, 0x1f, 0x00)
+
+	CmdSetOperatingFlags = Commands.RegisterStd("Set Operating Flags", []byte{0x00}, MsgTypeDirect, 0x20, 0x00)
+
 	// CmdReadWriteALDB Read/Write ALDB
 	CmdReadWriteALDB = Commands.RegisterExt("Read/Write ALDB", []byte{0x00}, MsgTypeDirect, 0x2f, 0x00, func() Payload { return &LinkRequest{} })
 )
@@ -144,30 +148,44 @@ func (c *Command) Equal(other *Command) bool {
 	return false
 }
 
-func (cr *CommandRegistry) Find(devCat byte, messageType MessageType, extended bool, cmd []byte) *Command {
-	index := cr.commands[devCat]
-	// try all devCat 0x00
-	if index == nil {
-		index = cr.commands[0x00]
+func find(mti *messageTypeIndex, extended bool, cmd []byte) *Command {
+	ci := mti.standardCommands
+	if extended {
+		ci = mti.extendedCommands
 	}
 
-	mti := index[messageType]
-	if mti != nil {
-		ci := mti.standardCommands
-		if extended {
-			ci = mti.extendedCommands
-		}
+	if command, found := ci[[2]byte{cmd[0], cmd[1]}]; found {
+		return command
+	} else if command, found := ci[[2]byte{cmd[0], 0x00}]; found {
+		return command.SubCommand(int(cmd[1]))
+	}
+	return nil
+}
 
-		if command, found := ci[[2]byte{cmd[0], cmd[1]}]; found {
-			return command
-		} else if command, found := ci[[2]byte{cmd[0], 0x00}]; found {
-			return command.SubCommand(int(cmd[1]))
+func (cr *CommandRegistry) Find(devCat byte, messageType MessageType, extended bool, cmd []byte) (command *Command) {
+	if messageType == MsgTypeDirectAck || messageType == MsgTypeDirectNak {
+		messageType = MsgTypeDirect
+	}
+
+	index := cr.commands[devCat]
+	if index == nil {
+		// try all devCat 0x00
+		command = find(cr.commands[0x00][messageType], extended, cmd)
+	} else {
+		command = find(index[messageType], extended, cmd)
+		if command == nil {
+			// try all devCat 0x00
+			command = find(cr.commands[0x00][messageType], extended, cmd)
 		}
 	}
 
 	// fail safe so nobody is ever referring to a nil command
-	name := fmt.Sprintf("UNKNOWN (%02x.%02x)", cmd[0], cmd[1])
-	return &Command{name: name, Cmd: [2]byte{cmd[0], cmd[1]}, generator: func() Payload { return &BufPayload{} }}
+	if command == nil {
+		name := fmt.Sprintf("UNKNOWN (%02x.%02x)", cmd[0], cmd[1])
+		command = &Command{name: name, Cmd: [2]byte{cmd[0], cmd[1]}, generator: func() Payload { return &BufPayload{} }}
+	}
+
+	return command
 }
 
 // FindExt returns either the registered extended command matching the 2 bytes passed in
@@ -188,16 +206,15 @@ func (cr *CommandRegistry) Register(name string, devCats []byte, messageType Mes
 		index := cr.commands[devCat]
 		if index == nil {
 			index = make(map[MessageType]*messageTypeIndex)
-		}
-		mti := index[messageType]
-		if mti == nil {
-			mti = &messageTypeIndex{
-				standardCommands: make(commandIndex),
-				extendedCommands: make(commandIndex),
+			for _, mt := range []MessageType{MsgTypeDirect, MsgTypeBroadcast, MsgTypeAllLinkBroadcast} {
+				index[mt] = &messageTypeIndex{
+					standardCommands: make(commandIndex),
+					extendedCommands: make(commandIndex),
+				}
 			}
-			index[messageType] = mti
 		}
 
+		mti := index[messageType]
 		if extended {
 			mti.extendedCommands[command.Cmd] = command
 		} else {

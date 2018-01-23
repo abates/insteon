@@ -35,7 +35,7 @@ func (p *Packet) String() string {
 	}
 
 	// TODO dump payload
-	return fmt.Sprintf("%-24s", cmd)
+	return fmt.Sprintf("%-24s %s", cmd, hexDump(p.payload))
 }
 
 func (p *Packet) MarshalBinary() (buf []byte, err error) {

@@ -23,6 +23,14 @@ const (
 	writeDelay = 500 * time.Millisecond
 )
 
+func hexDump(buf []byte) string {
+	str := make([]string, len(buf))
+	for i, b := range buf {
+		str[i] = fmt.Sprintf("%02x", b)
+	}
+	return strings.Join(str, " ")
+}
+
 type pktSubReq struct {
 	matches     [][]byte
 	unsubscribe bool
@@ -80,14 +88,6 @@ func New(port io.ReadWriter, timeout time.Duration) *PLM {
 	return plm
 }
 
-func traceBuf(prefix string, buf []byte) {
-	bb := make([]string, len(buf))
-	for i, b := range buf {
-		bb[i] = fmt.Sprintf("%02x", b)
-	}
-	insteon.Log.Tracef("%s %s", prefix, strings.Join(bb, " "))
-}
-
 func (plm *PLM) read(buf []byte) error {
 	_, err := io.ReadAtLeast(plm.in, buf, len(buf))
 	return err
@@ -132,6 +132,7 @@ func (plm *PLM) readPacket() (buf []byte, err error) {
 func (plm *PLM) readPktLoop() {
 	for {
 		packet, err := plm.readPacket()
+		insteon.Log.Tracef("RX Packet %s", hexDump(packet))
 		if err == nil {
 			plm.rxPktCh <- packet
 			insteon.Log.Debugf("delivered packet to read/write loop")
@@ -149,7 +150,7 @@ func (plm *PLM) writePacket(packet *Packet) error {
 	}
 
 	if err == nil {
-		insteon.Log.Tracef("TX %x", payload)
+		insteon.Log.Tracef("TX %s", hexDump(payload))
 	}
 	return err
 }

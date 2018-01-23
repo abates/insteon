@@ -40,6 +40,7 @@ func (td *TestDevice) EngineVersion() (EngineVersion, error) { return 1, nil }
 func (td *TestDevice) IDRequest() (Category, error)          { return td.productData.Category, td.productDataErr }
 func (td *TestDevice) Ping() error                           { return nil }
 func (td *TestDevice) Close() error                          { return nil }
+func (td *TestDevice) Connection() Connection                { return nil }
 
 func TestInitializeDevice(t *testing.T) {
 	testPD := func(key, category byte) *ProductData {

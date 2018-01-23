@@ -110,6 +110,14 @@ type Message struct {
 	Payload Payload
 }
 
+func (m *Message) Ack() bool {
+	return m.Flags&0xe0 == 0x20 || m.Flags&m.Flags&0xc0 == 0xa0
+}
+
+func (m *Message) Nak() bool {
+	return m.Flags&0xe0 == 0xe0 || m.Flags&m.Flags&0xe0 == 0xa0
+}
+
 func (m *Message) Broadcast() bool {
 	return m.Flags.Type().Broadcast()
 }

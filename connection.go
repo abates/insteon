@@ -16,9 +16,6 @@ var (
 // network. Any receiver implementing this interface must
 // only communicate with a single device
 type Connection interface {
-	// DevCat must return the device category for this connection
-	DevCat() (Category, error)
-
 	// Write sends a Message to a specific device on the network
 	Write(*Message) (ack *Message, err error)
 
@@ -129,7 +126,7 @@ func (i2cs *I2CsConnection) Write(message *Message) (*Message, error) {
 func SendStandardCommandAndWait(conn Connection, command *Command, waitCmds ...*Command) (msg *Message, err error) {
 	Log.Debugf("Subscribing to traffic for command %v", waitCmds)
 	rxCh := conn.Subscribe(waitCmds...)
-	_, err = SendStandardCommand(conn, command)
+	ack, err := SendStandardCommand(conn, command)
 
 	if err == nil {
 		Log.Debugf("Waiting for %v response", waitCmds)
@@ -140,6 +137,8 @@ func SendStandardCommandAndWait(conn Connection, command *Command, waitCmds ...*
 			err = ErrReadTimeout
 		}
 		conn.Unsubscribe(rxCh)
+	} else if ack.Nak() {
+		err = ErrNak
 	}
 	return
 }
