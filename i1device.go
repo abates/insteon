@@ -119,8 +119,7 @@ func (i1 *I1Device) IDRequest() (category Category, err error) {
 // SetTextString will set the device text string
 func (i1 *I1Device) SetTextString(str string) error {
 	textString := NewBufPayload(14)
-	textString.Buf[0] = 0x02
-	copy(textString.Buf[1:], []byte(str))
+	copy(textString.Buf, []byte(str))
 	_, err := SendExtendedCommand(i1.conn, CmdSetDeviceTextString, textString)
 	return err
 }
