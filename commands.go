@@ -34,7 +34,7 @@ var (
 	CmdDeviceTextStringResp = Commands.RegisterExt("Text String Resp", []byte{0x00}, MsgTypeDirect, 0x03, 0x02, nil)
 
 	// CmdSetDeviceTextString sets the device text string
-	CmdSetDeviceTextString = Commands.RegisterStd("Set Text String", []byte{0x00}, MsgTypeDirect, 0x03, 0x03)
+	CmdSetDeviceTextString = Commands.RegisterExt("Set Text String", []byte{0x00}, MsgTypeDirect, 0x03, 0x03)
 
 	// CmdExitLinkingMode Exit Linking Mode
 	CmdExitLinkingMode = Commands.RegisterStd("Exit Link Mode", []byte{0x00}, MsgTypeDirect, 0x08, 0x00)
