@@ -49,7 +49,7 @@ func (i1 *I1Device) ProductData() (*ProductData, error) {
 	if err == nil {
 		payload := msg.Payload.(*BufPayload)
 		data = &ProductData{}
-		data.UnmarshalBinary(payload.Buf)
+		err = data.UnmarshalBinary(payload.Buf)
 	}
 	return data, err
 }

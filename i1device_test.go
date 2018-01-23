@@ -26,7 +26,7 @@ func TestI1DeviceFunctions(t *testing.T) {
 		},
 		{
 			function:        func(device *I1Device) (interface{}, error) { return device.ProductData() },
-			response:        &Message{Payload: &ProductData{ProductKey([3]byte{0x04, 0x05, 0x06}), Category([2]byte{0x07, 0x08})}},
+			response:        &Message{Payload: &BufPayload{Buf: []byte{0, 0x04, 0x05, 0x06, 0x07, 0x08, 0, 0, 0, 0, 0, 0, 0, 0}}},
 			expectedCommand: &Command{Cmd: [2]byte{0x03, 0x00}},
 			expectedValue:   &ProductData{ProductKey([3]byte{0x04, 0x05, 0x06}), Category([2]byte{0x07, 0x08})},
 			expectedMatch:   []*Command{CmdProductDataResp},
