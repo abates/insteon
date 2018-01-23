@@ -19,7 +19,7 @@ var (
 	CmdProductDataReq = Commands.RegisterStd("Product Data Req", []byte{0x00}, MsgTypeDirect, 0x03, 0x00)
 
 	// CmdProductDataResp Product Data Response
-	CmdProductDataResp = Commands.RegisterExt("Product Data Resp", []byte{0x00}, MsgTypeDirect, 0x03, 0x00, func() Payload { return &ProductData{} })
+	CmdProductDataResp = Commands.RegisterExt("Product Data Resp", []byte{0x00}, MsgTypeDirect, 0x03, 0x00, nil)
 
 	// CmdFxUsernameReq FX Username Request
 	CmdFxUsernameReq = Commands.RegisterStd("FX Username Req", []byte{0x00}, MsgTypeDirect, 0x03, 0x01)

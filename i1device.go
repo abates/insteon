@@ -47,7 +47,9 @@ func (i1 *I1Device) ProductData() (*ProductData, error) {
 	var data *ProductData
 	msg, err := SendStandardCommandAndWait(i1.conn, CmdProductDataReq, CmdProductDataResp)
 	if err == nil {
-		data = msg.Payload.(*ProductData)
+		payload := msg.Payload.(*BufPayload)
+		data = &ProductData{}
+		data.UnmarshalBinary(payload.Buf)
 	}
 	return data, err
 }
@@ -117,7 +119,8 @@ func (i1 *I1Device) IDRequest() (category Category, err error) {
 // SetTextString will set the device text string
 func (i1 *I1Device) SetTextString(str string) error {
 	textString := NewBufPayload(14)
-	copy(textString.Buf, []byte(str))
+	textString.Buf[0] = 0x02
+	copy(textString.Buf[1:], []byte(str))
 	_, err := SendExtendedCommand(i1.conn, CmdSetDeviceTextString, textString)
 	return err
 }

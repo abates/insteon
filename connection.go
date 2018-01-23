@@ -126,19 +126,21 @@ func (i2cs *I2CsConnection) Write(message *Message) (*Message, error) {
 func SendStandardCommandAndWait(conn Connection, command *Command, waitCmds ...*Command) (msg *Message, err error) {
 	Log.Debugf("Subscribing to traffic for command %v", waitCmds)
 	rxCh := conn.Subscribe(waitCmds...)
+	defer conn.Unsubscribe(rxCh)
 	ack, err := SendStandardCommand(conn, command)
 
 	if err == nil {
-		Log.Debugf("Waiting for %v response", waitCmds)
-		select {
-		case msg = <-rxCh:
-			Log.Debugf("Received message %v", msg)
-		case <-time.After(Timeout):
-			err = ErrReadTimeout
+		if ack.Nak() {
+			err = ErrNak
+		} else {
+			Log.Debugf("Waiting for %v response", waitCmds)
+			select {
+			case msg = <-rxCh:
+				Log.Debugf("Received message %v", msg)
+			case <-time.After(Timeout):
+				err = ErrReadTimeout
+			}
 		}
-		conn.Unsubscribe(rxCh)
-	} else if ack.Nak() {
-		err = ErrNak
 	}
 	return
 }
