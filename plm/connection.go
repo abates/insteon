@@ -33,9 +33,9 @@ func (sub *msgSubscription) match(msg *insteon.Message) bool {
 }
 
 type Connection struct {
-	dst    insteon.Address
-	plm    *PLM
-	devCat insteon.Category
+	dst      insteon.Address
+	plm      *PLM
+	category insteon.Category
 
 	txCh        chan *insteon.Message
 	rxCh        chan *insteon.Message
@@ -111,7 +111,7 @@ loop:
 			}
 		case pkt := <-rxCh:
 			msg := &insteon.Message{}
-			msg.DevCat = conn.devCat
+			msg.DevCat = conn.category
 			err := msg.UnmarshalBinary(pkt.payload)
 			if err == nil {
 				insteon.Log.Debugf("Connection received %v", msg)
@@ -165,11 +165,11 @@ loop:
 }
 
 func (conn *Connection) DevCat() (devCat insteon.Category, err error) {
-	if [2]byte(conn.devCat) == [2]byte{0x00, 0x00} {
-		conn.devCat, err = insteon.NewI1Device(conn.dst, conn).IDRequest()
+	if [2]byte(conn.category) == [2]byte{0x00, 0x00} {
+		conn.category, err = insteon.NewI1Device(conn.dst, conn).IDRequest()
 	}
 
-	return conn.devCat, err
+	return conn.category, err
 }
 
 func (conn *Connection) Subscribe(matches ...*insteon.Command) <-chan *insteon.Message {

@@ -1,7 +1,5 @@
 package insteon
 
-import "fmt"
-
 var (
 	// CmdSetButtonPressedResponder Broadcast command indicating the set button has been pressed
 	CmdSetButtonPressedResponder = Commands.RegisterStd("Set Button Pressed (responder)", []byte{0x00}, MsgTypeBroadcast, 0x01, 0x00)
@@ -125,11 +123,11 @@ func (c *Command) SubCommand(value int) *Command {
 func (c *Command) String() string {
 	name := c.name
 	if name == "" {
-		name = fmt.Sprintf("%02x.%02x", c.Cmd[0], c.Cmd[1])
+		name = sprintf("%02x.%02x", c.Cmd[0], c.Cmd[1])
 	}
 
 	if c.subCmd {
-		return fmt.Sprintf("%s(%d)", name, c.Cmd[1])
+		return sprintf("%s(%d)", name, c.Cmd[1])
 	}
 	return name
 }
@@ -169,19 +167,25 @@ func (cr *CommandRegistry) Find(devCat byte, messageType MessageType, extended b
 
 	index := cr.commands[devCat]
 	if index == nil {
+		Log.Debugf("No index for devCat %02x", devCat)
 		// try all devCat 0x00
 		command = find(cr.commands[0x00][messageType], extended, cmd)
 	} else {
+		Log.Debugf("Index found for devCat %02x", devCat)
 		command = find(index[messageType], extended, cmd)
 		if command == nil {
+			Log.Debugf("Command %02x not found for messageType %s", cmd[0], messageType)
 			// try all devCat 0x00
 			command = find(cr.commands[0x00][messageType], extended, cmd)
+			if command == nil {
+				Log.Debugf("Command %02x not found in default index either", cmd[0])
+			}
 		}
 	}
 
 	// fail safe so nobody is ever referring to a nil command
 	if command == nil {
-		name := fmt.Sprintf("UNKNOWN (%02x.%02x)", cmd[0], cmd[1])
+		name := sprintf("UNKNOWN (%02x.%02x)", cmd[0], cmd[1])
 		command = &Command{name: name, Cmd: [2]byte{cmd[0], cmd[1]}, generator: func() Payload { return &BufPayload{} }}
 	}
 
@@ -206,6 +210,7 @@ func (cr *CommandRegistry) Register(name string, devCats []byte, messageType Mes
 		index := cr.commands[devCat]
 		if index == nil {
 			index = make(map[MessageType]*messageTypeIndex)
+			cr.commands[devCat] = index
 			for _, mt := range []MessageType{MsgTypeDirect, MsgTypeBroadcast, MsgTypeAllLinkBroadcast} {
 				index[mt] = &messageTypeIndex{
 					standardCommands: make(commandIndex),

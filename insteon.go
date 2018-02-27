@@ -1,6 +1,7 @@
 package insteon
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 )
@@ -25,10 +26,12 @@ var (
 	ErrAddrFormat           = errors.New("address format is xx.xx.xx (digits in hex)")
 )
 
+var sprintf = fmt.Sprintf
+
 type ProductKey [3]byte
 
 func (p ProductKey) String() string {
-	return fmt.Sprintf("0x%02x%02x%02x", p[0], p[1], p[2])
+	return sprintf("0x%02x%02x%02x", p[0], p[1], p[2])
 }
 
 type Category [2]byte
@@ -42,7 +45,23 @@ func (c Category) SubCategory() byte {
 }
 
 func (c Category) String() string {
-	return fmt.Sprintf("%02x.%02x", c[0], c[1])
+	return sprintf("%02x.%02x", c[0], c[1])
+}
+
+func (c Category) MarshalJSON() ([]byte, error) {
+	return json.Marshal(sprintf("%02x.%02x", c[0], c[1]))
+}
+
+func (c *Category) UnmarshalJSON(data []byte) (err error) {
+	var s string
+	if err = json.Unmarshal(data, &s); err == nil {
+		var n int
+		n, err = fmt.Sscanf(s, "%02x.%02x", &c[0], &c[1])
+		if n < 2 {
+			err = fmt.Errorf("Expected Scanf to parse 2 digits, got %d", n)
+		}
+	}
+	return err
 }
 
 type ProductData struct {
@@ -51,7 +70,7 @@ type ProductData struct {
 }
 
 func (pd *ProductData) String() string {
-	return fmt.Sprintf("Category:%s Product Key:%s", pd.Category, pd.Key)
+	return sprintf("Category:%s Product Key:%s", pd.Category, pd.Key)
 }
 
 func (pd *ProductData) UnmarshalBinary(buf []byte) error {

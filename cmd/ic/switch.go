@@ -52,8 +52,10 @@ func switchStatusCmd([]string, cli.NextFunc) error {
 	if err == nil {
 		if level == 0 {
 			fmt.Printf("Switch is off\n")
-		} else {
+		} else if level == 255 {
 			fmt.Printf("Switch is on\n")
+		} else {
+			fmt.Printf("Switch is on at level %d\n", level)
 		}
 	}
 	return err

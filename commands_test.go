@@ -45,7 +45,7 @@ func TestCommandRegistry(t *testing.T) {
 		var cmd *Command
 
 		// make sure nil is never returned
-		cmd = commands.FindStd(0x00, MsgTypeDirect, []byte{test.b1, test.b2})
+		cmd = commands.FindStd(0x00, MsgTypeDirectAck, []byte{test.b1, test.b2})
 		if cmd == nil {
 			t.Errorf("tests[%d] expected FindStd to return non nil", i)
 		} else if cmd.generator == nil {

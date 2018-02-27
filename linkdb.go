@@ -2,7 +2,6 @@ package insteon
 
 import (
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -20,7 +19,7 @@ const (
 type MemAddress int
 
 func (ma MemAddress) String() string {
-	return fmt.Sprintf("%02x.%02x", byte(ma>>8), byte(ma&0xff))
+	return sprintf("%02x.%02x", byte(ma>>8), byte(ma&0xff))
 }
 
 // There are two link request types, one used to read the link database and
@@ -57,9 +56,9 @@ type LinkRequest struct {
 
 func (lr *LinkRequest) String() string {
 	if lr.Link == nil {
-		return fmt.Sprintf("%s %s %d", lr.Type, lr.MemAddress, lr.NumRecords)
+		return sprintf("%s %s %d", lr.Type, lr.MemAddress, lr.NumRecords)
 	}
-	return fmt.Sprintf("%s %s %d %s", lr.Type, lr.MemAddress, lr.NumRecords, lr.Link)
+	return sprintf("%s %s %d %s", lr.Type, lr.MemAddress, lr.NumRecords, lr.Link)
 }
 
 // UnmarshalBinary will take the byte slice and convert it to a LinkRequest object

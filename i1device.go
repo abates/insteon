@@ -1,7 +1,6 @@
 package insteon
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -149,7 +148,7 @@ func (*I1Device) LinkDB() (LinkDB, error) { return nil, ErrNotImplemented }
 
 // String will return a string containing the device address
 func (i1 *I1Device) String() string {
-	return fmt.Sprintf("I1 Device (%s)", i1.Address())
+	return sprintf("I1 Device (%s)", i1.Address())
 }
 
 // Close closes the underlying connection

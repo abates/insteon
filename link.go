@@ -1,9 +1,5 @@
 package insteon
 
-import (
-	"fmt"
-)
-
 // RecordControlFlags indicate whether a link record is a
 // controller or responder and whether it is available or in
 // use
@@ -57,7 +53,7 @@ func (rcf RecordControlFlags) String() string {
 type Group byte
 
 // String representation of the group number
-func (g Group) String() string { return fmt.Sprintf("%d", byte(g)) }
+func (g Group) String() string { return sprintf("%d", byte(g)) }
 
 // LinkRecord is a single All-Link record in an All-Link database
 type LinkRecord struct {
@@ -68,7 +64,7 @@ type LinkRecord struct {
 }
 
 func (l *LinkRecord) String() string {
-	return fmt.Sprintf("%s %s %s 0x%02x 0x%02x 0x%02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
+	return sprintf("%s %s %s 0x%02x 0x%02x 0x%02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
 }
 
 // Equal will determine if another LinkRecord is equivalent. The records are

@@ -1,7 +1,5 @@
 package insteon
 
-import "fmt"
-
 type I2Device struct {
 	*I1Device
 	ldb *DeviceLinkDB
@@ -34,7 +32,7 @@ func (i2 *I2Device) ExitLinkingMode() error {
 }
 
 func (i2 *I2Device) String() string {
-	return fmt.Sprintf("I2 Device (%s)", i2.Address())
+	return sprintf("I2 Device (%s)", i2.Address())
 }
 
 func (i2 *I2Device) Close() error {

@@ -2,8 +2,40 @@ package insteon
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 )
+
+func testStr(stringer func() string, expectedFmts []string, expectedArgs []interface{}) (msg string, failed bool) {
+	var gotFmts []string
+	var gotArgs []interface{}
+
+	oldSprintf := sprintf
+	sprintf = func(format string, a ...interface{}) string {
+		gotFmts = append(gotFmts, format)
+		gotArgs = append(gotArgs, a...)
+		return ""
+	}
+	stringer()
+	if !reflect.DeepEqual(expectedFmts, gotFmts) {
+		msg = oldSprintf("expected %q got %q", expectedFmts, gotFmts)
+		failed = true
+	} else if !reflect.DeepEqual(expectedArgs, gotArgs) {
+		if len(expectedArgs) != len(gotArgs) {
+			msg = oldSprintf("expected %d arguments but got %d", len(expectedArgs), len(gotArgs))
+			failed = true
+		} else {
+			for i, expectedArg := range expectedArgs {
+				if expectedArg != gotArgs[i] {
+					msg = oldSprintf("expected '%v' got '%v'", expectedArg, gotArgs[i])
+					failed = true
+				}
+			}
+		}
+	}
+	sprintf = oldSprintf
+	return
+}
 
 func TestAddress(t *testing.T) {
 	tests := []struct {
@@ -60,6 +92,35 @@ func TestCategory(t *testing.T) {
 
 		if category.String() != test.expectedString {
 			t.Errorf("tests[%d] expected %q got %q", i, test.expectedString, category.String())
+		}
+	}
+}
+
+func TestCategoryMarshaling(t *testing.T) {
+	tests := []struct {
+		input            string
+		expectedCategory Category
+		expectedJSON     string
+		expectedError    string
+	}{
+		{"\"01.02\"", Category{1, 2}, "\"01.02\"", ""},
+		{"\"01\"", Category{0, 0}, "", "Expected Scanf to parse 2 digits, got 1"},
+	}
+
+	for i, test := range tests {
+		var category Category
+		err := category.UnmarshalJSON([]byte(test.input))
+		if err == nil {
+			if category != test.expectedCategory {
+				t.Errorf("tests[%d] expected %q got %q", i, test.expectedCategory, category)
+			} else {
+				data, _ := category.MarshalJSON()
+				if string(data) != test.expectedJSON {
+					t.Errorf("tests[%d] expected %q got %q", i, test.expectedJSON, string(data))
+				}
+			}
+		} else if err.Error() != test.expectedError {
+			t.Errorf("tests[%d] expected error %v got %v", i, test.expectedError, err)
 		}
 	}
 }

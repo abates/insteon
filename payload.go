@@ -2,7 +2,6 @@ package insteon
 
 import (
 	"encoding"
-	"fmt"
 	"strings"
 )
 
@@ -54,7 +53,7 @@ func (bp *BufPayload) UnmarshalBinary(buf []byte) error {
 func (bp *BufPayload) String() string {
 	str := make([]string, len(bp.Buf))
 	for i, b := range bp.Buf {
-		str[i] = fmt.Sprintf("%02x", b)
+		str[i] = sprintf("%02x", b)
 	}
 	return strings.Join(str, " ")
 }

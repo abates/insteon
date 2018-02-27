@@ -131,18 +131,20 @@ func TestSendStandardCommand(t *testing.T) {
 
 func TestSendStandardCommandAndWait(t *testing.T) {
 	tests := []struct {
-		command *Command
-		timeout time.Duration
-		err     error
+		command    *Command
+		timeout    time.Duration
+		ackMessage *Message
+		err        error
 	}{
-		{CmdProductDataReq, time.Millisecond, nil},
-		{CmdProductDataReq, Timeout * 2, ErrReadTimeout},
+		{CmdProductDataReq, time.Millisecond, nil, nil},
+		{CmdProductDataReq, Timeout * 2, nil, ErrReadTimeout},
+		{CmdProductDataReq, time.Millisecond, &Message{Flags: StandardDirectNak}, ErrNak},
 	}
 
 	for i, test := range tests {
 		oldTimeout := Timeout
 		Timeout = 10 * time.Millisecond
-		conn := &testConnection{timeout: test.timeout}
+		conn := &testConnection{timeout: test.timeout, ackMessage: test.ackMessage}
 		msg, err := SendStandardCommandAndWait(conn, test.command, test.command)
 		if err != test.err {
 			t.Errorf("tests[%d] expected %v got %v", i, test.err, err)

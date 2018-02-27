@@ -1,9 +1,5 @@
 package insteon
 
-import (
-	"fmt"
-)
-
 const (
 	// StandardMsgLen is the length of an insteon standard message minus one byte (the crc byte)
 	StandardMsgLen = 9
@@ -96,7 +92,7 @@ func (f Flags) String() string {
 		msg = "E"
 	}
 
-	return fmt.Sprintf("%s%-5s %d:%d", msg, f.Type(), f.MaxTTL(), f.TTL())
+	return sprintf("%s%-5s %d:%d", msg, f.Type(), f.MaxTTL(), f.TTL())
 }
 
 // Message is a single insteon message
@@ -124,11 +120,11 @@ func (m *Message) Broadcast() bool {
 
 func (m *Message) String() (str string) {
 	if m.Broadcast() {
-		str = fmt.Sprintf("%s -> ff.ff.ff %s %s", m.Src, m.Flags, m.Command)
+		str = sprintf("%s -> ff.ff.ff %s %s", m.Src, m.Flags, m.Command)
 	} else {
-		str = fmt.Sprintf("%s -> %s %s %s", m.Src, m.Dst, m.Flags, m.Command)
+		str = sprintf("%s -> %s %s %s", m.Src, m.Dst, m.Flags, m.Command)
 		if m.Flags.Extended() {
-			str = fmt.Sprintf("%s %v", str, m.Payload)
+			str = sprintf("%s %v", str, m.Payload)
 		}
 	}
 	return str

@@ -1,7 +1,6 @@
 package insteon
 
 import (
-	"fmt"
 	"path"
 	"runtime"
 )
@@ -21,9 +20,9 @@ func newBufError(cause error, need int, got int) *BufError {
 func (be *BufError) Error() string {
 	cause := ""
 	if be.Cause != nil {
-		cause = fmt.Sprintf("%v: ", be.Cause)
+		cause = sprintf("%v: ", be.Cause)
 	}
-	return fmt.Sprintf("%sneed %d bytes got %d", cause, be.Need, be.Got)
+	return sprintf("%sneed %d bytes got %d", cause, be.Need, be.Got)
 }
 
 // Error is used only when something failed that needs to bubble up
@@ -47,7 +46,7 @@ func IsError(check, err error) bool {
 
 // Error indicates the underlying cause of the error as well as the file and line that the error occurred
 func (e *Error) Error() string {
-	return fmt.Sprintf("%s:%d in %q: %s", path.Base(e.Frame.File), e.Frame.Line, e.Frame.Function, e.Cause.Error())
+	return sprintf("%s:%d in %q: %s", path.Base(e.Frame.File), e.Frame.Line, e.Frame.Function, e.Cause.Error())
 }
 
 // TraceError generates an Error and records the runtime stack frame

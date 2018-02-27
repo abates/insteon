@@ -394,6 +394,7 @@ func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
 		category, err := device.IDRequest()
 		if err == nil {
 			plm.devCatDB[dst] = category
+			connection.category = category
 		}
 	}
 

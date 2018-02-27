@@ -1,7 +1,5 @@
 package insteon
 
-import "fmt"
-
 var (
 	CmdLightOn            = Commands.RegisterStd("Light On", []byte{0x01, 0x02}, MsgTypeDirect, 0x11, 0xff)
 	CmdLightOnFast        = Commands.RegisterStd("Light On Fast", []byte{0x01, 0x02}, MsgTypeDirect, 0x12, 0x00)
@@ -39,6 +37,17 @@ type Switch interface {
 
 type Dimmer interface {
 	Switch
+	OnLevel(level int) error
+	OnFast(level int) error
+	Brighten() error
+	Dim() error
+	StartBrighten() error
+	StartDim() error
+	StopChange() error
+	InstantChange(level int) error
+	SetStatus(level int) error
+	OnAtRamp(level, ramp int) error
+	OffAtRamp(ramp int) error
 }
 
 type SwitchedDevice struct {
@@ -68,25 +77,61 @@ func (sd *SwitchedDevice) Status() (level int, err error) {
 	return level, err
 }
 
-type LightFlags byte
-
-func (lf *LightFlags) ProgramLock() bool { return byte(*lf)&0x01 == 0x01 }
-func (lf *LightFlags) TransmitLED() bool { return byte(*lf)&0x02 == 0x02 }
-func (lf *LightFlags) ResumeDim() bool   { return byte(*lf)&0x08 == 0x08 }
-func (lf *LightFlags) LED() bool         { return byte(*lf)&0x10 == 0x10 }
-func (lf *LightFlags) LoadSense() bool   { return byte(*lf)&0x20 == 0x20 }
-
-func (sd *SwitchedDevice) OperatingFlags() (*LightFlags, error) {
-	var flags LightFlags
-	ack, err := SendStandardCommand(sd.Connection(), CmdGetOperatingFlags)
-	if err == nil {
-		flags = LightFlags(ack.Command.Cmd[1])
-	}
-	return &flags, ErrNotImplemented
+type LightFlags struct {
+	ProgramLock bool `json:program_lock`
+	TransmitLED bool `json:transmit_led`
+	ResumeDim   bool `json:resume_dim`
+	LED         bool `json:led`
+	LoadSense   bool `json:load_sense`
 }
 
-func (sd *SwitchedDevice) SetOperatingFlags(*LightFlags) error {
-	return ErrNotImplemented
+func (lf *LightFlags) MarshalBinary() ([]byte, error) {
+	buf := []byte{0x00}
+	if lf.ProgramLock {
+		buf[0] |= 0x01
+	}
+	if lf.TransmitLED {
+		buf[0] |= 0x02
+	}
+	if lf.ResumeDim {
+		buf[0] |= 0x08
+	}
+	if lf.LED {
+		buf[0] |= 0x10
+	}
+	if lf.LoadSense {
+		buf[0] |= 0x20
+	}
+	return buf, nil
+}
+
+func (lf *LightFlags) UnmarshalBinary(buf []byte) error {
+	if len(buf) < 1 {
+		return ErrBufferTooShort
+	}
+	lf.ProgramLock = buf[0]&0x01 == 0x01
+	lf.TransmitLED = buf[0]&0x02 == 0x02
+	lf.ResumeDim = buf[0]&0x08 == 0x08
+	lf.LED = buf[0]&0x10 == 0x10
+	lf.LoadSense = buf[0]&0x20 == 0x20
+	return nil
+}
+
+func (sd *SwitchedDevice) OperatingFlags() (*LightFlags, error) {
+	flags := &LightFlags{}
+	ack, err := SendStandardCommand(sd.Connection(), CmdGetOperatingFlags)
+	if err == nil {
+		flags.UnmarshalBinary([]byte{ack.Command.Cmd[1]})
+	}
+	return flags, err
+}
+
+func (sd *SwitchedDevice) SetOperatingFlags(flags *LightFlags) error {
+	buf, err := flags.MarshalBinary()
+	if err == nil {
+		_, err = SendStandardCommand(sd.Connection(), CmdSetOperatingFlags.SubCommand(int(buf[0])))
+	}
+	return err
 }
 
 func (sd *SwitchedDevice) ManualOn() error {
@@ -100,7 +145,7 @@ func (sd *SwitchedDevice) ManualOff() error {
 }
 
 func (sd *SwitchedDevice) String() string {
-	return fmt.Sprintf("Switch (%s)", sd.Address())
+	return sprintf("Switch (%s)", sd.Address())
 }
 
 type DimmableDevice struct {
@@ -162,12 +207,12 @@ func (dd *DimmableDevice) OnAtRamp(level, ramp int) error {
 }
 
 func (dd *DimmableDevice) OffAtRamp(ramp int) error {
-	_, err := SendStandardCommand(dd.Connection(), CmdLightOffAtRamp.SubCommand(ramp))
+	_, err := SendStandardCommand(dd.Connection(), CmdLightOffAtRamp.SubCommand(0x0f&ramp))
 	return err
 }
 
 func (dd *DimmableDevice) String() string {
-	return fmt.Sprintf("Dimmable Light (%s)", dd.Address())
+	return sprintf("Dimmable Light (%s)", dd.Address())
 }
 
 func dimmableLightingFactory(device Device) Device {
