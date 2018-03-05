@@ -28,35 +28,41 @@ var (
 
 var sprintf = fmt.Sprintf
 
+type Version int
+
 type ProductKey [3]byte
 
 func (p ProductKey) String() string {
 	return sprintf("0x%02x%02x%02x", p[0], p[1], p[2])
 }
 
-type Category [2]byte
+type DevCat [2]byte
 
-func (c Category) Category() byte {
-	return c[0]
+func (dc DevCat) Category() Category {
+	return Category(dc[0])
 }
 
-func (c Category) SubCategory() byte {
-	return c[1]
+func (dc DevCat) SubCategory() SubCategory {
+	return SubCategory(dc[1])
 }
 
-func (c Category) String() string {
-	return sprintf("%02x.%02x", c[0], c[1])
+type Category byte
+
+type SubCategory byte
+
+func (dc DevCat) String() string {
+	return sprintf("%02x.%02x", dc[0], dc[1])
 }
 
-func (c Category) MarshalJSON() ([]byte, error) {
-	return json.Marshal(sprintf("%02x.%02x", c[0], c[1]))
+func (dc DevCat) MarshalJSON() ([]byte, error) {
+	return json.Marshal(sprintf("%02x.%02x", dc[0], dc[1]))
 }
 
-func (c *Category) UnmarshalJSON(data []byte) (err error) {
+func (dc *DevCat) UnmarshalJSON(data []byte) (err error) {
 	var s string
 	if err = json.Unmarshal(data, &s); err == nil {
 		var n int
-		n, err = fmt.Sscanf(s, "%02x.%02x", &c[0], &c[1])
+		n, err = fmt.Sscanf(s, "%02x.%02x", &dc[0], &dc[1])
 		if n < 2 {
 			err = fmt.Errorf("Expected Scanf to parse 2 digits, got %d", n)
 		}
@@ -65,12 +71,12 @@ func (c *Category) UnmarshalJSON(data []byte) (err error) {
 }
 
 type ProductData struct {
-	Key      ProductKey
-	Category Category
+	Key    ProductKey
+	DevCat DevCat
 }
 
 func (pd *ProductData) String() string {
-	return sprintf("Category:%s Product Key:%s", pd.Category, pd.Key)
+	return sprintf("DevCat:%s Product Key:%s", pd.DevCat, pd.Key)
 }
 
 func (pd *ProductData) UnmarshalBinary(buf []byte) error {
@@ -79,14 +85,14 @@ func (pd *ProductData) UnmarshalBinary(buf []byte) error {
 	}
 
 	copy(pd.Key[:], buf[1:4])
-	copy(pd.Category[:], buf[4:6])
+	copy(pd.DevCat[:], buf[4:6])
 	return nil
 }
 
 func (pd *ProductData) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, 7)
 	copy(buf[1:4], pd.Key[:])
-	copy(buf[4:6], pd.Category[:])
+	copy(buf[4:6], pd.DevCat[:])
 	buf[6] = 0xff
 	return buf, nil
 }

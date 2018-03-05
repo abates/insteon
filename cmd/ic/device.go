@@ -34,7 +34,9 @@ func devCmd(args []string, next cli.NextFunc) (err error) {
 	}
 
 	device, err = devConnect(modem, addr)
-	defer device.Connection().Close()
+	if closeable, ok := device.(insteon.Closeable); ok {
+		defer closeable.Close()
+	}
 	if err == nil {
 		err = next()
 	}
@@ -94,6 +96,13 @@ func devInfoCmd([]string, cli.NextFunc) (err error) {
 		fmt.Printf("     Category: %s\n", category)
 	} else {
 		fmt.Printf("Failed to get device ID: %v\n", err)
+	}
+
+	pd, err := device.ProductData()
+	if err == nil {
+		fmt.Printf(" Product Data: %s\n", pd)
+	} else {
+		fmt.Printf(" Product Data: %v", err)
 	}
 
 	devGetTextCmd(nil, nil)

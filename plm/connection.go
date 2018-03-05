@@ -12,20 +12,20 @@ type txReq struct {
 }
 
 type msgSubReq struct {
-	matches     []*insteon.Command
+	matches     []insteon.CommandBytes
 	unsubscribe bool
 	rxCh        <-chan *insteon.Message
 	respCh      chan bool
 }
 
 type msgSubscription struct {
-	matches []*insteon.Command
+	matches []insteon.CommandBytes
 	ch      chan<- *insteon.Message
 }
 
 func (sub *msgSubscription) match(msg *insteon.Message) bool {
 	for _, match := range sub.matches {
-		if match.Cmd[0] == msg.Command.Cmd[0] {
+		if match.Command1 == msg.Command.Command1 {
 			return true
 		}
 	}
@@ -33,10 +33,8 @@ func (sub *msgSubscription) match(msg *insteon.Message) bool {
 }
 
 type Connection struct {
-	dst      insteon.Address
-	plm      *PLM
-	category insteon.Category
-
+	dst         insteon.Address
+	plm         *PLM
 	txCh        chan *insteon.Message
 	rxCh        chan *insteon.Message
 	txReqCh     chan *txReq
@@ -59,6 +57,10 @@ func NewConnection(plm *PLM, dst insteon.Address) *Connection {
 	go conn.readWriteLoop(plm, conn.dst)
 
 	return conn
+}
+
+func (conn *Connection) Address() insteon.Address {
+	return conn.dst
 }
 
 func (conn *Connection) writePacket(message *insteon.Message) error {
@@ -111,7 +113,6 @@ loop:
 			}
 		case pkt := <-rxCh:
 			msg := &insteon.Message{}
-			msg.DevCat = conn.category
 			err := msg.UnmarshalBinary(pkt.payload)
 			if err == nil {
 				insteon.Log.Debugf("Connection received %v", msg)
@@ -164,15 +165,7 @@ loop:
 	close(closeCh)
 }
 
-func (conn *Connection) DevCat() (devCat insteon.Category, err error) {
-	if [2]byte(conn.category) == [2]byte{0x00, 0x00} {
-		conn.category, err = insteon.NewI1Device(conn.dst, conn).IDRequest()
-	}
-
-	return conn.category, err
-}
-
-func (conn *Connection) Subscribe(matches ...*insteon.Command) <-chan *insteon.Message {
+func (conn *Connection) Subscribe(matches ...insteon.CommandBytes) <-chan *insteon.Message {
 	respCh := make(chan bool)
 	req := &msgSubReq{matches: matches, respCh: respCh}
 	conn.msgSubReqCh <- req

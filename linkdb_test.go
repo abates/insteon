@@ -139,13 +139,13 @@ func TestAddLink(t *testing.T) {
 
 	for i, test := range tests {
 		oldLinkReader := linkReader
-		linkReader = func(Connection) ([]*LinkRecord, error) {
+		linkReader = func(VersionedConnection) ([]*LinkRecord, error) {
 			return test.input, nil
 		}
 
 		oldLinkWriter := linkWriter
 		var address MemAddress
-		linkWriter = func(conn Connection, addr MemAddress, link *LinkRecord) error {
+		linkWriter = func(conn VersionedConnection, addr MemAddress, link *LinkRecord) error {
 			address = addr
 			return nil
 		}
@@ -174,14 +174,14 @@ func TestRemoveLink(t *testing.T) {
 
 	for i, test := range tests {
 		oldLinkReader := linkReader
-		linkReader = func(Connection) ([]*LinkRecord, error) {
+		linkReader = func(VersionedConnection) ([]*LinkRecord, error) {
 			return test.links, nil
 		}
 
 		oldLinkWriter := linkWriter
 		var writeAddress MemAddress
 		var writeLink *LinkRecord
-		linkWriter = func(conn Connection, addr MemAddress, link *LinkRecord) error {
+		linkWriter = func(conn VersionedConnection, addr MemAddress, link *LinkRecord) error {
 			writeAddress = addr
 			writeLink = link
 			return nil

@@ -38,7 +38,9 @@ func dimmerCmd(args []string, next cli.NextFunc) (err error) {
 	}
 
 	device, err := devConnect(modem, addr)
-	defer device.Connection().Close()
+	if closeable, ok := device.(insteon.Closeable); ok {
+		defer closeable.Close()
+	}
 	if err == nil {
 		var ok bool
 		if dimmer, ok = device.(insteon.Dimmer); ok {

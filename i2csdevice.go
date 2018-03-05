@@ -21,7 +21,7 @@ func NewI2CsDevice(address Address, connection Connection) *I2CsDevice {
 // equivalent to holding down the set button until the device
 // beeps and the indicator light starts flashing
 func (i2cs *I2CsDevice) EnterLinkingMode(group Group) (err error) {
-	_, err = SendExtendedCommand(i2cs.Connection(), CmdEnterLinkingModeExt.SubCommand(int(group)), NewBufPayload(14))
+	_, err = SendExtendedSubCommand(i2cs, CmdEnterLinkingModeExt, int(group), nil)
 	return err
 }
 

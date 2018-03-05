@@ -1,29 +1,31 @@
 package insteon
 
 import (
+	"bytes"
 	"testing"
 	"time"
 )
 
 type testConnection struct {
 	ackMessage    *Message
-	lastMessage   *Message
+	lastMessage   Message
 	responses     []*Message
 	resp          chan *Message
 	payload       []byte
-	matchCommands []*Command
+	matchCommands []CommandBytes
 	closed        bool
 	timeout       time.Duration
 }
 
-func (conn *testConnection) DevCat() (Category, error) {
-	return Category{0x00, 0x00}, nil
-}
+func (conn *testConnection) FirmwareVersion() Version { return Version(0) }
+func (conn *testConnection) Address() Address         { return Address{0x00, 0x01, 0x02} }
 
 func (conn *testConnection) Write(msg *Message) (ack *Message, err error) {
-	conn.lastMessage = msg
-	if msg != nil && msg.Payload != nil {
-		conn.payload, _ = msg.Payload.MarshalBinary()
+	if msg != nil {
+		conn.lastMessage = *msg
+		if msg.Payload != nil {
+			conn.payload = msg.Payload
+		}
 	}
 
 	var response *Message
@@ -53,7 +55,7 @@ func (conn *testConnection) Write(msg *Message) (ack *Message, err error) {
 	return ack, nil
 }
 
-func (conn *testConnection) Subscribe(match ...*Command) <-chan *Message {
+func (conn *testConnection) Subscribe(match ...CommandBytes) <-chan *Message {
 	conn.matchCommands = match
 	conn.resp = make(chan *Message, 1)
 	return conn.resp
@@ -72,10 +74,10 @@ func TestI1ConnectionWrite(t *testing.T) {
 		ackMessage    *Message
 		expectedError error
 	}{
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfd})}, ErrUnknownCommand},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfe})}, ErrNoLoadDetected},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xff})}, ErrNotLinked},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0x0f})}, ErrUnexpectedResponse},
+		{&Message{Flags: Flags(0xaf), Command: CommandBytes{Command1: 0x00, Command2: 0xfd}}, ErrUnknownCommand},
+		{&Message{Flags: Flags(0xaf), Command: CommandBytes{Command1: 0x00, Command2: 0xfe}}, ErrNoLoadDetected},
+		{&Message{Flags: Flags(0xaf), Command: CommandBytes{Command1: 0x00, Command2: 0xff}}, ErrNotLinked},
+		{&Message{Flags: Flags(0xaf), Command: CommandBytes{Command1: 0x00, Command2: 0x0f}}, ErrUnexpectedResponse},
 	}
 
 	for i, test := range tests {
@@ -92,12 +94,12 @@ func TestI2CsConnectionWrite(t *testing.T) {
 		ackMessage    *Message
 		expectedError error
 	}{
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfb})}, ErrIllegalValue},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfc})}, ErrPreNak},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfd})}, ErrIncorrectChecksum},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xfe})}, ErrNoLoadDetected},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xff})}, ErrNotLinked},
-		{&Message{Flags: Flags(0xaf), Command: Commands.FindStd(0x00, MsgTypeDirect, []byte{0x00, 0xf0})}, ErrUnexpectedResponse},
+		{&Message{Flags: Flags(0xaf), Command: CommandBytes{Command1: 0x00, Command2: 0xfb}}, ErrIllegalValue},
+		{&Message{Flags: Flags(0xaf), Command: CommandBytes{Command1: 0x00, Command2: 0xfc}}, ErrPreNak},
+		{&Message{Flags: Flags(0xaf), Command: CommandBytes{Command1: 0x00, Command2: 0xfd}}, ErrIncorrectChecksum},
+		{&Message{Flags: Flags(0xaf), Command: CommandBytes{Command1: 0x00, Command2: 0xfe}}, ErrNoLoadDetected},
+		{&Message{Flags: Flags(0xaf), Command: CommandBytes{Command1: 0x00, Command2: 0xff}}, ErrNotLinked},
+		{&Message{Flags: Flags(0xaf), Command: CommandBytes{Command1: 0x00, Command2: 0xf0}}, ErrUnexpectedResponse},
 	}
 
 	for i, test := range tests {
@@ -109,18 +111,19 @@ func TestI2CsConnectionWrite(t *testing.T) {
 	}
 }
 
-func TestSendStandardCommand(t *testing.T) {
+func TestSendCommand(t *testing.T) {
 	tests := []struct {
-		command *Command
+		command  *Command
+		expected CommandBytes
 	}{
-		{CmdProductDataReq},
+		{CmdProductDataReq, CmdProductDataReq.Version(0)},
 	}
 
 	for i, test := range tests {
 		conn := &testConnection{timeout: time.Millisecond}
-		SendStandardCommand(conn, test.command)
-		if conn.lastMessage.Command != test.command {
-			t.Errorf("tests[%d] expected %v got %v", i, test.command, conn.lastMessage.Command)
+		SendCommand(conn, test.command)
+		if conn.lastMessage.Command != test.expected {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expected, conn.lastMessage.Command)
 		}
 
 		if conn.lastMessage.Flags != StandardDirectMessage {
@@ -129,30 +132,31 @@ func TestSendStandardCommand(t *testing.T) {
 	}
 }
 
-func TestSendStandardCommandAndWait(t *testing.T) {
+func TestSendCommandAndWait(t *testing.T) {
 	tests := []struct {
-		command    *Command
-		timeout    time.Duration
-		ackMessage *Message
-		err        error
+		command         *Command
+		expectedCommand CommandBytes
+		timeout         time.Duration
+		ackMessage      *Message
+		err             error
 	}{
-		{CmdProductDataReq, time.Millisecond, nil, nil},
-		{CmdProductDataReq, Timeout * 2, nil, ErrReadTimeout},
-		{CmdProductDataReq, time.Millisecond, &Message{Flags: StandardDirectNak}, ErrNak},
+		{CmdProductDataReq, CmdProductDataReq.Version(0), time.Millisecond, nil, nil},
+		{CmdProductDataReq, CmdProductDataReq.Version(0), Timeout * 2, nil, ErrReadTimeout},
+		{CmdProductDataReq, CmdProductDataReq.Version(0), time.Millisecond, &Message{Flags: StandardDirectNak}, ErrNak},
 	}
 
 	for i, test := range tests {
 		oldTimeout := Timeout
 		Timeout = 10 * time.Millisecond
 		conn := &testConnection{timeout: test.timeout, ackMessage: test.ackMessage}
-		msg, err := SendStandardCommandAndWait(conn, test.command, test.command)
+		msg, err := SendCommandAndWait(conn, test.command, test.command)
 		if err != test.err {
 			t.Errorf("tests[%d] expected %v got %v", i, test.err, err)
 		}
 
 		if err == nil {
-			if msg.Command != test.command {
-				t.Errorf("tests[%d] expected %v got %v", i, test.command, msg.Command)
+			if msg.Command != test.expectedCommand {
+				t.Errorf("tests[%d] expected %v got %v", i, test.expectedCommand, msg.Command)
 			}
 		}
 		Timeout = oldTimeout
@@ -161,24 +165,25 @@ func TestSendStandardCommandAndWait(t *testing.T) {
 
 func TestSendExtendedCommand(t *testing.T) {
 	tests := []struct {
-		command *Command
-		payload Payload
+		command         *Command
+		expectedCommand CommandBytes
+		payload         []byte
 	}{
-		{CmdProductDataResp, &BufPayload{[]byte{0xfe, 0xfe, 0xaa, 0xbc}}},
+		{CmdProductDataResp, CmdProductDataResp.Version(0), []byte{0xfe, 0xfe, 0xaa, 0xbc}},
 	}
 
 	for i, test := range tests {
 		conn := &testConnection{timeout: time.Millisecond}
 		SendExtendedCommand(conn, test.command, test.payload)
-		if conn.lastMessage.Command != test.command {
-			t.Errorf("tests[%d] expected %v got %v", i, test.command, conn.lastMessage.Command)
+		if conn.lastMessage.Command != test.expectedCommand {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedCommand, conn.lastMessage.Command)
 		}
 
 		if conn.lastMessage.Flags != ExtendedDirectMessage {
 			t.Errorf("tests[%d] expected %v got %v", i, ExtendedDirectMessage, conn.lastMessage.Flags)
 		}
 
-		if conn.lastMessage.Payload != test.payload {
+		if !bytes.Equal(conn.lastMessage.Payload[0:len(test.payload)], test.payload) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.payload, conn.lastMessage.Payload)
 		}
 	}

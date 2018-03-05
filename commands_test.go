@@ -1,91 +1,74 @@
 package insteon
 
 import (
+	"reflect"
 	"testing"
 )
 
-func TestCommandEqual(t *testing.T) {
+func TestCommandBytesSubCommand(t *testing.T) {
 	tests := []struct {
-		cmd1     *Command
-		cmd2     *Command
-		expected bool
+		input      CommandBytes
+		subCommand int
+		expected   CommandBytes
 	}{
-		{nil, nil, true},
-		{&Command{Cmd: [2]byte{0x01, 0x02}}, nil, false},
-		{nil, &Command{Cmd: [2]byte{0x01, 0x02}}, false},
-		{&Command{Cmd: [2]byte{0x02, 0x03}}, &Command{Cmd: [2]byte{0x01, 0x02}}, false},
-		{&Command{Cmd: [2]byte{0x01, 0x02}}, &Command{Cmd: [2]byte{0x01, 0x02}}, true},
+		{CommandBytes{Command1: 0x01, Command2: 0x02}, 3, CommandBytes{Command1: 0x01, Command2: 0x03}},
 	}
 
 	for i, test := range tests {
-		if test.expected != test.cmd1.Equal(test.cmd2) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expected, test.cmd1.Equal(test.cmd2))
+		subCommand := test.input.SubCommand(test.subCommand)
+		if test.expected != subCommand {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expected, subCommand)
 		}
 	}
 }
 
-func TestCommandRegistry(t *testing.T) {
+func TestFirmwareIndexSwap(t *testing.T) {
 	tests := []struct {
-		name           string
-		b1             byte
-		b2             byte
-		subcmd         int
-		extended       bool
-		expectedString string
+		input    []int
+		i        int
+		j        int
+		expected []int
 	}{
-		{"", 0x01, 0xff, 0, false, "01.ff"},
-		{"cmd 1", 0xee, 0xff, 0, false, "cmd 1"},
-		{"cmd 2", 0xee, 0x00, 0, true, "cmd 2"},
-		{"cmd 3", 0xef, 0x00, 25, true, "cmd 3(25)"},
+		{[]int{0, 1, 2, 3, 4}, 1, 2, []int{0, 2, 1, 3, 4}},
 	}
 
-	commands := newCommandRegistry()
+	for i, test := range tests {
+		fi := make(FirmwareIndex, len(test.input))
+		for x, value := range test.input {
+			fi[x] = &CommandBytes{Version(value), 0x00, 0x00}
+		}
+		fi.Swap(test.i, test.j)
+		values := make([]int, len(test.input))
+		for x, value := range fi {
+			values[x] = int(value.version)
+		}
+
+		if !reflect.DeepEqual(test.expected, values) {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expected, values)
+		}
+	}
+}
+
+func TestFirmwareIndexFind(t *testing.T) {
+	tests := []struct {
+		input    []byte
+		find     int
+		expected byte
+	}{
+		{[]byte{0xf0}, 0, 0xf0},
+		{[]byte{0xf0, 0xf1, 0xf2, 0xf3, 0xf4}, 2, 0xf2},
+		{[]byte{0xf0, 0xf1, 0xf2, 0xf3, 0xf4}, 5, 0xf4},
+	}
 
 	for i, test := range tests {
-		var cmd *Command
-
-		// make sure nil is never returned
-		cmd = commands.FindStd(0x00, MsgTypeDirectAck, []byte{test.b1, test.b2})
-		if cmd == nil {
-			t.Errorf("tests[%d] expected FindStd to return non nil", i)
-		} else if cmd.generator == nil {
-			t.Errorf("tests[%d] expected non-nil generator", i)
-		} else if cmd.generator() == nil {
-			t.Errorf("tests[%d] expected non-nil payload", i)
+		command := &Command{}
+		for x, value := range test.input {
+			command.Register(Version(x), value, 0x00)
 		}
 
-		if test.extended {
-			cmd = commands.RegisterExt(test.name, []byte{0x00}, MsgTypeDirect, test.b1, test.b2, nil)
-			if cmd != commands.FindExt(0x00, MsgTypeDirect, []byte{test.b1, test.b2}) {
-				t.Errorf("tests[%d] expected %v got %v", i, cmd, commands.FindExt(0x00, MsgTypeDirect, []byte{test.b1, test.b2}))
-			}
-		} else {
-			cmd = commands.RegisterStd(test.name, []byte{0x00}, MsgTypeDirect, test.b1, test.b2)
-			if cmd != commands.FindStd(0x00, MsgTypeDirect, []byte{test.b1, test.b2}) {
-				t.Errorf("tests[%d] expected %v got %v", i, cmd, commands.FindStd(0x00, MsgTypeDirect, []byte{test.b1, test.b2}))
-			}
-		}
-
-		if test.subcmd == 0 {
-			if test.expectedString != cmd.String() {
-				t.Errorf("tests[%d] expected %s got %s", i, test.expectedString, cmd.String())
-			}
-
-		} else {
-			subcmd := cmd.SubCommand(test.subcmd)
-			if test.expectedString != subcmd.String() {
-				t.Errorf("tests[%d] expected %s got %s", i, test.expectedString, subcmd.String())
-			}
-
-			if test.extended {
-				if !subcmd.Equal(commands.FindExt(0x01, MsgTypeDirect, subcmd.Cmd[:])) {
-					t.Errorf("tests[%d] expected %#v got %#v", i, subcmd, commands.FindExt(0x01, MsgTypeDirect, subcmd.Cmd[:]))
-				}
-			} else {
-				if !subcmd.Equal(commands.FindStd(0x01, MsgTypeDirect, subcmd.Cmd[:])) {
-					t.Errorf("tests[%d] expected %+v got %+v", i, subcmd, commands.FindStd(0x01, MsgTypeDirect, subcmd.Cmd[:]))
-				}
-			}
+		value := command.Version(Version(test.find))
+		if value.Command1 != test.expected {
+			t.Errorf("tests[%d] expected 0x%x got 0x%x", i, test.expected, value.Command1)
 		}
 	}
 }

@@ -12,18 +12,18 @@ func TestI2CsDeviceFunctions(t *testing.T) {
 		response        *Message
 		ack             *Message
 		expectedValue   interface{}
-		expectedCommand *Command
+		expectedCommand CommandBytes
 		expectedMatch   []*Command
 		expectedPayload []byte
 	}{
 		{
 			function:        func(device *I2CsDevice) (interface{}, error) { return nil, device.EnterLinkingMode(1) },
-			expectedCommand: (&Command{Cmd: [2]byte{0x09, 0x00}}).SubCommand(0x01),
+			expectedCommand: CommandBytes{Command1: 0x09, Command2: 0x01},
 			expectedPayload: make([]byte, 14),
 		},
 		{
 			function:        func(device *I2CsDevice) (interface{}, error) { return nil, device.EnterUnlinkingMode(1) },
-			expectedCommand: (&Command{Cmd: [2]byte{0x0a, 0x00}}).SubCommand(0x01),
+			expectedCommand: CommandBytes{Command1: 0x0a, Command2: 0x01},
 		},
 	}
 
@@ -41,14 +41,14 @@ func TestI2CsDeviceFunctions(t *testing.T) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedValue, value)
 		}
 
-		if test.expectedCommand != nil {
-			if !test.expectedCommand.Equal(conn.lastMessage.Command) {
-				t.Errorf("tests[%d] expected %v got %v", i, test.expectedCommand, conn.lastMessage.Command)
-			}
+		if test.expectedCommand != conn.lastMessage.Command {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedCommand, conn.lastMessage.Command)
 		}
 
-		if !reflect.DeepEqual(conn.matchCommands, test.expectedMatch) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedMatch, conn.matchCommands)
+		if test.expectedMatch != nil {
+			if !reflect.DeepEqual(conn.matchCommands, test.expectedMatch) {
+				t.Errorf("tests[%d] expected %v got %v", i, test.expectedMatch, conn.matchCommands)
+			}
 		}
 
 		if !bytes.Equal(conn.payload, test.expectedPayload) {

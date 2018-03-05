@@ -11,23 +11,23 @@ func NewI2Device(address Address, connection Connection) *I2Device {
 
 func (i2 *I2Device) LinkDB() (ldb LinkDB, err error) {
 	if i2.ldb == nil {
-		i2.ldb = NewDeviceLinkDB(i2.Connection())
+		i2.ldb = NewDeviceLinkDB(i2)
 	}
 	return i2.ldb, err
 }
 
 func (i2 *I2Device) EnterLinkingMode(group Group) (err error) {
-	_, err = SendStandardCommand(i2.Connection(), CmdEnterLinkingMode.SubCommand(int(group)))
+	_, err = SendSubCommand(i2, CmdEnterLinkingMode, int(group))
 	return err
 }
 
 func (i2 *I2Device) EnterUnlinkingMode(group Group) error {
-	_, err := SendStandardCommand(i2.Connection(), CmdEnterUnlinkingMode.SubCommand(int(group)))
+	_, err := SendSubCommand(i2, CmdEnterUnlinkingMode, int(group))
 	return err
 }
 
 func (i2 *I2Device) ExitLinkingMode() error {
-	_, err := SendStandardCommand(i2.Connection(), CmdExitLinkingMode)
+	_, err := SendCommand(i2, CmdExitLinkingMode)
 	return err
 }
 

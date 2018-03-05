@@ -97,13 +97,12 @@ func (f Flags) String() string {
 
 // Message is a single insteon message
 type Message struct {
-	DevCat  Category
 	version EngineVersion
 	Src     Address
 	Dst     Address
 	Flags   Flags
-	Command *Command
-	Payload Payload
+	Command CommandBytes
+	Payload []byte
 }
 
 func (m *Message) Ack() bool {
@@ -120,9 +119,9 @@ func (m *Message) Broadcast() bool {
 
 func (m *Message) String() (str string) {
 	if m.Broadcast() {
-		str = sprintf("%s -> ff.ff.ff %s %s", m.Src, m.Flags, m.Command)
+		str = sprintf("%s -> ff.ff.ff %v %v", m.Src, m.Flags, m.Command)
 	} else {
-		str = sprintf("%s -> %s %s %s", m.Src, m.Dst, m.Flags, m.Command)
+		str = sprintf("%s -> %s %v %v", m.Src, m.Dst, m.Flags, m.Command)
 		if m.Flags.Extended() {
 			str = sprintf("%s %v", str, m.Payload)
 		}
@@ -145,15 +144,15 @@ func (m *Message) MarshalBinary() (data []byte, err error) {
 	copy(data[0:3], m.Src[:])
 	copy(data[3:6], m.Dst[:])
 	data[6] = byte(m.Flags)
-	copy(data[7:9], m.Command.Cmd[:])
+	data[7] = m.Command.Command1
+	data[8] = m.Command.Command2
 	if m.Flags.Extended() {
-		var payload []byte
-		payload, err = m.Payload.MarshalBinary()
-		data = append(data, payload...)
+		data = append(data, make([]byte, 14)...)
+		copy(data[9:23], m.Payload)
 	}
 
 	if m.Flags.Extended() && m.version == VerI2Cs {
-		data[len(data)-1] = checksum(data[7:])
+		data[len(data)-1] = checksum(data[7:22])
 	}
 	return data, err
 }
@@ -168,19 +167,14 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	copy(m.Src[:], data[0:3])
 	copy(m.Dst[:], data[3:6])
 	m.Flags = Flags(data[6])
-	if m.Flags.Standard() {
-		m.Command = Commands.FindStd(m.DevCat.Category(), m.Flags.Type(), data[7:9])
-	} else {
-		m.Command = Commands.FindExt(m.DevCat.Category(), m.Flags.Type(), data[7:9])
-	}
+	m.Command = CommandBytes{Command1: data[7], Command2: data[8]}
 
 	if m.Flags.Extended() {
 		if len(data) < ExtendedMsgLen {
 			return newBufError(ErrBufferTooShort, ExtendedMsgLen, len(data))
 		}
-		payload := m.Command.generator()
-		err = payload.UnmarshalBinary(data[9:23])
-		m.Payload = payload
+		m.Payload = make([]byte, 14)
+		copy(m.Payload, data[9:])
 	}
 	return err
 }

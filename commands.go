@@ -1,247 +1,149 @@
 package insteon
 
+import "sort"
+
 var (
 	// CmdSetButtonPressedResponder Broadcast command indicating the set button has been pressed
-	CmdSetButtonPressedResponder = Commands.RegisterStd("Set Button Pressed (responder)", []byte{0x00}, MsgTypeBroadcast, 0x01, 0x00)
+	CmdSetButtonPressedResponder = RegisterStd("Set Button Pressed (responder)", MsgTypeBroadcast, 0x01, 0x00)
 
 	// CmdSetButtonPressedController Broadcast command indicating the set button has been pressed
-	CmdSetButtonPressedController = Commands.RegisterStd("Set Button Pressed (controller)", []byte{0x00}, MsgTypeBroadcast, 0x02, 0x00)
+	CmdSetButtonPressedController = RegisterStd("Set Button Pressed (controller)", MsgTypeBroadcast, 0x02, 0x00)
 
 	// CmdAssignToAllLinkGroup Assign to ALL-Link Group
-	CmdAssignToAllLinkGroup = Commands.RegisterStd("All Link Assign", []byte{0x00}, MsgTypeDirect, 0x01, 0x00)
+	CmdAssignToAllLinkGroup = RegisterStd("All Link Assign", MsgTypeDirect, 0x01, 0x00)
 
 	// CmdDeleteFromAllLinkGroup Delete from All-Link Group
-	CmdDeleteFromAllLinkGroup = Commands.RegisterStd("All Link Delete", []byte{0x00}, MsgTypeDirect, 0x02, 0x00)
+	CmdDeleteFromAllLinkGroup = RegisterStd("All Link Delete", MsgTypeDirect, 0x02, 0x00)
 
 	// CmdProductDataReq Product Data Request
-	CmdProductDataReq = Commands.RegisterStd("Product Data Req", []byte{0x00}, MsgTypeDirect, 0x03, 0x00)
+	CmdProductDataReq = RegisterStd("Product Data Req", MsgTypeDirect, 0x03, 0x00)
 
 	// CmdProductDataResp Product Data Response
-	CmdProductDataResp = Commands.RegisterExt("Product Data Resp", []byte{0x00}, MsgTypeDirect, 0x03, 0x00, nil)
+	CmdProductDataResp = RegisterExt("Product Data Resp", MsgTypeDirect, 0x03, 0x00)
 
 	// CmdFxUsernameReq FX Username Request
-	CmdFxUsernameReq = Commands.RegisterStd("FX Username Req", []byte{0x00}, MsgTypeDirect, 0x03, 0x01)
+	CmdFxUsernameReq = RegisterStd("FX Username Req", MsgTypeDirect, 0x03, 0x01)
 
 	// CmdFxUsernameResp FX Username Response
-	CmdFxUsernameResp = Commands.RegisterExt("FX Username Resp", []byte{0x00}, MsgTypeDirect, 0x03, 0x01, nil)
+	CmdFxUsernameResp = RegisterExt("FX Username Resp", MsgTypeDirect, 0x03, 0x01)
 
 	// CmdDeviceTextStringReq Device Text String Request
-	CmdDeviceTextStringReq = Commands.RegisterStd("Text String Req", []byte{0x00}, MsgTypeDirect, 0x03, 0x02)
+	CmdDeviceTextStringReq = RegisterStd("Text String Req", MsgTypeDirect, 0x03, 0x02)
 
 	// CmdDeviceTextStringResp Device Text String Response
-	CmdDeviceTextStringResp = Commands.RegisterExt("Text String Resp", []byte{0x00}, MsgTypeDirect, 0x03, 0x02, nil)
+	CmdDeviceTextStringResp = RegisterExt("Text String Resp", MsgTypeDirect, 0x03, 0x02)
 
 	// CmdSetDeviceTextString sets the device text string
-	CmdSetDeviceTextString = Commands.RegisterExt("Set Text String", []byte{0x00}, MsgTypeDirect, 0x03, 0x03, nil)
+	CmdSetDeviceTextString = RegisterExt("Set Text String", MsgTypeDirect, 0x03, 0x03)
 
 	// CmdExitLinkingMode Exit Linking Mode
-	CmdExitLinkingMode = Commands.RegisterStd("Exit Link Mode", []byte{0x00}, MsgTypeDirect, 0x08, 0x00)
+	CmdExitLinkingMode = RegisterStd("Exit Link Mode", MsgTypeDirect, 0x08, 0x00)
 
 	// CmdExitLinkingModeExt Exit Linking Mode
-	CmdExitLinkingModeExt = Commands.RegisterExt("Exit Link Mode", []byte{0x00}, MsgTypeDirect, 0x08, 0x00, nil)
+	CmdExitLinkingModeExt = RegisterExt("Exit Link Mode", MsgTypeDirect, 0x08, 0x00)
 
 	// CmdEnterLinkingMode Enter Linking Mode
-	CmdEnterLinkingMode = Commands.RegisterStd("Enter Link Mode", []byte{0x00}, MsgTypeDirect, 0x09, 0x00)
+	CmdEnterLinkingMode = RegisterStd("Enter Link Mode", MsgTypeDirect, 0x09, 0x00)
 
 	// CmdEnterLinkingModeExt Enter Linking Mode (extended command for I2CS devices)
-	CmdEnterLinkingModeExt = Commands.RegisterExt("Enter Link Mode", []byte{0x00}, MsgTypeDirect, 0x09, 0x00, nil)
+	CmdEnterLinkingModeExt = RegisterExt("Enter Link Mode", MsgTypeDirect, 0x09, 0x00)
 
 	// CmdEnterUnlinkingMode Enter Unlinking Mode
-	CmdEnterUnlinkingMode = Commands.RegisterStd("Enter Unlink Mode", []byte{0x00}, MsgTypeDirect, 0x0a, 0x00)
+	CmdEnterUnlinkingMode = RegisterStd("Enter Unlink Mode", MsgTypeDirect, 0x0a, 0x00)
 
 	// CmdEnterUnlinkingModeExt Enter Unlinking Mode (extended command for I2CS devices)
-	CmdEnterUnlinkingModeExt = Commands.RegisterExt("Enter Unlink Mode", []byte{0x00}, MsgTypeDirect, 0x0a, 0x00, nil)
+	CmdEnterUnlinkingModeExt = RegisterExt("Enter Unlink Mode", MsgTypeDirect, 0x0a, 0x00)
 
 	// CmdGetEngineVersion Get Insteon Engine Version
-	CmdGetEngineVersion = Commands.RegisterStd("Get INSTEON Ver", []byte{0x00}, MsgTypeDirect, 0x0d, 0x00)
+	CmdGetEngineVersion = RegisterStd("Get INSTEON Ver", MsgTypeDirect, 0x0d, 0x00)
 
 	// CmdPing Ping Request
-	CmdPing = Commands.RegisterStd("Ping", []byte{0x00}, MsgTypeDirect, 0x0f, 0x00)
+	CmdPing = RegisterStd("Ping", MsgTypeDirect, 0x0f, 0x00)
 
 	// CmdIDReq ID Request
-	CmdIDReq = Commands.RegisterStd("ID Req", []byte{0x00}, MsgTypeDirect, 0x10, 0x00)
+	CmdIDReq = RegisterStd("ID Req", MsgTypeDirect, 0x10, 0x00)
 
-	CmdGetOperatingFlags = Commands.RegisterStd("Get Operating Flags", []byte{0x00}, MsgTypeDirect, 0x1f, 0x00)
+	CmdGetOperatingFlags = RegisterStd("Get Operating Flags", MsgTypeDirect, 0x1f, 0x00)
 
-	CmdSetOperatingFlags = Commands.RegisterStd("Set Operating Flags", []byte{0x00}, MsgTypeDirect, 0x20, 0x00)
+	CmdSetOperatingFlags = RegisterStd("Set Operating Flags", MsgTypeDirect, 0x20, 0x00)
 
 	// CmdReadWriteALDB Read/Write ALDB
-	CmdReadWriteALDB = Commands.RegisterExt("Read/Write ALDB", []byte{0x00}, MsgTypeDirect, 0x2f, 0x00, func() Payload { return &LinkRequest{} })
+	CmdReadWriteALDB = RegisterExt("Read/Write ALDB", MsgTypeDirect, 0x2f, 0x00)
 )
 
-type commandIndex map[[2]byte]*Command
-
-type messageTypeIndex struct {
-	standardCommands commandIndex
-	extendedCommands commandIndex
+type CommandBytes struct {
+	version  Version
+	Command1 byte
+	Command2 byte
 }
 
-// CommandRegistry provides a means for registering command descriptions as well
-// as payload factories for the message unmarshaller
-type CommandRegistry struct {
-	commands map[byte]map[MessageType]*messageTypeIndex
-}
-
-var (
-	// Commands is the global CommandRegistry. This only needs to be accessed when adding
-	// functionality (e.g. new device types)
-	Commands = newCommandRegistry()
-)
-
-func newCommandRegistry() CommandRegistry {
-	commands := CommandRegistry{
-		commands: make(map[byte]map[MessageType]*messageTypeIndex),
+func (cb CommandBytes) SubCommand(command2 int) CommandBytes {
+	return CommandBytes{
+		version:  cb.version,
+		Command1: cb.Command1,
+		Command2: byte(command2),
 	}
+}
 
-	commands.commands[0] = make(map[MessageType]*messageTypeIndex)
+type FirmwareIndex []*CommandBytes
 
-	for _, mt := range []MessageType{MsgTypeDirect, MsgTypeBroadcast, MsgTypeAllLinkBroadcast} {
-		commands.commands[0][mt] = &messageTypeIndex{
-			standardCommands: make(commandIndex),
-			extendedCommands: make(commandIndex),
+func (fi FirmwareIndex) Len() int {
+	return len(fi)
+}
+
+func (fi FirmwareIndex) Less(i, j int) bool {
+	return fi[i].version < fi[j].version
+}
+
+func (fi FirmwareIndex) Swap(i, j int) {
+	tmp := fi[i]
+	fi[i] = fi[j]
+	fi[j] = tmp
+}
+
+func (fi FirmwareIndex) Find(version Version) (command CommandBytes) {
+	for i := len(fi) - 1; i >= 0; i-- {
+		if fi[i].version <= version {
+			command = *fi[i]
+			break
 		}
 	}
-
-	return commands
+	return command
 }
 
-// Command is a 2 byte field present in all Insteon messages
+func (fi *FirmwareIndex) Add(commandBytes *CommandBytes) {
+	*fi = append(*fi, commandBytes)
+	sort.Sort(*fi)
+}
+
 type Command struct {
-	name      string
-	Cmd       [2]byte
-	subCmd    bool
-	generator PayloadGenerator
+	name     string
+	versions FirmwareIndex
 }
 
-// SubCommand returns a new command where the second byte matches
-// the passed in value
-func (c *Command) SubCommand(value int) *Command {
-	return &Command{name: c.name, Cmd: [2]byte{c.Cmd[0], byte(value)}, subCmd: true, generator: c.generator}
+func NewCommand(name string) *Command {
+	return &Command{
+		name:     name,
+		versions: make(FirmwareIndex, 0),
+	}
 }
 
-// String returns the description of the command
-func (c *Command) String() string {
-	name := c.name
-	if name == "" {
-		name = sprintf("%02x.%02x", c.Cmd[0], c.Cmd[1])
-	}
-
-	if c.subCmd {
-		return sprintf("%s(%d)", name, c.Cmd[1])
-	}
-	return name
+func (command *Command) Register(version Version, command1, command2 byte) {
+	command.versions.Add(&CommandBytes{version: version, Command1: command1, Command2: command2})
 }
 
-// Equal will compare two commands and return true if the fields (not including
-// the payload generator) are equivalent
-func (c *Command) Equal(other *Command) bool {
-	if c == other {
-		return true
-	}
-
-	if c != nil && other != nil {
-		return c.Cmd == other.Cmd && c.subCmd == other.subCmd
-	}
-
-	return false
+func (command *Command) Version(version Version) CommandBytes {
+	return command.versions.Find(version)
 }
 
-func find(mti *messageTypeIndex, extended bool, cmd []byte) *Command {
-	ci := mti.standardCommands
-	if extended {
-		ci = mti.extendedCommands
-	}
-
-	if command, found := ci[[2]byte{cmd[0], cmd[1]}]; found {
-		return command
-	} else if command, found := ci[[2]byte{cmd[0], 0x00}]; found {
-		return command.SubCommand(int(cmd[1]))
-	}
-	return nil
-}
-
-func (cr *CommandRegistry) Find(devCat byte, messageType MessageType, extended bool, cmd []byte) (command *Command) {
-	if messageType == MsgTypeDirectAck || messageType == MsgTypeDirectNak {
-		messageType = MsgTypeDirect
-	}
-
-	index := cr.commands[devCat]
-	if index == nil {
-		Log.Debugf("No index for devCat %02x", devCat)
-		// try all devCat 0x00
-		command = find(cr.commands[0x00][messageType], extended, cmd)
-	} else {
-		Log.Debugf("Index found for devCat %02x", devCat)
-		command = find(index[messageType], extended, cmd)
-		if command == nil {
-			Log.Debugf("Command %02x not found for messageType %s", cmd[0], messageType)
-			// try all devCat 0x00
-			command = find(cr.commands[0x00][messageType], extended, cmd)
-			if command == nil {
-				Log.Debugf("Command %02x not found in default index either", cmd[0])
-			}
-		}
-	}
-
-	// fail safe so nobody is ever referring to a nil command
-	if command == nil {
-		name := sprintf("UNKNOWN (%02x.%02x)", cmd[0], cmd[1])
-		command = &Command{name: name, Cmd: [2]byte{cmd[0], cmd[1]}, generator: func() Payload { return &BufPayload{} }}
-	}
-
+func RegisterExt(name string, messageType MessageType, command1, command2 byte) *Command {
+	command := NewCommand(name)
+	command.Register(0, command1, command2)
 	return command
 }
 
-// FindExt returns either the registered extended command matching the 2 bytes passed in
-// or it returns a generic command so that message parsing doesn't fail
-func (cr *CommandRegistry) FindExt(devCat byte, messageType MessageType, cmd []byte) *Command {
-	return cr.Find(devCat, messageType, true, cmd)
-}
-
-// FindStd returns either the registered standard command matching the 2 bytes passed in
-// or it returns a generic command so that message parsing doesn't fail
-func (cr *CommandRegistry) FindStd(devCat byte, messageType MessageType, cmd []byte) *Command {
-	return cr.Find(devCat, messageType, false, cmd)
-}
-
-func (cr *CommandRegistry) Register(name string, devCats []byte, messageType MessageType, extended bool, b1, b2 byte, generator PayloadGenerator) *Command {
-	command := &Command{name: name, Cmd: [2]byte{b1, b2}, generator: generator}
-	for _, devCat := range devCats {
-		index := cr.commands[devCat]
-		if index == nil {
-			index = make(map[MessageType]*messageTypeIndex)
-			cr.commands[devCat] = index
-			for _, mt := range []MessageType{MsgTypeDirect, MsgTypeBroadcast, MsgTypeAllLinkBroadcast} {
-				index[mt] = &messageTypeIndex{
-					standardCommands: make(commandIndex),
-					extendedCommands: make(commandIndex),
-				}
-			}
-		}
-
-		mti := index[messageType]
-		if extended {
-			mti.extendedCommands[command.Cmd] = command
-		} else {
-			mti.standardCommands[command.Cmd] = command
-		}
-	}
+func RegisterStd(name string, messageType MessageType, command1, command2 byte) *Command {
+	command := NewCommand(name)
+	command.Register(0, command1, command2)
 	return command
-}
-
-// RegisterExt will register a new extended command in the ComandRegistry.
-// This only needs to be called when adding new device types or extending
-// functionality
-func (cr *CommandRegistry) RegisterExt(name string, devCats []byte, messageType MessageType, b1, b2 byte, generator PayloadGenerator) *Command {
-	if generator == nil {
-		generator = func() Payload { return &BufPayload{} }
-	}
-	return cr.Register(name, devCats, messageType, true, b1, b2, generator)
-}
-
-// RegisterStd will register a new standard command in the ComandRegistry
-// This only needs to be called when adding new device types or extending
-// functionality
-func (cr *CommandRegistry) RegisterStd(name string, devCats []byte, messageType MessageType, b1, b2 byte) *Command {
-	return cr.Register(name, devCats, messageType, false, b1, b2, nil)
 }

@@ -70,51 +70,51 @@ func TestProductKey(t *testing.T) {
 	}
 }
 
-func TestCategory(t *testing.T) {
+func TestDevCat(t *testing.T) {
 	tests := []struct {
 		input               [2]byte
-		expectedCategory    byte
-		expectedSubCategory byte
+		expectedCategory    Category
+		expectedSubCategory SubCategory
 		expectedString      string
 	}{
-		{[2]byte{0x01, 0x02}, 0x01, 0x02, "01.02"},
+		{[2]byte{0x01, 0x02}, Category(0x01), SubCategory(0x02), "01.02"},
 	}
 
 	for i, test := range tests {
-		category := Category(test.input)
-		if category.Category() != test.expectedCategory {
-			t.Errorf("tests[%d] expected 0x%02x got 0x%02x", i, test.expectedCategory, category.Category())
+		devCat := DevCat(test.input)
+		if devCat.Category() != test.expectedCategory {
+			t.Errorf("tests[%d] expected 0x%02x got 0x%02x", i, test.expectedCategory, devCat.Category())
 		}
 
-		if category.SubCategory() != test.expectedSubCategory {
-			t.Errorf("tests[%d] expected 0x%02x got 0x%02x", i, test.expectedSubCategory, category.SubCategory())
+		if devCat.SubCategory() != test.expectedSubCategory {
+			t.Errorf("tests[%d] expected 0x%02x got 0x%02x", i, test.expectedSubCategory, devCat.SubCategory())
 		}
 
-		if category.String() != test.expectedString {
-			t.Errorf("tests[%d] expected %q got %q", i, test.expectedString, category.String())
+		if devCat.String() != test.expectedString {
+			t.Errorf("tests[%d] expected %q got %q", i, test.expectedString, devCat.String())
 		}
 	}
 }
 
-func TestCategoryMarshaling(t *testing.T) {
+func TestDevCatMarshaling(t *testing.T) {
 	tests := []struct {
-		input            string
-		expectedCategory Category
-		expectedJSON     string
-		expectedError    string
+		input          string
+		expectedDevCat DevCat
+		expectedJSON   string
+		expectedError  string
 	}{
-		{"\"01.02\"", Category{1, 2}, "\"01.02\"", ""},
-		{"\"01\"", Category{0, 0}, "", "Expected Scanf to parse 2 digits, got 1"},
+		{"\"01.02\"", DevCat{1, 2}, "\"01.02\"", ""},
+		{"\"01\"", DevCat{0, 0}, "", "Expected Scanf to parse 2 digits, got 1"},
 	}
 
 	for i, test := range tests {
-		var category Category
-		err := category.UnmarshalJSON([]byte(test.input))
+		var devCat DevCat
+		err := devCat.UnmarshalJSON([]byte(test.input))
 		if err == nil {
-			if category != test.expectedCategory {
-				t.Errorf("tests[%d] expected %q got %q", i, test.expectedCategory, category)
+			if devCat != test.expectedDevCat {
+				t.Errorf("tests[%d] expected %q got %q", i, test.expectedDevCat, devCat)
 			} else {
-				data, _ := category.MarshalJSON()
+				data, _ := devCat.MarshalJSON()
 				if string(data) != test.expectedJSON {
 					t.Errorf("tests[%d] expected %q got %q", i, test.expectedJSON, string(data))
 				}
@@ -128,14 +128,14 @@ func TestCategoryMarshaling(t *testing.T) {
 func TestProductDataString(t *testing.T) {
 	tests := []struct {
 		key            [3]byte
-		category       [2]byte
+		devCat         [2]byte
 		expectedString string
 	}{
-		{[3]byte{0x01, 0x02, 0x03}, [2]byte{0x04, 0x05}, "Category:04.05 Product Key:0x010203"},
+		{[3]byte{0x01, 0x02, 0x03}, [2]byte{0x04, 0x05}, "DevCat:04.05 Product Key:0x010203"},
 	}
 
 	for i, test := range tests {
-		pd := &ProductData{ProductKey(test.key), Category(test.category)}
+		pd := &ProductData{ProductKey(test.key), DevCat(test.devCat)}
 		if pd.String() != test.expectedString {
 			t.Errorf("tests[%d] expected %q got %q", i, test.expectedString, pd.String())
 		}
@@ -144,10 +144,10 @@ func TestProductDataString(t *testing.T) {
 
 func TestProductDataMarshaling(t *testing.T) {
 	tests := []struct {
-		input            []byte
-		expectedCategory [2]byte
-		expectedKey      [3]byte
-		expectedError    error
+		input          []byte
+		expectedDevCat [2]byte
+		expectedKey    [3]byte
+		expectedError  error
 	}{
 		{[]byte{0, 1, 2, 3, 4, 5, 255, 0, 0, 0, 0, 0, 0, 0}, [2]byte{4, 5}, [3]byte{1, 2, 3}, nil},
 		{[]byte{}, [2]byte{0, 0}, [3]byte{0, 0, 0}, ErrBufferTooShort},
@@ -165,8 +165,8 @@ func TestProductDataMarshaling(t *testing.T) {
 				t.Errorf("tests[%d] expected %x got %x", i, test.expectedKey, pd.Key)
 			}
 
-			if pd.Category != Category(test.expectedCategory) {
-				t.Errorf("tests[%d] expected %x got %x", i, test.expectedCategory, pd.Category)
+			if pd.DevCat != DevCat(test.expectedDevCat) {
+				t.Errorf("tests[%d] expected %x got %x", i, test.expectedDevCat, pd.DevCat)
 			}
 
 			buf, _ := pd.MarshalBinary()

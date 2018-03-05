@@ -66,8 +66,7 @@ type PLM struct {
 	pktSubReqCh chan *pktSubReq
 	closeCh     chan chan error
 
-	linkDb   *LinkDB
-	devCatDB map[insteon.Address]insteon.Category
+	linkDb *LinkDB
 }
 
 func New(port io.ReadWriter, timeout time.Duration) *PLM {
@@ -80,8 +79,6 @@ func New(port io.ReadWriter, timeout time.Duration) *PLM {
 		rxPktCh:     make(chan []byte, 10),
 		pktSubReqCh: make(chan *pktSubReq, 1),
 		closeCh:     make(chan chan error),
-
-		devCatDB: make(map[insteon.Address]insteon.Category),
 	}
 	go plm.readPktLoop()
 	go plm.readWriteLoop()
@@ -308,7 +305,6 @@ func (plm *PLM) Monitor(callback func(buf []byte, msg *insteon.Message)) {
 
 	for pkt := range ch {
 		msg := &insteon.Message{}
-		msg.DevCat = plm.devCatDB[insteon.Address{pkt.payload[0], pkt.payload[1], pkt.payload[2]}]
 		err := msg.UnmarshalBinary(pkt.payload)
 		if err == nil {
 			// slice off the packet header
@@ -389,14 +385,6 @@ func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
 	device := insteon.Device(i1Device)
 
 	version, err := device.EngineVersion()
-
-	if err == nil {
-		category, err := device.IDRequest()
-		if err == nil {
-			plm.devCatDB[dst] = category
-			connection.category = category
-		}
-	}
 
 	// ErrNotLinked here is only returned by i2cs devices
 	if err == insteon.ErrNotLinked {

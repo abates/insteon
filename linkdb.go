@@ -143,13 +143,13 @@ type Linkable interface {
 // DeviceLinkDB is the base/generic link database structure
 // used by I2 and I2CS devices
 type DeviceLinkDB struct {
-	conn Connection
+	device Device
 }
 
 // NewDeviceLinkDB will create a new link database structure
 // for the underlying connection
-func NewDeviceLinkDB(conn Connection) *DeviceLinkDB {
-	return &DeviceLinkDB{conn}
+func NewDeviceLinkDB(device Device) *DeviceLinkDB {
+	return &DeviceLinkDB{device}
 }
 
 // AddLink will either add the link to the All-Link database
@@ -166,7 +166,7 @@ func (db *DeviceLinkDB) AddLink(newLink *LinkRecord) error {
 			memAddress -= 8
 		}
 
-		err = linkWriter(db.conn, memAddress, newLink)
+		err = linkWriter(db.device, memAddress, newLink)
 	}
 	return err
 }
@@ -184,7 +184,7 @@ func (db *DeviceLinkDB) RemoveLinks(oldLinks ...*LinkRecord) error {
 				if link.Equal(oldLink) {
 					link.Flags.setAvailable()
 					Log.Debugf("Marking link available")
-					err = linkWriter(db.conn, memAddress, link)
+					err = linkWriter(db.device, memAddress, link)
 					if err != nil {
 						break top
 					}
@@ -197,33 +197,36 @@ func (db *DeviceLinkDB) RemoveLinks(oldLinks ...*LinkRecord) error {
 	return err
 }
 
-func readLinks(conn Connection) ([]*LinkRecord, error) {
-	rrCh := conn.Subscribe(CmdReadWriteALDB)
-	defer conn.Unsubscribe(rrCh)
+func readLinks(connection VersionedConnection) ([]*LinkRecord, error) {
+	rrCh := connection.Subscribe(CmdReadWriteALDB.Version(connection.FirmwareVersion()))
+	defer connection.Unsubscribe(rrCh)
 	Log.Debugf("Retrieving Device link database")
 	links := make([]*LinkRecord, 0)
 	lastAddress := MemAddress(0)
-	_, err := SendExtendedCommand(conn, CmdReadWriteALDB, &LinkRequest{Type: ReadLink, NumRecords: 0})
+	buf, _ := (&LinkRequest{Type: ReadLink, NumRecords: 0}).MarshalBinary()
+	_, err := SendExtendedCommand(connection, CmdReadWriteALDB, buf)
 	if err != nil {
 		return nil, err
 	}
 
-loop:
-	for {
+	for done := false; !done; {
 		select {
 		case msg := <-rrCh:
-			lr := msg.Payload.(*LinkRequest)
-			if lr.MemAddress != lastAddress {
+			lr := &LinkRequest{}
+			err = lr.UnmarshalBinary(msg.Payload)
+			if err != nil {
+				done = true
+			} else if lr.MemAddress != lastAddress {
 				lastAddress = lr.MemAddress
 				if lr.Link.Flags == 0x00 {
-					break loop
+					done = true
 				} else {
 					links = append(links, lr.Link)
 				}
 			}
 		case <-time.After(Timeout):
 			err = ErrReadTimeout
-			break loop
+			done = true
 		}
 	}
 	return links, err
@@ -234,14 +237,14 @@ var linkReader = readLinks
 // Links will retrieve the link-database from the device and
 // return a list of LinkRecords
 func (db *DeviceLinkDB) Links() ([]*LinkRecord, error) {
-	return linkReader(db.conn)
+	return linkReader(db.device)
 }
 
 var linkWriter = writeLink
 
-func writeLink(conn Connection, memAddress MemAddress, link *LinkRecord) error {
-	request := &LinkRequest{Type: WriteLink, Link: link}
-	_, err := SendExtendedCommand(conn, CmdReadWriteALDB, request)
+func writeLink(connection VersionedConnection, memAddress MemAddress, link *LinkRecord) error {
+	buf, _ := (&LinkRequest{Type: WriteLink, Link: link}).MarshalBinary()
+	_, err := SendExtendedCommand(connection, CmdReadWriteALDB, buf)
 	return err
 }
 

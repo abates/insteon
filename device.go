@@ -1,5 +1,10 @@
 package insteon
 
+import (
+	"fmt"
+	"time"
+)
+
 // Insteon Engine Versions
 const (
 	VerI1 EngineVersion = iota
@@ -22,7 +27,7 @@ func (ver EngineVersion) String() string {
 	case VerI2Cs:
 		return "I2CS"
 	}
-	return "Unknown"
+	return fmt.Sprintf("Unknown(%v)", int(ver))
 }
 
 // The DeviceInitializer is a function that will return a fully initialized device
@@ -46,20 +51,20 @@ type DeviceRegistry struct {
 	// the category and the second byte the sub
 	// category, but we've combined both bytes
 	// into a single type
-	devices map[byte]DeviceInitializer
+	devices map[Category]DeviceInitializer
 }
 
 // Register will assign the given initializer to the supplied category
-func (dr *DeviceRegistry) Register(category byte, initializer DeviceInitializer) {
+func (dr *DeviceRegistry) Register(category Category, initializer DeviceInitializer) {
 	if dr.devices == nil {
-		dr.devices = make(map[byte]DeviceInitializer)
+		dr.devices = make(map[Category]DeviceInitializer)
 	}
 	dr.devices[category] = initializer
 }
 
 // Find looks for an initializer corresponding to the given category
 func (dr *DeviceRegistry) Find(category Category) DeviceInitializer {
-	return dr.devices[category[0]]
+	return dr.devices[category]
 }
 
 // Initialize attempts to query the given device for its product data and then
@@ -68,11 +73,11 @@ func (dr *DeviceRegistry) Find(category Category) DeviceInitializer {
 // original device is returned
 func (dr *DeviceRegistry) Initialize(device Device) (Device, error) {
 	// query the device
-	category, err := device.IDRequest()
+	devCat, err := device.IDRequest()
 
 	// construct device for device type
 	if err == nil {
-		initializer := dr.Find(category)
+		initializer := dr.Find(devCat.Category())
 		if initializer != nil {
 			device = initializer(device)
 		}
@@ -84,8 +89,8 @@ func (dr *DeviceRegistry) Initialize(device Device) (Device, error) {
 	return device, err
 }
 
-// Device represents a local interface to a remote device
 type Device interface {
+	VersionedConnection
 	Linkable
 	ProductData() (*ProductData, error)
 	FXUsername() (string, error)
@@ -93,6 +98,64 @@ type Device interface {
 	SetTextString(string) error
 	EngineVersion() (EngineVersion, error)
 	Ping() error
-	IDRequest() (Category, error)
-	Connection() Connection
+	IDRequest() (DevCat, error)
+}
+
+func SendSubCommand(connection VersionedConnection, command *Command, subCommand int) (ack *Message, err error) {
+	commandBytes := command.Version(connection.FirmwareVersion())
+	return sendCommand(connection, commandBytes.SubCommand(subCommand), StandardDirectMessage, nil)
+}
+
+func SendCommand(connection VersionedConnection, command *Command) (ack *Message, err error) {
+	return sendCommand(connection, command.Version(connection.FirmwareVersion()), StandardDirectMessage, nil)
+}
+
+func SendCommandAndWait(connection VersionedConnection, command *Command, waitCommands ...*Command) (msg *Message, err error) {
+	Log.Debugf("Subscribing to traffic for command %v", waitCommands)
+	waitBytes := make([]CommandBytes, len(waitCommands))
+	for i, waitCommand := range waitCommands {
+		waitBytes[i] = waitCommand.Version(connection.FirmwareVersion())
+	}
+
+	rxCh := connection.Subscribe(waitBytes...)
+	defer connection.Unsubscribe(rxCh)
+	ack, err := sendCommand(connection, command.Version(connection.FirmwareVersion()), StandardDirectMessage, nil)
+
+	if err == nil {
+		if ack.Nak() {
+			err = ErrNak
+		} else {
+			Log.Debugf("Waiting for %v response", waitCommands)
+			select {
+			case msg = <-rxCh:
+				Log.Debugf("Received message %v", msg)
+			case <-time.After(Timeout):
+				err = ErrReadTimeout
+			}
+		}
+	}
+	return
+}
+
+func SendExtendedSubCommand(connection VersionedConnection, command *Command, subCommand int, payload []byte) (ack *Message, err error) {
+	if len(payload) < 14 {
+		payload = append(payload, make([]byte, 14-len(payload))...)
+	}
+	commandBytes := command.Version(connection.FirmwareVersion())
+	return sendCommand(connection, commandBytes.SubCommand(subCommand), ExtendedDirectMessage, payload)
+}
+
+func SendExtendedCommand(connection VersionedConnection, command *Command, payload []byte) (ack *Message, err error) {
+	if len(payload) < 14 {
+		payload = append(payload, make([]byte, 14-len(payload))...)
+	}
+	return sendCommand(connection, command.Version(connection.FirmwareVersion()), ExtendedDirectMessage, payload)
+}
+
+func sendCommand(connection Connection, command CommandBytes, flags Flags, payload []byte) (ack *Message, err error) {
+	return connection.Write(&Message{
+		Flags:   flags,
+		Command: command,
+		Payload: payload,
+	})
 }

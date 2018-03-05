@@ -31,7 +31,7 @@ func plmInfoCmd(args []string, next cli.NextFunc) (err error) {
 	info, err := modem.Info()
 	if err == nil {
 		fmt.Printf("   Address: %s\n", info.Address)
-		fmt.Printf("  Category: %02x Sub-Category: %02x\n", info.Category[0], info.Category[1])
+		fmt.Printf("  Category: %02x Sub-Category: %02x\n", info.DevCat.Category(), info.DevCat.SubCategory())
 		fmt.Printf("  Firmware: %d\n", info.Firmware)
 		var db insteon.LinkDB
 		db, err = modem.LinkDB()
