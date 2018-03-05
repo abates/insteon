@@ -35,7 +35,7 @@ func TestFirmwareIndexSwap(t *testing.T) {
 	for i, test := range tests {
 		fi := make(FirmwareIndex, len(test.input))
 		for x, value := range test.input {
-			fi[x] = &CommandBytes{Version(value), 0x00, 0x00}
+			fi[x] = &CommandBytes{FirmwareVersion(value), 0x00, 0x00}
 		}
 		fi.Swap(test.i, test.j)
 		values := make([]int, len(test.input))
@@ -63,10 +63,10 @@ func TestFirmwareIndexFind(t *testing.T) {
 	for i, test := range tests {
 		command := &Command{}
 		for x, value := range test.input {
-			command.Register(Version(x), value, 0x00)
+			command.Register(FirmwareVersion(x), value, 0x00)
 		}
 
-		value := command.Version(Version(test.find))
+		value := command.Version(FirmwareVersion(test.find))
 		if value.Command1 != test.expected {
 			t.Errorf("tests[%d] expected 0x%x got 0x%x", i, test.expected, value.Command1)
 		}

@@ -23,8 +23,8 @@ var (
 )
 
 func init() {
-	CmdLightOnAtRamp.Register(43, 0x34, 0x00)
-	CmdLightOnAtRamp.Register(43, 0x35, 0x00)
+	CmdLightOnAtRamp.Register(0x43, 0x34, 0x00)
+	CmdLightOffAtRamp.Register(0x43, 0x35, 0x00)
 
 	Devices.Register(0x01, dimmableLightingFactory)
 	Devices.Register(0x02, switchedLightingFactory)
@@ -114,8 +114,6 @@ type Dimmer interface {
 type SwitchedDevice struct {
 	Device
 }
-
-func (sd *SwitchedDevice) DevCat() (DevCat, error) { return DevCat{0x02, 0x00}, nil }
 
 func (sd *SwitchedDevice) On() error {
 	_, err := SendCommand(sd, CmdLightOn)
@@ -220,8 +218,6 @@ func (sd *SwitchedDevice) SwitchConfig(button int) (SwitchConfig, error) {
 type DimmableDevice struct {
 	*SwitchedDevice
 }
-
-func (dd *DimmableDevice) DevCat() (DevCat, error) { return DevCat{0x01, 0x00}, nil }
 
 func (dd *DimmableDevice) OnLevel(level int) error {
 	_, err := SendSubCommand(dd, CmdLightOn, level)

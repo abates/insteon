@@ -2,23 +2,26 @@ package insteon
 
 import (
 	"strings"
+	"time"
 )
 
 // I1Device provides remote communication to version 1 engines
 type I1Device struct {
 	Connection
-	address Address
-	devCat  DevCat
-	version EngineVersion
+	address         Address
+	devCat          DevCat
+	engineVersion   EngineVersion
+	firmwareVersion FirmwareVersion
 }
 
 // NewI1Device will construct an I1Device for the given address and connection
 func NewI1Device(address Address, connection Connection) *I1Device {
 	return &I1Device{
-		Connection: connection,
-		address:    address,
-		devCat:     DevCat{0xff, 0xff},
-		version:    EngineVersion(0xff),
+		Connection:      connection,
+		address:         address,
+		devCat:          DevCat{0xff, 0xff},
+		engineVersion:   EngineVersion(0xff),
+		firmwareVersion: FirmwareVersion(0x00),
 	}
 }
 
@@ -83,14 +86,14 @@ func (*I1Device) ExitLinkingMode() error { return ErrNotImplemented }
 
 // EngineVersion will retrieve the device's EngineVersion
 func (i1 *I1Device) EngineVersion() (version EngineVersion, err error) {
-	if i1.version == 0xff {
+	if i1.engineVersion == 0xff {
 		var ack *Message
 		ack, err = SendCommand(i1, CmdGetEngineVersion)
 		if err == nil {
-			i1.version = EngineVersion(ack.Command.Command2)
+			i1.engineVersion = EngineVersion(ack.Command.Command2)
 		}
 	}
-	return i1.version, err
+	return i1.engineVersion, err
 }
 
 // Ping will send a Ping command to the device
@@ -99,26 +102,35 @@ func (i1 *I1Device) Ping() error {
 	return err
 }
 
-// IDRequest will send an ID request to the device and return
-// the device category
-func (i1 *I1Device) IDRequest() (DevCat, error) {
-	return i1.DevCat()
-}
+func (i1 *I1Device) idRequest() {
+	if i1.devCat == (DevCat{0xff, 0xff}) || i1.firmwareVersion == FirmwareVersion(0xff) {
+		waitCommands := []CommandBytes{CmdSetButtonPressedController.Version(0), CmdSetButtonPressedResponder.Version(0)}
+		rxCh := i1.Connection.Subscribe(waitCommands...)
+		defer i1.Connection.Unsubscribe(rxCh)
+		ack, err := sendCommand(i1.Connection, CmdIDReq.Version(0), StandardDirectMessage, nil)
 
-func (i1 *I1Device) DevCat() (DevCat, error) {
-	var err error
-	if i1.devCat.Category() == Category(0xff) {
-		var msg *Message
-		msg, err = SendCommandAndWait(i1, CmdIDReq, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
-		if msg != nil {
-			i1.devCat = DevCat([2]byte{msg.Dst[0], msg.Dst[1]})
+		if err == nil {
+			if ack.Ack() {
+				select {
+				case msg := <-rxCh:
+					i1.devCat = DevCat{msg.Dst[0], msg.Dst[1]}
+					i1.firmwareVersion = FirmwareVersion(msg.Dst[2])
+				case <-time.After(Timeout):
+				}
+			}
 		}
 	}
-	return i1.devCat, err
+	return
 }
 
-func (i1 *I1Device) FirmwareVersion() Version {
-	return 0
+func (i1 *I1Device) DevCat() DevCat {
+	i1.idRequest()
+	return i1.devCat
+}
+
+func (i1 *I1Device) FirmwareVersion() FirmwareVersion {
+	i1.idRequest()
+	return i1.firmwareVersion
 }
 
 // SetTextString will set the device text string

@@ -28,7 +28,11 @@ var (
 
 var sprintf = fmt.Sprintf
 
-type Version int
+type FirmwareVersion int
+
+func (fv FirmwareVersion) String() string {
+	return fmt.Sprintf("0x%02x", int(fv))
+}
 
 type ProductKey [3]byte
 
@@ -46,13 +50,13 @@ func (dc DevCat) SubCategory() SubCategory {
 	return SubCategory(dc[1])
 }
 
-type Category byte
-
-type SubCategory byte
-
 func (dc DevCat) String() string {
 	return sprintf("%02x.%02x", dc[0], dc[1])
 }
+
+type Category byte
+
+type SubCategory byte
 
 func (dc DevCat) MarshalJSON() ([]byte, error) {
 	return json.Marshal(sprintf("%02x.%02x", dc[0], dc[1]))

@@ -72,33 +72,25 @@ func (dr *DeviceRegistry) Find(category Category) DeviceInitializer {
 // to respond to the Product Data Request (generating an ErrReadTimeout) then the
 // original device is returned
 func (dr *DeviceRegistry) Initialize(device Device) (Device, error) {
-	// query the device
-	devCat, err := device.IDRequest()
-
 	// construct device for device type
-	if err == nil {
-		initializer := dr.Find(devCat.Category())
-		if initializer != nil {
-			device = initializer(device)
-		}
-	} else if err == ErrReadTimeout {
-		Log.Infof("Timed out waiting for device ID. Returning standard device")
-		err = nil
+	initializer := dr.Find(device.DevCat().Category())
+	if initializer != nil {
+		device = initializer(device)
 	}
 
-	return device, err
+	return device, nil
 }
 
 type Device interface {
 	VersionedConnection
 	Linkable
+	DevCat() DevCat
 	ProductData() (*ProductData, error)
 	FXUsername() (string, error)
 	TextString() (string, error)
 	SetTextString(string) error
 	EngineVersion() (EngineVersion, error)
 	Ping() error
-	IDRequest() (DevCat, error)
 }
 
 func SendSubCommand(connection VersionedConnection, command *Command, subCommand int) (ack *Message, err error) {

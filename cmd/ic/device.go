@@ -13,8 +13,6 @@ var device insteon.Device
 func init() {
 	cmd := Commands.Register("device", "<command> <device id>", "Interact with a specific device", devCmd)
 	cmd.Register("info", "", "retrieve device info", devInfoCmd)
-	cmd.Register("settext", "", "get device text string", devSetTextCmd)
-	cmd.Register("gettext", "<text string>", "set device text string", devGetTextCmd)
 	cmd.Register("link", "", "enter linking mode", devLinkCmd)
 	cmd.Register("unlink", "", "enter unlinking mode", devUnlinkCmd)
 	cmd.Register("exitlink", "", "exit linking mode", devExitLinkCmd)
@@ -78,47 +76,16 @@ func devDumpCmd([]string, cli.NextFunc) error {
 	return err
 }
 
-func devGetTextCmd([]string, cli.NextFunc) (err error) {
-	textString, err := device.TextString()
-	if err == nil {
-		fmt.Printf("  Text String: %q\n", textString)
-	} else {
-		fmt.Printf("  Text String: error %v\n", err)
-	}
-	return err
-}
-
 func devInfoCmd([]string, cli.NextFunc) (err error) {
-	category, err := device.IDRequest()
+	fmt.Printf(" Device Category: %v\n", device.DevCat())
+	fmt.Printf("Firmware Version: %v\n", device.FirmwareVersion())
 
-	if err == nil {
-		fmt.Printf("%s\n", device)
-		fmt.Printf("     Category: %s\n", category)
-	} else {
-		fmt.Printf("Failed to get device ID: %v\n", err)
-	}
-
-	pd, err := device.ProductData()
-	if err == nil {
-		fmt.Printf(" Product Data: %s\n", pd)
-	} else {
-		fmt.Printf(" Product Data: %v", err)
-	}
-
-	devGetTextCmd(nil, nil)
 	var db insteon.LinkDB
 	db, err = device.LinkDB()
 	if err == nil {
 		err = printLinkDatabase(db)
 	}
 	return err
-}
-
-func devSetTextCmd(args []string, next cli.NextFunc) (err error) {
-	if len(args) < 2 {
-		return fmt.Errorf("no text string given")
-	}
-	return device.SetTextString(args[1])
 }
 
 func devVersionCmd([]string, cli.NextFunc) error {

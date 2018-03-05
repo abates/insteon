@@ -72,7 +72,7 @@ var (
 )
 
 type CommandBytes struct {
-	version  Version
+	version  FirmwareVersion
 	Command1 byte
 	Command2 byte
 }
@@ -101,7 +101,7 @@ func (fi FirmwareIndex) Swap(i, j int) {
 	fi[j] = tmp
 }
 
-func (fi FirmwareIndex) Find(version Version) (command CommandBytes) {
+func (fi FirmwareIndex) Find(version FirmwareVersion) (command CommandBytes) {
 	for i := len(fi) - 1; i >= 0; i-- {
 		if fi[i].version <= version {
 			command = *fi[i]
@@ -128,11 +128,11 @@ func NewCommand(name string) *Command {
 	}
 }
 
-func (command *Command) Register(version Version, command1, command2 byte) {
+func (command *Command) Register(version FirmwareVersion, command1, command2 byte) {
 	command.versions.Add(&CommandBytes{version: version, Command1: command1, Command2: command2})
 }
 
-func (command *Command) Version(version Version) CommandBytes {
+func (command *Command) Version(version FirmwareVersion) CommandBytes {
 	return command.versions.Find(version)
 }
 

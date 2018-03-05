@@ -38,7 +38,7 @@ type Connection interface {
 
 type VersionedConnection interface {
 	Connection
-	FirmwareVersion() Version
+	FirmwareVersion() FirmwareVersion
 }
 
 // I1Connection is used as a base connection for all devices.

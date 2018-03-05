@@ -23,8 +23,9 @@ func TestEngineVersionString(t *testing.T) {
 
 type TestDevice struct {
 	testConnection
-	productData    *ProductData
-	productDataErr error
+	productData     *ProductData
+	productDataErr  error
+	firmwareVersion FirmwareVersion
 }
 
 func (td *TestDevice) AssignToAllLinkGroup(Group) error      { return nil }
@@ -38,10 +39,10 @@ func (td *TestDevice) FXUsername() (string, error)           { return "", nil }
 func (td *TestDevice) TextString() (string, error)           { return "", nil }
 func (td *TestDevice) SetTextString(string) error            { return nil }
 func (td *TestDevice) EngineVersion() (EngineVersion, error) { return 1, nil }
-func (td *TestDevice) IDRequest() (DevCat, error)            { return td.productData.DevCat, td.productDataErr }
 func (td *TestDevice) Ping() error                           { return nil }
 func (td *TestDevice) Close() error                          { return nil }
 func (td *TestDevice) Connection() Connection                { return nil }
+func (td *TestDevice) DevCat() DevCat                        { return DevCat{} }
 
 func TestInitializeDevice(t *testing.T) {
 	testPD := func(key byte, category Category) *ProductData {
@@ -58,7 +59,7 @@ func TestInitializeDevice(t *testing.T) {
 		expected    *ProductData
 		pdErr       error
 	}{
-		{0x22, func(Device) Device { return testDevice(0x33, nil) }, testPD(0x22, 0x33), nil},
+		{0x33, func(Device) Device { return testDevice(0x33, nil) }, testPD(0x22, 0x33), nil},
 		{0x22, func(Device) Device { return nil }, testPD(0x22, 0x33), ErrReadTimeout},
 	}
 
@@ -82,7 +83,7 @@ func TestInitializeDevice(t *testing.T) {
 		} else {
 			if td, ok := initDevice.(*TestDevice); ok {
 				if *td.productData != *test.expected {
-					t.Errorf("tests[%d] expected %v got %v", i, test.expected, td)
+					t.Errorf("tests[%d] expected %v got %v", i, test.expected, td.productData)
 				}
 			} else {
 				t.Errorf("tests[%d] expected TestDevice got %T", i, initDevice)

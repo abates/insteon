@@ -17,8 +17,8 @@ type testConnection struct {
 	timeout       time.Duration
 }
 
-func (conn *testConnection) FirmwareVersion() Version { return Version(0) }
-func (conn *testConnection) Address() Address         { return Address{0x00, 0x01, 0x02} }
+func (conn *testConnection) FirmwareVersion() FirmwareVersion { return FirmwareVersion(0) }
+func (conn *testConnection) Address() Address                 { return Address{0x00, 0x01, 0x02} }
 
 func (conn *testConnection) Write(msg *Message) (ack *Message, err error) {
 	if msg != nil {
