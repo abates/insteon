@@ -11,6 +11,7 @@ var sw insteon.Switch
 
 func init() {
 	cmd := Commands.Register("switch", "<command> <device id>", "Interact with a specific switch", swCmd)
+	cmd.Register("info", "", "retrieve switch configuration information", switchInfoCmd)
 	cmd.Register("on", "", "turn the switch/light on", switchOnCmd)
 	cmd.Register("off", "", "turn the switch/light off", switchOffCmd)
 	cmd.Register("status", "", "get the switch status", switchStatusCmd)
@@ -39,6 +40,11 @@ func swCmd(args []string, next cli.NextFunc) (err error) {
 		}
 	}
 	return err
+}
+
+func switchInfoCmd([]string, cli.NextFunc) error {
+	sw.SwitchConfig(0)
+	return printDevInfo(sw.(insteon.Device), "Foo")
 }
 
 func switchOnCmd([]string, cli.NextFunc) error {

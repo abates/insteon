@@ -77,11 +77,18 @@ func devDumpCmd([]string, cli.NextFunc) error {
 }
 
 func devInfoCmd([]string, cli.NextFunc) (err error) {
+	return printDevInfo(device, "")
+}
+
+func printDevInfo(device insteon.Device, extra string) error {
 	fmt.Printf(" Device Category: %v\n", device.DevCat())
 	fmt.Printf("Firmware Version: %v\n", device.FirmwareVersion())
 
-	var db insteon.LinkDB
-	db, err = device.LinkDB()
+	if extra != "" {
+		fmt.Printf("%s\n", extra)
+	}
+
+	db, err := device.LinkDB()
 	if err == nil {
 		err = printLinkDatabase(db)
 	}

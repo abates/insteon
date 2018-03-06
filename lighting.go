@@ -3,25 +3,24 @@ package insteon
 var (
 	LightingCategories = []Category{Category(1), Category(2)}
 
-	CmdLightOn              = Commands.RegisterStd("Light On", LightingCategories, MsgTypeDirect, 0x11, 0xff)
-	CmdLightOnFast          = Commands.RegisterStd("Light On Fast", LightingCategories, MsgTypeDirect, 0x12, 0x00)
-	CmdLightOff             = Commands.RegisterStd("Light Off", LightingCategories, MsgTypeDirect, 0x13, 0x00)
-	CmdLightOffFast         = Commands.RegisterStd("Light Off Fast", LightingCategories, MsgTypeDirect, 0x14, 0x00)
-	CmdLightBrighten        = Commands.RegisterStd("Light Brighten", LightingCategories, MsgTypeDirect, 0x15, 0x00)
-	CmdLightDim             = Commands.RegisterStd("Light Dim", LightingCategories, MsgTypeDirect, 0x16, 0x00)
-	CmdLightStartManual     = Commands.RegisterStd("Light Start Manual Change", LightingCategories, MsgTypeDirect, 0x17, 0x00)
-	CmdLightStopManual      = Commands.RegisterStd("Light Stop Manual Change", LightingCategories, MsgTypeDirect, 0x18, 0x00)
-	CmdLightStatusRequest   = Commands.RegisterStd("Light Status Req", LightingCategories, MsgTypeDirect, 0x19, 0x00)
-	CmdLightInstantChange   = Commands.RegisterStd("Light Instant Change", LightingCategories, MsgTypeDirect, 0x21, 0x00)
-	CmdLightManualOn        = Commands.RegisterStd("Tap Set Button Once", LightingCategories, MsgTypeDirect, 0x22, 0x01)
-	CmdLightManualOff       = Commands.RegisterStd("Tap Set Button Once", LightingCategories, MsgTypeDirect, 0x23, 0x01)
-	CmdTapSetButtonOnce     = Commands.RegisterStd("Tap Set Button Once", LightingCategories, MsgTypeDirect, 0x25, 0x01)
-	CmdTapSetButtonTwice    = Commands.RegisterStd("Tap Set Button Twice", LightingCategories, MsgTypeDirect, 0x25, 0x02)
-	CmdLightSetStatus       = Commands.RegisterStd("Update dimmer LEDs", LightingCategories, MsgTypeDirect, 0x27, 0x00)
-	CmdLightOnAtRamp        = Commands.RegisterStd("Light On Ramp", LightingCategories, MsgTypeDirect, 0x2e, 0x00)
-	CmdLightOffAtRamp       = Commands.RegisterStd("Light Off Ramp", LightingCategories, MsgTypeDirect, 0x2f, 0x00)
-	CmdDimmerExtendedSetGet = Commands.RegisterExt("Extended Set/Get", LightingCategories, MsgTypeDirect, 0x2e, 0x00)
-	CmdSwitchExtendedSetGet = Commands.RegisterExt("Extended Set/Get", LightingCategories, MsgTypeDirect, 0x2e, 0x00)
+	CmdLightOn             = Commands.RegisterStd("Light On", LightingCategories, MsgTypeDirect, 0x11, 0xff)
+	CmdLightOnFast         = Commands.RegisterStd("Light On Fast", LightingCategories, MsgTypeDirect, 0x12, 0x00)
+	CmdLightOff            = Commands.RegisterStd("Light Off", LightingCategories, MsgTypeDirect, 0x13, 0x00)
+	CmdLightOffFast        = Commands.RegisterStd("Light Off Fast", LightingCategories, MsgTypeDirect, 0x14, 0x00)
+	CmdLightBrighten       = Commands.RegisterStd("Light Brighten", LightingCategories, MsgTypeDirect, 0x15, 0x00)
+	CmdLightDim            = Commands.RegisterStd("Light Dim", LightingCategories, MsgTypeDirect, 0x16, 0x00)
+	CmdLightStartManual    = Commands.RegisterStd("Light Start Manual Change", LightingCategories, MsgTypeDirect, 0x17, 0x00)
+	CmdLightStopManual     = Commands.RegisterStd("Light Stop Manual Change", LightingCategories, MsgTypeDirect, 0x18, 0x00)
+	CmdLightStatusRequest  = Commands.RegisterStd("Light Status Req", LightingCategories, MsgTypeDirect, 0x19, 0x00)
+	CmdLightInstantChange  = Commands.RegisterStd("Light Instant Change", LightingCategories, MsgTypeDirect, 0x21, 0x00)
+	CmdLightManualOn       = Commands.RegisterStd("Tap Set Button Once", LightingCategories, MsgTypeDirect, 0x22, 0x01)
+	CmdLightManualOff      = Commands.RegisterStd("Tap Set Button Once", LightingCategories, MsgTypeDirect, 0x23, 0x01)
+	CmdTapSetButtonOnce    = Commands.RegisterStd("Tap Set Button Once", LightingCategories, MsgTypeDirect, 0x25, 0x01)
+	CmdTapSetButtonTwice   = Commands.RegisterStd("Tap Set Button Twice", LightingCategories, MsgTypeDirect, 0x25, 0x02)
+	CmdLightSetStatus      = Commands.RegisterStd("Update dimmer LEDs", LightingCategories, MsgTypeDirect, 0x27, 0x00)
+	CmdLightOnAtRamp       = Commands.RegisterStd("Light On Ramp", LightingCategories, MsgTypeDirect, 0x2e, 0x00)
+	CmdLightOffAtRamp      = Commands.RegisterStd("Light Off Ramp", LightingCategories, MsgTypeDirect, 0x2f, 0x00)
+	CmdLightExtendedSetGet = Commands.RegisterExt("Extended Set/Get", LightingCategories, MsgTypeDirect, 0x2e, 0x00)
 )
 
 func init() {
@@ -209,12 +208,15 @@ func (sd *SwitchedDevice) String() string {
 	return sprintf("Switch (%s)", sd.Address())
 }
 
-func (sd *SwitchedDevice) SetX10Address(houseCode, unitCode byte) error {
-	return ErrNotImplemented
+func (sd *SwitchedDevice) SetX10Address(button int, houseCode, unitCode byte) error {
+	_, err := SendExtendedCommand(sd, CmdLightExtendedSetGet, []byte{byte(button), 0x04, houseCode, unitCode})
+	return err
 }
 
 func (sd *SwitchedDevice) SwitchConfig(button int) (SwitchConfig, error) {
-	return SwitchConfig{}, ErrNotImplemented
+	ack, err := SendExtendedCommand(sd, CmdLightExtendedSetGet, []byte{byte(button)})
+	println("%v", ack)
+	return SwitchConfig{}, err
 }
 
 type DimmableDevice struct {
@@ -282,16 +284,20 @@ func (dd *DimmableDevice) String() string {
 	return sprintf("Dimmable Light (%s)", dd.Address())
 }
 
-func (dd *DimmableDevice) SetDefaultRamp(int) error {
-	return ErrNotImplemented
+func (dd *DimmableDevice) SetDefaultRamp(button, rate int) error {
+	_, err := SendExtendedCommand(dd, CmdLightExtendedSetGet, []byte{byte(button), 0x05, byte(rate)})
+	return err
 }
 
-func (dd *DimmableDevice) SetDefaultOnLevel(int) error {
-	return ErrNotImplemented
+func (dd *DimmableDevice) SetDefaultOnLevel(button, level int) error {
+	_, err := SendExtendedCommand(dd, CmdLightExtendedSetGet, []byte{byte(button), 0x06, byte(level)})
+	return err
 }
 
-func (dd *DimmableDevice) DimmerConfig(int) (DimmerConfig, error) {
-	return DimmerConfig{}, ErrNotImplemented
+func (dd *DimmableDevice) DimmerConfig(button int) (DimmerConfig, error) {
+	ack, err := SendExtendedCommand(dd, CmdLightExtendedSetGet, []byte{byte(button)})
+	println("%v", ack)
+	return DimmerConfig{}, err
 }
 
 func dimmableLightingFactory(device Device) Device {
