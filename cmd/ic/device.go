@@ -81,8 +81,9 @@ func devInfoCmd([]string, cli.NextFunc) (err error) {
 }
 
 func printDevInfo(device insteon.Device, extra string) error {
-	fmt.Printf(" Device Category: %v\n", device.DevCat())
-	fmt.Printf("Firmware Version: %v\n", device.FirmwareVersion())
+	fmt.Printf("       Device: %v\n", device)
+	fmt.Printf("     Category: %v\n", device.DevCat())
+	fmt.Printf("     Firmware: %v\n", device.FirmwareVersion())
 
 	if extra != "" {
 		fmt.Printf("%s\n", extra)

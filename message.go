@@ -1,5 +1,11 @@
 package insteon
 
+import (
+	"fmt"
+	"strings"
+	"sync"
+)
+
 const (
 	// StandardMsgLen is the length of an insteon standard message minus one byte (the crc byte)
 	StandardMsgLen = 9
@@ -165,4 +171,72 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 		copy(m.Payload, data[9:])
 	}
 	return err
+}
+
+func (m *Message) String() (str string) {
+	if m.Broadcast() {
+		if m.Flags.Type() == MsgTypeAllLinkBroadcast {
+			str = sprintf("%s -> ff.ff.ff %v Group(%d)", m.Src, m.Flags, m.Dst[2])
+		} else {
+			devCat := DevCat{m.Dst[0], m.Dst[1]}
+			firmware := FirmwareVersion(m.Dst[2])
+
+			str = sprintf("%s -> ff.ff.ff %v DevCat %v Firmware %v", m.Src, m.Flags, devCat, firmware)
+		}
+	} else {
+		str = sprintf("%s -> %s %v", m.Src, m.Dst, m.Flags)
+	}
+
+	// don't print the command in an ACK message because it doesn't
+	// directly correspond to the command map that we have.  Return
+	// commands can't really be looked up because the Command2 byte
+	// might be different, or the ack might be a standard length
+	// message when the request was extended length.  In any case,
+	// much of the time, the command lookup on an ack message may
+	// return a CommandByte that has an incorrect command name
+	if !m.Ack() {
+		str = sprintf("%s %v", str, m.Command)
+	}
+
+	if m.Flags.Extended() {
+		payloadStr := make([]string, len(m.Payload))
+		for i, value := range m.Payload {
+			payloadStr[i] = fmt.Sprintf("%02x", value)
+		}
+		str = sprintf("%s [%v]", str, strings.Join(payloadStr, " "))
+	}
+	return str
+}
+
+type MessageDecoder struct {
+	devcats  map[Address]DevCat
+	firmware map[Address]FirmwareVersion
+	mutex    sync.Mutex
+}
+
+func NewMessageDecoder() *MessageDecoder {
+	return &MessageDecoder{
+		devcats:  make(map[Address]DevCat),
+		firmware: make(map[Address]FirmwareVersion),
+	}
+}
+
+func (decoder *MessageDecoder) Decode(buf []byte) (*Message, error) {
+	message := &Message{}
+	err := message.UnmarshalBinary(buf)
+	if err == nil {
+		decoder.mutex.Lock()
+		if message.Broadcast() {
+			decoder.devcats[message.Src] = DevCat{message.Dst[0], message.Dst[1]}
+			decoder.firmware[message.Src] = FirmwareVersion(message.Dst[2])
+		}
+
+		if message.Flags.Extended() {
+			message.Command = Commands.FindExt(decoder.devcats[message.Src], message.Command)
+		} else {
+			message.Command = Commands.FindStd(decoder.devcats[message.Src], message.Command)
+		}
+		decoder.mutex.Unlock()
+	}
+	return message, err
 }

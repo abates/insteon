@@ -12,7 +12,7 @@ func printLinkDatabase(db insteon.LinkDB) error {
 	dbLinks, err := db.Links()
 	fmt.Printf("Link Database:\n")
 	if len(dbLinks) > 0 {
-		fmt.Printf("Flags Group Address    Data\n")
+		fmt.Printf("    Flags Group Address    Data\n")
 
 		links := make(map[string][]*insteon.LinkRecord)
 		for _, link := range dbLinks {
@@ -27,11 +27,11 @@ func printLinkDatabase(db insteon.LinkDB) error {
 
 		for _, linkAddress := range linkAddresses {
 			for _, link := range links[linkAddress] {
-				fmt.Printf("%-5s %5s %8s   %02x %02x %02x\n", link.Flags, link.Group, link.Address, link.Data[0], link.Data[1], link.Data[2])
+				fmt.Printf("    %-5s %5s %8s   %02x %02x %02x\n", link.Flags, link.Group, link.Address, link.Data[0], link.Data[1], link.Data[2])
 			}
 		}
 	} else {
-		fmt.Printf("\tNo links defined\n")
+		fmt.Printf("    No links defined\n")
 	}
 	return err
 }

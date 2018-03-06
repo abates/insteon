@@ -60,7 +60,7 @@ type Switch interface {
 	Status() (level int, err error)
 	OperatingFlags() (*LightFlags, error)
 	SetOperatingFlags(*LightFlags) error
-	SetX10Address(houseCode, unitCode byte) error
+	SetX10Address(button int, houseCode, unitCode byte) error
 	SwitchConfig(int) (SwitchConfig, error)
 }
 
@@ -107,8 +107,8 @@ type Dimmer interface {
 	SetStatus(level int) error
 	OnAtRamp(level, ramp int) error
 	OffAtRamp(ramp int) error
-	SetDefaultRamp(int) error
-	SetDefaultOnLevel(int) error
+	SetDefaultRamp(button, level int) error
+	SetDefaultOnLevel(button, level int) error
 	DimmerConfig(int) (DimmerConfig, error)
 }
 
@@ -215,8 +215,11 @@ func (sd *SwitchedDevice) SetX10Address(button int, houseCode, unitCode byte) er
 
 func (sd *SwitchedDevice) SwitchConfig(button int) (SwitchConfig, error) {
 	ack, err := SendExtendedCommand(sd, CmdLightExtendedSetGet, []byte{byte(button)})
-	println("%v", ack)
-	return SwitchConfig{}, err
+	config := SwitchConfig{}
+	if err == nil {
+		config.UnmarshalBinary(ack.Payload)
+	}
+	return config, err
 }
 
 type DimmableDevice struct {

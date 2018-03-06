@@ -36,15 +36,18 @@ func swCmd(args []string, next cli.NextFunc) (err error) {
 		if sw, ok = device.(insteon.Switch); ok {
 			err = next()
 		} else {
-			err = fmt.Errorf("Device %s is not a switch", addr)
+			err = fmt.Errorf("Device at %s is a %T not a switch", addr, device)
 		}
 	}
 	return err
 }
 
 func switchInfoCmd([]string, cli.NextFunc) error {
-	sw.SwitchConfig(0)
-	return printDevInfo(sw.(insteon.Device), "Foo")
+	config, err := sw.SwitchConfig(0)
+	if err == nil {
+		err = printDevInfo(sw.(insteon.Device), fmt.Sprintf("  X10 Address: %02x.%02x", config.HouseCode, config.UnitCode))
+	}
+	return err
 }
 
 func switchOnCmd([]string, cli.NextFunc) error {

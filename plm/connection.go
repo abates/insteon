@@ -33,19 +33,22 @@ func (sub *msgSubscription) match(msg *insteon.Message) bool {
 }
 
 type Connection struct {
-	dst         insteon.Address
-	plm         *PLM
-	txCh        chan *insteon.Message
-	rxCh        chan *insteon.Message
-	txReqCh     chan *txReq
-	msgSubReqCh chan *msgSubReq
-	closeCh     chan chan error
+	dst            insteon.Address
+	plm            *PLM
+	messageDecoder *insteon.MessageDecoder
+	txCh           chan *insteon.Message
+	rxCh           chan *insteon.Message
+	txReqCh        chan *txReq
+	msgSubReqCh    chan *msgSubReq
+	closeCh        chan chan error
 }
 
-func NewConnection(plm *PLM, dst insteon.Address) *Connection {
+func NewConnection(plm *PLM, messageDecoder *insteon.MessageDecoder, dst insteon.Address) *Connection {
 	conn := &Connection{
-		dst:  dst,
-		plm:  plm,
+		dst:            dst,
+		plm:            plm,
+		messageDecoder: messageDecoder,
+
 		txCh: make(chan *insteon.Message),
 		rxCh: make(chan *insteon.Message),
 
@@ -112,19 +115,18 @@ loop:
 				close(msgSubReq.respCh)
 			}
 		case pkt := <-rxCh:
-			msg := &insteon.Message{}
-			err := msg.UnmarshalBinary(pkt.payload)
+			message, err := conn.messageDecoder.Decode(pkt.payload)
 			if err == nil {
-				insteon.Log.Debugf("Connection received %v", msg)
-				if msg.Flags.Type() == insteon.MsgTypeDirectAck || msg.Flags.Type() == insteon.MsgTypeDirectNak {
+				insteon.Log.Debugf("Connection received %v", message)
+				if message.Flags.Type() == insteon.MsgTypeDirectAck || message.Flags.Type() == insteon.MsgTypeDirectNak {
 					if len(txReqs) > 0 {
 						ch := txReqs[0].ackCh
 						txReqs = txReqs[1:]
-						insteon.Log.Debugf("Dispatching insteon ACK/NAK %v", msg)
+						insteon.Log.Debugf("Dispatching insteon ACK/NAK %v", message)
 						select {
-						case ch <- msg:
+						case ch <- message:
 						default:
-							insteon.Log.Debugf("insteon ACK/NAK channel was not ready, discarding %v", msg)
+							insteon.Log.Debugf("insteon ACK/NAK channel was not ready, discarding %v", message)
 						}
 						close(ch)
 
@@ -132,15 +134,15 @@ loop:
 							conn.writePacket(txReqs[0].message)
 						}
 					} else {
-						insteon.Log.Debugf("received ACK/NAK but no ack channel present, discarding %v", msg)
+						insteon.Log.Debugf("received ACK/NAK but no ack channel present, discarding %v", message)
 					}
 				} else {
 					for _, sub := range rxChannels {
-						if sub.match(msg) {
+						if sub.match(message) {
 							select {
-							case sub.ch <- msg:
+							case sub.ch <- message:
 							default:
-								insteon.Log.Infof("Insteon subscription exists, but buffer is full. discarding %v", msg)
+								insteon.Log.Infof("Insteon subscription exists, but buffer is full. discarding %v", message)
 							}
 						}
 					}

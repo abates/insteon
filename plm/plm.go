@@ -58,9 +58,11 @@ type txPacketReq struct {
 }
 
 type PLM struct {
-	in          *bufio.Reader
-	out         io.Writer
-	timeout     time.Duration
+	in             *bufio.Reader
+	out            io.Writer
+	timeout        time.Duration
+	messageDecoder *insteon.MessageDecoder
+
 	txPktCh     chan *txPacketReq
 	rxPktCh     chan []byte
 	pktSubReqCh chan *pktSubReq
@@ -71,9 +73,10 @@ type PLM struct {
 
 func New(port io.ReadWriter, timeout time.Duration) *PLM {
 	plm := &PLM{
-		in:      bufio.NewReader(port),
-		out:     port,
-		timeout: timeout,
+		in:             bufio.NewReader(port),
+		out:            port,
+		timeout:        timeout,
+		messageDecoder: insteon.NewMessageDecoder(),
 
 		txPktCh:     make(chan *txPacketReq, 1),
 		rxPktCh:     make(chan []byte, 10),
@@ -296,21 +299,25 @@ func (plm *PLM) Reset() error {
 	return err
 }
 
-func (plm *PLM) Monitor() *insteon.Monitor {
+func (plm *PLM) Monitor() chan *insteon.Message {
 	ch := plm.Subscribe([]byte{0x50}, []byte{0x51})
 	plm.StartMonitor()
-
-	monitor := insteon.NewMonitor()
-
+	monCh := make(chan *insteon.Message, 10)
 	go func() {
 		for pkt := range ch {
-			monitor.Update(pkt.payload)
+			msg, err := plm.messageDecoder.Decode(pkt.payload)
+			if err == nil {
+				select {
+				case monCh <- msg:
+				default:
+				}
+			}
 		}
 		plm.Unsubscribe(ch)
 		plm.StopMonitor()
 	}()
 
-	return monitor
+	return monCh
 }
 
 func (plm *PLM) StartMonitor() error {
@@ -380,7 +387,7 @@ func (plm *PLM) Unsubscribe(ch <-chan *Packet) {
 }
 
 func (plm *PLM) Dial(dst insteon.Address) (insteon.Device, error) {
-	connection := NewConnection(plm, dst)
+	connection := NewConnection(plm, plm.messageDecoder, dst)
 	i1Device := insteon.NewI1Device(dst, insteon.NewI1Connection(connection))
 	device := insteon.Device(i1Device)
 
