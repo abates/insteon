@@ -117,18 +117,6 @@ func (m *Message) Broadcast() bool {
 	return m.Flags.Type().Broadcast()
 }
 
-func (m *Message) String() (str string) {
-	if m.Broadcast() {
-		str = sprintf("%s -> ff.ff.ff %v %v", m.Src, m.Flags, m.Command)
-	} else {
-		str = sprintf("%s -> %s %v %v", m.Src, m.Dst, m.Flags, m.Command)
-		if m.Flags.Extended() {
-			str = sprintf("%s %v", str, m.Payload)
-		}
-	}
-	return str
-}
-
 func checksum(buf []byte) byte {
 	sum := byte(0)
 	for _, b := range buf {

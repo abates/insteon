@@ -11,7 +11,7 @@ func TestCommandBytesSubCommand(t *testing.T) {
 		subCommand int
 		expected   CommandBytes
 	}{
-		{CommandBytes{Command1: 0x01, Command2: 0x02}, 3, CommandBytes{Command1: 0x01, Command2: 0x03}},
+		{CommandBytes{subCommand: true, Command1: 0x01, Command2: 0x02}, 3, CommandBytes{subCommand: true, Command1: 0x01, Command2: 0x03}},
 	}
 
 	for i, test := range tests {
@@ -35,7 +35,7 @@ func TestFirmwareIndexSwap(t *testing.T) {
 	for i, test := range tests {
 		fi := make(FirmwareIndex, len(test.input))
 		for x, value := range test.input {
-			fi[x] = &CommandBytes{FirmwareVersion(value), 0x00, 0x00}
+			fi[x] = &CommandBytes{FirmwareVersion(value), "", false, 0x00, 0x00}
 		}
 		fi.Swap(test.i, test.j)
 		values := make([]int, len(test.input))
@@ -60,10 +60,12 @@ func TestFirmwareIndexFind(t *testing.T) {
 		{[]byte{0xf0, 0xf1, 0xf2, 0xf3, 0xf4}, 5, 0xf4},
 	}
 
+	cdb := NewCommandDB()
+
 	for i, test := range tests {
 		command := &Command{}
 		for x, value := range test.input {
-			command.Register(FirmwareVersion(x), value, 0x00)
+			cdb.RegisterVersionStd(command, FirmwareVersion(x), value, 0x00)
 		}
 
 		value := command.Version(FirmwareVersion(test.find))

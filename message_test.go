@@ -101,7 +101,6 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		expectedFlags   Flags
 		expectedCommand CommandBytes
 		expectedError   error
-		expectedString  string
 	}{
 		// Test 0
 		{
@@ -111,7 +110,6 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			expectedDst:     Address{0x04, 0x05, 0x06},
 			expectedFlags:   StandardDirectMessage,
 			expectedCommand: CommandBytes{Command1: 0x10, Command2: 0x0},
-			expectedString:  "01.02.03 -> 04.05.06 SD     2:2",
 		},
 		// Test 1
 		{
@@ -121,7 +119,6 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			expectedDst:     Address{0x04, 0x05, 0x06},
 			expectedFlags:   Flags(0x8a),
 			expectedCommand: CommandBytes{Command1: 0x01, Command2: 0x00},
-			expectedString:  "01.02.03 -> ff.ff.ff SB     2:2",
 		},
 		// Test 2
 		{
@@ -136,7 +133,6 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			expectedDst:     Address{0x04, 0x05, 0x06},
 			expectedFlags:   ExtendedDirectMessage,
 			expectedCommand: CommandBytes{Command1: 0x09, Command2: 0x00},
-			expectedString:  "01.02.03 -> 04.05.06 ED     2:2",
 		},
 		// Test 4
 		{
@@ -151,7 +147,6 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			expectedDst:     Address{0x04, 0x05, 0x06},
 			expectedFlags:   ExtendedDirectMessage,
 			expectedCommand: CommandBytes{Command1: 0x2f, Command2: 0x00},
-			expectedString:  "01.02.03 -> 04.05.06 ED     2:2",
 		},
 	}
 
@@ -179,10 +174,6 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 
 		if test.expectedCommand != message.Command {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedCommand, message.Command)
-		}
-
-		if test.expectedString != message.String()[0:len(test.expectedString)] {
-			t.Errorf("tests[%d] expected %q got %q", i, test.expectedString, message.String()[0:len(test.expectedString)])
 		}
 
 		buf, _ := message.MarshalBinary()

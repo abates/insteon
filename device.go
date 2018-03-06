@@ -85,7 +85,6 @@ type Device interface {
 	VersionedConnection
 	Linkable
 	DevCat() DevCat
-	ProductData() (*ProductData, error)
 	FXUsername() (string, error)
 	TextString() (string, error)
 	SetTextString(string) error

@@ -130,7 +130,7 @@ func TestI1DeviceFunctions(t *testing.T) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedValue, value)
 		}
 
-		if test.expectedCommand != conn.lastMessage.Command {
+		if !test.expectedCommand.Equal(conn.lastMessage.Command) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedCommand, conn.lastMessage.Command)
 		}
 

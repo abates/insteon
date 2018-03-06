@@ -34,14 +34,12 @@ func (td *TestDevice) EnterLinkingMode(Group) error          { return nil }
 func (td *TestDevice) EnterUnlinkingMode(Group) error        { return nil }
 func (td *TestDevice) ExitLinkingMode() error                { return nil }
 func (td *TestDevice) LinkDB() (LinkDB, error)               { return nil, nil }
-func (td *TestDevice) ProductData() (*ProductData, error)    { return td.productData, td.productDataErr }
 func (td *TestDevice) FXUsername() (string, error)           { return "", nil }
 func (td *TestDevice) TextString() (string, error)           { return "", nil }
 func (td *TestDevice) SetTextString(string) error            { return nil }
 func (td *TestDevice) EngineVersion() (EngineVersion, error) { return 1, nil }
 func (td *TestDevice) Ping() error                           { return nil }
 func (td *TestDevice) Close() error                          { return nil }
-func (td *TestDevice) Connection() Connection                { return nil }
 func (td *TestDevice) DevCat() DevCat                        { return DevCat{} }
 
 func TestInitializeDevice(t *testing.T) {

@@ -296,21 +296,21 @@ func (plm *PLM) Reset() error {
 	return err
 }
 
-func (plm *PLM) Monitor(callback func(buf []byte, msg *insteon.Message)) {
+func (plm *PLM) Monitor() *insteon.Monitor {
 	ch := plm.Subscribe([]byte{0x50}, []byte{0x51})
-	defer plm.Unsubscribe(ch)
-
 	plm.StartMonitor()
-	defer plm.StopMonitor()
 
-	for pkt := range ch {
-		msg := &insteon.Message{}
-		err := msg.UnmarshalBinary(pkt.payload)
-		if err == nil {
-			// slice off the packet header
-			callback(pkt.payload, msg)
+	monitor := insteon.NewMonitor()
+
+	go func() {
+		for pkt := range ch {
+			monitor.Update(pkt.payload)
 		}
-	}
+		plm.Unsubscribe(ch)
+		plm.StopMonitor()
+	}()
+
+	return monitor
 }
 
 func (plm *PLM) StartMonitor() error {
