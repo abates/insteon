@@ -12,6 +12,7 @@ var dimmer insteon.Dimmer
 
 func init() {
 	cmd := Commands.Register("dimmer", "<command> <device id>", "Interact with a specific dimmer", dimmerCmd)
+	cmd.Register("config", "", "retrieve dimmer configuration information", dimmerConfigCmd)
 	cmd.Register("on", "<level>", "turn the dimmer on", dimmerOnCmd)
 	cmd.Register("off", "", "turn the dimmer off", switchOffCmd)
 	cmd.Register("onfast", "<level>", "turn the dimmer on fast", dimmerOnFastCmd)
@@ -20,11 +21,13 @@ func init() {
 	cmd.Register("startBrighten", "", "", dimmerStartBrightenCmd)
 	cmd.Register("startDim", "", "", dimmerStartDimCmd)
 	cmd.Register("stopChange", "", "", dimmerStopChangeCmd)
-	cmd.Register("instantChange", "<level>", "", dimmerInstantChangeCmd)
+	cmd.Register("instantChange", "<level>", "instantly set the dimmer to the desired level (0-255)", dimmerInstantChangeCmd)
 	cmd.Register("status", "", "get the switch status", switchStatusCmd)
-	cmd.Register("setstatus", "<level>", "", dimmerSetStatusCmd)
-	cmd.Register("onramp", "<level> <ramp>", "", dimmerOnRampCmd)
-	cmd.Register("offramp", "<ramp>", "", dimmerOffRampCmd)
+	cmd.Register("setstatus", "<level>", "set the dimmer switch status LED to <level> (0-31)", dimmerSetStatusCmd)
+	cmd.Register("onramp", "<level> <ramp>", "turn the dimmer on to the desired level (0-15) at the given ramp rate (0-15)", dimmerOnRampCmd)
+	cmd.Register("offramp", "<ramp>", "turn the dimmer off at the givem ramp rate (0-31)", dimmerOffRampCmd)
+	cmd.Register("setramp", "<ramp>", "set default ramp rate (0-31)", dimmerSetRampCmd)
+	cmd.Register("setlevel", "<level>", "set default on level (0-255)", dimmerSetOnLevelCmd)
 }
 
 func dimmerCmd(args []string, next cli.NextFunc) (err error) {
@@ -32,7 +35,8 @@ func dimmerCmd(args []string, next cli.NextFunc) (err error) {
 		return fmt.Errorf("device id and action must be specified")
 	}
 
-	addr, err := insteon.ParseAddress(args[0])
+	var addr insteon.Address
+	err = addr.UnmarshalText([]byte(args[0]))
 	if err != nil {
 		return fmt.Errorf("invalid device address: %v", err)
 	}
@@ -49,6 +53,17 @@ func dimmerCmd(args []string, next cli.NextFunc) (err error) {
 		} else {
 			err = fmt.Errorf("Device %s is not a dimmer", addr)
 		}
+	}
+	return err
+}
+
+func dimmerConfigCmd(args []string, next cli.NextFunc) error {
+	config, err := dimmer.DimmerConfig()
+	if err == nil {
+		fmt.Printf("  X10 Address: %02x.%02x\n", config.HouseCode, config.UnitCode)
+		fmt.Printf(" Default Ramp: %d\n", config.Ramp)
+		fmt.Printf("Default Level: %d\n", config.OnLevel)
+		fmt.Printf("          SNR: %d\n", config.SNR)
 	}
 	return err
 }
@@ -143,6 +158,30 @@ func dimmerOffRampCmd(args []string, next cli.NextFunc) (err error) {
 	ramp, err := strconv.Atoi(args[1])
 	if err == nil {
 		err = dimmer.OffAtRamp(ramp)
+	}
+	return err
+}
+
+func dimmerSetRampCmd(args []string, next cli.NextFunc) error {
+	if len(args) < 2 {
+		return fmt.Errorf("No ramp rate given")
+	}
+
+	ramp, err := strconv.Atoi(args[1])
+	if err == nil {
+		err = dimmer.SetDefaultRamp(ramp)
+	}
+	return err
+}
+
+func dimmerSetOnLevelCmd(args []string, next cli.NextFunc) error {
+	if len(args) < 2 {
+		return fmt.Errorf("No on level given")
+	}
+
+	level, err := strconv.Atoi(args[1])
+	if err == nil {
+		err = dimmer.SetDefaultOnLevel(level)
 	}
 	return err
 }

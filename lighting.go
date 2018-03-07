@@ -40,15 +40,15 @@ func (sc *SwitchConfig) UnmarshalBinary(buf []byte) error {
 	if len(buf) < 12 {
 		return ErrBufferTooShort
 	}
-	sc.HouseCode = int(buf[2])
-	sc.UnitCode = int(buf[3])
+	sc.HouseCode = int(buf[4])
+	sc.UnitCode = int(buf[5])
 	return nil
 }
 
 func (sc *SwitchConfig) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, 12)
-	buf[2] = byte(sc.HouseCode)
-	buf[3] = byte(sc.UnitCode)
+	buf := make([]byte, 14)
+	buf[4] = byte(sc.HouseCode)
+	buf[5] = byte(sc.UnitCode)
 	return buf, nil
 }
 
@@ -61,7 +61,7 @@ type Switch interface {
 	OperatingFlags() (*LightFlags, error)
 	SetOperatingFlags(*LightFlags) error
 	SetX10Address(button int, houseCode, unitCode byte) error
-	SwitchConfig(int) (SwitchConfig, error)
+	SwitchConfig() (SwitchConfig, error)
 }
 
 type DimmerConfig struct {
@@ -76,21 +76,21 @@ func (dc *DimmerConfig) UnmarshalBinary(buf []byte) error {
 	if len(buf) < 12 {
 		return ErrBufferTooShort
 	}
-	dc.HouseCode = int(buf[2])
-	dc.UnitCode = int(buf[3])
-	dc.Ramp = int(buf[4])
-	dc.OnLevel = int(buf[5])
-	dc.SNR = int(buf[6])
+	dc.HouseCode = int(buf[4])
+	dc.UnitCode = int(buf[5])
+	dc.Ramp = int(buf[6])
+	dc.OnLevel = int(buf[7])
+	dc.SNR = int(buf[8])
 	return nil
 }
 
 func (dc *DimmerConfig) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, 12)
-	buf[2] = byte(dc.HouseCode)
-	buf[3] = byte(dc.UnitCode)
-	buf[4] = byte(dc.Ramp)
-	buf[5] = byte(dc.OnLevel)
-	buf[6] = byte(dc.SNR)
+	buf := make([]byte, 14)
+	buf[4] = byte(dc.HouseCode)
+	buf[5] = byte(dc.UnitCode)
+	buf[6] = byte(dc.Ramp)
+	buf[7] = byte(dc.OnLevel)
+	buf[8] = byte(dc.SNR)
 	return buf, nil
 }
 
@@ -107,9 +107,9 @@ type Dimmer interface {
 	SetStatus(level int) error
 	OnAtRamp(level, ramp int) error
 	OffAtRamp(ramp int) error
-	SetDefaultRamp(button, level int) error
-	SetDefaultOnLevel(button, level int) error
-	DimmerConfig(int) (DimmerConfig, error)
+	SetDefaultRamp(level int) error
+	SetDefaultOnLevel(level int) error
+	DimmerConfig() (DimmerConfig, error)
 }
 
 type SwitchedDevice struct {
@@ -213,11 +213,11 @@ func (sd *SwitchedDevice) SetX10Address(button int, houseCode, unitCode byte) er
 	return err
 }
 
-func (sd *SwitchedDevice) SwitchConfig(button int) (SwitchConfig, error) {
-	ack, err := SendExtendedCommand(sd, CmdLightExtendedSetGet, []byte{byte(button)})
-	config := SwitchConfig{}
+func (sd *SwitchedDevice) SwitchConfig() (config SwitchConfig, err error) {
+	// SEE DimmerConfig() notes for explanation of D1 and D2 (payload[0] and payload[1])
+	msg, err := SendExtendedCommandAndWait(sd, CmdLightExtendedSetGet, []byte{0x00, 0x00}, CmdLightExtendedSetGet)
 	if err == nil {
-		config.UnmarshalBinary(ack.Payload)
+		err = config.UnmarshalBinary(msg.Payload)
 	}
 	return config, err
 }
@@ -287,20 +287,29 @@ func (dd *DimmableDevice) String() string {
 	return sprintf("Dimmable Light (%s)", dd.Address())
 }
 
-func (dd *DimmableDevice) SetDefaultRamp(button, rate int) error {
-	_, err := SendExtendedCommand(dd, CmdLightExtendedSetGet, []byte{byte(button), 0x05, byte(rate)})
+func (dd *DimmableDevice) SetDefaultRamp(rate int) error {
+	// See notes on DimmerConfig() for information about D1 (payload[0])
+	_, err := SendExtendedCommand(dd, CmdLightExtendedSetGet, []byte{0x01, 0x05, byte(rate)})
 	return err
 }
 
-func (dd *DimmableDevice) SetDefaultOnLevel(button, level int) error {
-	_, err := SendExtendedCommand(dd, CmdLightExtendedSetGet, []byte{byte(button), 0x06, byte(level)})
+func (dd *DimmableDevice) SetDefaultOnLevel(level int) error {
+	// See notes on DimmerConfig() for information about D1 (payload[0])
+	_, err := SendExtendedCommand(dd, CmdLightExtendedSetGet, []byte{0x01, 0x06, byte(level)})
 	return err
 }
 
-func (dd *DimmableDevice) DimmerConfig(button int) (DimmerConfig, error) {
-	ack, err := SendExtendedCommand(dd, CmdLightExtendedSetGet, []byte{byte(button)})
-	println("%v", ack)
-	return DimmerConfig{}, err
+func (dd *DimmableDevice) DimmerConfig() (config DimmerConfig, err error) {
+	// The documentation talks about D1 (payload[0]) being the button/group number, but my
+	// SwitchLinc dimmers all return the same information regardless of
+	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
+	//
+	// D2 is 0x00 for requests
+	msg, err := SendExtendedCommandAndWait(dd, CmdLightExtendedSetGet, []byte{0x01, 0x00}, CmdLightExtendedSetGet)
+	if err == nil {
+		err = config.UnmarshalBinary(msg.Payload)
+	}
+	return config, err
 }
 
 func dimmableLightingFactory(device Device) Device {

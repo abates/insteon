@@ -11,7 +11,7 @@ var sw insteon.Switch
 
 func init() {
 	cmd := Commands.Register("switch", "<command> <device id>", "Interact with a specific switch", swCmd)
-	cmd.Register("info", "", "retrieve switch configuration information", switchInfoCmd)
+	cmd.Register("config", "", "retrieve switch configuration information", switchConfigCmd)
 	cmd.Register("on", "", "turn the switch/light on", switchOnCmd)
 	cmd.Register("off", "", "turn the switch/light off", switchOffCmd)
 	cmd.Register("status", "", "get the switch status", switchStatusCmd)
@@ -22,7 +22,8 @@ func swCmd(args []string, next cli.NextFunc) (err error) {
 		return fmt.Errorf("device id and action must be specified")
 	}
 
-	addr, err := insteon.ParseAddress(args[0])
+	var addr insteon.Address
+	err = addr.UnmarshalText([]byte(args[0]))
 	if err != nil {
 		return fmt.Errorf("invalid device address: %v", err)
 	}
@@ -42,8 +43,8 @@ func swCmd(args []string, next cli.NextFunc) (err error) {
 	return err
 }
 
-func switchInfoCmd([]string, cli.NextFunc) error {
-	config, err := sw.SwitchConfig(0)
+func switchConfigCmd([]string, cli.NextFunc) error {
+	config, err := sw.SwitchConfig()
 	if err == nil {
 		err = printDevInfo(sw.(insteon.Device), fmt.Sprintf("  X10 Address: %02x.%02x", config.HouseCode, config.UnitCode))
 	}

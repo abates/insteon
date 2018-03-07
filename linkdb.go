@@ -2,6 +2,7 @@ package insteon
 
 import (
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -82,6 +83,7 @@ func (lr *LinkRequest) UnmarshalBinary(buf []byte) (err error) {
 
 	if lr.Link != nil {
 		err = lr.Link.UnmarshalBinary(buf[5:])
+		lr.Link.memAddress = lr.MemAddress
 	}
 	return err
 }
@@ -126,6 +128,8 @@ type LinkDB interface {
 	// RemoveLinks will either remove the link records from the device
 	// All-Link database, or it will simply mark them as deleted
 	RemoveLinks(oldLinks ...*LinkRecord) error
+
+	WriteLink(link *LinkRecord) error
 }
 
 // Linkable is the interface any device needs to implement if
@@ -156,55 +160,25 @@ func NewDeviceLinkDB(device Device) *DeviceLinkDB {
 // or it will replace an existing link-record that has been marked
 // as deleted
 func (db *DeviceLinkDB) AddLink(newLink *LinkRecord) error {
-	memAddress := BaseLinkDBAddress - 7
-	links, err := db.Links()
-	if err == nil {
-		for _, link := range links {
-			if link.Flags.Available() {
-				break
-			}
-			memAddress -= 8
-		}
-
-		err = linkWriter(db.device, memAddress, newLink)
-	}
-	return err
+	return ErrNotImplemented
 }
 
 // RemoveLinks will either remove the link records from the device
 // All-Link database, or it will simply mark them as deleted
 func (db *DeviceLinkDB) RemoveLinks(oldLinks ...*LinkRecord) error {
-	links, err := db.Links()
-	if err == nil {
-	top:
-		for _, oldLink := range oldLinks {
-			Log.Debugf("Attempting to remove %v", oldLink)
-			memAddress := BaseLinkDBAddress - 7
-			for i, link := range links {
-				if link.Equal(oldLink) {
-					link.Flags.setAvailable()
-					Log.Debugf("Marking link available")
-					err = linkWriter(db.device, memAddress, link)
-					if err != nil {
-						break top
-					}
-					links = append(links[0:i], links[i+1:]...)
-				}
-				memAddress -= 8
-			}
-		}
-	}
-	return err
+	return ErrNotImplemented
 }
 
-func readLinks(connection VersionedConnection) ([]*LinkRecord, error) {
-	rrCh := connection.Subscribe(CmdReadWriteALDB.Version(connection.FirmwareVersion()))
-	defer connection.Unsubscribe(rrCh)
+// Links will retrieve the link-database from the device and
+// return a list of LinkRecords
+func (db *DeviceLinkDB) Links() ([]*LinkRecord, error) {
+	rrCh := db.device.Subscribe(CmdReadWriteALDB.Version(db.device.FirmwareVersion()))
+	defer db.device.Unsubscribe(rrCh)
 	Log.Debugf("Retrieving Device link database")
 	links := make([]*LinkRecord, 0)
 	lastAddress := MemAddress(0)
 	buf, _ := (&LinkRequest{Type: ReadLink, NumRecords: 0}).MarshalBinary()
-	_, err := SendExtendedCommand(connection, CmdReadWriteALDB, buf)
+	_, err := SendExtendedCommand(db.device, CmdReadWriteALDB, buf)
 	if err != nil {
 		return nil, err
 	}
@@ -232,19 +206,13 @@ func readLinks(connection VersionedConnection) ([]*LinkRecord, error) {
 	return links, err
 }
 
-var linkReader = readLinks
-
-// Links will retrieve the link-database from the device and
-// return a list of LinkRecords
-func (db *DeviceLinkDB) Links() ([]*LinkRecord, error) {
-	return linkReader(db.device)
-}
-
-var linkWriter = writeLink
-
-func writeLink(connection VersionedConnection, memAddress MemAddress, link *LinkRecord) error {
-	buf, _ := (&LinkRequest{Type: WriteLink, Link: link}).MarshalBinary()
-	_, err := SendExtendedCommand(connection, CmdReadWriteALDB, buf)
+func (db *DeviceLinkDB) WriteLink(link *LinkRecord) (err error) {
+	if link.memAddress == MemAddress(0x0000) {
+		err = fmt.Errorf("Invalid memory address")
+	} else {
+		buf, _ := (&LinkRequest{MemAddress: link.memAddress, Type: WriteLink, Link: link}).MarshalBinary()
+		_, err = SendExtendedCommand(db.device, CmdReadWriteALDB, buf)
+	}
 	return err
 }
 

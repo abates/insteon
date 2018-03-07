@@ -102,30 +102,11 @@ func SendCommand(connection VersionedConnection, command *Command) (ack *Message
 }
 
 func SendCommandAndWait(connection VersionedConnection, command *Command, waitCommands ...*Command) (msg *Message, err error) {
-	Log.Debugf("Subscribing to traffic for command %v", waitCommands)
-	waitBytes := make([]CommandBytes, len(waitCommands))
-	for i, waitCommand := range waitCommands {
-		waitBytes[i] = waitCommand.Version(connection.FirmwareVersion())
-	}
+	return sendCommandAndWait(connection, command, StandardDirectMessage, nil, waitCommands...)
+}
 
-	rxCh := connection.Subscribe(waitBytes...)
-	defer connection.Unsubscribe(rxCh)
-	ack, err := sendCommand(connection, command.Version(connection.FirmwareVersion()), StandardDirectMessage, nil)
-
-	if err == nil {
-		if ack.Nak() {
-			err = ErrNak
-		} else {
-			Log.Debugf("Waiting for %v response", waitCommands)
-			select {
-			case msg = <-rxCh:
-				Log.Debugf("Received message %v", msg)
-			case <-time.After(Timeout):
-				err = ErrReadTimeout
-			}
-		}
-	}
-	return
+func SendExtendedCommandAndWait(connection VersionedConnection, command *Command, payload []byte, waitCommands ...*Command) (msg *Message, err error) {
+	return sendCommandAndWait(connection, command, ExtendedDirectMessage, payload, waitCommands...)
 }
 
 func SendExtendedSubCommand(connection VersionedConnection, command *Command, subCommand int, payload []byte) (ack *Message, err error) {
@@ -141,6 +122,33 @@ func SendExtendedCommand(connection VersionedConnection, command *Command, paylo
 		payload = append(payload, make([]byte, 14-len(payload))...)
 	}
 	return sendCommand(connection, command.Version(connection.FirmwareVersion()), ExtendedDirectMessage, payload)
+}
+
+func sendCommandAndWait(connection VersionedConnection, command *Command, flags Flags, payload []byte, waitCommands ...*Command) (msg *Message, err error) {
+	Log.Debugf("Subscribing to traffic for command %v", waitCommands)
+	waitBytes := make([]CommandBytes, len(waitCommands))
+	for i, waitCommand := range waitCommands {
+		waitBytes[i] = waitCommand.Version(connection.FirmwareVersion())
+	}
+
+	rxCh := connection.Subscribe(waitBytes...)
+	defer connection.Unsubscribe(rxCh)
+	ack, err := sendCommand(connection, command.Version(connection.FirmwareVersion()), flags, payload)
+
+	if err == nil {
+		if ack.Nak() {
+			err = ErrNak
+		} else {
+			Log.Debugf("Waiting for %v response", waitCommands)
+			select {
+			case msg = <-rxCh:
+				Log.Debugf("Received message %v", msg)
+			case <-time.After(Timeout):
+				err = ErrReadTimeout
+			}
+		}
+	}
+	return
 }
 
 func sendCommand(connection Connection, command CommandBytes, flags Flags, payload []byte) (ack *Message, err error) {

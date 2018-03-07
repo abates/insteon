@@ -146,6 +146,10 @@ func (db *LinkDB) AddLink(newLink *insteon.LinkRecord) error {
 	return err
 }
 
+func (db *LinkDB) WriteLink(*insteon.LinkRecord) error {
+	return insteon.ErrNotImplemented
+}
+
 func (db *LinkDB) Cleanup() (err error) {
 	removeable := make([]*insteon.LinkRecord, 0)
 	links, err := db.Links()

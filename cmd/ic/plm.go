@@ -56,7 +56,8 @@ func plmLink(args []string, crosslink bool) error {
 	}
 
 	for _, arg := range args {
-		addr, err := insteon.ParseAddress(arg)
+		var addr insteon.Address
+		err := addr.UnmarshalText([]byte(arg))
 		if err == nil {
 			group := insteon.Group(0x01)
 			fmt.Printf("Linking to %s...", addr)
@@ -99,7 +100,7 @@ func plmUnlinkCmd(args []string, next cli.NextFunc) (err error) {
 	for _, arg := range args {
 		var device insteon.Device
 		var addr insteon.Address
-		addr, err = insteon.ParseAddress(arg)
+		err = addr.UnmarshalText([]byte(arg))
 		if err == nil {
 			fmt.Printf("Unlinking from %s...", addr)
 			device, err = modem.Dial(addr)

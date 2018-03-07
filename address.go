@@ -15,16 +15,20 @@ type Address [3]byte
 // padded
 func (a Address) String() string { return sprintf("%02x.%02x.%02x", a[0], a[1], a[2]) }
 
-// ParseAddress converts a human readable string into an
+// UnmarshalText converts a human readable string into an
 // Insteon address. If the address cannot be parsed then
-// ParseAddress returns an ErrAddressFormat error
-func ParseAddress(str string) (Address, error) {
+// UnmarshalText returns an ErrAddressFormat error
+func (a *Address) UnmarshalText(text []byte) error {
 	var b1, b2, b3 byte
-	_, err := fmt.Sscanf(str, "%2x.%2x.%2x", &b1, &b2, &b3)
+	_, err := fmt.Sscanf(string(text), "%2x.%2x.%2x", &b1, &b2, &b3)
 	if err == nil {
-		return Address([3]byte{b1, b2, b3}), nil
+		a[0] = b1
+		a[1] = b2
+		a[2] = b3
+	} else {
+		err = ErrAddrFormat
 	}
-	return Address([3]byte{}), ErrAddrFormat
+	return err
 }
 
 // MarshalJSON will convert the address to a JSON string

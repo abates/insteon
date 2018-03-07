@@ -22,6 +22,9 @@ var (
 	// CmdDeleteFromAllLinkGroup Delete from All-Link Group
 	CmdDeleteFromAllLinkGroup = Commands.RegisterStd("All Link Delete", DefaultCategories, MsgTypeDirect, 0x02, 0x00)
 
+	// CmdTestPowerlinePhase is used for determining which powerline phase (A/B) to which the device is attached
+	CmdTestPowerlinePhase = Commands.RegisterStd("Test Powerline Phase", DefaultCategories, MsgTypeBroadcast, 0x03, 0x00)
+
 	// CmdProductDataReq Product Data Request
 	CmdProductDataReq = Commands.RegisterStd("Product Data Req", DefaultCategories, MsgTypeDirect, 0x03, 0x00)
 
@@ -42,6 +45,10 @@ var (
 
 	// CmdSetDeviceTextString sets the device text string
 	CmdSetDeviceTextString = Commands.RegisterExt("Set Text String", DefaultCategories, MsgTypeDirect, 0x03, 0x03)
+
+	CmdHeartbeat = Commands.RegisterStd("Heartbeat", DefaultCategories, MsgTypeBroadcast, 0x04, 0x00)
+
+	CmdAllLinkCleanupReport = Commands.RegisterStd("All-Link Cleanup Report", DefaultCategories, MsgTypeAllLinkBroadcast, 0x06, 0x00)
 
 	// CmdExitLinkingMode Exit Linking Mode
 	CmdExitLinkingMode = Commands.RegisterStd("Exit Link Mode", DefaultCategories, MsgTypeDirect, 0x08, 0x00)
@@ -70,23 +77,32 @@ var (
 	// CmdIDReq ID Request
 	CmdIDReq = Commands.RegisterStd("ID Req", DefaultCategories, MsgTypeDirect, 0x10, 0x00)
 
+	CmdAllLinkRecall = Commands.RegisterStd("All-Link Recall", DefaultCategories, MsgTypeAllLinkBroadcast, 0x11, 0x00)
+
+	CmdAllLinkAlias2High = Commands.RegisterStd("All-Link Alias 2 High", DefaultCategories, MsgTypeAllLinkBroadcast, 0x12, 0x00)
+
+	CmdAllLinkAlias1Low = Commands.RegisterStd("All-Link Alias 1 Low", DefaultCategories, MsgTypeAllLinkBroadcast, 0x13, 0x00)
+
+	CmdAllLinkAlias2Low = Commands.RegisterStd("All-Link Alias 2 Low", DefaultCategories, MsgTypeAllLinkBroadcast, 0x14, 0x00)
+
+	CmdAllLinkAlias3High = Commands.RegisterStd("All-Link Alias 3 High", DefaultCategories, MsgTypeAllLinkBroadcast, 0x15, 0x00)
+
+	CmdAllLinkAlias3Low = Commands.RegisterStd("All-Link Alias 3 Low", DefaultCategories, MsgTypeAllLinkBroadcast, 0x16, 0x00)
+
+	CmdAllLinkAlias4High = Commands.RegisterStd("All-Link Alias 4 High", DefaultCategories, MsgTypeAllLinkBroadcast, 0x17, 0x00)
+
+	CmdAllLinkAlias4Low = Commands.RegisterStd("All-Link Alias 4 Low", DefaultCategories, MsgTypeAllLinkBroadcast, 0x18, 0x00)
+
 	CmdGetOperatingFlags = Commands.RegisterStd("Get Operating Flags", DefaultCategories, MsgTypeDirect, 0x1f, 0x00)
 
 	CmdSetOperatingFlags = Commands.RegisterStd("Set Operating Flags", DefaultCategories, MsgTypeDirect, 0x20, 0x00)
 
+	CmdAllLinkAlias5 = Commands.RegisterStd("All-Link Alias 5", DefaultCategories, MsgTypeAllLinkBroadcast, 0x21, 0x00)
+
+	CmdBroadCastStatusChange = Commands.RegisterStd("Status Change", DefaultCategories, MsgTypeBroadcast, 0x27, 0x00)
+
 	// CmdReadWriteALDB Read/Write ALDB
 	CmdReadWriteALDB = Commands.RegisterExt("Read/Write ALDB", DefaultCategories, MsgTypeDirect, 0x2f, 0x00)
-
-	CmdAllLinkCleanupReport = Commands.RegisterStd("All-Link Cleanup Report", DefaultCategories, MsgTypeAllLinkBroadcast, 0x06, 0x00)
-	CmdAllLinkRecall        = Commands.RegisterStd("All-Link Recall", DefaultCategories, MsgTypeAllLinkBroadcast, 0x11, 0x00)
-	CmdAllLinkAlias2High    = Commands.RegisterStd("All-Link Alias 2 High", DefaultCategories, MsgTypeAllLinkBroadcast, 0x12, 0x00)
-	CmdAllLinkAlias1Low     = Commands.RegisterStd("All-Link Alias 1 Low", DefaultCategories, MsgTypeAllLinkBroadcast, 0x13, 0x00)
-	CmdAllLinkAlias2Low     = Commands.RegisterStd("All-Link Alias 2 Low", DefaultCategories, MsgTypeAllLinkBroadcast, 0x14, 0x00)
-	CmdAllLinkAlias3High    = Commands.RegisterStd("All-Link Alias 3 High", DefaultCategories, MsgTypeAllLinkBroadcast, 0x15, 0x00)
-	CmdAllLinkAlias3Low     = Commands.RegisterStd("All-Link Alias 3 Low", DefaultCategories, MsgTypeAllLinkBroadcast, 0x16, 0x00)
-	CmdAllLinkAlias4High    = Commands.RegisterStd("All-Link Alias 4 High", DefaultCategories, MsgTypeAllLinkBroadcast, 0x17, 0x00)
-	CmdAllLinkAlias4Low     = Commands.RegisterStd("All-Link Alias 4 Low", DefaultCategories, MsgTypeAllLinkBroadcast, 0x18, 0x00)
-	CmdAllLinkAlias5        = Commands.RegisterStd("All-Link Alias 5", DefaultCategories, MsgTypeAllLinkBroadcast, 0x21, 0x00)
 )
 
 type CommandBytes struct {

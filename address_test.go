@@ -2,7 +2,7 @@ package insteon
 
 import "testing"
 
-func TestParseAddress(t *testing.T) {
+func TestAddressUnmarshalText(t *testing.T) {
 	tests := []struct {
 		input   string
 		correct bool
@@ -13,7 +13,8 @@ func TestParseAddress(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		address, err := ParseAddress(test.input)
+		address := Address{}
+		err := address.UnmarshalText([]byte(test.input))
 		if err == nil && !test.correct {
 			t.Errorf("tests[%d] expected failure", i)
 		} else if err != nil && test.correct {

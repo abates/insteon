@@ -1,5 +1,12 @@
 package insteon
 
+import (
+	"bytes"
+	"fmt"
+	"strconv"
+	"strings"
+)
+
 // RecordControlFlags indicate whether a link record is a
 // controller or responder and whether it is available or in
 // use
@@ -49,18 +56,47 @@ func (rcf RecordControlFlags) String() string {
 	return str
 }
 
+func (rcf *RecordControlFlags) UnmarshalText(text []byte) error {
+	str := strings.Split(string(text), "")
+	if len(str) != 2 {
+		return fmt.Errorf("Expected 2 characters got %d", len(str))
+	}
+
+	if str[0] == "A" {
+		rcf.setAvailable()
+	} else {
+		rcf.setInUse()
+	}
+
+	if str[1] == "C" {
+		rcf.setController()
+	} else {
+		rcf.setResponder()
+	}
+	return nil
+}
+
 // Group is the Insteon group to which the Link Record corresponds
 type Group byte
 
 // String representation of the group number
 func (g Group) String() string { return sprintf("%d", byte(g)) }
 
+func (g *Group) UnmarshalText(text []byte) error {
+	value, err := strconv.Atoi(string(text))
+	if err == nil {
+		*g = Group(byte(value))
+	}
+	return err
+}
+
 // LinkRecord is a single All-Link record in an All-Link database
 type LinkRecord struct {
-	Flags   RecordControlFlags
-	Group   Group
-	Address Address
-	Data    [3]byte
+	memAddress MemAddress
+	Flags      RecordControlFlags
+	Group      Group
+	Address    Address
+	Data       [3]byte
 }
 
 func (l *LinkRecord) String() string {
@@ -93,6 +129,11 @@ func (l *LinkRecord) MarshalBinary() ([]byte, error) {
 	return data, nil
 }
 
+func (l *LinkRecord) MarshalText() ([]byte, error) {
+	str := fmt.Sprintf("%-5s %5s %8s   %02x %02x %02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
+	return []byte(str), nil
+}
+
 // UnmarshalBinary will convert the byte string received in a message
 // request to a LinkRecord
 func (l *LinkRecord) UnmarshalBinary(buf []byte) error {
@@ -104,4 +145,28 @@ func (l *LinkRecord) UnmarshalBinary(buf []byte) error {
 	copy(l.Address[:], buf[2:5])
 	copy(l.Data[:], buf[5:8])
 	return nil
+}
+
+func (l *LinkRecord) UnmarshalText(buf []byte) (err error) {
+	fields := bytes.Fields(buf)
+	if len(fields) != 6 {
+		err = fmt.Errorf("Expected 6 fields got %d", len(fields))
+	}
+
+	if err == nil {
+		err = l.Flags.UnmarshalText(fields[0])
+	}
+
+	if err == nil {
+		err = l.Group.UnmarshalText(fields[1])
+	}
+
+	if err == nil {
+		err = l.Address.UnmarshalText(fields[2])
+	}
+
+	for i := 0; i < 3 && err == nil; i++ {
+		_, err = fmt.Sscanf(string(fields[3+i]), "%x", &l.Data[i])
+	}
+	return
 }
