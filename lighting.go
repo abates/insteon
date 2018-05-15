@@ -3,30 +3,29 @@ package insteon
 var (
 	LightingCategories = []Category{Category(1), Category(2)}
 
-	CmdLightOn             = Commands.RegisterStd("Light On", LightingCategories, MsgTypeDirect, 0x11, 0xff)
-	CmdLightOnFast         = Commands.RegisterStd("Light On Fast", LightingCategories, MsgTypeDirect, 0x12, 0x00)
-	CmdLightOff            = Commands.RegisterStd("Light Off", LightingCategories, MsgTypeDirect, 0x13, 0x00)
-	CmdLightOffFast        = Commands.RegisterStd("Light Off Fast", LightingCategories, MsgTypeDirect, 0x14, 0x00)
-	CmdLightBrighten       = Commands.RegisterStd("Light Brighten", LightingCategories, MsgTypeDirect, 0x15, 0x00)
-	CmdLightDim            = Commands.RegisterStd("Light Dim", LightingCategories, MsgTypeDirect, 0x16, 0x00)
-	CmdLightStartManual    = Commands.RegisterStd("Light Start Manual Change", LightingCategories, MsgTypeDirect, 0x17, 0x00)
-	CmdLightStopManual     = Commands.RegisterStd("Light Stop Manual Change", LightingCategories, MsgTypeDirect, 0x18, 0x00)
-	CmdLightStatusRequest  = Commands.RegisterStd("Light Status Req", LightingCategories, MsgTypeDirect, 0x19, 0x00)
-	CmdLightInstantChange  = Commands.RegisterStd("Light Instant Change", LightingCategories, MsgTypeDirect, 0x21, 0x00)
-	CmdLightManualOn       = Commands.RegisterStd("Tap Set Button Once", LightingCategories, MsgTypeDirect, 0x22, 0x01)
-	CmdLightManualOff      = Commands.RegisterStd("Tap Set Button Once", LightingCategories, MsgTypeDirect, 0x23, 0x01)
-	CmdTapSetButtonOnce    = Commands.RegisterStd("Tap Set Button Once", LightingCategories, MsgTypeDirect, 0x25, 0x01)
-	CmdTapSetButtonTwice   = Commands.RegisterStd("Tap Set Button Twice", LightingCategories, MsgTypeDirect, 0x25, 0x02)
-	CmdLightSetStatus      = Commands.RegisterStd("Update dimmer LEDs", LightingCategories, MsgTypeDirect, 0x27, 0x00)
-	CmdLightOnAtRamp       = Commands.RegisterStd("Light On Ramp", LightingCategories, MsgTypeDirect, 0x2e, 0x00)
-	CmdLightOffAtRamp      = Commands.RegisterStd("Light Off Ramp", LightingCategories, MsgTypeDirect, 0x2f, 0x00)
-	CmdLightExtendedSetGet = Commands.RegisterExt("Extended Set/Get", LightingCategories, MsgTypeDirect, 0x2e, 0x00)
+	CmdLightOn             = Command{0x11, 0xff}
+	CmdLightOnFast         = Command{0x12, 0x00}
+	CmdLightOff            = Command{0x13, 0x00}
+	CmdLightOffFast        = Command{0x14, 0x00}
+	CmdLightBrighten       = Command{0x15, 0x00}
+	CmdLightDim            = Command{0x16, 0x00}
+	CmdLightStartManual    = Command{0x17, 0x00}
+	CmdLightStopManual     = Command{0x18, 0x00}
+	CmdLightStatusRequest  = Command{0x19, 0x00}
+	CmdLightInstantChange  = Command{0x21, 0x00}
+	CmdLightManualOn       = Command{0x22, 0x01}
+	CmdLightManualOff      = Command{0x23, 0x01}
+	CmdTapSetButtonOnce    = Command{0x25, 0x01}
+	CmdTapSetButtonTwice   = Command{0x25, 0x02}
+	CmdLightSetStatus      = Command{0x27, 0x00}
+	CmdLightOnAtRamp       = Command{0x2e, 0x00}
+	CmdLightOnAtRampV67    = Command{0x34, 0x00}
+	CmdLightOffAtRamp      = Command{0x2f, 0x00}
+	CmdLightOffAtRampV67   = Command{0x35, 0x00}
+	CmdLightExtendedSetGet = Command{0x2e, 0x00}
 )
 
 func init() {
-	Commands.RegisterVersionStd(CmdLightOnAtRamp, 0x43, 0x34, 0x00)
-	Commands.RegisterVersionStd(CmdLightOffAtRamp, 0x43, 0x35, 0x00)
-
 	Devices.Register(0x01, dimmableLightingFactory)
 	Devices.Register(0x02, switchedLightingFactory)
 }
@@ -114,15 +113,24 @@ type Dimmer interface {
 
 type SwitchedDevice struct {
 	Device
+	configCh        chan *Message
+	firmwareVersion FirmwareVersion
+}
+
+func (sd *SwitchedDevice) Notify(msg *Message) error {
+	if msg.Command == CmdLightExtendedSetGet {
+		writeToCh(sd.configCh, msg)
+	}
+	return sd.Device.Notify(msg)
 }
 
 func (sd *SwitchedDevice) On() error {
-	_, err := SendCommand(sd, CmdLightOn)
+	_, err := sd.SendCommand(CmdLightOn, nil)
 	return err
 }
 
 func (sd *SwitchedDevice) Off() error {
-	_, err := SendCommand(sd, CmdLightOff)
+	_, err := sd.SendCommand(CmdLightOff, nil)
 	return err
 }
 
@@ -130,9 +138,9 @@ func (sd *SwitchedDevice) Off() error {
 // level. For switched devices this is either 0 or 255, dimmable devices
 // will be the current dim level between 0 and 255
 func (sd *SwitchedDevice) Status() (level int, err error) {
-	ack, err := SendCommand(sd, CmdLightStatusRequest)
+	response, err := sd.SendCommand(CmdLightStatusRequest, nil)
 	if err == nil {
-		level = int(ack.Command.Command1)
+		level = int(response[0])
 	}
 	return level, err
 }
@@ -179,9 +187,9 @@ func (lf *LightFlags) UnmarshalBinary(buf []byte) error {
 
 func (sd *SwitchedDevice) OperatingFlags() (*LightFlags, error) {
 	flags := &LightFlags{}
-	ack, err := SendCommand(sd, CmdGetOperatingFlags)
+	response, err := sd.SendCommand(CmdGetOperatingFlags, nil)
 	if err == nil {
-		flags.UnmarshalBinary([]byte{ack.Command.Command1})
+		flags.UnmarshalBinary([]byte{response[0]})
 	}
 	return flags, err
 }
@@ -189,18 +197,18 @@ func (sd *SwitchedDevice) OperatingFlags() (*LightFlags, error) {
 func (sd *SwitchedDevice) SetOperatingFlags(flags *LightFlags) error {
 	buf, err := flags.MarshalBinary()
 	if err == nil {
-		_, err = SendSubCommand(sd, CmdSetOperatingFlags, int(buf[0]))
+		_, err = sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(buf[0])), nil)
 	}
 	return err
 }
 
 func (sd *SwitchedDevice) ManualOn() error {
-	_, err := SendCommand(sd, CmdLightManualOn)
+	_, err := sd.SendCommand(CmdLightManualOn, nil)
 	return err
 }
 
 func (sd *SwitchedDevice) ManualOff() error {
-	_, err := SendCommand(sd, CmdLightManualOff)
+	_, err := sd.SendCommand(CmdLightManualOff, nil)
 	return err
 }
 
@@ -209,77 +217,100 @@ func (sd *SwitchedDevice) String() string {
 }
 
 func (sd *SwitchedDevice) SetX10Address(button int, houseCode, unitCode byte) error {
-	_, err := SendExtendedCommand(sd, CmdLightExtendedSetGet, []byte{byte(button), 0x04, houseCode, unitCode})
+	_, err := sd.SendCommand(CmdLightExtendedSetGet, []byte{byte(button), 0x04, houseCode, unitCode})
 	return err
 }
 
 func (sd *SwitchedDevice) SwitchConfig() (config SwitchConfig, err error) {
 	// SEE DimmerConfig() notes for explanation of D1 and D2 (payload[0] and payload[1])
-	msg, err := SendExtendedCommandAndWait(sd, CmdLightExtendedSetGet, []byte{0x00, 0x00}, CmdLightExtendedSetGet)
+	_, err = sd.SendCommand(CmdLightExtendedSetGet, []byte{0x00, 0x00})
 	if err == nil {
-		err = config.UnmarshalBinary(msg.Payload)
+		var msg *Message
+		msg, err = readFromCh(sd.configCh)
+		if err == nil {
+			err = config.UnmarshalBinary(msg.Payload)
+		}
 	}
 	return config, err
 }
 
 type DimmableDevice struct {
 	*SwitchedDevice
+	configCh        chan *Message
+	firmwareVersion FirmwareVersion
+}
+
+func (dd *DimmableDevice) Notify(msg *Message) error {
+	if msg.Command == CmdLightExtendedSetGet {
+		writeToCh(dd.configCh, msg)
+	} else {
+		dd.SwitchedDevice.Notify(msg)
+	}
+	return nil
 }
 
 func (dd *DimmableDevice) OnLevel(level int) error {
-	_, err := SendSubCommand(dd, CmdLightOn, level)
+	_, err := dd.SendCommand(CmdLightOn.SubCommand(level), nil)
 	return err
 }
 
 func (dd *DimmableDevice) OnFast(level int) error {
-	_, err := SendCommand(dd, CmdLightOnFast)
+	_, err := dd.SendCommand(CmdLightOnFast, nil)
 	return err
 }
 
 func (dd *DimmableDevice) Brighten() error {
-	_, err := SendCommand(dd, CmdLightBrighten)
+	_, err := dd.SendCommand(CmdLightBrighten, nil)
 	return err
 }
 
 func (dd *DimmableDevice) Dim() error {
-	_, err := SendCommand(dd, CmdLightDim)
+	_, err := dd.SendCommand(CmdLightDim, nil)
 	return err
 }
 
 func (dd *DimmableDevice) StartBrighten() error {
-	_, err := SendSubCommand(dd, CmdLightStartManual, 1)
+	_, err := dd.SendCommand(CmdLightStartManual.SubCommand(1), nil)
 	return err
 }
 
 func (dd *DimmableDevice) StartDim() error {
-	_, err := SendSubCommand(dd, CmdLightStartManual, 0)
+	_, err := dd.SendCommand(CmdLightStartManual.SubCommand(0), nil)
 	return err
 }
 
 func (dd *DimmableDevice) StopChange() error {
-	_, err := SendCommand(dd, CmdLightStopManual)
+	_, err := dd.SendCommand(CmdLightStopManual, nil)
 	return err
 }
 
 func (dd *DimmableDevice) InstantChange(level int) error {
-	_, err := SendSubCommand(dd, CmdLightInstantChange, level)
+	_, err := dd.SendCommand(CmdLightInstantChange.SubCommand(level), nil)
 	return err
 }
 
 func (dd *DimmableDevice) SetStatus(level int) error {
-	_, err := SendSubCommand(dd, CmdLightSetStatus, level)
+	_, err := dd.SendCommand(CmdLightSetStatus.SubCommand(level), nil)
 	return err
 }
 
-func (dd *DimmableDevice) OnAtRamp(level, ramp int) error {
+func (dd *DimmableDevice) OnAtRamp(level, ramp int) (err error) {
 	levelRamp := byte(level) << 4
 	levelRamp |= byte(ramp) & 0x0f
-	_, err := SendSubCommand(dd, CmdLightOnAtRamp, int(levelRamp))
+	if dd.firmwareVersion >= 0x43 {
+		_, err = dd.SendCommand(CmdLightOnAtRampV67.SubCommand(int(levelRamp)), nil)
+	} else {
+		_, err = dd.SendCommand(CmdLightOnAtRamp.SubCommand(int(levelRamp)), nil)
+	}
 	return err
 }
 
-func (dd *DimmableDevice) OffAtRamp(ramp int) error {
-	_, err := SendSubCommand(dd, CmdLightOffAtRamp, 0x0f&ramp)
+func (dd *DimmableDevice) OffAtRamp(ramp int) (err error) {
+	if dd.firmwareVersion >= 0x43 {
+		_, err = dd.SendCommand(CmdLightOffAtRampV67.SubCommand(0x0f&ramp), nil)
+	} else {
+		_, err = dd.SendCommand(CmdLightOffAtRamp.SubCommand(0x0f&ramp), nil)
+	}
 	return err
 }
 
@@ -289,13 +320,13 @@ func (dd *DimmableDevice) String() string {
 
 func (dd *DimmableDevice) SetDefaultRamp(rate int) error {
 	// See notes on DimmerConfig() for information about D1 (payload[0])
-	_, err := SendExtendedCommand(dd, CmdLightExtendedSetGet, []byte{0x01, 0x05, byte(rate)})
+	_, err := dd.SendCommand(CmdLightExtendedSetGet, []byte{0x01, 0x05, byte(rate)})
 	return err
 }
 
 func (dd *DimmableDevice) SetDefaultOnLevel(level int) error {
 	// See notes on DimmerConfig() for information about D1 (payload[0])
-	_, err := SendExtendedCommand(dd, CmdLightExtendedSetGet, []byte{0x01, 0x06, byte(level)})
+	_, err := dd.SendCommand(CmdLightExtendedSetGet, []byte{0x01, 0x06, byte(level)})
 	return err
 }
 
@@ -305,17 +336,21 @@ func (dd *DimmableDevice) DimmerConfig() (config DimmerConfig, err error) {
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
-	msg, err := SendExtendedCommandAndWait(dd, CmdLightExtendedSetGet, []byte{0x01, 0x00}, CmdLightExtendedSetGet)
+	_, err = dd.SendCommand(CmdLightExtendedSetGet, []byte{0x01, 0x00})
 	if err == nil {
-		err = config.UnmarshalBinary(msg.Payload)
+		var msg *Message
+		msg, err = readFromCh(dd.configCh)
+		if err == nil {
+			err = config.UnmarshalBinary(msg.Payload)
+		}
 	}
 	return config, err
 }
 
-func dimmableLightingFactory(device Device) Device {
-	return &DimmableDevice{&SwitchedDevice{device}}
+func dimmableLightingFactory(device Device, info DeviceInfo) Device {
+	return &DimmableDevice{&SwitchedDevice{device, make(chan *Message), info.FirmwareVersion}, make(chan *Message), info.FirmwareVersion}
 }
 
-func switchedLightingFactory(device Device) Device {
-	return &SwitchedDevice{device}
+func switchedLightingFactory(device Device, info DeviceInfo) Device {
+	return &SwitchedDevice{device, make(chan *Message), info.FirmwareVersion}
 }

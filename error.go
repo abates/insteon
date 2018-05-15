@@ -35,11 +35,11 @@ type Error struct {
 // IsError will determine if `check` is wrapping an underlying error.
 // If so, the underlying error is compared to `err`.
 func IsError(check, err error) bool {
-	switch e := err.(type) {
+	switch e := check.(type) {
 	case *Error:
-		return e.Cause == check
+		return e.Cause == err
 	case *BufError:
-		return e.Cause == check
+		return e.Cause == err
 	}
 	return check == err
 }

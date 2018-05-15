@@ -40,6 +40,7 @@ func (llf *LogLevelFlag) String() string {
 
 var (
 	modem          *plm.PLM
+	network        insteon.Network
 	logLevelFlag   LogLevelFlag
 	serialPortFlag string
 	timeoutFlag    time.Duration
@@ -88,10 +89,11 @@ func run(args []string, next cli.NextFunc) error {
 		defer s.Close()
 
 		modem = plm.New(s, timeoutFlag)
+		network = modem.Network()
 		defer modem.Close()
 		if logLevelFlag == insteon.LevelTrace {
-			modem.StartMonitor()
-			defer modem.StopMonitor()
+			//modem.StartMonitor()
+			//defer modem.StopMonitor()
 		}
 		return next()
 	}

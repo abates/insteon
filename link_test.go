@@ -42,6 +42,36 @@ func TestRecordControlFlags(t *testing.T) {
 	}
 }
 
+func TestRecordControlFlagsUnmarshalText(t *testing.T) {
+	tests := []struct {
+		input       string
+		expectedErr string
+		expected    RecordControlFlags
+	}{
+		{"A", "Expected 2 characters got 1", RecordControlFlags(0x00)},
+		{"AR", "", RecordControlFlags(0x00)},
+		{"UR", "", RecordControlFlags(0x80)},
+		{"AC", "", RecordControlFlags(0x40)},
+		{"UC", "", RecordControlFlags(0xc0)},
+		{"FR", "Invalid value for Available flag", RecordControlFlags(0x00)},
+		{"AZ", "Invalid value for Controller flag", RecordControlFlags(0x00)},
+	}
+
+	for i, test := range tests {
+		var flags RecordControlFlags
+		err := flags.UnmarshalText([]byte(test.input))
+		if err == nil {
+			if test.expectedErr != "" {
+				t.Errorf("tests[%d] expected %q got nil", i, test.expectedErr)
+			} else if flags != test.expected {
+				t.Errorf("tests[%d] expected 0x%02x got 0x%02x", i, test.expected, flags)
+			}
+		} else if err.Error() != test.expectedErr {
+			t.Errorf("tests[%d] expected %q got %q", i, test.expectedErr, err)
+		}
+	}
+}
+
 func TestSettingRecordControlFlags(t *testing.T) {
 	flags := RecordControlFlags(0xff)
 	tests := []struct {
@@ -126,7 +156,7 @@ func TestLinkMarshalUnmarshal(t *testing.T) {
 	for i, test := range tests {
 		link := &LinkRecord{}
 		err := link.UnmarshalBinary(test.input)
-		if !IsError(test.expectedError, err) {
+		if !IsError(err, test.expectedError) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
 			continue
 		} else if err != nil {
@@ -157,6 +187,65 @@ func TestLinkMarshalUnmarshal(t *testing.T) {
 
 		if !bytes.Equal(buf, test.input) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.input, buf)
+		}
+	}
+}
+
+func TestLinkRecordMarshalText(t *testing.T) {
+	tests := []struct {
+		expectedString string
+		expected       LinkRecord
+		expectedErr    string
+	}{
+		{"UC        1 01.01.01   00 00 00", LinkRecord{0, RecordControlFlags(0xc0), Group(1), Address{1, 1, 1}, [3]byte{0, 0, 0}}, ""},
+		{"UC        1 01.01.01   00 00", LinkRecord{}, "Expected 6 fields got 5"},
+	}
+
+	for i, test := range tests {
+		if test.expectedErr == "" {
+			buf, _ := test.expected.MarshalText()
+			if !bytes.Equal([]byte(test.expectedString), buf) {
+				t.Errorf("tests[%d] expected %q got %q", i, test.expectedString, string(buf))
+			}
+		}
+
+		var linkRecord LinkRecord
+		err := linkRecord.UnmarshalText([]byte(test.expectedString))
+		if err == nil {
+			if test.expectedErr != "" {
+				t.Errorf("tests[%d] expected %q got nil", i, test.expectedErr)
+			} else if test.expected != linkRecord {
+				t.Errorf("tests[%d] expected %v got %v", i, test.expected, linkRecord)
+			}
+		} else if test.expectedErr != err.Error() {
+			t.Errorf("tests[%d] expected %q got %q", i, test.expectedErr, err.Error())
+		}
+	}
+}
+
+func TestGroupUnmarshalText(t *testing.T) {
+	tests := []struct {
+		input       string
+		expectedErr string
+		expected    Group
+	}{
+		{"1", "", Group(1)},
+		{"wxyz", "invalid number format", Group(0)},
+		{"256", "valid groups are between 1 and 255 (inclusive)", Group(0)},
+		{"-1", "valid groups are between 1 and 255 (inclusive)", Group(0)},
+	}
+
+	for i, test := range tests {
+		var group Group
+		err := group.UnmarshalText([]byte(test.input))
+		if err == nil {
+			if test.expectedErr != "" {
+				t.Errorf("tests[%d] expected %q got %q", i, test.expectedErr, err)
+			} else if group != test.expected {
+				t.Errorf("tests[%d] expected %d got %d", i, test.expected, group)
+			}
+		} else if test.expectedErr != err.Error() {
+			t.Errorf("tests[%d] expected %q got %q", i, test.expectedErr, err.Error())
 		}
 	}
 }

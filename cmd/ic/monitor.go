@@ -12,8 +12,8 @@ func init() {
 
 func monCmd([]string, cli.NextFunc) error {
 	log.Printf("Starting monitor...")
-	for msg := range modem.Monitor() {
+	/*for msg := range modem.Monitor() {
 		log.Printf("%s", msg)
-	}
+	}*/
 	return nil
 }

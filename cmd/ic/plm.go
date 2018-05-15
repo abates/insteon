@@ -33,11 +33,7 @@ func plmInfoCmd(args []string, next cli.NextFunc) (err error) {
 		fmt.Printf("   Address: %s\n", info.Address)
 		fmt.Printf("  Category: %02x Sub-Category: %02x\n", info.DevCat.Category(), info.DevCat.SubCategory())
 		fmt.Printf("  Firmware: %d\n", info.Firmware)
-		var db insteon.LinkDB
-		db, err = modem.LinkDB()
-		if err == nil {
-			err = printLinkDatabase(db)
-		}
+		err = printLinkDatabase(modem)
 	}
 	return err
 }
@@ -61,15 +57,19 @@ func plmLink(args []string, crosslink bool) error {
 		if err == nil {
 			group := insteon.Group(0x01)
 			fmt.Printf("Linking to %s...", addr)
-			device, err := modem.Dial(addr)
+			device, err := network.Dial(addr)
 			if err == insteon.ErrNotLinked {
 				err = nil
 			}
 
 			if err == nil {
-				err = insteon.ForceLink(group, modem, device)
-				if err == nil && crosslink {
-					err = insteon.ForceLink(group, device, modem)
+				if linkable, ok := device.(insteon.LinkableDevice); ok {
+					err = insteon.ForceLink(group, modem, linkable)
+					if err == nil && crosslink {
+						err = insteon.ForceLink(group, linkable, modem)
+					}
+				} else {
+					err = fmt.Errorf("%v is not a linkable device", device)
 				}
 
 				if err == nil {
@@ -103,14 +103,18 @@ func plmUnlinkCmd(args []string, next cli.NextFunc) (err error) {
 		err = addr.UnmarshalText([]byte(arg))
 		if err == nil {
 			fmt.Printf("Unlinking from %s...", addr)
-			device, err = modem.Dial(addr)
+			device, err = network.Dial(addr)
 
-			if err == nil {
-				err = insteon.Unlink(group, device, modem)
-			}
+			if linkable, ok := device.(insteon.LinkableDevice); ok {
+				if err == nil {
+					err = insteon.Unlink(group, linkable, modem)
+				}
 
-			if err == nil || err == insteon.ErrNotLinked {
-				err = insteon.Unlink(group, modem, device)
+				if err == nil || err == insteon.ErrNotLinked {
+					err = insteon.Unlink(group, modem, linkable)
+				}
+			} else {
+				err = fmt.Errorf("%v is not a linkable device", device)
 			}
 
 			if err == insteon.ErrNotLinked {

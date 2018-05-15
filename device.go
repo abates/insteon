@@ -1,10 +1,5 @@
 package insteon
 
-import (
-	"fmt"
-	"time"
-)
-
 // Insteon Engine Versions
 const (
 	VerI1 EngineVersion = iota
@@ -16,28 +11,15 @@ const (
 // device is running
 type EngineVersion int
 
-// String converts the version number to one of I1, I2 or I2CS corresponding to
-// insteon engine version 1, version 2 and version 2 with checksum (CS)
-func (ver EngineVersion) String() string {
-	switch ver {
-	case VerI1:
-		return "I1"
-	case VerI2:
-		return "I2"
-	case VerI2Cs:
-		return "I2CS"
-	}
-	return fmt.Sprintf("Unknown(%v)", int(ver))
-}
-
-// The DeviceInitializer is a function that will return a fully initialized device
-// using the input device as a template. DeviceInitializers are used to convert
-// standard devices to category specific devices. For instance, when a PLM connects
-// to a device, it uses an I1Device object to attempt to determine the device's
-// category (by way of its product data).  If the product data is received, then
-// the appropriate initializer is called for that device category in order to get
-// a more specific device object (like a light)
-type DeviceInitializer func(Device) Device
+// The DeviceInitializer is a function that should return a fully initialized device.
+// The input device will be previously initialized as an I1, I2 or I2CS device, depending
+// on the determination made in the Network code.  Device innitializers are
+// stored by device category and will be called based on the devcat response from
+// the device on the Insteon network.  Initializers should take the input device
+// and use that to communicate directly with physical device.  In addition to the Device
+// argument, a DeviceInfo struct is included which includes devcat, firmware and engine
+// version information.
+type DeviceInitializer func(Device, DeviceInfo) Device
 
 // Devices is a global DeviceRegistry. This device registry should only be used
 // if you are adding a new device category to the system
@@ -62,99 +44,94 @@ func (dr *DeviceRegistry) Register(category Category, initializer DeviceInitiali
 	dr.devices[category] = initializer
 }
 
-// Find looks for an initializer corresponding to the given category
-func (dr *DeviceRegistry) Find(category Category) DeviceInitializer {
-	return dr.devices[category]
+// Delete will remove a device initializer rom the registry
+func (dr *DeviceRegistry) Delete(category Category) {
+	delete(dr.devices, category)
 }
 
-// Initialize attempts to query the given device for its product data and then
-// call the appropriate initializer for that device category. If the device fails
-// to respond to the Product Data Request (generating an ErrReadTimeout) then the
-// original device is returned
-func (dr *DeviceRegistry) Initialize(device Device) (Device, error) {
-	// construct device for device type
-	initializer := dr.Find(device.DevCat().Category())
-	if initializer != nil {
-		device = initializer(device)
-	}
-
-	return device, nil
+// Find looks for an initializer corresponding to the given category
+func (dr *DeviceRegistry) Find(category Category) (DeviceInitializer, bool) {
+	initializer, found := dr.devices[category]
+	return initializer, found
 }
 
 type Device interface {
-	VersionedConnection
-	Linkable
-	DevCat() DevCat
-	FXUsername() (string, error)
-	TextString() (string, error)
-	SetTextString(string) error
-	EngineVersion() (EngineVersion, error)
+	// Address will return the 3 byte destination address of the device.
+	// All device implemtaions must be able to return their address
+	Address() Address
+
+	// SendCommand will send the given command bytes to the device including
+	// a payload (for extended messages) if payload length is zero then a standard
+	// length message is used to deliver the commands. The command bytes from the
+	// response ack are returned as well as any error
+	SendCommand(cmd Command, payload []byte) (response Command, err error)
+
+	// Notify is called when an Insteon message is received for the device
+	Notify(*Message) error
+}
+
+type PingableDevice interface {
 	Ping() error
 }
 
-func SendSubCommand(connection VersionedConnection, command *Command, subCommand int) (ack *Message, err error) {
-	commandBytes := command.Version(connection.FirmwareVersion())
-	return sendCommand(connection, commandBytes.SubCommand(subCommand), StandardDirectMessage, nil)
+type NameableDevice interface {
+	TextString() (string, error)
+	SetTextString(string) error
 }
 
-func SendCommand(connection VersionedConnection, command *Command) (ack *Message, err error) {
-	return sendCommand(connection, command.Version(connection.FirmwareVersion()), StandardDirectMessage, nil)
+type FXDevice interface {
+	FXUsername() (string, error)
 }
 
-func SendCommandAndWait(connection VersionedConnection, command *Command, waitCommands ...*Command) (msg *Message, err error) {
-	return sendCommandAndWait(connection, command, StandardDirectMessage, nil, waitCommands...)
+type AllLinkableDevice interface {
+	// AssignToAllLinkGroup should be called after the set button
+	// has been pressed on a responder. If the set button was pressed
+	// then this method will assign the responder to the given
+	// All-Link Group
+	AssignToAllLinkGroup(Group) error
+
+	// DeleteFromAllLinkGroup removes an All-Link record from a responding
+	// device during an Unlinking session
+	DeleteFromAllLinkGroup(Group) error
 }
 
-func SendExtendedCommandAndWait(connection VersionedConnection, command *Command, payload []byte, waitCommands ...*Command) (msg *Message, err error) {
-	return sendCommandAndWait(connection, command, ExtendedDirectMessage, payload, waitCommands...)
-}
+// LinkableDevice is any device that can be put into
+// linking mode and the link database can be managed remotely
+type LinkableDevice interface {
+	Address() Address
 
-func SendExtendedSubCommand(connection VersionedConnection, command *Command, subCommand int, payload []byte) (ack *Message, err error) {
-	if len(payload) < 14 {
-		payload = append(payload, make([]byte, 14-len(payload))...)
-	}
-	commandBytes := command.Version(connection.FirmwareVersion())
-	return sendCommand(connection, commandBytes.SubCommand(subCommand), ExtendedDirectMessage, payload)
-}
+	// EnterLinkingMode is the programmatic equivalent of holding down
+	// the set button for two seconds. If the device is the first
+	// to enter linking mode, then it is the controller. The next
+	// device to enter linking mode is the responder.  LinkingMode
+	// is usually indicated by a flashing GREEN LED on the device
+	EnterLinkingMode(Group) error
 
-func SendExtendedCommand(connection VersionedConnection, command *Command, payload []byte) (ack *Message, err error) {
-	if len(payload) < 14 {
-		payload = append(payload, make([]byte, 14-len(payload))...)
-	}
-	return sendCommand(connection, command.Version(connection.FirmwareVersion()), ExtendedDirectMessage, payload)
-}
+	// EnterUnlinkingMode puts a controller device into unlinking mode
+	// when the set button is then pushed (EnterLinkingMode) on a linked
+	// device the corresponding links in both the controller and responder
+	// are deleted.  EnterUnlinkingMode is the programmatic equivalent
+	// to pressing the set button until the device beeps, releasing, then
+	// pressing the set button again until the device beeps again. UnlinkingMode
+	// is usually indicated by a flashing RED LED on the device
+	EnterUnlinkingMode(Group) error
 
-func sendCommandAndWait(connection VersionedConnection, command *Command, flags Flags, payload []byte, waitCommands ...*Command) (msg *Message, err error) {
-	Log.Debugf("Subscribing to traffic for command %v", waitCommands)
-	waitBytes := make([]CommandBytes, len(waitCommands))
-	for i, waitCommand := range waitCommands {
-		waitBytes[i] = waitCommand.Version(connection.FirmwareVersion())
-	}
+	// ExitLinkingMode takes a controller out of linking/unlinking mode.
+	ExitLinkingMode() error
 
-	rxCh := connection.Subscribe(waitBytes...)
-	defer connection.Unsubscribe(rxCh)
-	ack, err := sendCommand(connection, command.Version(connection.FirmwareVersion()), flags, payload)
+	// Links will return a list of LinkRecords that are present in
+	// the All-Link database
+	Links() ([]*LinkRecord, error)
 
-	if err == nil {
-		if ack.Nak() {
-			err = ErrNak
-		} else {
-			Log.Debugf("Waiting for %v response", waitCommands)
-			select {
-			case msg = <-rxCh:
-				Log.Debugf("Received message %v", msg)
-			case <-time.After(Timeout):
-				err = ErrReadTimeout
-			}
-		}
-	}
-	return
-}
+	// AddLink will either add the link to the All-Link database
+	// or it will replace an existing link-record that has been marked
+	// as deleted
+	AddLink(newLink *LinkRecord) error
 
-func sendCommand(connection Connection, command CommandBytes, flags Flags, payload []byte) (ack *Message, err error) {
-	return connection.Write(&Message{
-		Flags:   flags,
-		Command: command,
-		Payload: payload,
-	})
+	// RemoveLinks will either remove the link records from the device
+	// All-Link database, or it will simply mark them as deleted
+	RemoveLinks(oldLinks ...*LinkRecord) error
+
+	// WriteLink will write the link record to the device's link database
+	WriteLink(*LinkRecord) error
 }

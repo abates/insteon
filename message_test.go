@@ -5,6 +5,23 @@ import (
 	"testing"
 )
 
+var (
+	testVer   = EngineVersion(1)
+	testAddr1 = Address{1, 2, 3}
+	testAddr2 = Address{3, 4, 5}
+
+	TestMessageSetButtonPressedController = &Message{testVer, testAddr1, testAddr2, StandardBroadcast, Command{1, 2}, nil}
+	TestMessageEngineVersionAck           = &Message{testVer, testAddr1, testAddr2, StandardDirectAck, Command{0x0d, 1}, nil}
+	TestMessagePing                       = &Message{testVer, testAddr1, testAddr2, StandardDirectMessage, Command{0x0f, 0x00}, nil}
+	TestMessagePingAck                    = &Message{testVer, testAddr1, testAddr2, StandardDirectAck, Command{0x0f, 0x00}, nil}
+	TestAck                               = &Message{testVer, testAddr1, testAddr2, StandardDirectAck, Command{0x00, 0x00}, nil}
+
+	TestProductDataResponse = &Message{testVer, testAddr1, testAddr2, ExtendedDirectMessage, CmdProductDataResp, []byte{0, 1, 2, 3, 4, 5, 0xff, 0xff, 0, 0, 0, 0, 0, 0}}
+	TestDeviceLink1         = &Message{testVer, testAddr1, testAddr2, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xff, 0, 0xc0, 1, 7, 8, 9, 0, 0, 0, 0}}
+	TestDeviceLink2         = &Message{testVer, testAddr1, testAddr2, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xf7, 0, 0xc0, 1, 10, 11, 12, 0, 0, 0, 0}}
+	TestDeviceLink3         = &Message{testVer, testAddr1, testAddr2, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xf7, 0, 0x00, 0, 0, 0, 0, 0, 0, 0, 0}}
+)
+
 func TestMessageType(t *testing.T) {
 	tests := []struct {
 		input             MessageType
@@ -99,7 +116,9 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		expectedSrc     Address
 		expectedDst     Address
 		expectedFlags   Flags
-		expectedCommand CommandBytes
+		expectedAck     bool
+		expectedNak     bool
+		expectedCommand Command
 		expectedError   error
 	}{
 		// Test 0
@@ -109,7 +128,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			expectedSrc:     Address{0x01, 0x02, 0x03},
 			expectedDst:     Address{0x04, 0x05, 0x06},
 			expectedFlags:   StandardDirectMessage,
-			expectedCommand: CommandBytes{Command1: 0x10, Command2: 0x0},
+			expectedCommand: Command{0x10, 0x0},
 		},
 		// Test 1
 		{
@@ -118,7 +137,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			expectedSrc:     Address{0x01, 0x02, 0x03},
 			expectedDst:     Address{0x04, 0x05, 0x06},
 			expectedFlags:   Flags(0x8a),
-			expectedCommand: CommandBytes{Command1: 0x01, Command2: 0x00},
+			expectedCommand: Command{0x01, 0x00},
 		},
 		// Test 2
 		{
@@ -132,7 +151,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			expectedSrc:     Address{0x01, 0x02, 0x03},
 			expectedDst:     Address{0x04, 0x05, 0x06},
 			expectedFlags:   ExtendedDirectMessage,
-			expectedCommand: CommandBytes{Command1: 0x09, Command2: 0x00},
+			expectedCommand: Command{0x09, 0x00},
 		},
 		// Test 4
 		{
@@ -146,14 +165,34 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			expectedSrc:     Address{0x01, 0x02, 0x03},
 			expectedDst:     Address{0x04, 0x05, 0x06},
 			expectedFlags:   ExtendedDirectMessage,
-			expectedCommand: CommandBytes{Command1: 0x2f, Command2: 0x00},
+			expectedCommand: Command{0x2f, 0x00},
+		},
+		// Test 6
+		{
+			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xaa, 0x01, 0x00},
+			version:         VerI1,
+			expectedSrc:     Address{0x01, 0x02, 0x03},
+			expectedDst:     Address{0x04, 0x05, 0x06},
+			expectedFlags:   Flags(0xaa),
+			expectedNak:     true,
+			expectedCommand: Command{0x01, 0x00},
+		},
+		// Test 7
+		{
+			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x2a, 0x01, 0x00},
+			version:         VerI1,
+			expectedSrc:     Address{0x01, 0x02, 0x03},
+			expectedDst:     Address{0x04, 0x05, 0x06},
+			expectedFlags:   Flags(0x2a),
+			expectedAck:     true,
+			expectedCommand: Command{0x01, 0x00},
 		},
 	}
 
 	for i, test := range tests {
 		message := &Message{version: test.version}
 		err := message.UnmarshalBinary(test.input)
-		if !IsError(test.expectedError, err) {
+		if !IsError(err, test.expectedError) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
 			continue
 		} else if err != nil {
@@ -170,6 +209,14 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 
 		if test.expectedFlags != message.Flags {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedFlags, message.Flags)
+		}
+
+		if test.expectedAck != message.Ack() {
+			t.Errorf("tests[%d] expected Ack %v got %v", i, test.expectedAck, message.Ack())
+		}
+
+		if test.expectedNak != message.Nak() {
+			t.Errorf("tests[%d] expected Nak %v got %v", i, test.expectedNak, message.Nak())
 		}
 
 		if test.expectedCommand != message.Command {

@@ -2,39 +2,15 @@ package insteon
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
+	"time"
 )
 
-func testStr(stringer func() string, expectedFmts []string, expectedArgs []interface{}) (msg string, failed bool) {
-	var gotFmts []string
-	var gotArgs []interface{}
-
-	oldSprintf := sprintf
-	sprintf = func(format string, a ...interface{}) string {
-		gotFmts = append(gotFmts, format)
-		gotArgs = append(gotArgs, a...)
-		return ""
+func TestFirmwareVersionString(t *testing.T) {
+	ver := FirmwareVersion(0x42)
+	if ver.String() != "0x42" {
+		t.Errorf("expected %q got %q", "0x42", ver.String())
 	}
-	stringer()
-	if !reflect.DeepEqual(expectedFmts, gotFmts) {
-		msg = oldSprintf("expected %q got %q", expectedFmts, gotFmts)
-		failed = true
-	} else if !reflect.DeepEqual(expectedArgs, gotArgs) {
-		if len(expectedArgs) != len(gotArgs) {
-			msg = oldSprintf("expected %d arguments but got %d", len(expectedArgs), len(gotArgs))
-			failed = true
-		} else {
-			for i, expectedArg := range expectedArgs {
-				if expectedArg != gotArgs[i] {
-					msg = oldSprintf("expected '%v' got '%v'", expectedArg, gotArgs[i])
-					failed = true
-				}
-			}
-		}
-	}
-	sprintf = oldSprintf
-	return
 }
 
 func TestAddress(t *testing.T) {
@@ -156,7 +132,7 @@ func TestProductDataMarshaling(t *testing.T) {
 	for i, test := range tests {
 		pd := &ProductData{}
 		err := pd.UnmarshalBinary(test.input)
-		if !IsError(test.expectedError, err) {
+		if !IsError(err, test.expectedError) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
 		}
 
@@ -175,4 +151,48 @@ func TestProductDataMarshaling(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestWriteToCh(t *testing.T) {
+	tests := []struct {
+		ch          chan *Message
+		expectedErr error
+	}{
+		{make(chan *Message, 1), nil},
+		{make(chan *Message), ErrWriteTimeout},
+	}
+
+	timeout := Timeout
+	Timeout = time.Second
+	for i, test := range tests {
+		err := writeToCh(test.ch, &Message{})
+		if err != test.expectedErr {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedErr, err)
+		}
+	}
+	Timeout = timeout
+}
+
+func TestReadFromCh(t *testing.T) {
+	fullCh := make(chan *Message, 1)
+	fullCh <- &Message{}
+
+	tests := []struct {
+		ch          chan *Message
+		expectedErr error
+	}{
+		{fullCh, nil},
+		{make(chan *Message), ErrReadTimeout},
+	}
+
+	timeout := Timeout
+	Timeout = time.Second
+	for i, test := range tests {
+		_, err := readFromCh(test.ch)
+		if err != test.expectedErr {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedErr, err)
+		}
+
+	}
+	Timeout = timeout
 }

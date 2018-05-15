@@ -1,152 +1,123 @@
 package insteon
 
 import (
-	"bytes"
-	"reflect"
 	"testing"
 )
 
-func TestI1DeviceFunctions(t *testing.T) {
+func TestI1DeviceIsDevice(t *testing.T) {
+	net := &testNetwork{}
+	address := Address([3]byte{0x01, 0x02, 0x03})
+	var device interface{}
+	device = NewI1Device(address, net)
+
+	if _, ok := device.(Device); !ok {
+		t.Errorf("Expected I1Device to be linkable")
+	}
+}
+
+func TestI1DeviceNotify(t *testing.T) {
 	tests := []struct {
-		function        func(*I1Device) (interface{}, error)
-		response        *Message
-		ack             *Message
-		expectedValue   interface{}
-		expectedCommand CommandBytes
-		expectedMatch   []CommandBytes
-		expectedPayload []byte
+		input *Message
 	}{
-		// Test 0
-		{
-			function:        func(device *I1Device) (interface{}, error) { return nil, device.AssignToAllLinkGroup(1) },
-			expectedCommand: CommandBytes{Command1: 0x01, Command2: 0x01},
-		},
-		// Test 1
-		{
-			function:        func(device *I1Device) (interface{}, error) { return nil, device.DeleteFromAllLinkGroup(1) },
-			expectedCommand: CommandBytes{Command1: 0x02, Command2: 0x01},
-		},
-		// Test 2
-		{
-			function:        func(device *I1Device) (interface{}, error) { return device.ProductData() },
-			response:        &Message{Payload: []byte{0, 0x04, 0x05, 0x06, 0x07, 0x08, 0, 0, 0, 0, 0, 0, 0, 0}},
-			expectedCommand: CommandBytes{Command1: 0x03, Command2: 0x00},
-			expectedValue:   &ProductData{ProductKey([3]byte{0x04, 0x05, 0x06}), DevCat([2]byte{0x07, 0x08})},
-			expectedMatch:   []CommandBytes{CmdProductDataResp.Version(0)},
-		},
-		// Test 3
-		{
-			function:        func(device *I1Device) (interface{}, error) { return device.FXUsername() },
-			response:        &Message{Payload: []byte("ABCDEFGHIJKLMN")},
-			expectedCommand: CommandBytes{Command1: 0x03, Command2: 0x01},
-			expectedValue:   "ABCDEFGHIJKLMN",
-			expectedMatch:   []CommandBytes{CmdFxUsernameResp.Version(0)},
-		},
-		// Test 4
-		{
-			function:        func(device *I1Device) (interface{}, error) { return device.TextString() },
-			response:        &Message{Payload: []byte("ABCDEFGHIJKLMN")},
-			expectedCommand: CommandBytes{Command1: 0x03, Command2: 0x02},
-			expectedValue:   "ABCDEFGHIJKLMN",
-			expectedMatch:   []CommandBytes{CmdDeviceTextStringResp.Version(0)},
-		},
-		// Test 5
-		{
-			function: func(device *I1Device) (interface{}, error) { return nil, device.EnterLinkingMode(0) },
-		},
-		// Test 6
-		{
-			function: func(device *I1Device) (interface{}, error) { return nil, device.EnterUnlinkingMode(0) },
-		},
-		// Test 7
-		{
-			function: func(device *I1Device) (interface{}, error) { return nil, device.ExitLinkingMode() },
-		},
-		// Test 8
-		{
-			function:        func(device *I1Device) (interface{}, error) { return device.EngineVersion() },
-			expectedCommand: CommandBytes{Command1: 0x0d, Command2: 0x00},
-			ack:             &Message{Flags: StandardDirectAck, Command: CmdGetEngineVersion.Version(0).SubCommand(2)},
-			expectedValue:   EngineVersion(2),
-		},
-		// Test 9
-		{
-			function:        func(device *I1Device) (interface{}, error) { return nil, device.Ping() },
-			expectedCommand: CommandBytes{Command1: 0x0f, Command2: 0x00},
-		},
-		// Test 10
-		/*{
-			function:        func(device *I1Device) (interface{}, error) { return device.IDRequest() },
-			response:        &Message{Command: CmdSetButtonPressedController.Version(0), Dst: Address{0x15, 0x22}},
-			expectedCommand: CommandBytes{Command1: 0x10, Command2: 0x00},
-			expectedMatch:   []CommandBytes{CmdSetButtonPressedController.Version(0), CmdSetButtonPressedResponder.Version(0)},
-			expectedValue:   DevCat{0x15, 0x22},
-		},*/
-		// Test 11
-		{
-			function:        func(device *I1Device) (interface{}, error) { return nil, device.SetTextString("OPQRSTUVWXYZAB") },
-			expectedCommand: CommandBytes{Command1: 0x03, Command2: 0x03},
-			expectedPayload: []byte("OPQRSTUVWXYZAB"),
-		},
-		// Test 12
-		{
-			function: func(device *I1Device) (interface{}, error) { return nil, device.SetAllLinkCommandAlias(nil, nil) },
-		},
-		// Test 13
-		{
-			function: func(device *I1Device) (interface{}, error) { return nil, device.SetAllLinkCommandAliasData(nil) },
-		},
-		// Test 14
-		{
-			function: func(device *I1Device) (interface{}, error) {
-				return device.BlockDataTransfer(0, 0, 0)
-			},
-			expectedValue: []byte(nil),
-		},
-		// Test 15
-		{
-			function: func(device *I1Device) (interface{}, error) { return device.LinkDB() },
-		},
+		{&Message{EngineVersion(1), Address{1, 2, 3}, Address{4, 5, 6}, Flags(0x20), Command{1, 2}, nil}},
+		{&Message{EngineVersion(1), Address{1, 2, 3}, Address{4, 5, 6}, Flags(0xa0), Command{1, 2}, nil}},
+		{&Message{EngineVersion(1), Address{1, 2, 3}, Address{4, 5, 6}, Flags(0x1a), Command{0x03, 0x00}, make([]byte, 14)}},
 	}
 
 	for i, test := range tests {
-		conn := &testConnection{responses: []*Message{test.response}, ackMessage: test.ack}
-		address := Address([3]byte{0x01, 0x02, 0x03})
-		device := NewI1Device(address, conn)
-		device.devCat = DevCat{0x00, 0x00}
-		device.firmwareVersion = 0
-
-		if device.Address() != address {
-			t.Errorf("tests[%d] expected %v got %v", i, address, device.Address())
+		device := NewI1Device(Address{}, &testNetwork{})
+		device.ackCh = make(chan *Message, 1)
+		device.productDataCh = make(chan *Message, 1)
+		device.Notify(test.input)
+		if (test.input.Ack() || test.input.Nak()) && len(device.ackCh) < 1 {
+			t.Errorf("tests[%d] expected message to be delivered to the ack channel", i)
 		}
 
-		if device.String() != "I1 Device (01.02.03)" {
-			t.Errorf("tests[%d] expected %q got %q", i, "I1 Device (01.02.03)", device.String())
+		if test.input.Command[0] == 0x03 && len(device.productDataCh) < 1 {
+			t.Errorf("tests[%d] expected message to be delivered to the product data channel", i)
 		}
+	}
+}
 
-		value, _ := test.function(device)
-		if !reflect.DeepEqual(value, test.expectedValue) {
-			t.Logf("tests[%d] ack: %v", i, test.ack)
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedValue, value)
-		}
+func TestI1DeviceSendCommand(t *testing.T) {
+	tests := []struct {
+		inputCommand Command
+		inputPayload []byte
+	}{
+		{CmdPing, nil},
+		{CmdPing, make([]byte, 14)},
+	}
 
-		if !test.expectedCommand.Equal(conn.lastMessage.Command) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedCommand, conn.lastMessage.Command)
-		}
+	for i, test := range tests {
+		net := &testNetwork{}
+		device := NewI1Device(Address{1, 2, 3}, net)
+		device.ackCh = make(chan *Message, 1)
+		device.ackCh <- &Message{}
 
-		if test.expectedMatch != nil {
-			if !reflect.DeepEqual(conn.matchCommands, test.expectedMatch) {
-				t.Errorf("tests[%d] expected %v got %v", i, test.expectedMatch, conn.matchCommands)
+		device.SendCommand(test.inputCommand, test.inputPayload)
+
+		if len(net.sentMessages) < 1 {
+			t.Errorf("tests[%d] expected message to be sent, but it wasn't", i)
+		} else {
+			msg := net.sentMessages[0]
+			if msg.Command != test.inputCommand {
+				t.Errorf("tests[%d] expected Command %v got %v", i, test.inputCommand, msg.Command)
+				continue
+			}
+
+			if len(test.inputPayload) == 0 {
+				if msg.Flags != StandardDirectMessage {
+					t.Errorf("tests[%d] expected StandardDirectMessage got %v", i, msg.Flags)
+				}
+			} else {
+				if msg.Flags != ExtendedDirectMessage {
+					t.Errorf("tests[%d] expected ExtendedDirectMessage got %v", i, msg.Flags)
+				}
 			}
 		}
+	}
+}
 
-		if !bytes.Equal(conn.payload, test.expectedPayload) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedPayload, conn.payload)
-		}
+func TestI1DeviceAddress(t *testing.T) {
+	address := Address{36, 25, 36}
+	i1device := &I1Device{address: address}
 
-		device.Close()
-		if !conn.closed {
-			t.Errorf("tests[%d] expected device.Close() to close underlying connection", i)
+	if address != i1device.Address() {
+		t.Errorf("Expected %v got %v", address, i1device.Address())
+	}
+}
+
+func TestI1DeviceCommands(t *testing.T) {
+	tests := []struct {
+		execute         func(*I1Device)
+		response        []*Message
+		expectedCommand Command
+	}{
+		{func(dev *I1Device) { dev.AssignToAllLinkGroup(240) }, []*Message{TestAck}, CmdAssignToAllLinkGroup.SubCommand(240)},
+		{func(dev *I1Device) { dev.DeleteFromAllLinkGroup(240) }, []*Message{TestAck}, CmdDeleteFromAllLinkGroup.SubCommand(240)},
+		{func(dev *I1Device) { dev.ProductData() }, []*Message{TestAck, TestProductDataResponse}, CmdProductDataReq},
+		{func(dev *I1Device) { dev.Ping() }, []*Message{TestAck}, CmdPing},
+	}
+
+	for i, test := range tests {
+		net := &testNetwork{}
+		device := NewI1Device(Address{}, net)
+		go func() {
+			for _, resp := range test.response {
+				device.Notify(resp)
+			}
+		}()
+		test.execute(device)
+
+		if net.sentMessages[0].Command != test.expectedCommand {
+			t.Errorf("tests[%d] expected command %v got %v", i, test.expectedCommand, net.sentMessages[0].Command)
 		}
+	}
+}
+
+func TestI1DeviceString(t *testing.T) {
+	device := NewI1Device(Address{1, 2, 3}, nil)
+	if device.String() != "I1 Device (01.02.03)" {
+		t.Errorf("Expected %q got %q", "I1 Device (01.02.03)", device.String())
 	}
 }

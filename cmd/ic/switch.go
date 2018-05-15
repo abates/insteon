@@ -28,10 +28,7 @@ func swCmd(args []string, next cli.NextFunc) (err error) {
 		return fmt.Errorf("invalid device address: %v", err)
 	}
 
-	device, err := devConnect(modem, addr)
-	if closeable, ok := device.(insteon.Closeable); ok {
-		defer closeable.Close()
-	}
+	device, err := devConnect(network, addr)
 	if err == nil {
 		var ok bool
 		if sw, ok = device.(insteon.Switch); ok {

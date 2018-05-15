@@ -52,10 +52,12 @@ func TestLinkRequest(t *testing.T) {
 		expectedString  string
 		expectedError   error
 	}{
+		// test 0
 		{
 			input:         []byte{},
 			expectedError: ErrBufferTooShort,
 		},
+		// test 1
 		{
 			input:           []byte{0xff, 0x00, 0x0f, 0xff, 0x08},
 			marshal:         []byte{0x0, 0x00, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -64,6 +66,7 @@ func TestLinkRequest(t *testing.T) {
 			expectedRecords: 8,
 			expectedString:  "Link Read 0f.ff 8",
 		},
+		// test 2
 		{
 			input:           []byte{0xff, 0x01, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			marshal:         []byte{0x00, 0x01, 0x0f, 0xff, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -71,7 +74,9 @@ func TestLinkRequest(t *testing.T) {
 			expectedAddress: MemAddress(0x0fff),
 			expectedRecords: 0,
 			expectedString:  "Link Resp 0f.ff 0",
+			expectedError:   ErrEndOfLinks,
 		},
+		// test 3
 		{
 			input:           []byte{0xff, 0x02, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			marshal:         []byte{0x00, 0x02, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -79,13 +84,14 @@ func TestLinkRequest(t *testing.T) {
 			expectedAddress: MemAddress(0x0fff),
 			expectedRecords: 8,
 			expectedString:  "Link Write 0f.ff 8",
+			expectedError:   ErrEndOfLinks,
 		},
 	}
 
 	for i, test := range tests {
 		linkRequest := &LinkRequest{}
 		err := linkRequest.UnmarshalBinary(test.input)
-		if !IsError(test.expectedError, err) {
+		if !IsError(err, test.expectedError) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
 			continue
 		} else if err != nil {
@@ -115,135 +121,11 @@ func TestLinkRequest(t *testing.T) {
 	}
 }
 
-func availableLink(addr Address) *LinkRecord {
-	var flags RecordControlFlags
-	flags.setAvailable()
-	return &LinkRecord{Flags: flags, Group: Group(0x01), Address: addr, Data: [3]byte{0x04, 0x05, 0x06}}
-}
-
-func unavailableLink(addr Address) *LinkRecord {
-	var flags RecordControlFlags
-	flags.setInUse()
-	return &LinkRecord{Flags: flags, Group: Group(0x01), Address: addr, Data: [3]byte{0x04, 0x05, 0x06}}
-}
-
 func TestAddLink(t *testing.T) {
-	tests := []struct {
-		input    []*LinkRecord
-		expected MemAddress
-	}{
-		{nil, MemAddress(0x0ff8)},
-		{[]*LinkRecord{availableLink(Address{1, 2, 3})}, MemAddress(0x0ff8)},
-		{[]*LinkRecord{unavailableLink(Address{1, 2, 3})}, MemAddress(0x0ff0)},
-	}
-
-	for i, test := range tests {
-		oldLinkReader := linkReader
-		linkReader = func(VersionedConnection) ([]*LinkRecord, error) {
-			return test.input, nil
-		}
-
-		oldLinkWriter := linkWriter
-		var address MemAddress
-		linkWriter = func(conn VersionedConnection, addr MemAddress, link *LinkRecord) error {
-			address = addr
-			return nil
-		}
-
-		db := NewDeviceLinkDB(nil)
-		db.AddLink(nil)
-
-		if test.expected != address {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expected, address)
-		}
-
-		linkReader = oldLinkReader
-		linkWriter = oldLinkWriter
-	}
 }
 
 func TestRemoveLink(t *testing.T) {
-	tests := []struct {
-		links    []*LinkRecord
-		input    *LinkRecord
-		expected MemAddress
-	}{
-		{[]*LinkRecord{unavailableLink(Address{1, 2, 3})}, unavailableLink(Address{1, 2, 3}), 0x0ff8},
-		{[]*LinkRecord{unavailableLink(Address{1, 2, 3}), unavailableLink(Address{4, 5, 6})}, unavailableLink(Address{4, 5, 6}), 0x0ff0},
-	}
-
-	for i, test := range tests {
-		oldLinkReader := linkReader
-		linkReader = func(VersionedConnection) ([]*LinkRecord, error) {
-			return test.links, nil
-		}
-
-		oldLinkWriter := linkWriter
-		var writeAddress MemAddress
-		var writeLink *LinkRecord
-		linkWriter = func(conn VersionedConnection, addr MemAddress, link *LinkRecord) error {
-			writeAddress = addr
-			writeLink = link
-			return nil
-		}
-
-		db := NewDeviceLinkDB(nil)
-		db.RemoveLinks(test.input)
-
-		if test.expected != writeAddress {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expected, writeAddress)
-		}
-
-		if writeLink.Flags.InUse() {
-			t.Errorf("tests[%d] link should have been available", i)
-		}
-
-		linkReader = oldLinkReader
-		linkWriter = oldLinkWriter
-	}
 }
 
 func TestCleanup(t *testing.T) {
-	/*var flags RecordControlFlags
-	flags.setController()
-
-	link1 := func(available bool) *Link {
-		if available {
-			flags.setAvailable()
-		}
-		return &Link{Flags: flags, Group: Group(0x01), Address: Address{0x01, 0x02, 0x03}, Data: [3]byte{0x04, 0x05, 0x06}}
-	}
-
-	link2 := func(available bool) *Link {
-		if available {
-			flags.setAvailable()
-		}
-		return &Link{Flags: flags, Group: Group(0x01), Address: Address{0x07, 0x08, 0x09}, Data: [3]byte{0x0a, 0x0b, 0x0c}}
-	}
-
-	tests := []struct {
-		input    []*Link
-		expected []*Link
-	}{
-		{
-			input:    []*Link{link1(false), link1(false), link1(false), link2(false), link2(false), link2(false)},
-			expected: []*Link{link1(false), link1(true), link1(true), link2(false), link2(true), link2(true)},
-		},
-	}
-
-	for i, test := range tests {
-		linkdb := DeviceLinkDB{
-			conn: &testConnection{},
-		}
-		oldLinkFunc := linkFunc
-		linkFunc = func(conn Connection) ([]*Link, error) {
-			return test.input, nil
-		}
-
-		linkdb.Cleanup()
-		if !reflect.DeepEqual(test.expected, linkdb.links) {
-			t.Errorf("tests[%d] expected:\n%s\ngot\n%s", i, test.expected, linkdb.links)
-		}
-		linkFunc = oldLinkFunc
-	}*/
 }

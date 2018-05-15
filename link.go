@@ -56,7 +56,7 @@ func (rcf RecordControlFlags) String() string {
 	return str
 }
 
-func (rcf *RecordControlFlags) UnmarshalText(text []byte) error {
+func (rcf *RecordControlFlags) UnmarshalText(text []byte) (err error) {
 	str := strings.Split(string(text), "")
 	if len(str) != 2 {
 		return fmt.Errorf("Expected 2 characters got %d", len(str))
@@ -64,16 +64,20 @@ func (rcf *RecordControlFlags) UnmarshalText(text []byte) error {
 
 	if str[0] == "A" {
 		rcf.setAvailable()
-	} else {
+	} else if str[0] == "U" {
 		rcf.setInUse()
+	} else {
+		err = fmt.Errorf("Invalid value for Available flag")
 	}
 
 	if str[1] == "C" {
 		rcf.setController()
-	} else {
+	} else if str[1] == "R" {
 		rcf.setResponder()
+	} else {
+		err = fmt.Errorf("Invalid value for Controller flag")
 	}
-	return nil
+	return err
 }
 
 // Group is the Insteon group to which the Link Record corresponds
@@ -85,7 +89,13 @@ func (g Group) String() string { return sprintf("%d", byte(g)) }
 func (g *Group) UnmarshalText(text []byte) error {
 	value, err := strconv.Atoi(string(text))
 	if err == nil {
-		*g = Group(byte(value))
+		if 0 < value && value < 256 {
+			*g = Group(byte(value))
+		} else {
+			err = fmt.Errorf("valid groups are between 1 and 255 (inclusive)")
+		}
+	} else {
+		err = fmt.Errorf("invalid number format")
 	}
 	return err
 }
@@ -130,21 +140,25 @@ func (l *LinkRecord) MarshalBinary() ([]byte, error) {
 }
 
 func (l *LinkRecord) MarshalText() ([]byte, error) {
-	str := fmt.Sprintf("%-5s %5s %8s   %02x %02x %02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
+	str := sprintf("%-5s %5s %8s   %02x %02x %02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
 	return []byte(str), nil
 }
 
 // UnmarshalBinary will convert the byte string received in a message
 // request to a LinkRecord
-func (l *LinkRecord) UnmarshalBinary(buf []byte) error {
+func (l *LinkRecord) UnmarshalBinary(buf []byte) (err error) {
 	if len(buf) < 8 {
 		return newBufError(ErrBufferTooShort, 8, len(buf))
 	}
 	l.Flags = RecordControlFlags(buf[0])
+	if buf[0] == 0x00 {
+		err = ErrEndOfLinks
+	}
+
 	l.Group = Group(buf[1])
 	copy(l.Address[:], buf[2:5])
 	copy(l.Data[:], buf[5:8])
-	return nil
+	return err
 }
 
 func (l *LinkRecord) UnmarshalText(buf []byte) (err error) {

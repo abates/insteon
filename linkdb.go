@@ -2,7 +2,6 @@ package insteon
 
 import (
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -111,117 +110,12 @@ func (lr *LinkRequest) MarshalBinary() (buf []byte, err error) {
 	return buf, err
 }
 
-// LinkDB is the interface implemented by devices' link databases
-// All Insteon devices have link databases, but the underlying
-// implementations (PLM versus SwitchLinc, for instance) have
-// different mechanisms for access and management
-type LinkDB interface {
-	// Links will return a list of LinkRecords that are present in
-	// the All-Link database
-	Links() ([]*LinkRecord, error)
-
-	// AddLink will either add the link to the All-Link database
-	// or it will replace an existing link-record that has been marked
-	// as deleted
-	AddLink(newLink *LinkRecord) error
-
-	// RemoveLinks will either remove the link records from the device
-	// All-Link database, or it will simply mark them as deleted
-	RemoveLinks(oldLinks ...*LinkRecord) error
-
-	WriteLink(link *LinkRecord) error
-}
-
-// Linkable is the interface any device needs to implement if
-// it has a Link database and can have Insteon All-Links
-type Linkable interface {
-	Address() Address
-	AssignToAllLinkGroup(Group) error
-	DeleteFromAllLinkGroup(Group) error
-	EnterLinkingMode(Group) error
-	EnterUnlinkingMode(Group) error
-	ExitLinkingMode() error
-	LinkDB() (LinkDB, error)
-}
-
-// DeviceLinkDB is the base/generic link database structure
-// used by I2 and I2CS devices
-type DeviceLinkDB struct {
-	device Device
-}
-
-// NewDeviceLinkDB will create a new link database structure
-// for the underlying connection
-func NewDeviceLinkDB(device Device) *DeviceLinkDB {
-	return &DeviceLinkDB{device}
-}
-
-// AddLink will either add the link to the All-Link database
-// or it will replace an existing link-record that has been marked
-// as deleted
-func (db *DeviceLinkDB) AddLink(newLink *LinkRecord) error {
-	return ErrNotImplemented
-}
-
-// RemoveLinks will either remove the link records from the device
-// All-Link database, or it will simply mark them as deleted
-func (db *DeviceLinkDB) RemoveLinks(oldLinks ...*LinkRecord) error {
-	return ErrNotImplemented
-}
-
-// Links will retrieve the link-database from the device and
-// return a list of LinkRecords
-func (db *DeviceLinkDB) Links() ([]*LinkRecord, error) {
-	rrCh := db.device.Subscribe(CmdReadWriteALDB.Version(db.device.FirmwareVersion()))
-	defer db.device.Unsubscribe(rrCh)
-	Log.Debugf("Retrieving Device link database")
-	links := make([]*LinkRecord, 0)
-	lastAddress := MemAddress(0)
-	buf, _ := (&LinkRequest{Type: ReadLink, NumRecords: 0}).MarshalBinary()
-	_, err := SendExtendedCommand(db.device, CmdReadWriteALDB, buf)
-	if err != nil {
-		return nil, err
-	}
-
-	for done := false; !done; {
-		select {
-		case msg := <-rrCh:
-			lr := &LinkRequest{}
-			err = lr.UnmarshalBinary(msg.Payload)
-			if err != nil {
-				done = true
-			} else if lr.MemAddress != lastAddress {
-				lastAddress = lr.MemAddress
-				if lr.Link.Flags == 0x00 {
-					done = true
-				} else {
-					links = append(links, lr.Link)
-				}
-			}
-		case <-time.After(Timeout):
-			err = ErrReadTimeout
-			done = true
-		}
-	}
-	return links, err
-}
-
-func (db *DeviceLinkDB) WriteLink(link *LinkRecord) (err error) {
-	if link.memAddress == MemAddress(0x0000) {
-		err = fmt.Errorf("Invalid memory address")
-	} else {
-		buf, _ := (&LinkRequest{MemAddress: link.memAddress, Type: WriteLink, Link: link}).MarshalBinary()
-		_, err = SendExtendedCommand(db.device, CmdReadWriteALDB, buf)
-	}
-	return err
-}
-
 // FindDuplicateLinks will perform a linear search of the
 // LinkDB and return any links that are duplicates. Duplicate
 // links are those that are equivalent as reported by LinkRecord.Equal
-func FindDuplicateLinks(db LinkDB) ([]*LinkRecord, error) {
+func FindDuplicateLinks(linkable LinkableDevice) ([]*LinkRecord, error) {
 	duplicates := make([]*LinkRecord, 0)
-	links, err := db.Links()
+	links, err := linkable.Links()
 	if err == nil {
 		for i, l1 := range links {
 			for _, l2 := range links[i+1:] {
@@ -237,8 +131,8 @@ func FindDuplicateLinks(db LinkDB) ([]*LinkRecord, error) {
 // FindLinkRecord will perform a linear search of the database and return
 // a LinkRecord that matches the group, address and controller/responder
 // indicator
-func FindLinkRecord(db LinkDB, controller bool, address Address, group Group) (*LinkRecord, error) {
-	links, err := db.Links()
+func FindLinkRecord(linkable LinkableDevice, controller bool, address Address, group Group) (*LinkRecord, error) {
+	links, err := linkable.Links()
 	if err == nil {
 		for _, link := range links {
 			if link.Flags.Controller() == controller && link.Address == address && link.Group == group {
@@ -251,7 +145,7 @@ func FindLinkRecord(db LinkDB, controller bool, address Address, group Group) (*
 
 // CrossLinkAll will create bi-directional links among all the devices
 // listed. This is useful for creating virtual N-Way connections
-func CrossLinkAll(group Group, linkable ...Linkable) error {
+func CrossLinkAll(group Group, linkable ...LinkableDevice) error {
 	for i, l1 := range linkable {
 		for _, l2 := range linkable[i:] {
 			if l1 != l2 {
@@ -269,7 +163,7 @@ func CrossLinkAll(group Group, linkable ...Linkable) error {
 // devices. Each device will get both a controller and responder
 // link for the given group. When using lighting control devices, this
 // will effectively create a 3-Way light switch configuration
-func CrossLink(group Group, l1, l2 Linkable) error {
+func CrossLink(group Group, l1, l2 LinkableDevice) error {
 	err := Link(group, l1, l2)
 	if err == nil || err == ErrAlreadyLinked {
 		err = nil
@@ -285,7 +179,7 @@ func CrossLink(group Group, l1, l2 Linkable) error {
 // ForceLink will create links in the controller and responder All-Link
 // databases without first checking if the links exist. The links are
 // created by simulating set button presses (using EnterLinkingMode)
-func ForceLink(group Group, controller, responder Linkable) (err error) {
+func ForceLink(group Group, controller, responder LinkableDevice) (err error) {
 	Log.Debugf("Putting controller %s into linking mode", controller)
 	// controller enters all-linking mode
 	err = controller.EnterLinkingMode(group)
@@ -304,17 +198,12 @@ func ForceLink(group Group, controller, responder Linkable) (err error) {
 
 // UnlinkAll will unlink all groups between a controller and
 // a responder device
-func UnlinkAll(controller, responder Linkable) (err error) {
-	controllerDB, err := controller.LinkDB()
-
+func UnlinkAll(controller, responder LinkableDevice) (err error) {
+	links, err := controller.Links()
 	if err == nil {
-		var links []*LinkRecord
-		links, err = controllerDB.Links()
-		if err == nil {
-			for _, link := range links {
-				if link.Address == responder.Address() {
-					err = Unlink(link.Group, responder, controller)
-				}
+		for _, link := range links {
+			if link.Address == responder.Address() {
+				err = Unlink(link.Group, responder, controller)
 			}
 		}
 	}
@@ -325,7 +214,7 @@ func UnlinkAll(controller, responder Linkable) (err error) {
 // controller is put into UnlinkingMode (analogous to unlinking mode via
 // the set button) and then the responder is put into unlinking mode (also
 // analogous to the set button pressed)
-func Unlink(group Group, controller, responder Linkable) (err error) {
+func Unlink(group Group, controller, responder LinkableDevice) (err error) {
 	// controller enters all-linking mode
 	err = controller.EnterUnlinkingMode(group)
 	defer controller.ExitLinkingMode()
@@ -351,42 +240,32 @@ func Unlink(group Group, controller, responder Linkable) (err error) {
 // exist (a controller link and a responder link) then nothing is done. If only one
 // entry exists than the other is deleted and new links are created. Once the link
 // check/cleanup has taken place the new links are created using ForceLink
-func Link(group Group, controller, responder Linkable) error {
-	// check for existing link
-	Log.Debugf("Retrieving link databases...")
-	var responderDB LinkDB
-	controllerDB, err := controller.LinkDB()
-	if err == nil || err == ErrNotLinked {
-		responderDB, err = responder.LinkDB()
-	}
+func Link(group Group, controller, responder LinkableDevice) (err error) {
+	Log.Debugf("Looking for existing links")
+	var controllerLink *LinkRecord
+	controllerLink, err = FindLinkRecord(controller, true, responder.Address(), group)
 
-	if err == nil || err == ErrNotLinked {
-		Log.Debugf("Looking for existing links")
-		var controllerLink *LinkRecord
-		controllerLink, err = FindLinkRecord(controllerDB, true, responder.Address(), group)
+	if err == nil {
+		var responderLink *LinkRecord
+		responderLink, err = FindLinkRecord(responder, false, controller.Address(), group)
 
 		if err == nil {
-			var responderLink *LinkRecord
-			responderLink, err = FindLinkRecord(responderDB, false, controller.Address(), group)
-
-			if err == nil {
-				if controllerLink != nil && responderLink != nil {
-					err = ErrAlreadyLinked
-				} else {
-					// correct a mismatch by deleting the one link found
-					// and recreating both
-					if controllerLink != nil {
-						Log.Debugf("Controller link already exists, deleting it")
-						err = controllerDB.RemoveLinks(controllerLink)
-					}
-
-					if err == nil && responderLink != nil {
-						Log.Debugf("Responder link already exists, deleting it")
-						err = responderDB.RemoveLinks(controllerLink)
-					}
-
-					ForceLink(group, controller, responder)
+			if controllerLink != nil && responderLink != nil {
+				err = ErrAlreadyLinked
+			} else {
+				// correct a mismatch by deleting the one link found
+				// and recreating both
+				if controllerLink != nil {
+					Log.Debugf("Controller link already exists, deleting it")
+					err = controller.RemoveLinks(controllerLink)
 				}
+
+				if err == nil && responderLink != nil {
+					Log.Debugf("Responder link already exists, deleting it")
+					err = responder.RemoveLinks(controllerLink)
+				}
+
+				ForceLink(group, controller, responder)
 			}
 		}
 	}

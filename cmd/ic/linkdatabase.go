@@ -8,8 +8,8 @@ import (
 	"github.com/abates/insteon"
 )
 
-func printLinkDatabase(db insteon.LinkDB) error {
-	dbLinks, err := db.Links()
+func printLinkDatabase(linkable insteon.LinkableDevice) error {
+	dbLinks, err := linkable.Links()
 	fmt.Printf("Link Database:\n")
 	if len(dbLinks) > 0 {
 		fmt.Printf("    Flags Group Address    Data\n")
@@ -36,8 +36,8 @@ func printLinkDatabase(db insteon.LinkDB) error {
 	return err
 }
 
-func dumpLinkDatabase(db insteon.LinkDB) error {
-	links, err := db.Links()
+func dumpLinkDatabase(linkable insteon.LinkableDevice) error {
+	links, err := linkable.Links()
 	if err == nil {
 		fmt.Printf("links:\n")
 		for _, link := range links {

@@ -1,11 +1,5 @@
 package insteon
 
-import (
-	"fmt"
-	"strings"
-	"sync"
-)
-
 const (
 	// StandardMsgLen is the length of an insteon standard message minus one byte (the crc byte)
 	StandardMsgLen = 9
@@ -65,12 +59,14 @@ func (m MessageType) Broadcast() bool {
 
 // Flags for common message types
 const (
-	StandardDirectMessage = Flags(0x0a)
-	StandardDirectAck     = Flags(0x2a)
-	StandardDirectNak     = Flags(0xaa)
-	ExtendedDirectMessage = Flags(0x1a)
-	ExtendedDirectAck     = Flags(0x3a)
-	ExtendedDirectNak     = Flags(0xba)
+	StandardBroadcast        = Flags(0x8a)
+	StandardAllLinkBroadcast = Flags(0xca)
+	StandardDirectMessage    = Flags(0x0a)
+	StandardDirectAck        = Flags(0x2a)
+	StandardDirectNak        = Flags(0xaa)
+	ExtendedDirectMessage    = Flags(0x1a)
+	ExtendedDirectAck        = Flags(0x3a)
+	ExtendedDirectNak        = Flags(0xba)
 )
 
 // Flags is the flags byte in an insteon message
@@ -107,7 +103,7 @@ type Message struct {
 	Src     Address
 	Dst     Address
 	Flags   Flags
-	Command CommandBytes
+	Command Command
 	Payload []byte
 }
 
@@ -138,8 +134,8 @@ func (m *Message) MarshalBinary() (data []byte, err error) {
 	copy(data[0:3], m.Src[:])
 	copy(data[3:6], m.Dst[:])
 	data[6] = byte(m.Flags)
-	data[7] = m.Command.Command1
-	data[8] = m.Command.Command2
+	data[7] = m.Command[0]
+	data[8] = m.Command[1]
 	if m.Flags.Extended() {
 		data = append(data, make([]byte, 14)...)
 		copy(data[9:23], m.Payload)
@@ -161,7 +157,7 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	copy(m.Src[:], data[0:3])
 	copy(m.Dst[:], data[3:6])
 	m.Flags = Flags(data[6])
-	m.Command = CommandBytes{Command1: data[7], Command2: data[8]}
+	m.Command = Command{data[7], data[8]}
 
 	if m.Flags.Extended() {
 		if len(data) < ExtendedMsgLen {
@@ -173,7 +169,8 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	return err
 }
 
-func (m *Message) String() (str string) {
+/*
+func DumpMessage(m *Message) (str string) {
 	if m.Broadcast() {
 		if m.Flags.Type() == MsgTypeAllLinkBroadcast {
 			str = sprintf("%s -> ff.ff.ff %v Group(%d)", m.Src, m.Flags, m.Dst[2])
@@ -206,37 +203,4 @@ func (m *Message) String() (str string) {
 		str = sprintf("%s [%v]", str, strings.Join(payloadStr, " "))
 	}
 	return str
-}
-
-type MessageDecoder struct {
-	devcats  map[Address]DevCat
-	firmware map[Address]FirmwareVersion
-	mutex    sync.Mutex
-}
-
-func NewMessageDecoder() *MessageDecoder {
-	return &MessageDecoder{
-		devcats:  make(map[Address]DevCat),
-		firmware: make(map[Address]FirmwareVersion),
-	}
-}
-
-func (decoder *MessageDecoder) Decode(buf []byte) (*Message, error) {
-	message := &Message{}
-	err := message.UnmarshalBinary(buf)
-	if err == nil {
-		decoder.mutex.Lock()
-		if message.Broadcast() {
-			decoder.devcats[message.Src] = DevCat{message.Dst[0], message.Dst[1]}
-			decoder.firmware[message.Src] = FirmwareVersion(message.Dst[2])
-		}
-
-		if message.Flags.Extended() {
-			message.Command = Commands.FindExt(decoder.devcats[message.Src], message.Command)
-		} else {
-			message.Command = Commands.FindStd(decoder.devcats[message.Src], message.Command)
-		}
-		decoder.mutex.Unlock()
-	}
-	return message, err
-}
+}*/
