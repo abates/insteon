@@ -42,12 +42,10 @@ type PLM struct {
 	out     io.Writer
 	timeout time.Duration
 
-	txPktCh chan *txPacketReq
-	rxPktCh chan []byte
-	closeCh chan chan error
-	linkCh  chan *Packet
-
-	network insteon.Network
+	txPktCh  chan *txPacketReq
+	rxPktCh  chan []byte
+	closeCh  chan chan error
+	listenCh chan *connection
 }
 
 func New(port io.ReadWriter, timeout time.Duration) *PLM {
@@ -56,11 +54,11 @@ func New(port io.ReadWriter, timeout time.Duration) *PLM {
 		out:     port,
 		timeout: timeout,
 
-		txPktCh: make(chan *txPacketReq, 1),
-		rxPktCh: make(chan []byte, 10),
-		closeCh: make(chan chan error),
+		txPktCh:  make(chan *txPacketReq, 1),
+		rxPktCh:  make(chan []byte, 10),
+		listenCh: make(chan *connection),
+		closeCh:  make(chan chan error),
 	}
-	plm.network = insteon.New(plm)
 	go plm.readPktLoop()
 	go plm.readWriteLoop()
 	return plm
@@ -134,6 +132,7 @@ func (plm *PLM) writePacket(packet *Packet) error {
 }
 
 func (plm *PLM) readWriteLoop() {
+	connections := make([]*connection, 0)
 	ackChannels := make(map[Command]chan *Packet)
 	var closeCh chan error
 
@@ -157,10 +156,8 @@ loop:
 
 			insteon.Log.Tracef("RX %v", packet)
 			if 0x50 <= packet.Command && packet.Command <= 0x58 {
-				if packet.Command == 0x57 {
-					plm.linkCh <- packet
-				} else if plm.network != nil {
-					plm.network.Notify(packet.payload)
+				for _, connection := range connections {
+					connection.notify(packet)
 				}
 			} else {
 				// handle ack/nak
@@ -175,6 +172,8 @@ loop:
 					}
 				}
 			}
+		case connection := <-plm.listenCh:
+			connections = append(connections, connection)
 		case closeCh = <-plm.closeCh:
 			break loop
 		}
@@ -223,6 +222,16 @@ func (plm *PLM) SendMessage(msg *insteon.Message) (err error) {
 	}
 	return err
 }
+
+func (plm *PLM) Listen(command Command) Connection {
+	connection := newConnection(plm, plm.timeout, command)
+	plm.listenCh <- connection
+	return connection
+}
+
+/*func (plm *PLM) ListenInsteon() insteon.Bridge {
+	return newInsteonBridge(plm)
+}*/
 
 func (plm *PLM) send(packet *Packet) (ack *Packet, err error) {
 	ackCh := make(chan *Packet, 1)
@@ -331,8 +340,4 @@ func (plm *PLM) Address() insteon.Address {
 
 func (plm *PLM) String() string {
 	return fmt.Sprintf("PLM (%s)", plm.Address())
-}
-
-func (plm *PLM) Network() insteon.Network {
-	return plm.network
 }

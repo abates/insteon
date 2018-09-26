@@ -6,20 +6,29 @@ import (
 )
 
 var (
-	testVer   = EngineVersion(1)
-	testAddr1 = Address{1, 2, 3}
-	testAddr2 = Address{3, 4, 5}
+	testSrcAddr = Address{1, 2, 3}
+	testDstAddr = Address{3, 4, 5}
 
-	TestMessageSetButtonPressedController = &Message{testVer, testAddr1, testAddr2, StandardBroadcast, Command{1, 2}, nil}
-	TestMessageEngineVersionAck           = &Message{testVer, testAddr1, testAddr2, StandardDirectAck, Command{0x0d, 1}, nil}
-	TestMessagePing                       = &Message{testVer, testAddr1, testAddr2, StandardDirectMessage, Command{0x0f, 0x00}, nil}
-	TestMessagePingAck                    = &Message{testVer, testAddr1, testAddr2, StandardDirectAck, Command{0x0f, 0x00}, nil}
-	TestAck                               = &Message{testVer, testAddr1, testAddr2, StandardDirectAck, Command{0x00, 0x00}, nil}
+	TestMessageSetButtonPressedController = &Message{testDstAddr, testSrcAddr, StandardBroadcast, Command{0x02, 0xff}, nil}
+	TestMessageEngineVersion              = &Message{testSrcAddr, testDstAddr, StandardDirectMessage, Command{0x0d, 0x00}, nil}
+	TestMessageEngineVersionAck           = &Message{testDstAddr, testSrcAddr, StandardDirectAck, Command{0x0d, 1}, nil}
+	TestMessagePing                       = &Message{testSrcAddr, testDstAddr, StandardDirectMessage, Command{0x0f, 0x00}, nil}
+	TestMessagePingAck                    = &Message{testDstAddr, testSrcAddr, StandardDirectAck, Command{0x0f, 0x00}, nil}
+	TestAck                               = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x00}, nil}
 
-	TestProductDataResponse = &Message{testVer, testAddr1, testAddr2, ExtendedDirectMessage, CmdProductDataResp, []byte{0, 1, 2, 3, 4, 5, 0xff, 0xff, 0, 0, 0, 0, 0, 0}}
-	TestDeviceLink1         = &Message{testVer, testAddr1, testAddr2, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xff, 0, 0xc0, 1, 7, 8, 9, 0, 0, 0, 0}}
-	TestDeviceLink2         = &Message{testVer, testAddr1, testAddr2, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xf7, 0, 0xc0, 1, 10, 11, 12, 0, 0, 0, 0}}
-	TestDeviceLink3         = &Message{testVer, testAddr1, testAddr2, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xf7, 0, 0x00, 0, 0, 0, 0, 0, 0, 0, 0}}
+	TestProductDataResponse = &Message{testDstAddr, testSrcAddr, ExtendedDirectMessage, CmdProductDataResp, []byte{0, 1, 2, 3, 4, 5, 0xff, 0xff, 0, 0, 0, 0, 0, 0}}
+	TestDeviceLink1         = &Message{testSrcAddr, testDstAddr, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xff, 0, 0xc0, 1, 7, 8, 9, 0, 0, 0, 0}}
+	TestDeviceLink2         = &Message{testSrcAddr, testDstAddr, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xf7, 0, 0xc0, 1, 10, 11, 12, 0, 0, 0, 0}}
+	TestDeviceLink3         = &Message{testSrcAddr, testDstAddr, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xf7, 0, 0x00, 0, 0, 0, 0, 0, 0, 0, 0}}
+
+	TestMessageUnknownCommandNak  = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0xfd}, nil}
+	TestMessageNoLoadDetected     = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0xfe}, nil}
+	TestMessageNotLinked          = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0xff}, nil}
+	TestMessageIllegalValue       = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0xfb}, nil}
+	TestMessagePreNak             = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0xfc}, nil}
+	TestMessageIncorrectChecksum  = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0xfd}, nil}
+	TestMessageNoLoadDetectedI2Cs = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0xfe}, nil}
+	TestMessageNotLinkedI2Cs      = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0xff}, nil}
 )
 
 func TestMessageType(t *testing.T) {
@@ -190,7 +199,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		message := &Message{version: test.version}
+		message := &Message{}
 		err := message.UnmarshalBinary(test.input)
 		if !IsError(err, test.expectedError) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)

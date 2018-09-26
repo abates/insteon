@@ -23,7 +23,7 @@ func TestBufError(t *testing.T) {
 }
 
 func TestError(t *testing.T) {
-	err := &Error{
+	err := &TraceError{
 		Cause: fmt.Errorf("Foo"),
 		Frame: runtime.Frame{File: "/foo/bar/run.go", Line: 10, Function: "Woops"},
 	}
@@ -39,8 +39,8 @@ func TestIsError(t *testing.T) {
 		check    error
 		expected bool
 	}{
-		{&Error{Cause: ErrBufferTooShort}, ErrBufferTooShort, true},
-		{&Error{Cause: ErrReadTimeout}, ErrBufferTooShort, false},
+		{&TraceError{Cause: ErrBufferTooShort}, ErrBufferTooShort, true},
+		{&TraceError{Cause: ErrReadTimeout}, ErrBufferTooShort, false},
 		{&BufError{Cause: ErrBufferTooShort}, ErrBufferTooShort, true},
 		{&BufError{Cause: ErrReadTimeout}, ErrBufferTooShort, false},
 		{ErrReadTimeout, ErrReadTimeout, true},
@@ -50,7 +50,7 @@ func TestIsError(t *testing.T) {
 	for i, test := range tests {
 		if IsError(test.cause, test.check) != test.expected {
 			switch e := test.cause.(type) {
-			case *Error:
+			case *TraceError:
 				t.Logf("tests[%d] %v == %v ? %v -- %v", i, e.Cause, test.check, e.Cause == test.check, IsError(test.cause, test.check))
 			case *BufError:
 				t.Logf("tests[%d] %v == %v ? %v -- %v", i, e.Cause, test.check, e.Cause == test.check, IsError(test.cause, test.check))
@@ -61,8 +61,8 @@ func TestIsError(t *testing.T) {
 }
 
 func TestTraceError(t *testing.T) {
-	err := TraceError(ErrBufferTooShort)
-	if _, ok := err.(*Error); !ok {
+	err := NewTraceError(ErrBufferTooShort)
+	if _, ok := err.(*TraceError); !ok {
 		t.Errorf("expected *Error got %T", err)
 	}
 }

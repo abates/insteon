@@ -1,61 +1,142 @@
 package insteon
 
+import "time"
+
 // I1Device provides remote communication to version 1 engines
 type I1Device struct {
 	address         Address
-	network         Network
 	devCat          DevCat
 	firmwareVersion FirmwareVersion
+	timeout         time.Duration
+	waitRequest     *CommandRequest
+	queue           []*CommandRequest
 
-	ackCh         chan *Message
-	productDataCh chan *Message
+	upstreamSendCh chan<- *MessageRequest
+	sendCh         chan *CommandRequest
+	recvCh         <-chan *Message
+	doneCh         chan *MessageRequest
 }
 
-// NewI1Device will construct an I1Device for the given address and connection
-func NewI1Device(address Address, network Network) *I1Device {
-	return &I1Device{
+// NewI1Device will construct an I1Device for the given address
+func NewI1Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message) *I1Device {
+	i1 := &I1Device{
 		address:         address,
-		network:         network,
 		devCat:          DevCat{0xff, 0xff},
 		firmwareVersion: FirmwareVersion(0x00),
 
-		ackCh:         make(chan *Message),
-		productDataCh: make(chan *Message),
+		upstreamSendCh: sendCh,
+		sendCh:         make(chan *CommandRequest, 1),
+		recvCh:         recvCh,
+		doneCh:         make(chan *MessageRequest, 1),
+	}
+
+	go i1.process()
+	return i1
+}
+
+func (i1 *I1Device) process() {
+	for {
+		select {
+		case request, open := <-i1.sendCh:
+			if !open {
+				close(i1.upstreamSendCh)
+				return
+			}
+
+			i1.queue = append(i1.queue, request)
+			if len(i1.queue) == 1 {
+				i1.send()
+			}
+		case msg, open := <-i1.recvCh:
+			if !open {
+				close(i1.upstreamSendCh)
+				return
+			}
+			i1.receive(msg)
+		case request := <-i1.doneCh:
+			i1.queue[0].Ack = request.Ack
+			i1.queue[0].Err = request.Err
+			i1.queue[0].DoneCh <- i1.queue[0]
+			if i1.queue[0].Err == nil && i1.queue[0].RecvCh != nil {
+				i1.waitRequest = i1.queue[0]
+			}
+			i1.queue = i1.queue[1:]
+			i1.send()
+		case <-time.After(i1.timeout):
+			// prevent head of line blocking for a request that hasn't signaled it is done
+			if i1.waitRequest != nil && i1.waitRequest.timeout.Before(time.Now()) {
+				close(i1.waitRequest.RecvCh)
+				i1.waitRequest = nil
+				i1.queue = i1.queue[1:]
+				i1.send()
+			}
+		}
 	}
 }
 
-func (i1 *I1Device) Notify(msg *Message) error {
-	if msg.Ack() || msg.Nak() {
-		writeToCh(i1.ackCh, msg)
-	} else if msg.Flags.Extended() && msg.Command[0] == 0x03 {
-		// Product Data Response
-		writeToCh(i1.productDataCh, msg)
+func (i1 *I1Device) send() {
+	if i1.waitRequest == nil && len(i1.queue) > 0 {
+		request := i1.queue[0]
+		flags := StandardDirectMessage
+		if len(request.Payload) > 0 {
+			flags = ExtendedDirectMessage
+		}
+
+		i1.upstreamSendCh <- &MessageRequest{
+			Message: &Message{
+				Flags:   flags,
+				Command: request.Command,
+				Payload: request.Payload,
+			},
+			DoneCh: i1.doneCh,
+		}
 	}
-	return nil
+}
+
+func (i1 *I1Device) receive(msg *Message) {
+	if len(i1.queue) > 0 && i1.queue[0].RecvCh != nil {
+		doneCh := make(chan bool, 1)
+		i1.queue[0].RecvCh <- &CommandResponse{Message: msg, DoneCh: doneCh}
+		if <-doneCh {
+			i1.waitRequest = nil
+			close(i1.queue[0].RecvCh)
+			i1.queue = i1.queue[1:]
+			i1.send()
+		}
+	}
+}
+
+func (i1 *I1Device) SendCommandAndListen(command Command, payload []byte) (<-chan *CommandResponse, error) {
+	recvCh := make(chan *CommandResponse, 1)
+	_, err := i1.sendCommand(command, payload, recvCh)
+	return recvCh, err
+}
+
+func (i1 *I1Device) sendCommand(command Command, payload []byte, recvCh chan<- *CommandResponse) (response Command, err error) {
+	doneCh := make(chan *CommandRequest, 1)
+	request := &CommandRequest{
+		Command: command,
+		Payload: payload,
+		DoneCh:  doneCh,
+		RecvCh:  recvCh,
+	}
+
+	i1.sendCh <- request
+	<-doneCh
+
+	if request.Err == nil {
+		response = request.Ack.Command
+	}
+
+	return response, request.Err
 }
 
 func (i1 *I1Device) SendCommand(command Command, payload []byte) (response Command, err error) {
-	flags := StandardDirectMessage
-	if len(payload) > 0 {
-		flags = ExtendedDirectMessage
-	}
+	return i1.sendCommand(command, payload, nil)
+}
 
-	err = i1.network.SendMessage(&Message{
-		Src:     i1.address,
-		Flags:   flags,
-		Command: command,
-		Payload: payload,
-	})
-
-	if err == nil {
-		var ack *Message
-		ack, err = readFromCh(i1.ackCh)
-		if err == nil {
-			response = ack.Command
-		}
-	}
-
-	return
+func (i1 *I1Device) SendCh() chan<- *CommandRequest {
+	return i1.sendCh
 }
 
 // Address is the Insteon address of the device
@@ -81,13 +162,14 @@ func (i1 *I1Device) DeleteFromAllLinkGroup(group Group) (err error) {
 
 // ProductData will retrieve the device's product data
 func (i1 *I1Device) ProductData() (data *ProductData, err error) {
-	_, err = i1.SendCommand(CmdProductDataReq, nil)
-	if err == nil {
-		var msg *Message
-		msg, err = readFromCh(i1.productDataCh)
-		if err == nil {
+	recvCh, err := i1.SendCommandAndListen(CmdProductDataReq, nil)
+	for resp := range recvCh {
+		if resp.Message.Command[0] == CmdProductDataResp[0] {
 			data = &ProductData{}
-			err = data.UnmarshalBinary(msg.Payload)
+			err = data.UnmarshalBinary(resp.Message.Payload)
+			resp.DoneCh <- true
+		} else {
+			resp.DoneCh <- false
 		}
 	}
 	return data, err

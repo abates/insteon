@@ -2,7 +2,6 @@ package plm
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/abates/insteon"
 )
@@ -66,35 +65,32 @@ func (alr *AllLinkReq) String() string {
 }
 
 func (db *PLM) Links() ([]*insteon.LinkRecord, error) {
-	links := make([]*insteon.LinkRecord, 0)
 	// receive all-link record responses
+	conn := db.Listen(CmdAllLinkRecordResp)
 
+	links := make([]*insteon.LinkRecord, 0)
 	insteon.Log.Debugf("Retrieving PLM link database")
-	resp, err := db.send(&Packet{Command: CmdGetFirstAllLink})
+	resp, err := conn.Send(&Packet{Command: CmdGetFirstAllLink})
 	if resp.NAK() {
 		err = nil
 	} else if err == nil {
-	loop:
 		for {
-			select {
-			case packet := <-db.linkCh:
+			buf, err := conn.Receive()
+			if err == nil {
 				link := &insteon.LinkRecord{}
-				err := link.UnmarshalBinary(packet.payload)
+				err := link.UnmarshalBinary(buf)
 				if err == nil {
 					insteon.Log.Debugf("Received PLM record response %v", link)
 					links = append(links, link)
 					var resp *Packet
-					resp, err = db.send(&Packet{Command: CmdGetNextAllLink})
+					resp, err = conn.Send(&Packet{Command: CmdGetNextAllLink})
 					if resp.NAK() || err != nil {
-						break loop
+						break
 					}
 				} else {
 					insteon.Log.Infof("Failed to unmarshal link record: %v", err)
-					break loop
+					break
 				}
-			case <-time.After(insteon.Timeout):
-				err = insteon.ErrReadTimeout
-				break loop
 			}
 		}
 	}

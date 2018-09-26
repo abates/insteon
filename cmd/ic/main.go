@@ -89,7 +89,7 @@ func run(args []string, next cli.NextFunc) error {
 		defer s.Close()
 
 		modem = plm.New(s, timeoutFlag)
-		network = modem.Network()
+		network = insteon.New(modem.ListenInsteon(), timeoutFlag)
 		defer modem.Close()
 		if logLevelFlag == insteon.LevelTrace {
 			//modem.StartMonitor()

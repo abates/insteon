@@ -1,5 +1,7 @@
 package insteon
 
+import "time"
+
 // Insteon Engine Versions
 const (
 	VerI1 EngineVersion = iota
@@ -55,6 +57,21 @@ func (dr *DeviceRegistry) Find(category Category) (DeviceInitializer, bool) {
 	return initializer, found
 }
 
+type CommandRequest struct {
+	Command Command
+	Payload []byte
+	RecvCh  chan<- *CommandResponse
+	DoneCh  chan<- *CommandRequest
+	Ack     *Message
+	Err     error
+	timeout time.Time
+}
+
+type CommandResponse struct {
+	Message *Message
+	DoneCh  chan<- bool
+}
+
 type Device interface {
 	// Address will return the 3 byte destination address of the device.
 	// All device implemtaions must be able to return their address
@@ -66,8 +83,7 @@ type Device interface {
 	// response ack are returned as well as any error
 	SendCommand(cmd Command, payload []byte) (response Command, err error)
 
-	// Notify is called when an Insteon message is received for the device
-	Notify(*Message) error
+	SendCommandAndListen(cmd Command, payload []byte) (recvCh <-chan *CommandResponse, err error)
 }
 
 type PingableDevice interface {

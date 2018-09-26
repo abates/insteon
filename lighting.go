@@ -113,15 +113,7 @@ type Dimmer interface {
 
 type SwitchedDevice struct {
 	Device
-	configCh        chan *Message
 	firmwareVersion FirmwareVersion
-}
-
-func (sd *SwitchedDevice) Notify(msg *Message) error {
-	if msg.Command == CmdLightExtendedSetGet {
-		writeToCh(sd.configCh, msg)
-	}
-	return sd.Device.Notify(msg)
 }
 
 func (sd *SwitchedDevice) On() error {
@@ -223,30 +215,20 @@ func (sd *SwitchedDevice) SetX10Address(button int, houseCode, unitCode byte) er
 
 func (sd *SwitchedDevice) SwitchConfig() (config SwitchConfig, err error) {
 	// SEE DimmerConfig() notes for explanation of D1 and D2 (payload[0] and payload[1])
-	_, err = sd.SendCommand(CmdLightExtendedSetGet, []byte{0x00, 0x00})
-	if err == nil {
-		var msg *Message
-		msg, err = readFromCh(sd.configCh)
-		if err == nil {
-			err = config.UnmarshalBinary(msg.Payload)
+	recvCh, err := sd.SendCommandAndListen(CmdLightExtendedSetGet, []byte{0x00, 0x00})
+	for response := range recvCh {
+		if response.Message.Command == CmdLightExtendedSetGet {
+			err = config.UnmarshalBinary(response.Message.Payload)
+			response.DoneCh <- true
 		}
+		response.DoneCh <- false
 	}
 	return config, err
 }
 
 type DimmableDevice struct {
 	*SwitchedDevice
-	configCh        chan *Message
 	firmwareVersion FirmwareVersion
-}
-
-func (dd *DimmableDevice) Notify(msg *Message) error {
-	if msg.Command == CmdLightExtendedSetGet {
-		writeToCh(dd.configCh, msg)
-	} else {
-		dd.SwitchedDevice.Notify(msg)
-	}
-	return nil
 }
 
 func (dd *DimmableDevice) OnLevel(level int) error {
@@ -336,21 +318,21 @@ func (dd *DimmableDevice) DimmerConfig() (config DimmerConfig, err error) {
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
-	_, err = dd.SendCommand(CmdLightExtendedSetGet, []byte{0x01, 0x00})
-	if err == nil {
-		var msg *Message
-		msg, err = readFromCh(dd.configCh)
-		if err == nil {
-			err = config.UnmarshalBinary(msg.Payload)
+	recvCh, err := dd.SendCommandAndListen(CmdLightExtendedSetGet, []byte{0x01, 0x00})
+	for response := range recvCh {
+		if response.Message.Command == CmdLightExtendedSetGet {
+			err = config.UnmarshalBinary(response.Message.Payload)
+			response.DoneCh <- true
 		}
+		response.DoneCh <- false
 	}
 	return config, err
 }
 
 func dimmableLightingFactory(device Device, info DeviceInfo) Device {
-	return &DimmableDevice{&SwitchedDevice{device, make(chan *Message), info.FirmwareVersion}, make(chan *Message), info.FirmwareVersion}
+	return &DimmableDevice{&SwitchedDevice{device, info.FirmwareVersion}, info.FirmwareVersion}
 }
 
 func switchedLightingFactory(device Device, info DeviceInfo) Device {
-	return &SwitchedDevice{device, make(chan *Message), info.FirmwareVersion}
+	return &SwitchedDevice{device, info.FirmwareVersion}
 }

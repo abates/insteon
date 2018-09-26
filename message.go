@@ -99,7 +99,6 @@ func (f Flags) String() string {
 
 // Message is a single insteon message
 type Message struct {
-	version EngineVersion
 	Src     Address
 	Dst     Address
 	Flags   Flags
@@ -141,9 +140,6 @@ func (m *Message) MarshalBinary() (data []byte, err error) {
 		copy(data[9:23], m.Payload)
 	}
 
-	if m.Flags.Extended() && m.version == VerI2Cs {
-		data[len(data)-1] = checksum(data[7:22])
-	}
 	return data, err
 }
 

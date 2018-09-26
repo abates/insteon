@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 )
 
 var (
@@ -27,6 +26,7 @@ var (
 	ErrAddrFormat           = errors.New("address format is xx.xx.xx (digits in hex)")
 	ErrEndOfLinks           = errors.New("reached end of ALDB links")
 	ErrInvalidMemAddress    = errors.New("Invalid memory address")
+	ErrVersion              = errors.New("Unknown Insteon Engine Version")
 )
 
 var sprintf = fmt.Sprintf
@@ -102,22 +102,4 @@ func (pd *ProductData) MarshalBinary() ([]byte, error) {
 	copy(buf[4:6], pd.DevCat[:])
 	buf[6] = 0xff
 	return buf, nil
-}
-
-func writeToCh(ch chan<- *Message, msg *Message) (err error) {
-	select {
-	case ch <- msg:
-	case <-time.After(Timeout):
-		err = ErrWriteTimeout
-	}
-	return
-}
-
-func readFromCh(ch <-chan *Message) (msg *Message, err error) {
-	select {
-	case msg = <-ch:
-	case <-time.After(Timeout):
-		err = ErrReadTimeout
-	}
-	return
 }

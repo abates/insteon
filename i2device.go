@@ -2,21 +2,10 @@ package insteon
 
 type I2Device struct {
 	*I1Device
-	linkCh chan *Message
 }
 
-func NewI2Device(address Address, network Network) *I2Device {
-	return &I2Device{
-		I1Device: NewI1Device(address, network),
-		linkCh:   make(chan *Message),
-	}
-}
-
-func (i2 *I2Device) Notify(msg *Message) error {
-	if msg.Flags.Extended() && msg.Command[0] == 0x2f {
-		writeToCh(i2.linkCh, msg)
-	}
-	return i2.I1Device.Notify(msg)
+func NewI2Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message) *I2Device {
+	return &I2Device{NewI1Device(address, sendCh, recvCh)}
 }
 
 // AddLink will either add the link to the All-Link database
@@ -38,23 +27,25 @@ func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
 	Log.Debugf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
 	buf, _ := (&LinkRequest{Type: ReadLink, NumRecords: 0}).MarshalBinary()
-	_, err = i2.SendCommand(CmdReadWriteALDB, buf)
+	recvCh, err := i2.SendCommandAndListen(CmdReadWriteALDB, buf)
 
-	var msg *Message
-	for err == nil {
-		msg, err = readFromCh(i2.linkCh)
-		if err == nil {
+	for response := range recvCh {
+		if response.Message.Flags.Extended() && response.Message.Command[0] == CmdReadWriteALDB[0] {
 			lr := &LinkRequest{}
-			err = lr.UnmarshalBinary(msg.Payload)
+			err = lr.UnmarshalBinary(response.Message.Payload)
 			if err == nil && lr.MemAddress != lastAddress {
 				lastAddress = lr.MemAddress
 				links = append(links, lr.Link)
+				response.DoneCh <- false
+			} else if err == ErrEndOfLinks {
+				response.DoneCh <- true
+				err = nil
+			} else {
+				response.DoneCh <- true
 			}
+		} else {
+			response.DoneCh <- false
 		}
-	}
-
-	if err == ErrEndOfLinks {
-		err = nil
 	}
 	return links, err
 }

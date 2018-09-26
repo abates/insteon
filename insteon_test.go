@@ -3,8 +3,12 @@ package insteon
 import (
 	"bytes"
 	"testing"
-	"time"
 )
+
+func init() {
+	// turn off logging for tests
+	Log.Level(LevelNone)
+}
 
 func TestFirmwareVersionString(t *testing.T) {
 	ver := FirmwareVersion(0x42)
@@ -153,7 +157,7 @@ func TestProductDataMarshaling(t *testing.T) {
 	}
 }
 
-func TestWriteToCh(t *testing.T) {
+/*func TestWriteToCh(t *testing.T) {
 	tests := []struct {
 		ch          chan *Message
 		expectedErr error
@@ -195,4 +199,4 @@ func TestReadFromCh(t *testing.T) {
 
 	}
 	Timeout = timeout
-}
+}*/
