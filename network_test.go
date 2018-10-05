@@ -87,11 +87,11 @@ func TestNetworkSendMessage(t *testing.T) {
 
 		go func(i int) {
 			request := <-sendCh
-			if test.bufUpdated && request.Pkt[len(request.Pkt)-1] == 0x00 {
+			if test.bufUpdated && request.Payload[len(request.Payload)-1] == 0x00 {
 				t.Errorf("tests[%d] expected checksum to be set", i)
 			}
 			request.Err = test.err
-			request.DoneCh <- true
+			request.DoneCh <- request
 		}(i)
 
 		err := network.sendMessage(test.input)
@@ -129,7 +129,7 @@ func TestNetworkEngineVersion(t *testing.T) {
 			} else {
 				request.Err = test.returnedErr
 			}
-			request.DoneCh <- true
+			request.DoneCh <- request
 		}()
 
 		version, err := network.EngineVersion(testDstAddr)
@@ -170,7 +170,7 @@ func TestNetworkIDRequest(t *testing.T) {
 				// the test has to send an ACK, since the device would ack the set button pressed
 				// command before sending a broadcast response
 				ack := &Message{}
-				ack.UnmarshalBinary(request.Pkt)
+				ack.UnmarshalBinary(request.Payload)
 				src := ack.Dst
 				ack.Dst = ack.Src
 				ack.Src = src
@@ -189,7 +189,7 @@ func TestNetworkIDRequest(t *testing.T) {
 			} else {
 				request.Err = test.returnedErr
 			}
-			request.DoneCh <- true
+			request.DoneCh <- request
 		}()
 
 		firmware, devCat, err := network.IDRequest(testDstAddr)
@@ -242,10 +242,10 @@ func TestNetworkDial(t *testing.T) {
 					msg.Command[1] = test.engineVersion
 					buf, _ := msg.MarshalBinary()
 					recvCh <- buf
-					request.DoneCh <- true
+					request.DoneCh <- request
 				} else {
 					request.Err = test.sendError
-					request.DoneCh <- true
+					request.DoneCh <- request
 				}
 			}()
 		} else {

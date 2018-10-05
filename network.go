@@ -9,9 +9,9 @@ import (
 // has attempted to send the packet, the Err field will be assigned and
 // DoneCh will be written to and closed
 type PacketRequest struct {
-	Pkt    []byte
-	Err    error
-	DoneCh chan<- bool
+	Payload []byte
+	Err     error
+	DoneCh  chan<- *PacketRequest
 }
 
 // MessageRequest is used to request a message be sent to a specific device.
@@ -116,7 +116,7 @@ func (network *Network) sendMessage(msg *Message) error {
 			}
 		}
 
-		doneCh := make(chan bool, 1)
+		doneCh := make(chan *PacketRequest, 1)
 		request := &PacketRequest{buf, nil, doneCh}
 		network.sendCh <- request
 		<-doneCh
