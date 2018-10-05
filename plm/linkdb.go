@@ -66,31 +66,30 @@ func (alr *AllLinkReq) String() string {
 
 func (db *PLM) Links() ([]*insteon.LinkRecord, error) {
 	// receive all-link record responses
-	conn := db.Listen(CmdAllLinkRecordResp)
+	sendCh, recvCh := db.Connect(CmdGetNextAllLink, CmdAllLinkRecordResp)
 
 	links := make([]*insteon.LinkRecord, 0)
 	insteon.Log.Debugf("Retrieving PLM link database")
-	resp, err := conn.Send(&Packet{Command: CmdGetFirstAllLink})
-	if resp.NAK() {
+	_, err := db.Retry(&Packet{Command: CmdGetFirstAllLink}, 0)
+	if err == ErrNak {
 		err = nil
 	} else if err == nil {
-		for {
-			buf, err := conn.Receive()
+		for pkt := range recvCh {
+			link := &insteon.LinkRecord{}
+			err := link.UnmarshalBinary(pkt)
 			if err == nil {
-				link := &insteon.LinkRecord{}
-				err := link.UnmarshalBinary(buf)
-				if err == nil {
-					insteon.Log.Debugf("Received PLM record response %v", link)
-					links = append(links, link)
-					var resp *Packet
-					resp, err = conn.Send(&Packet{Command: CmdGetNextAllLink})
-					if resp.NAK() || err != nil {
-						break
-					}
-				} else {
-					insteon.Log.Infof("Failed to unmarshal link record: %v", err)
-					break
+				insteon.Log.Debugf("Received PLM record response %v", link)
+				links = append(links, link)
+				doneCh := make(chan *insteon.PacketRequest, 1)
+				sendCh <- &insteon.PacketRequest{DoneCh: doneCh}
+				request := <-doneCh
+
+				if request.Err != nil {
+					close(sendCh)
 				}
+			} else {
+				insteon.Log.Infof("Failed to unmarshal link record: %v", err)
+				close(sendCh)
 			}
 		}
 	}
@@ -116,7 +115,7 @@ func (plm *PLM) RemoveLinks(oldLinks ...*insteon.LinkRecord) (err error) {
 			for i := 0; i < numDelete; i++ {
 				rr := &manageRecordRequest{command: LinkCmdDeleteFirst, link: oldLink}
 				payload, _ := rr.MarshalBinary()
-				_, err = plm.send(&Packet{Command: CmdManageAllLinkRecord, payload: payload})
+				_, err = plm.Retry(&Packet{Command: CmdManageAllLinkRecord, Payload: payload}, 0)
 				if err != nil {
 					insteon.Log.Infof("Failed to remove link: %v", err)
 					break
@@ -146,7 +145,7 @@ func (db *PLM) AddLink(newLink *insteon.LinkRecord) error {
 	}
 	rr := &manageRecordRequest{command: command, link: newLink}
 	payload, _ := rr.MarshalBinary()
-	resp, err := db.send(&Packet{Command: CmdManageAllLinkRecord, payload: payload})
+	resp, err := db.Retry(&Packet{Command: CmdManageAllLinkRecord, Payload: payload}, 0)
 
 	if resp.NAK() {
 		err = fmt.Errorf("Failed to add link back to ALDB")
@@ -185,7 +184,7 @@ func (db *PLM) EnterLinkingMode(group insteon.Group) error {
 	payload, _ := lr.MarshalBinary()
 	ack, err := db.Retry(&Packet{
 		Command: CmdStartAllLink,
-		payload: payload,
+		Payload: payload,
 	}, 3)
 
 	if err == nil && ack.NAK() {
@@ -210,7 +209,7 @@ func (db *PLM) EnterUnlinkingMode(group insteon.Group) error {
 	payload, _ := lr.MarshalBinary()
 	ack, err := db.Retry(&Packet{
 		Command: CmdStartAllLink,
-		payload: payload,
+		Payload: payload,
 	}, 3)
 
 	if err == nil && ack.NAK() {

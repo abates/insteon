@@ -1,10 +1,8 @@
 package plm
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -12,10 +10,12 @@ import (
 )
 
 var (
-	ErrNoSync         = errors.New("No sync byte received")
-	ErrNotImplemented = errors.New("IM command not implemented")
-	ErrAckTimeout     = errors.New("Timeout waiting for Ack from the PLM")
-	ErrNak            = errors.New("PLM responded with a NAK.  Resend command")
+	ErrReadTimeout        = errors.New("Timeout reading from plm")
+	ErrNoSync             = errors.New("No sync byte received")
+	ErrNotImplemented     = errors.New("IM command not implemented")
+	ErrAckTimeout         = errors.New("Timeout waiting for Ack from the PLM")
+	ErrRetryCountExceeded = errors.New("Retry count exceeded sending command")
+	ErrNak                = errors.New("PLM responded with a NAK.  Resend command")
 
 	MaxRetries = 3
 )
@@ -24,166 +24,135 @@ const (
 	writeDelay = 500 * time.Millisecond
 )
 
-func hexDump(buf []byte) string {
+func hexDump(format string, buf []byte, sep string) string {
 	str := make([]string, len(buf))
 	for i, b := range buf {
-		str[i] = fmt.Sprintf("%02x", b)
+		str[i] = fmt.Sprintf(format, b)
 	}
-	return strings.Join(str, " ")
+	return strings.Join(str, sep)
 }
 
-type txPacketReq struct {
-	packet *Packet
-	ackCh  chan *Packet
+type CommandRequest struct {
+	Command Command
+	Payload []byte
+	Err     error
+	DoneCh  chan<- *CommandRequest
+}
+
+type PacketRequest struct {
+	Packet  *Packet
+	Retry   int
+	Ack     *Packet
+	Err     error
+	DoneCh  chan<- *PacketRequest
+	timeout time.Time
 }
 
 type PLM struct {
-	in      *bufio.Reader
-	out     io.Writer
-	timeout time.Duration
+	timeout     time.Duration
+	connections []chan<- *Packet
+	queue       []*PacketRequest
 
-	txPktCh  chan *txPacketReq
-	rxPktCh  chan []byte
-	closeCh  chan chan error
-	listenCh chan *connection
+	upstreamSendCh chan<- []byte
+	upstreamRecvCh <-chan []byte
+	sendCh         chan *PacketRequest
+	connectCh      chan chan<- *Packet
+	disconnectCh   chan chan<- *Packet
 }
 
-func New(port io.ReadWriter, timeout time.Duration) *PLM {
+func New(sendCh chan<- []byte, recvCh <-chan []byte, timeout time.Duration) *PLM {
 	plm := &PLM{
-		in:      bufio.NewReader(port),
-		out:     port,
 		timeout: timeout,
 
-		txPktCh:  make(chan *txPacketReq, 1),
-		rxPktCh:  make(chan []byte, 10),
-		listenCh: make(chan *connection),
-		closeCh:  make(chan chan error),
+		upstreamSendCh: sendCh,
+		upstreamRecvCh: recvCh,
+		connectCh:      make(chan chan<- *Packet),
+		disconnectCh:   make(chan chan<- *Packet),
 	}
-	go plm.readPktLoop()
-	go plm.readWriteLoop()
+
+	go plm.process()
 	return plm
 }
 
-func (plm *PLM) read(buf []byte) error {
-	_, err := io.ReadAtLeast(plm.in, buf, len(buf))
-	return err
-}
-
-func (plm *PLM) readPacket() (buf []byte, err error) {
-	timeout := time.Now().Add(plm.timeout)
-
-	// synchronize
-	for err == nil {
-		var b byte
-		b, err = plm.in.ReadByte()
-		if b != 0x02 {
-			continue
-		} else {
-			b, err = plm.in.ReadByte()
-			if packetLen, found := commandLens[b]; found {
-				buf = append(buf, []byte{0x02, b}...)
-				buf = append(buf, make([]byte, packetLen)...)
-				_, err = io.ReadAtLeast(plm.in, buf[2:], packetLen)
-				break
-			} else {
-				err = plm.in.UnreadByte()
+func (plm *PLM) process() {
+	for {
+		select {
+		case buf, open := <-plm.upstreamRecvCh:
+			if !open {
+				for _, connection := range plm.connections {
+					close(connection)
+				}
+				return
+			}
+			plm.receive(buf)
+		case request := <-plm.sendCh:
+			plm.queue = append(plm.queue, request)
+			if len(plm.queue) == 1 {
+				plm.send()
+			}
+		case connection := <-plm.connectCh:
+			plm.connections = append(plm.connections, connection)
+		case connection := <-plm.disconnectCh:
+			plm.disconnect(connection)
+		case <-time.After(plm.timeout):
+			if len(plm.queue) > 0 && plm.queue[0].timeout.Before(time.Now()) {
+				request := plm.queue[0]
+				request.Err = ErrReadTimeout
+				request.DoneCh <- request
+				plm.queue = plm.queue[1:]
 			}
 		}
-		if time.Now().After(timeout) {
-			err = insteon.ErrReadTimeout
+	}
+}
+
+func (plm *PLM) send() {
+	if len(plm.queue) > 0 {
+		request := plm.queue[0]
+		request.timeout = time.Now().Add(plm.timeout)
+	}
+}
+
+func (plm *PLM) disconnect(connection chan<- *Packet) {
+	for i, conn := range plm.connections {
+		if conn == connection {
+			close(conn)
+			plm.connections = append(plm.connections[0:i], plm.connections[i+1:]...)
 			break
 		}
 	}
-
-	if err == nil {
-		// read some more if it's an extended message
-		if buf[1] == 0x62 && insteon.Flags(buf[5]).Extended() {
-			buf = append(buf, make([]byte, 14)...)
-			_, err = io.ReadAtLeast(plm.in, buf[9:], 14)
-		}
-	}
-	return buf, err
 }
 
-func (plm *PLM) readPktLoop() {
-	for {
-		packet, err := plm.readPacket()
-		insteon.Log.Tracef("RX Packet %s", hexDump(packet))
-		if err == nil {
-			plm.rxPktCh <- packet
-			insteon.Log.Debugf("delivered packet to read/write loop")
+func (plm *PLM) receive(buf []byte) {
+	packet := &Packet{}
+	err := packet.UnmarshalBinary(buf)
+
+	if err == nil {
+		insteon.Log.Tracef("RX %v", packet)
+		if 0x50 <= packet.Command && packet.Command <= 0x58 {
+			for _, connection := range plm.connections {
+				connection <- packet
+			}
 		} else {
-			insteon.Log.Infof("Error reading packet: %v", err)
+			plm.receiveAck(packet)
 		}
+	} else {
+		insteon.Log.Infof("Failed to unmarshal packet: %v", err)
 	}
 }
 
-func (plm *PLM) writePacket(packet *Packet) error {
-	payload, err := packet.MarshalBinary()
-
-	if err == nil {
-		_, err = plm.out.Write(payload)
-	}
-
-	if err == nil {
-		insteon.Log.Tracef("TX %s", hexDump(payload))
-	}
-	return err
-}
-
-func (plm *PLM) readWriteLoop() {
-	connections := make([]*connection, 0)
-	ackChannels := make(map[Command]chan *Packet)
-	var closeCh chan error
-
-loop:
-	for {
-		select {
-		case send := <-plm.txPktCh:
-			ackChannels[send.packet.Command] = send.ackCh
-			err := plm.writePacket(send.packet)
-			if err != nil {
-				insteon.Log.Infof("Failed to write packet: %v", err)
+func (plm *PLM) receiveAck(packet *Packet) {
+	if len(plm.queue) > 0 {
+		request := plm.queue[0]
+		if packet.Command == plm.queue[0].Packet.Command {
+			request.Ack = packet
+			if packet.NAK() {
+				request.Err = ErrNak
 			}
-		case buf := <-plm.rxPktCh:
-			packet := &Packet{}
-			err := packet.UnmarshalBinary(buf)
-
-			if err != nil {
-				insteon.Log.Infof("Failed to unmarshal packet: %v", err)
-				continue
-			}
-
-			insteon.Log.Tracef("RX %v", packet)
-			if 0x50 <= packet.Command && packet.Command <= 0x58 {
-				for _, connection := range connections {
-					connection.notify(packet)
-				}
-			} else {
-				// handle ack/nak
-				insteon.Log.Debugf("Dispatching PLM ACK/NAK %v", packet)
-				if ackCh, ok := ackChannels[packet.Command]; ok {
-					select {
-					case ackCh <- packet:
-						close(ackCh)
-						delete(ackChannels, packet.Command)
-					default:
-						insteon.Log.Debugf("PLM ACK/NAK channel was not ready, discarding %v", packet)
-					}
-				}
-			}
-		case connection := <-plm.listenCh:
-			connections = append(connections, connection)
-		case closeCh = <-plm.closeCh:
-			break loop
+			request.DoneCh <- plm.queue[0]
+			plm.queue = plm.queue[1:]
+			plm.send()
 		}
 	}
-
-	for _, ch := range ackChannels {
-		close(ch)
-	}
-
-	closeCh <- nil
 }
 
 // Retry will deliver a packet to the Insteon network. If delivery fails (due
@@ -191,81 +160,56 @@ loop:
 // continues until the packet is sent (as acknowledged by the PLM) or retries
 // reaches zero
 func (plm *PLM) Retry(packet *Packet, retries int) (ack *Packet, err error) {
-	for retries := 3; retries > 0; retries-- {
-		ack, err = plm.send(packet)
-		if ack.NAK() {
-			insteon.Log.Debugf("PLM NAK received, resending packet")
-			time.Sleep(time.Second)
-		} else {
-			break
+	doneCh := make(chan *PacketRequest, 1)
+	request := &PacketRequest{
+		Packet: packet,
+		Retry:  retries,
+		DoneCh: doneCh,
+	}
+
+	plm.sendCh <- request
+	<-doneCh
+	if request.Err == ErrNak && retries > 0 {
+		for request.Err == ErrNak && retries > 0 {
+			retries--
+			plm.sendCh <- request
+			<-doneCh
+		}
+
+		if request.Err == ErrNak {
+			request.Err = ErrRetryCountExceeded
 		}
 	}
-	return ack, err
+	return request.Ack, request.Err
 }
 
-// SendMessage will create a packet with the payload set
-// to the contents of the message and then attempt to
-// deliver the packet to the network.  Delivery will
-// be retried according to the MaxRetries variable
-func (plm *PLM) SendMessage(msg *insteon.Message) (err error) {
-	buf, err := msg.MarshalBinary()
-	if err == nil {
-		// PLM expects that the payload begins with the
-		// destinations address so we have to slice off
-		// the src address
-		buf = buf[3:]
-		packet := &Packet{
-			Command: CmdSendInsteonMsg,
-			payload: buf,
+func (plm *PLM) Connect(sendCmd Command, recvCmds ...Command) (chan<- *insteon.PacketRequest, <-chan []byte) {
+	conn := plm.connect(sendCmd, recvCmds...)
+	return conn.sendCh, conn.recvCh
+}
+
+func (plm *PLM) connect(sendCmd Command, recvCmds ...Command) *connection {
+	sendCh := make(chan *CommandRequest, 1)
+	recvCh := make(chan *Packet, 1)
+	plm.connectCh <- recvCh
+
+	go func() {
+		for request := range sendCh {
+			_, request.Err = plm.Retry(&Packet{Command: request.Command, Payload: request.Payload}, 0)
+			request.DoneCh <- request
 		}
-		_, err = plm.Retry(packet, MaxRetries)
-	}
-	return err
-}
+		plm.disconnectCh <- recvCh
+	}()
 
-func (plm *PLM) Listen(command Command) Connection {
-	connection := newConnection(plm, plm.timeout, command)
-	plm.listenCh <- connection
-	return connection
-}
-
-/*func (plm *PLM) ListenInsteon() insteon.Bridge {
-	return newInsteonBridge(plm)
-}*/
-
-func (plm *PLM) send(packet *Packet) (ack *Packet, err error) {
-	ackCh := make(chan *Packet, 1)
-	txPktInfo := &txPacketReq{
-		packet: packet,
-		ackCh:  ackCh,
-	}
-
-	select {
-	case plm.txPktCh <- txPktInfo:
-		select {
-		case ack = <-ackCh:
-			if ack.NAK() {
-				insteon.Log.Debugf("PLM NAK Received!")
-			} else {
-				insteon.Log.Debugf("PLM ACK Received")
-			}
-		case <-time.After(plm.timeout):
-			insteon.Log.Debugf("PLM ACK Timeout")
-			err = ErrAckTimeout
-		}
-	case <-time.After(plm.timeout):
-		err = insteon.ErrWriteTimeout
-	}
-	return
+	conn := newConnection(sendCh, recvCh, sendCmd, recvCmds...)
+	return conn
 }
 
 func (plm *PLM) Info() (*Info, error) {
-	ack, err := plm.send(&Packet{
-		Command: CmdGetInfo,
-	})
+	ack, err := plm.Retry(&Packet{Command: CmdGetInfo}, 0)
 	if err == nil {
 		info := &Info{}
-		err := info.UnmarshalBinary(ack.payload)
+		err := info.UnmarshalBinary(ack.Payload)
 		return info, err
 	}
 	return nil, err
@@ -275,9 +219,7 @@ func (plm *PLM) Reset() error {
 	timeout := plm.timeout
 	plm.timeout = 20 * time.Second
 
-	ack, err := plm.send(&Packet{
-		Command: CmdReset,
-	})
+	ack, err := plm.Retry(&Packet{Command: CmdReset}, 0)
 
 	if err == nil && ack.NAK() {
 		err = ErrNak
@@ -287,14 +229,12 @@ func (plm *PLM) Reset() error {
 }
 
 func (plm *PLM) Config() (*Config, error) {
-	ack, err := plm.send(&Packet{
-		Command: CmdGetConfig,
-	})
+	ack, err := plm.Retry(&Packet{Command: CmdGetConfig}, 0)
 	if err == nil && ack.NAK() {
 		err = ErrNak
 	} else if err == nil {
 		var config Config
-		err := config.UnmarshalBinary(ack.payload)
+		err := config.UnmarshalBinary(ack.Payload)
 		return &config, err
 	}
 	return nil, err
@@ -302,10 +242,7 @@ func (plm *PLM) Config() (*Config, error) {
 
 func (plm *PLM) SetConfig(config *Config) error {
 	payload, _ := config.MarshalBinary()
-	ack, err := plm.send(&Packet{
-		Command: CmdSetConfig,
-		payload: payload,
-	})
+	ack, err := plm.Retry(&Packet{Command: CmdSetConfig, Payload: payload}, 0)
 	if err == nil && ack.NAK() {
 		err = ErrNak
 	}
@@ -320,14 +257,6 @@ func (plm *PLM) SetDeviceCategory(insteon.Category) error {
 func (plm *PLM) RFSleep() error {
 	// TODO
 	return ErrNotImplemented
-}
-
-func (plm *PLM) Close() error {
-	insteon.Log.Debugf("Closing PLM")
-	errCh := make(chan error)
-	plm.closeCh <- errCh
-	err := <-errCh
-	return err
 }
 
 func (plm *PLM) Address() insteon.Address {
