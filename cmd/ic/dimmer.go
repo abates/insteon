@@ -41,7 +41,7 @@ func dimmerCmd(args []string, next cli.NextFunc) (err error) {
 		return fmt.Errorf("invalid device address: %v", err)
 	}
 
-	device, err := devConnect(network, addr)
+	device, err := devConnect(modem.Network, addr)
 	if err == nil {
 		var ok bool
 		if dimmer, ok = device.(insteon.Dimmer); ok {

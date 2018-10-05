@@ -58,19 +58,24 @@ type PLM struct {
 	sendCh         chan *PacketRequest
 	connectCh      chan chan<- *Packet
 	disconnectCh   chan chan<- *Packet
+
+	Network *insteon.Network
 }
 
-func New(sendCh chan<- []byte, recvCh <-chan []byte, timeout time.Duration) *PLM {
+func New(port *Port, timeout time.Duration) *PLM {
 	plm := &PLM{
 		timeout: timeout,
 
-		upstreamSendCh: sendCh,
-		upstreamRecvCh: recvCh,
+		upstreamSendCh: port.sendCh,
+		upstreamRecvCh: port.recvCh,
 		connectCh:      make(chan chan<- *Packet),
 		disconnectCh:   make(chan chan<- *Packet),
 	}
 
 	go plm.process()
+
+	sendCh, recvCh := plm.Connect(CmdSendInsteonMsg, CmdStdMsgReceived, CmdExtMsgReceived)
+	plm.Network = insteon.New(sendCh, recvCh, timeout)
 	return plm
 }
 
@@ -79,13 +84,15 @@ func (plm *PLM) process() {
 		select {
 		case buf, open := <-plm.upstreamRecvCh:
 			if !open {
-				for _, connection := range plm.connections {
-					close(connection)
-				}
+				plm.close()
 				return
 			}
 			plm.receive(buf)
-		case request := <-plm.sendCh:
+		case request, open := <-plm.sendCh:
+			if !open {
+				plm.close()
+				return
+			}
 			plm.queue = append(plm.queue, request)
 			if len(plm.queue) == 1 {
 				plm.send()
@@ -269,4 +276,16 @@ func (plm *PLM) Address() insteon.Address {
 
 func (plm *PLM) String() string {
 	return fmt.Sprintf("PLM (%s)", plm.Address())
+}
+
+func (plm *PLM) close() {
+	for _, connection := range plm.connections {
+		close(connection)
+	}
+	close(plm.upstreamSendCh)
+}
+
+func (plm *PLM) Close() error {
+	close(plm.sendCh)
+	return nil
 }

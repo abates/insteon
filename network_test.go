@@ -46,7 +46,7 @@ func TestNetworkReceive(t *testing.T) {
 		testDb := newTestProductDB()
 		connection := make(chan *Message, 1)
 		network := &Network{
-			db:          testDb,
+			DB:          testDb,
 			connections: []chan<- *Message{connection},
 		}
 
@@ -81,7 +81,7 @@ func TestNetworkSendMessage(t *testing.T) {
 		testDb := newTestProductDB()
 		testDb.deviceInfo = test.deviceInfo
 		network := &Network{
-			db:     testDb,
+			DB:     testDb,
 			sendCh: sendCh,
 		}
 
@@ -231,7 +231,7 @@ func TestNetworkDial(t *testing.T) {
 	for i, test := range tests {
 		testDb := newTestProductDB()
 		network, sendCh, recvCh := newTestNetwork(1)
-		network.db = testDb
+		network.DB = testDb
 
 		if test.deviceInfo == nil {
 			go func() {

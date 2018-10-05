@@ -30,7 +30,7 @@ type MessageRequest struct {
 // devices on the Insteon network
 type Network struct {
 	timeout     time.Duration
-	db          ProductDatabase
+	DB          ProductDatabase
 	connections []chan<- *Message
 
 	sendCh       chan<- *PacketRequest
@@ -43,7 +43,7 @@ type Network struct {
 func New(sendCh chan<- *PacketRequest, recvCh <-chan []byte, timeout time.Duration) *Network {
 	network := &Network{
 		timeout: timeout,
-		db:      NewProductDB(),
+		DB:      NewProductDB(),
 
 		sendCh:       sendCh,
 		recvCh:       recvCh,
@@ -82,12 +82,12 @@ func (network *Network) receive(buf []byte) {
 		if msg.Broadcast() {
 			// Set Button Pressed Controller/Responder
 			if msg.Command[0] == 0x01 || msg.Command[0] == 0x02 {
-				network.db.UpdateFirmwareVersion(msg.Src, FirmwareVersion(msg.Dst[2]))
-				network.db.UpdateDevCat(msg.Src, DevCat{msg.Dst[0], msg.Dst[1]})
+				network.DB.UpdateFirmwareVersion(msg.Src, FirmwareVersion(msg.Dst[2]))
+				network.DB.UpdateDevCat(msg.Src, DevCat{msg.Dst[0], msg.Dst[1]})
 			}
 		} else if msg.Ack() && msg.Command[0] == 0x0d {
 			// Engine Version Request ACK
-			network.db.UpdateEngineVersion(msg.Src, EngineVersion(msg.Command[1]))
+			network.DB.UpdateEngineVersion(msg.Src, EngineVersion(msg.Command[1]))
 		}
 
 		for _, connection := range network.connections {
@@ -110,7 +110,7 @@ func (network *Network) sendMessage(msg *Message) error {
 	buf, err := msg.MarshalBinary()
 
 	if err == nil {
-		if info, found := network.db.Find(msg.Dst); found {
+		if info, found := network.DB.Find(msg.Dst); found {
 			if msg.Flags.Extended() && info.EngineVersion == VerI2Cs {
 				buf[len(buf)-1] = checksum(buf[7:22])
 			}
@@ -157,8 +157,8 @@ func (network *Network) IDRequest(dst Address) (firmwareVersion FirmwareVersion,
 				if msg.Broadcast() {
 					firmwareVersion = FirmwareVersion(msg.Dst[2])
 					devCat = DevCat{msg.Dst[0], msg.Dst[1]}
-					network.db.UpdateFirmwareVersion(dst, firmwareVersion)
-					network.db.UpdateDevCat(dst, devCat)
+					network.DB.UpdateFirmwareVersion(dst, firmwareVersion)
+					network.DB.UpdateDevCat(dst, devCat)
 					return
 				}
 			case <-time.After(network.timeout):
@@ -197,13 +197,13 @@ func (network *Network) connect(dst Address, version EngineVersion, match ...Com
 // device (dimmer, switch, thermostat, etc) use Connect
 func (network *Network) Dial(dst Address) (device Device, err error) {
 	var version EngineVersion
-	if info, found := network.db.Find(dst); found {
+	if info, found := network.DB.Find(dst); found {
 		version = info.EngineVersion
 	} else {
 		version, err = network.EngineVersion(dst)
 		// ErrNotLinked here is only returned by i2cs devices
 		if err == ErrNotLinked {
-			network.db.UpdateEngineVersion(dst, VerI2Cs)
+			network.DB.UpdateEngineVersion(dst, VerI2Cs)
 			Log.Debugf("Got ErrNotLinked, creating I2CS device")
 			err = nil
 			version = VerI2Cs
@@ -240,7 +240,7 @@ func (network *Network) Connect(dst Address) (device Device, err error) {
 
 	device, err = network.Dial(dst)
 	if err == nil {
-		if info, found = network.db.Find(dst); !found {
+		if info, found = network.DB.Find(dst); !found {
 			info.EngineVersion, err = network.EngineVersion(dst)
 			if err == nil {
 				info.FirmwareVersion, info.DevCat, err = network.IDRequest(dst)

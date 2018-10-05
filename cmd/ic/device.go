@@ -36,14 +36,14 @@ func devCmd(args []string, next cli.NextFunc) (err error) {
 		return fmt.Errorf("invalid device address: %v", err)
 	}
 
-	device, err = devConnect(network, addr)
+	device, err = devConnect(modem.Network, addr)
 	if err == nil {
 		err = next()
 	}
 	return err
 }
 
-func devConnect(network insteon.Network, addr insteon.Address) (insteon.Device, error) {
+func devConnect(network *insteon.Network, addr insteon.Address) (insteon.Device, error) {
 	device, err := network.Connect(addr)
 	if err == insteon.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
@@ -96,11 +96,9 @@ func devInfoCmd([]string, cli.NextFunc) (err error) {
 
 func printDevInfo(device insteon.Device, extra string) error {
 	fmt.Printf("       Device: %v\n", device)
-	if db, ok := network.(insteon.ProductDatabase); ok {
-		if info, found := db.Find(device.Address()); found {
-			fmt.Printf("     Category: %v\n", info.DevCat)
-			fmt.Printf("     Firmware: %v\n", info.FirmwareVersion)
-		}
+	if info, found := modem.Network.DB.Find(device.Address()); found {
+		fmt.Printf("     Category: %v\n", info.DevCat)
+		fmt.Printf("     Firmware: %v\n", info.FirmwareVersion)
 	}
 
 	if extra != "" {
@@ -113,12 +111,8 @@ func printDevInfo(device insteon.Device, extra string) error {
 }
 
 func devVersionCmd([]string, cli.NextFunc) error {
-	if db, ok := network.(insteon.ProductDatabase); ok {
-		if info, found := db.Find(device.Address()); found {
-			fmt.Printf("Device version: %s\n", info.FirmwareVersion)
-		}
-	} else {
-		fmt.Printf("Network implementation does not support product data lookup")
+	if info, found := modem.Network.DB.Find(device.Address()); found {
+		fmt.Printf("Device version: %s\n", info.FirmwareVersion)
 	}
 	return nil
 }
