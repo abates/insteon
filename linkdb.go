@@ -166,7 +166,6 @@ func CrossLinkAll(group Group, linkable ...LinkableDevice) error {
 func CrossLink(group Group, l1, l2 LinkableDevice) error {
 	err := Link(group, l1, l2)
 	if err == nil || err == ErrAlreadyLinked {
-		err = nil
 		err = Link(group, l2, l1)
 		if err == ErrAlreadyLinked {
 			err = nil

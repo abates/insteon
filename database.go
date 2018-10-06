@@ -11,7 +11,6 @@ type DeviceInfo struct {
 	DevCat          DevCat
 	FirmwareVersion FirmwareVersion
 	EngineVersion   EngineVersion
-	mutex           sync.Mutex
 }
 
 // Complete indicates whether or not a record appears to be complete.  A complete
@@ -62,11 +61,8 @@ func (pdb *productDatabase) update(address Address, callback func(*DeviceInfo)) 
 		deviceInfo = &DeviceInfo{}
 		pdb.devices[address] = deviceInfo
 	}
-	pdb.mutex.Unlock()
-
-	deviceInfo.mutex.Lock()
 	callback(deviceInfo)
-	deviceInfo.mutex.Unlock()
+	pdb.mutex.Unlock()
 }
 
 func (pdb *productDatabase) UpdateFirmwareVersion(address Address, firmwareVersion FirmwareVersion) {

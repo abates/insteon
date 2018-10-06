@@ -124,7 +124,7 @@ func devVersionCmd([]string, cli.NextFunc) error {
 
 func devEditCmd([]string, cli.NextFunc) error {
 	return devLink(func(linkable insteon.LinkableDevice) error {
-		dbLinks, err := linkable.Links()
+		dbLinks, _ := linkable.Links()
 		if len(dbLinks) == 0 {
 			return fmt.Errorf("No links to edit")
 		}

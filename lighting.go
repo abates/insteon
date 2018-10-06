@@ -140,11 +140,11 @@ func (sd *SwitchedDevice) Status() (level int, err error) {
 }
 
 type LightFlags struct {
-	ProgramLock bool `json:program_lock`
-	TransmitLED bool `json:transmit_led`
-	ResumeDim   bool `json:resume_dim`
-	LED         bool `json:led`
-	LoadSense   bool `json:load_sense`
+	ProgramLock bool `json:"program_lock"`
+	TransmitLED bool `json:"transmit_led"`
+	ResumeDim   bool `json:"resume_dim"`
+	LED         bool `json:"led"`
+	LoadSense   bool `json:"load_sense"`
 }
 
 func (lf *LightFlags) MarshalBinary() ([]byte, error) {
