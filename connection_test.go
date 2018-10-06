@@ -63,13 +63,13 @@ func TestConnectionReceiveAck(t *testing.T) {
 		{VerI1, TestMessageUnknownCommandNak, ErrUnknownCommand},
 		{VerI1, TestMessageNoLoadDetected, ErrNoLoadDetected},
 		{VerI1, TestMessageNotLinked, ErrNotLinked},
-		{VerI1, &Message{Src: testDstAddr, Flags: StandardDirectNak, Command: Command{0x00, 0x01}}, ErrUnexpectedResponse},
+		{VerI1, &Message{Src: testDstAddr, Flags: StandardDirectNak, Command: 0x0001}, ErrUnexpectedResponse},
 		{VerI2Cs, TestMessageIllegalValue, ErrIllegalValue},
 		{VerI2Cs, TestMessagePreNak, ErrPreNak},
 		{VerI2Cs, TestMessageIncorrectChecksum, ErrIncorrectChecksum},
 		{VerI2Cs, TestMessageNoLoadDetectedI2Cs, ErrNoLoadDetected},
 		{VerI2Cs, TestMessageNotLinkedI2Cs, ErrNotLinked},
-		{VerI2Cs, &Message{Src: testDstAddr, Flags: StandardDirectNak, Command: Command{0x00, 0x01}}, ErrUnexpectedResponse},
+		{VerI2Cs, &Message{Src: testDstAddr, Flags: StandardDirectNak, Command: 0x0001}, ErrUnexpectedResponse},
 	}
 
 	for i, test := range tests {
@@ -78,7 +78,7 @@ func TestConnectionReceiveAck(t *testing.T) {
 			version: test.version,
 		}
 		doneCh := make(chan *MessageRequest, 1)
-		request := &MessageRequest{Message: &Message{Command: Command{test.returnedAck.Command[0], 0x00}}, DoneCh: doneCh}
+		request := &MessageRequest{Message: &Message{Command: test.returnedAck.Command & 0xff00}, DoneCh: doneCh}
 		conn.queue = append(conn.queue, request)
 		conn.receive(test.returnedAck)
 
@@ -96,10 +96,10 @@ func TestConnectionReceiveMatch(t *testing.T) {
 		match    Command
 		expected int
 	}{
-		{&Message{Src: testDstAddr, Command: Command{0x00, 0x00}}, Command{0x01, 0x01}, 0},
-		{&Message{Src: testDstAddr, Command: Command{0x01, 0xff}}, Command{0x01, 0x01}, 0},
-		{&Message{Src: testDstAddr, Command: Command{0x01, 0x01}}, Command{0x01, 0x01}, 1},
-		{&Message{Src: testDstAddr, Command: Command{0x01, 0x01}}, Command{0x01, 0x00}, 1},
+		{&Message{Src: testDstAddr, Command: 0x0000}, 0x0101, 0},
+		{&Message{Src: testDstAddr, Command: 0x01ff}, 0x0101, 0},
+		{&Message{Src: testDstAddr, Command: 0x0101}, 0x0101, 1},
+		{&Message{Src: testDstAddr, Command: 0x0101}, 0x0100, 1},
 	}
 
 	for i, test := range tests {

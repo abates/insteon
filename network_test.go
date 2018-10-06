@@ -123,7 +123,7 @@ func TestNetworkEngineVersion(t *testing.T) {
 			if test.returnedErr == nil {
 				ack := *test.returnedAck
 				ack.Src = testDstAddr
-				ack.Command[1] = byte(test.expectedVersion)
+				ack.Command = ack.Command&0xff00 | Command(test.expectedVersion)
 				buf, _ := ack.MarshalBinary()
 				recvCh <- buf
 			} else {
@@ -239,7 +239,7 @@ func TestNetworkDial(t *testing.T) {
 				if test.sendError == nil {
 					msg := *TestMessageEngineVersionAck
 					msg.Src = Address{1, 2, 3}
-					msg.Command[1] = test.engineVersion
+					msg.Command = msg.Command&0xff00 | Command(test.engineVersion)
 					buf, _ := msg.MarshalBinary()
 					recvCh <- buf
 					request.DoneCh <- request

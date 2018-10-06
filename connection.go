@@ -65,7 +65,6 @@ func (conn *connection) process() {
 			if len(conn.queue) > 0 && conn.queue[0].timeout.Before(time.Now()) {
 				conn.queue[0].Err = ErrReadTimeout
 				conn.queue[0].DoneCh <- conn.queue[0]
-				close(conn.queue[0].DoneCh)
 				conn.queue = conn.queue[1:]
 				conn.send()
 			}
@@ -76,11 +75,11 @@ func (conn *connection) process() {
 func (conn *connection) receiveAck(msg *Message) {
 	if len(conn.queue) > 0 {
 		request := conn.queue[0]
-		if msg.Command[0] == request.Message.Command[0] {
+		if msg.Command&0xff00 == request.Message.Command&0xff00 {
 			conn.queue[0].Ack = msg
 			if msg.Flags.Type() == MsgTypeDirectNak {
 				if VerI1 <= conn.version && conn.version <= VerI2 {
-					switch msg.Command[1] {
+					switch msg.Command & 0xff {
 					case 0xfd:
 						request.Err = ErrUnknownCommand
 					case 0xfe:
@@ -91,7 +90,7 @@ func (conn *connection) receiveAck(msg *Message) {
 						request.Err = NewTraceError(ErrUnexpectedResponse)
 					}
 				} else if conn.version == VerI2Cs {
-					switch msg.Command[1] {
+					switch msg.Command & 0xff {
 					case 0xfb:
 						request.Err = ErrIllegalValue
 					case 0xfc:
@@ -109,7 +108,6 @@ func (conn *connection) receiveAck(msg *Message) {
 			}
 
 			conn.queue[0].DoneCh <- conn.queue[0]
-			close(conn.queue[0].DoneCh)
 
 			conn.queue = conn.queue[1:]
 			conn.send()
@@ -119,7 +117,7 @@ func (conn *connection) receiveAck(msg *Message) {
 
 func (conn *connection) receiveMatch(msg *Message) {
 	for _, m := range conn.match {
-		if msg.Command == m || msg.Command[0] == m[0] && m[1] == 0x00 {
+		if (msg.Command == m) || (msg.Command&0xff00 == m) {
 			conn.recvCh <- msg
 		}
 	}
@@ -153,7 +151,6 @@ func (conn *connection) send() {
 		if request.Err != nil {
 			conn.queue = conn.queue[1:]
 			request.DoneCh <- request
-			close(request.DoneCh)
 		}
 	}
 }

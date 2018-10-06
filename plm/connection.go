@@ -49,7 +49,15 @@ func (conn *connection) process() {
 
 func (conn *connection) send(request *insteon.PacketRequest) {
 	doneCh := make(chan *CommandRequest)
-	conn.upstreamSendCh <- &CommandRequest{Command: conn.sendCmd, Payload: request.Payload, DoneCh: doneCh}
+	payload := request.Payload
+	// PLM expects that the payload begins with the
+	// destinations address so we have to slice off
+	// the src address
+	if conn.sendCmd == CmdSendInsteonMsg {
+		payload = payload[3:]
+	}
+
+	conn.upstreamSendCh <- &CommandRequest{Command: conn.sendCmd, Payload: payload, DoneCh: doneCh}
 	upstreamRequest := <-doneCh
 	request.Err = upstreamRequest.Err
 	request.DoneCh <- request

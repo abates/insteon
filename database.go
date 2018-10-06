@@ -14,6 +14,10 @@ type DeviceInfo struct {
 	mutex           sync.Mutex
 }
 
+func (info *DeviceInfo) Complete() bool {
+	return info.DevCat != DevCat{0x00, 0x00} && info.FirmwareVersion != FirmwareVersion(0x00)
+}
+
 // ProductDatabase is a registry of all the devices that have been
 // seend on the local Insteon network.  The database includes the
 // device category and firmware number. ProductDatabase implementations

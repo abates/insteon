@@ -1,11 +1,13 @@
 package insteon
 
+import "time"
+
 type I2Device struct {
 	*I1Device
 }
 
-func NewI2Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message) *I2Device {
-	return &I2Device{NewI1Device(address, sendCh, recvCh)}
+func NewI2Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) Device {
+	return &I2Device{NewI1Device(address, sendCh, recvCh, timeout).(*I1Device)}
 }
 
 // AddLink will either add the link to the All-Link database
@@ -30,7 +32,7 @@ func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
 	recvCh, err := i2.SendCommandAndListen(CmdReadWriteALDB, buf)
 
 	for response := range recvCh {
-		if response.Message.Flags.Extended() && response.Message.Command[0] == CmdReadWriteALDB[0] {
+		if response.Message.Flags.Extended() && response.Message.Command&0xff00 == CmdReadWriteALDB&0xff00 {
 			lr := &LinkRequest{}
 			err = lr.UnmarshalBinary(response.Message.Payload)
 			if err == nil && lr.MemAddress != lastAddress {

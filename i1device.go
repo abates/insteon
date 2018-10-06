@@ -1,6 +1,8 @@
 package insteon
 
-import "time"
+import (
+	"time"
+)
 
 // I1Device provides remote communication to version 1 engines
 type I1Device struct {
@@ -18,11 +20,12 @@ type I1Device struct {
 }
 
 // NewI1Device will construct an I1Device for the given address
-func NewI1Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message) *I1Device {
+func NewI1Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) Device {
 	i1 := &I1Device{
 		address:         address,
 		devCat:          DevCat{0xff, 0xff},
 		firmwareVersion: FirmwareVersion(0x00),
+		timeout:         timeout,
 
 		upstreamSendCh: sendCh,
 		sendCh:         make(chan *CommandRequest, 1),
@@ -57,8 +60,13 @@ func (i1 *I1Device) process() {
 			i1.queue[0].Ack = request.Ack
 			i1.queue[0].Err = request.Err
 			i1.queue[0].DoneCh <- i1.queue[0]
-			if i1.queue[0].Err == nil && i1.queue[0].RecvCh != nil {
-				i1.waitRequest = i1.queue[0]
+			if i1.queue[0].RecvCh != nil {
+				if i1.queue[0].Err == nil {
+					i1.waitRequest = i1.queue[0]
+					i1.waitRequest.timeout = time.Now().Add(i1.timeout)
+				} else {
+					close(i1.queue[0].RecvCh)
+				}
 			}
 			i1.queue = i1.queue[1:]
 			i1.send()
@@ -67,7 +75,6 @@ func (i1 *I1Device) process() {
 			if i1.waitRequest != nil && i1.waitRequest.timeout.Before(time.Now()) {
 				close(i1.waitRequest.RecvCh)
 				i1.waitRequest = nil
-				i1.queue = i1.queue[1:]
 				i1.send()
 			}
 		}
@@ -94,13 +101,12 @@ func (i1 *I1Device) send() {
 }
 
 func (i1 *I1Device) receive(msg *Message) {
-	if len(i1.queue) > 0 && i1.queue[0].RecvCh != nil {
+	if i1.waitRequest != nil {
 		doneCh := make(chan bool, 1)
-		i1.queue[0].RecvCh <- &CommandResponse{Message: msg, DoneCh: doneCh}
+		i1.waitRequest.RecvCh <- &CommandResponse{Message: msg, DoneCh: doneCh}
 		if <-doneCh {
+			close(i1.waitRequest.RecvCh)
 			i1.waitRequest = nil
-			close(i1.queue[0].RecvCh)
-			i1.queue = i1.queue[1:]
 			i1.send()
 		}
 	}
@@ -164,7 +170,7 @@ func (i1 *I1Device) DeleteFromAllLinkGroup(group Group) (err error) {
 func (i1 *I1Device) ProductData() (data *ProductData, err error) {
 	recvCh, err := i1.SendCommandAndListen(CmdProductDataReq, nil)
 	for resp := range recvCh {
-		if resp.Message.Command[0] == CmdProductDataResp[0] {
+		if resp.Message.Command&0xff00 == CmdProductDataResp&0xff00 {
 			data = &ProductData{}
 			err = data.UnmarshalBinary(resp.Message.Payload)
 			resp.DoneCh <- true

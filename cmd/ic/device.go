@@ -94,20 +94,25 @@ func devInfoCmd([]string, cli.NextFunc) (err error) {
 	return printDevInfo(device, "")
 }
 
-func printDevInfo(device insteon.Device, extra string) error {
+func printDevInfo(device insteon.Device, extra string) (err error) {
 	fmt.Printf("       Device: %v\n", device)
-	if info, found := modem.Network.DB.Find(device.Address()); found {
+	info, found := modem.Network.DB.Find(device.Address())
+	if !found || !info.Complete() {
+		info, err = modem.Network.IDRequest(device.Address())
+	}
+	if err == nil {
 		fmt.Printf("     Category: %v\n", info.DevCat)
 		fmt.Printf("     Firmware: %v\n", info.FirmwareVersion)
-	}
 
-	if extra != "" {
-		fmt.Printf("%s\n", extra)
-	}
+		if extra != "" {
+			fmt.Printf("%s\n", extra)
+		}
 
-	return devLink(func(linkable insteon.LinkableDevice) error {
-		return printLinkDatabase(linkable)
-	})
+		err = devLink(func(linkable insteon.LinkableDevice) error {
+			return printLinkDatabase(linkable)
+		})
+	}
+	return err
 }
 
 func devVersionCmd([]string, cli.NextFunc) error {

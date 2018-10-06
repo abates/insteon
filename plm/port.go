@@ -8,10 +8,15 @@ import (
 	"github.com/abates/insteon"
 )
 
+const (
+	writeDelay = 500 * time.Millisecond
+)
+
 type Port struct {
-	in      *bufio.Reader
-	out     io.Writer
-	timeout time.Duration
+	in        *bufio.Reader
+	out       io.Writer
+	timeout   time.Duration
+	lastWrite time.Time
 
 	sendCh  chan []byte
 	recvCh  chan []byte
@@ -90,7 +95,11 @@ func (port *Port) readPacket() (buf []byte, err error) {
 
 func (port *Port) writeLoop() {
 	for buf := range port.sendCh {
+		if !port.lastWrite.Add(writeDelay).Before(time.Now()) {
+			<-time.After(writeDelay)
+		}
 		_, err := port.out.Write(buf)
+		port.lastWrite = time.Now()
 		if err == nil {
 			insteon.Log.Tracef("TX %s", hexDump("%02x", buf, " "))
 		} else {

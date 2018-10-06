@@ -133,8 +133,8 @@ func (m *Message) MarshalBinary() (data []byte, err error) {
 	copy(data[0:3], m.Src[:])
 	copy(data[3:6], m.Dst[:])
 	data[6] = byte(m.Flags)
-	data[7] = m.Command[0]
-	data[8] = m.Command[1]
+	data[7] = byte(m.Command >> 8)
+	data[8] = byte(m.Command)
 	if m.Flags.Extended() {
 		data = append(data, make([]byte, 14)...)
 		copy(data[9:23], m.Payload)
@@ -153,7 +153,7 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	copy(m.Src[:], data[0:3])
 	copy(m.Dst[:], data[3:6])
 	m.Flags = Flags(data[6])
-	m.Command = Command{data[7], data[8]}
+	m.Command = Command(data[7])<<8 | Command(data[8])
 
 	if m.Flags.Extended() {
 		if len(data) < ExtendedMsgLen {

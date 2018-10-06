@@ -2,27 +2,29 @@ package insteon
 
 var (
 	LightingCategories = []Category{Category(1), Category(2)}
+)
 
-	CmdLightOn             = Command{0x11, 0xff}
-	CmdLightOnFast         = Command{0x12, 0x00}
-	CmdLightOff            = Command{0x13, 0x00}
-	CmdLightOffFast        = Command{0x14, 0x00}
-	CmdLightBrighten       = Command{0x15, 0x00}
-	CmdLightDim            = Command{0x16, 0x00}
-	CmdLightStartManual    = Command{0x17, 0x00}
-	CmdLightStopManual     = Command{0x18, 0x00}
-	CmdLightStatusRequest  = Command{0x19, 0x00}
-	CmdLightInstantChange  = Command{0x21, 0x00}
-	CmdLightManualOn       = Command{0x22, 0x01}
-	CmdLightManualOff      = Command{0x23, 0x01}
-	CmdTapSetButtonOnce    = Command{0x25, 0x01}
-	CmdTapSetButtonTwice   = Command{0x25, 0x02}
-	CmdLightSetStatus      = Command{0x27, 0x00}
-	CmdLightOnAtRamp       = Command{0x2e, 0x00}
-	CmdLightOnAtRampV67    = Command{0x34, 0x00}
-	CmdLightOffAtRamp      = Command{0x2f, 0x00}
-	CmdLightOffAtRampV67   = Command{0x35, 0x00}
-	CmdLightExtendedSetGet = Command{0x2e, 0x00}
+const (
+	CmdLightOn             Command = 0x11ff
+	CmdLightOnFast         Command = 0x1200
+	CmdLightOff            Command = 0x1300
+	CmdLightOffFast        Command = 0x1400
+	CmdLightBrighten       Command = 0x1500
+	CmdLightDim            Command = 0x1600
+	CmdLightStartManual    Command = 0x1700
+	CmdLightStopManual     Command = 0x1800
+	CmdLightStatusRequest  Command = 0x1900
+	CmdLightInstantChange  Command = 0x2100
+	CmdLightManualOn       Command = 0x2201
+	CmdLightManualOff      Command = 0x2301
+	CmdTapSetButtonOnce    Command = 0x2501
+	CmdTapSetButtonTwice   Command = 0x2502
+	CmdLightSetStatus      Command = 0x2700
+	CmdLightOnAtRamp       Command = 0x2e00
+	CmdLightOnAtRampV67    Command = 0x3400
+	CmdLightOffAtRamp      Command = 0x2f00
+	CmdLightOffAtRampV67   Command = 0x3500
+	CmdLightExtendedSetGet Command = 0x2e00
 )
 
 func init() {
@@ -132,7 +134,7 @@ func (sd *SwitchedDevice) Off() error {
 func (sd *SwitchedDevice) Status() (level int, err error) {
 	response, err := sd.SendCommand(CmdLightStatusRequest, nil)
 	if err == nil {
-		level = int(response[0])
+		level = int(response >> 8)
 	}
 	return level, err
 }
@@ -181,7 +183,7 @@ func (sd *SwitchedDevice) OperatingFlags() (*LightFlags, error) {
 	flags := &LightFlags{}
 	response, err := sd.SendCommand(CmdGetOperatingFlags, nil)
 	if err == nil {
-		flags.UnmarshalBinary([]byte{response[0]})
+		flags.UnmarshalBinary([]byte{byte(response >> 8)})
 	}
 	return flags, err
 }

@@ -3,6 +3,8 @@ package insteon
 import (
 	"log"
 	"os"
+	"path"
+	"runtime"
 )
 
 var (
@@ -56,6 +58,15 @@ func (s *Logger) Level(level LogLevel) {
 func (s *Logger) logf(level LogLevel, format string, v ...interface{}) {
 	if s.level >= level {
 		format = sprintf("%5s %s", level, format)
+		if level == LevelTrace {
+			pc := make([]uintptr, 10)
+			runtime.Callers(3, pc)
+			frames := runtime.CallersFrames(pc)
+			frame, _ := frames.Next()
+			function := path.Base(frame.Function)
+
+			format = sprintf("%s:%d %s", function, frame.Line, format)
+		}
 		s.logger.Printf(format, v...)
 	}
 }

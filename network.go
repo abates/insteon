@@ -59,17 +59,18 @@ func New(sendCh chan<- *PacketRequest, recvCh <-chan []byte, timeout time.Durati
 func (network *Network) process() {
 	for {
 		select {
-		case pkt := <-network.recvCh:
+		case pkt, open := <-network.recvCh:
+			if !open {
+				network.close()
+				return
+			}
 			network.receive(pkt)
 		case connection := <-network.connectCh:
 			network.connections = append(network.connections, connection)
 		case connection := <-network.disconnectCh:
 			network.disconnect(connection)
 		case ch := <-network.closeCh:
-			for _, connection := range network.connections {
-				close(connection)
-			}
-			ch <- nil
+			ch <- network.close()
 			return
 		}
 	}
@@ -77,22 +78,24 @@ func (network *Network) process() {
 
 func (network *Network) receive(buf []byte) {
 	msg := &Message{}
-	err := msg.UnmarshalBinary(buf)
-	if err == nil {
+	if err := msg.UnmarshalBinary(buf); err == nil {
+		Log.Tracef("Received Insteon Message %v", msg)
 		if msg.Broadcast() {
 			// Set Button Pressed Controller/Responder
-			if msg.Command[0] == 0x01 || msg.Command[0] == 0x02 {
+			if msg.Command&0xff00 == 0x0100 || msg.Command&0xff00 == 0x0200 {
 				network.DB.UpdateFirmwareVersion(msg.Src, FirmwareVersion(msg.Dst[2]))
 				network.DB.UpdateDevCat(msg.Src, DevCat{msg.Dst[0], msg.Dst[1]})
 			}
-		} else if msg.Ack() && msg.Command[0] == 0x0d {
+		} else if msg.Ack() && msg.Command&0xff00 == 0x0d00 {
 			// Engine Version Request ACK
-			network.DB.UpdateEngineVersion(msg.Src, EngineVersion(msg.Command[1]))
+			network.DB.UpdateEngineVersion(msg.Src, EngineVersion(0x00ff&msg.Command))
 		}
 
 		for _, connection := range network.connections {
 			connection <- msg
 		}
+	} else {
+		Log.Tracef("Failed unmarshalling message received from network: %v", err)
 	}
 }
 
@@ -110,6 +113,7 @@ func (network *Network) sendMessage(msg *Message) error {
 	buf, err := msg.MarshalBinary()
 
 	if err == nil {
+		Log.Tracef("Sending %v to network", msg)
 		if info, found := network.DB.Find(msg.Dst); found {
 			if msg.Flags.Extended() && info.EngineVersion == VerI2Cs {
 				buf[len(buf)-1] = checksum(buf[7:22])
@@ -137,12 +141,15 @@ func (network *Network) EngineVersion(dst Address) (engineVersion EngineVersion,
 	<-doneCh
 
 	if request.Err == nil {
-		engineVersion = EngineVersion(request.Ack.Command[1])
+		engineVersion = EngineVersion(request.Ack.Command & 0x00ff)
 	}
 	return engineVersion, request.Err
 }
 
-func (network *Network) IDRequest(dst Address) (firmwareVersion FirmwareVersion, devCat DevCat, err error) {
+func (network *Network) IDRequest(dst Address) (info DeviceInfo, err error) {
+	info = DeviceInfo{
+		Address: dst,
+	}
 	conn := network.connect(dst, 1, CmdSetButtonPressedResponder, CmdSetButtonPressedController)
 	defer func() { close(conn.sendCh) }()
 	doneCh := make(chan *MessageRequest, 1)
@@ -155,10 +162,10 @@ func (network *Network) IDRequest(dst Address) (firmwareVersion FirmwareVersion,
 			select {
 			case msg := <-conn.recvCh:
 				if msg.Broadcast() {
-					firmwareVersion = FirmwareVersion(msg.Dst[2])
-					devCat = DevCat{msg.Dst[0], msg.Dst[1]}
-					network.DB.UpdateFirmwareVersion(dst, firmwareVersion)
-					network.DB.UpdateDevCat(dst, devCat)
+					info.FirmwareVersion = FirmwareVersion(msg.Dst[2])
+					info.DevCat = DevCat{msg.Dst[0], msg.Dst[1]}
+					network.DB.UpdateFirmwareVersion(dst, info.FirmwareVersion)
+					network.DB.UpdateDevCat(dst, info.DevCat)
 					return
 				}
 			case <-time.After(network.timeout):
@@ -185,11 +192,6 @@ func (network *Network) connect(dst Address, version EngineVersion, match ...Com
 	return connection
 }
 
-/*func (network *Network) Connect(dst Address, version EngineVersion, match ...Command) (chan<- *MessageRequest, <-chan *Message) {
-	connection := network.connect(dst, version, match...)
-	return connection.sendCh, connection.recvCh
-}*/
-
 // Dial will return a basic device object that can appropriately communicate
 // with the physical device out on the insteon network. Dial will determine
 // the engine version (1, 2, or 2CS) that the device is running and return
@@ -207,6 +209,10 @@ func (network *Network) Dial(dst Address) (device Device, err error) {
 			Log.Debugf("Got ErrNotLinked, creating I2CS device")
 			err = nil
 			version = VerI2Cs
+		} else if err == ErrReadTimeout {
+			Log.Debugf("Timed out waiting for engine version ACK")
+			err = nil
+			version = VerI1
 		}
 	}
 
@@ -215,13 +221,13 @@ func (network *Network) Dial(dst Address) (device Device, err error) {
 		switch version {
 		case VerI1:
 			Log.Debugf("Version 1 device detected")
-			device = NewI1Device(dst, connection.sendCh, connection.recvCh)
+			device = NewI1Device(dst, connection.sendCh, connection.recvCh, network.timeout)
 		case VerI2:
 			Log.Debugf("Version 2 device detected")
-			device = NewI2Device(dst, connection.sendCh, connection.recvCh)
+			device = NewI2Device(dst, connection.sendCh, connection.recvCh, network.timeout)
 		case VerI2Cs:
 			Log.Debugf("Version 2 CS device detected")
-			device = NewI2CsDevice(dst, connection.sendCh, connection.recvCh)
+			device = NewI2CsDevice(dst, connection.sendCh, connection.recvCh, network.timeout)
 		default:
 			Log.Infof("Unknown Insteon Engine Version %d for device %v", version, dst)
 			err = ErrVersion
@@ -243,7 +249,7 @@ func (network *Network) Connect(dst Address) (device Device, err error) {
 		if info, found = network.DB.Find(dst); !found {
 			info.EngineVersion, err = network.EngineVersion(dst)
 			if err == nil {
-				info.FirmwareVersion, info.DevCat, err = network.IDRequest(dst)
+				info, err = network.IDRequest(dst)
 			}
 		}
 
@@ -251,9 +257,19 @@ func (network *Network) Connect(dst Address) (device Device, err error) {
 			if initializer, found := Devices.Find(info.DevCat.Category()); found {
 				device = initializer(device, info)
 			}
+		} else if err == ErrReadTimeout {
+			Log.Debugf("Timed out waiting for engine version ACK")
+			err = nil
 		}
 	}
 	return
+}
+
+func (network *Network) close() error {
+	for _, connection := range network.connections {
+		close(connection)
+	}
+	return nil
 }
 
 // Close will cleanup/close open connections and disconnect gracefully

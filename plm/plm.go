@@ -20,10 +20,6 @@ var (
 	MaxRetries = 3
 )
 
-const (
-	writeDelay = 500 * time.Millisecond
-)
-
 func hexDump(format string, buf []byte, sep string) string {
 	str := make([]string, len(buf))
 	for i, b := range buf {
@@ -53,9 +49,9 @@ type PLM struct {
 	connections []chan<- *Packet
 	queue       []*PacketRequest
 
+	sendCh         chan *PacketRequest
 	upstreamSendCh chan<- []byte
 	upstreamRecvCh <-chan []byte
-	sendCh         chan *PacketRequest
 	connectCh      chan chan<- *Packet
 	disconnectCh   chan chan<- *Packet
 
@@ -66,6 +62,7 @@ func New(port *Port, timeout time.Duration) *PLM {
 	plm := &PLM{
 		timeout: timeout,
 
+		sendCh:         make(chan *PacketRequest, 1),
 		upstreamSendCh: port.sendCh,
 		upstreamRecvCh: port.recvCh,
 		connectCh:      make(chan chan<- *Packet),
@@ -115,7 +112,17 @@ func (plm *PLM) process() {
 func (plm *PLM) send() {
 	if len(plm.queue) > 0 {
 		request := plm.queue[0]
-		request.timeout = time.Now().Add(plm.timeout)
+		if buf, err := request.Packet.MarshalBinary(); err == nil {
+			insteon.Log.Debugf("Sending packet to port")
+			request.timeout = time.Now().Add(plm.timeout)
+			plm.upstreamSendCh <- buf
+		} else {
+			insteon.Log.Infof("Failed to marshal packet: %v", err)
+			request.Err = err
+			request.DoneCh <- request
+			plm.queue = plm.queue[1:]
+			plm.send()
+		}
 	}
 }
 
@@ -178,12 +185,14 @@ func (plm *PLM) Retry(packet *Packet, retries int) (ack *Packet, err error) {
 	<-doneCh
 	if request.Err == ErrNak && retries > 0 {
 		for request.Err == ErrNak && retries > 0 {
+			insteon.Log.Debugf("Received NAK sending %q. Retrying", packet)
 			retries--
 			plm.sendCh <- request
 			<-doneCh
 		}
 
 		if request.Err == ErrNak {
+			insteon.Log.Debugf("Retry count exceeded")
 			request.Err = ErrRetryCountExceeded
 		}
 	}
