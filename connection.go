@@ -67,6 +67,38 @@ func (conn *connection) process() {
 	}
 }
 
+func errLookup(command Command) (err error) {
+	switch command & 0xff {
+	case 0xfd:
+		err = ErrUnknownCommand
+	case 0xfe:
+		err = ErrNoLoadDetected
+	case 0xff:
+		err = ErrNotLinked
+	default:
+		err = NewTraceError(ErrUnexpectedResponse)
+	}
+	return
+}
+
+func i2csErrLookup(command Command) (err error) {
+	switch command & 0xff {
+	case 0xfb:
+		err = ErrIllegalValue
+	case 0xfc:
+		err = ErrPreNak
+	case 0xfd:
+		err = ErrIncorrectChecksum
+	case 0xfe:
+		err = ErrNoLoadDetected
+	case 0xff:
+		err = ErrNotLinked
+	default:
+		err = NewTraceError(ErrUnexpectedResponse)
+	}
+	return
+}
+
 func (conn *connection) receiveAck(msg *Message) {
 	if len(conn.queue) > 0 {
 		request := conn.queue[0]
@@ -74,31 +106,9 @@ func (conn *connection) receiveAck(msg *Message) {
 			conn.queue[0].Ack = msg
 			if msg.Flags.Type() == MsgTypeDirectNak {
 				if VerI1 <= conn.version && conn.version <= VerI2 {
-					switch msg.Command & 0xff {
-					case 0xfd:
-						request.Err = ErrUnknownCommand
-					case 0xfe:
-						request.Err = ErrNoLoadDetected
-					case 0xff:
-						request.Err = ErrNotLinked
-					default:
-						request.Err = NewTraceError(ErrUnexpectedResponse)
-					}
+					request.Err = errLookup(msg.Command)
 				} else if conn.version == VerI2Cs {
-					switch msg.Command & 0xff {
-					case 0xfb:
-						request.Err = ErrIllegalValue
-					case 0xfc:
-						request.Err = ErrPreNak
-					case 0xfd:
-						request.Err = ErrIncorrectChecksum
-					case 0xfe:
-						request.Err = ErrNoLoadDetected
-					case 0xff:
-						request.Err = ErrNotLinked
-					default:
-						request.Err = NewTraceError(ErrUnexpectedResponse)
-					}
+					request.Err = i2csErrLookup(msg.Command)
 				}
 			}
 
