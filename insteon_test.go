@@ -105,23 +105,6 @@ func TestDevCatMarshaling(t *testing.T) {
 	}
 }
 
-func TestProductDataString(t *testing.T) {
-	tests := []struct {
-		key            [3]byte
-		devCat         [2]byte
-		expectedString string
-	}{
-		{[3]byte{0x01, 0x02, 0x03}, [2]byte{0x04, 0x05}, "DevCat:04.05 Product Key:0x010203"},
-	}
-
-	for i, test := range tests {
-		pd := &ProductData{ProductKey(test.key), DevCat(test.devCat)}
-		if pd.String() != test.expectedString {
-			t.Errorf("tests[%d] expected %q got %q", i, test.expectedString, pd.String())
-		}
-	}
-}
-
 func TestProductDataMarshaling(t *testing.T) {
 	tests := []struct {
 		input          []byte
@@ -156,47 +139,3 @@ func TestProductDataMarshaling(t *testing.T) {
 		}
 	}
 }
-
-/*func TestWriteToCh(t *testing.T) {
-	tests := []struct {
-		ch          chan *Message
-		expectedErr error
-	}{
-		{make(chan *Message, 1), nil},
-		{make(chan *Message), ErrWriteTimeout},
-	}
-
-	timeout := Timeout
-	Timeout = time.Second
-	for i, test := range tests {
-		err := writeToCh(test.ch, &Message{})
-		if err != test.expectedErr {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedErr, err)
-		}
-	}
-	Timeout = timeout
-}
-
-func TestReadFromCh(t *testing.T) {
-	fullCh := make(chan *Message, 1)
-	fullCh <- &Message{}
-
-	tests := []struct {
-		ch          chan *Message
-		expectedErr error
-	}{
-		{fullCh, nil},
-		{make(chan *Message), ErrReadTimeout},
-	}
-
-	timeout := Timeout
-	Timeout = time.Second
-	for i, test := range tests {
-		_, err := readFromCh(test.ch)
-		if err != test.expectedErr {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedErr, err)
-		}
-
-	}
-	Timeout = timeout
-}*/

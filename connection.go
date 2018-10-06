@@ -1,12 +1,7 @@
 package insteon
 
 import (
-	"errors"
 	"time"
-)
-
-var (
-	ErrClosed = errors.New("Connection Closed")
 )
 
 type connection struct {

@@ -7,60 +7,108 @@ import (
 )
 
 var (
-	ErrBufferTooShort       = errors.New("Buffer is too short")
-	ErrReadTimeout          = errors.New("Read Timeout")
-	ErrWriteTimeout         = errors.New("Write Timeout")
-	ErrAckTimeout           = errors.New("Timeout waiting for Device ACK")
-	ErrNotImplemented       = errors.New("Command is not yet implemented")
-	ErrUnexpectedResponse   = errors.New("Unexpected response from device")
-	ErrNotLinked            = errors.New("Not in All-Link group")
-	ErrNoLoadDetected       = errors.New("No load detected")
-	ErrUnknownCommand       = errors.New("Unknown command")
-	ErrNak                  = errors.New("NAK received")
-	ErrUnknownEngineVersion = errors.New("Unknown Insteon Version number")
-	ErrUnknown              = errors.New("Device returned unknown error")
-	ErrIllegalValue         = errors.New("Illegal value in command")
-	ErrIncorrectChecksum    = errors.New("I2CS invalid checksum")
-	ErrPreNak               = errors.New("Database search took too long")
-	ErrNotSupported         = errors.New("Action/command is not supported on this device")
-	ErrAddrFormat           = errors.New("address format is xx.xx.xx (digits in hex)")
-	ErrEndOfLinks           = errors.New("reached end of ALDB links")
-	ErrInvalidMemAddress    = errors.New("Invalid memory address")
-	ErrVersion              = errors.New("Unknown Insteon Engine Version")
+	// ErrBufferTooShort indicates a buffer underrun when unmarshalling data
+	ErrBufferTooShort = errors.New("Buffer is too short")
+
+	// ErrReadTimeout indicates the timeout period expired while waiting for
+	// a specific message
+	ErrReadTimeout = errors.New("Read Timeout")
+
+	// ErrNotImplemented indicates that a device function has not yet been implemented
+	ErrNotImplemented = errors.New("Command is not yet implemented")
+
+	// ErrUnexpectedResponse is returned when a Nak is not understood
+	ErrUnexpectedResponse = errors.New("Unexpected response from device")
+
+	// ErrNotLinked indicates the device does not have an all-link entry in its
+	// database
+	ErrNotLinked = errors.New("Not in All-Link group")
+
+	// ErrNoLoadDetected is an error returned by the device (this error condition is not documented)
+	ErrNoLoadDetected = errors.New("No load detected")
+
+	// ErrUnknownCommand is returned by the device (as a Nak) in response to an unknown command byte
+	ErrUnknownCommand = errors.New("Unknown command")
+
+	// ErrNak indicates a negative acknowledgement was received in response to a sent message
+	ErrNak = errors.New("NAK received")
+
+	// ErrUnknown is returned by a connection when a NAK occurred but the error code
+	// is not known
+	ErrUnknown = errors.New("Device returned unknown error")
+
+	// ErrIllegalValue is returned by I2Cs devices (this error condition is not documented)
+	ErrIllegalValue = errors.New("Illegal value in command")
+
+	// ErrIncorrectChecksum is returned by I2Cs devices when an invalid checksum is detected
+	ErrIncorrectChecksum = errors.New("I2CS invalid checksum")
+
+	// ErrPreNak is returned by I2Cs devices (this error condition is not documented)
+	ErrPreNak = errors.New("Database search took too long")
+
+	// ErrAddrFormat is returned when unmarshalling an address from text and the
+	// text is in an unsupported format
+	ErrAddrFormat = errors.New("address format is xx.xx.xx (digits in hex)")
+
+	// ErrEndOfLinks occurs when unmarshalling a link database record and that record
+	// appears to be the last record in the database
+	ErrEndOfLinks = errors.New("reached end of ALDB links")
+
+	// ErrInvalidMemAddress indicates a link record memory address is invalid
+	ErrInvalidMemAddress = errors.New("Invalid memory address")
+
+	// ErrVersion is returned when an engine version value is not known
+	ErrVersion = errors.New("Unknown Insteon Engine Version")
 )
 
 var sprintf = fmt.Sprintf
 
+// FirmwareVersion indicates the software/firmware revision number of a device
 type FirmwareVersion int
 
+// String will return the hexadecimal string of the firmware version
 func (fv FirmwareVersion) String() string {
 	return fmt.Sprintf("0x%02x", int(fv))
 }
 
+// ProductKey is a 3 byte code assigned by Insteon
 type ProductKey [3]byte
 
+// String returns the hexadecimal string for the product key
 func (p ProductKey) String() string {
 	return sprintf("0x%02x%02x%02x", p[0], p[1], p[2])
 }
 
+// DevCat is a 2 byte value including a device category and
+// sub-category.  Devices are grouped by categories (thermostat,
+// light, etc) and then each category has specific types of devices
+// such as on/off switches and dimmer switches
 type DevCat [2]byte
 
+// Category returns the Category that the DevCat falls under
 func (dc DevCat) Category() Category {
 	return Category(dc[0])
 }
 
+// SubCategory returns the specific SubCategory for this DevCat
 func (dc DevCat) SubCategory() SubCategory {
 	return SubCategory(dc[1])
 }
 
+// String returns a string representation of the DevCat in the
+// form of category.subcategory where those fields are the 2 digit
+// hex representation of their corresponding values
 func (dc DevCat) String() string {
 	return sprintf("%02x.%02x", dc[0], dc[1])
 }
 
+// Category is type for the Category byte in the DevCat
 type Category byte
 
+// SubCategory is the type for the SubCategory byte in the DevCat
 type SubCategory byte
 
+// MarhsalJSON will convert the DevCat to a valid JSON byte string
 func (dc DevCat) MarshalJSON() ([]byte, error) {
 	return json.Marshal(sprintf("%02x.%02x", dc[0], dc[1]))
 }
@@ -77,15 +125,15 @@ func (dc *DevCat) UnmarshalJSON(data []byte) (err error) {
 	return err
 }
 
+// ProductData contains information about the device including its
+// product key and device category
 type ProductData struct {
 	Key    ProductKey
 	DevCat DevCat
 }
 
-func (pd *ProductData) String() string {
-	return sprintf("DevCat:%s Product Key:%s", pd.DevCat, pd.Key)
-}
-
+// UnmarshalBinary takes the input byte buffer and unmarshals it into the
+// ProductData object
 func (pd *ProductData) UnmarshalBinary(buf []byte) error {
 	if len(buf) < 14 {
 		return newBufError(ErrBufferTooShort, 14, len(buf))
@@ -96,6 +144,8 @@ func (pd *ProductData) UnmarshalBinary(buf []byte) error {
 	return nil
 }
 
+// MarshalBinary will convert the ProductData to a binary byte string
+// for sending on the network
 func (pd *ProductData) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, 7)
 	copy(buf[1:4], pd.Key[:])

@@ -39,9 +39,9 @@ const (
 	// CmdSetDeviceTextString sets the device text string
 	CmdSetDeviceTextString Command = 0x0303 // Set Text String
 
+	// CmdHeartbeat is a broadcast command that is received periodically if it
+	// has been set up using the extended get/set command
 	CmdHeartbeat Command = 0x0400 // Heartbeat
-
-	CmdAllLinkCleanupReport Command = 0x0600 // All-link Cleanup Report
 
 	// CmdExitLinkingMode Exit Linking Mode
 	CmdExitLinkingMode Command = 0x0800 // Exit Linking Mode
@@ -70,6 +70,7 @@ const (
 	// CmdIDRequest Send ID Request which will prompt the device to respond with a Set Button Pressed Controller/Responder
 	CmdIDRequest Command = 0x1000 // ID Request
 
+	// CmdAllLinkRecall is an all-link command to recall the state assigned to the entry in the all-link database
 	CmdAllLinkRecall Command = 0x1100 // All-link recall
 
 	CmdAllLinkAlias2High Command = 0x1200 // All-link Alias 2 High
@@ -98,6 +99,8 @@ const (
 	CmdReadWriteALDB Command = 0x2f00 // Read/Write ALDB
 )
 
+// Command is a two byte sequence in an Insteon message that indicates what action to
+// take or what kind of information is contained in the message
 type Command uint16
 
 func (cmd Command) SubCommand(command2 int) Command {

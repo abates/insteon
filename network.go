@@ -40,6 +40,9 @@ type Network struct {
 	closeCh      chan chan error
 }
 
+// New creates a new Insteon network instance for the send and receive channels.  The timeout
+// indicates how long the network (and subsuquent devices) should wait when expecting incoming
+// messages/responses
 func New(sendCh chan<- *PacketRequest, recvCh <-chan []byte, timeout time.Duration) *Network {
 	network := &Network{
 		timeout: timeout,
@@ -146,6 +149,12 @@ func (network *Network) EngineVersion(dst Address) (engineVersion EngineVersion,
 	return engineVersion, request.Err
 }
 
+// IDRequest will send an ID Request message to the destination device and wait for
+// either a "Set-button Pressed Controller" or "Set-button Pressed Responder" broadcast
+// message. This message includes the device category and firmaware information which
+// is then returned in the DeviceInfo object.  It should be noted that the returned
+// DeviceInfo object will not have the engine version field populated as this information
+// is not included in the broadcast response.
 func (network *Network) IDRequest(dst Address) (info DeviceInfo, err error) {
 	info = DeviceInfo{
 		Address: dst,
