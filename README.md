@@ -1,6 +1,6 @@
 # Go Insteon
 
-[![Build Status](https://travis-ci.org/abates/insteon.svg?branch=master)](https://travis-ci.org/abates/insteon) [![GoDoc](https://godoc.org/github.com/abates/insteon?status.png)](https://godoc.org/github.com/abates/insteon) [![Coverage Status](https://coveralls.io/repos/github/abates/insteon/badge.svg?branch=master)](https://coveralls.io/github/abates/insteon?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/abates/insteon)](https://goreportcard.com/report/github.com/abates/insteon) [![Build Status](https://travis-ci.org/abates/insteon.svg?branch=master)](https://travis-ci.org/abates/insteon) [![GoDoc](https://godoc.org/github.com/abates/insteon?status.png)](https://godoc.org/github.com/abates/insteon) [![Coverage Status](https://coveralls.io/repos/github/abates/insteon/badge.svg?branch=master)](https://coveralls.io/github/abates/insteon?branch=master)
 
 This package provides a Go interface to Insteon networks and the ability to
 control Insteon devices. This package is being actively developed and the
