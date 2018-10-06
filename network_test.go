@@ -192,18 +192,18 @@ func TestNetworkIDRequest(t *testing.T) {
 			request.DoneCh <- request
 		}()
 
-		firmware, devCat, err := network.IDRequest(testDstAddr)
+		info, err := network.IDRequest(testDstAddr)
 
 		if err != test.expectedErr {
 			t.Errorf("tests[%d] expected %v got %v", i, test.returnedErr, err)
 		}
 
-		if firmware != test.expectedFirmware {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedFirmware, firmware)
+		if info.FirmwareVersion != test.expectedFirmware {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedFirmware, info.FirmwareVersion)
 		}
 
-		if devCat != test.expectedDevCat {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedDevCat, devCat)
+		if info.DevCat != test.expectedDevCat {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expectedDevCat, info.DevCat)
 		}
 		network.Close()
 

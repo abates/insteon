@@ -28,7 +28,7 @@ func TestLogLevel(t *testing.T) {
 }
 
 func TestLogging(t *testing.T) {
-	levels := []LogLevel{LevelNone, LevelInfo, LevelDebug, LevelTrace}
+	levels := []LogLevel{LevelNone, LevelInfo, LevelDebug}
 	for _, level := range levels {
 		messages := []string{}
 		for _, l := range levels {

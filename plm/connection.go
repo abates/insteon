@@ -53,7 +53,7 @@ func (conn *connection) send(request *insteon.PacketRequest) {
 	// PLM expects that the payload begins with the
 	// destinations address so we have to slice off
 	// the src address
-	if conn.sendCmd == CmdSendInsteonMsg {
+	if conn.sendCmd == CmdSendInsteonMsg && len(payload) > 3 {
 		payload = payload[3:]
 	}
 
