@@ -2,6 +2,7 @@ package insteon
 
 import "time"
 
+// I2CsDevice can communicate with Version 2 (checksum) Insteon Engines
 type I2CsDevice struct {
 	*I2Device
 }
@@ -19,6 +20,8 @@ func (i2cs *I2CsDevice) EnterLinkingMode(group Group) (err error) {
 	return extractError(i2cs.SendCommand(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14)))
 }
 
+// String returns the string "I2CS Device (<address>)" where <address> is the destination
+// address of the device
 func (i2cs *I2CsDevice) String() string {
 	return sprintf("I2CS Device (%s)", i2cs.Address())
 }

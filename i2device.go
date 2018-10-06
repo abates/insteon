@@ -2,10 +2,13 @@ package insteon
 
 import "time"
 
+// I2Device can communicate with Version 2 Insteon Engines
 type I2Device struct {
 	*I1Device
 }
 
+// NewI2Device will construct an device object that can communicate with version 2
+// Insteon engines
 func NewI2Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) Device {
 	return &I2Device{NewI1Device(address, sendCh, recvCh, timeout).(*I1Device)}
 }
@@ -52,18 +55,32 @@ func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
 	return links, err
 }
 
+// EnterLinkingMode is the programmatic equivalent of holding down
+// the set button for two seconds. If the device is the first
+// to enter linking mode, then it is the controller. The next
+// device to enter linking mode is the responder.  LinkingMode
+// is usually indicated by a flashing GREEN LED on the device
 func (i2 *I2Device) EnterLinkingMode(group Group) error {
 	return extractError(i2.SendCommand(CmdEnterLinkingMode.SubCommand(int(group)), nil))
 }
 
+// EnterUnlinkingMode puts a controller device into unlinking mode
+// when the set button is then pushed (EnterLinkingMode) on a linked
+// device the corresponding links in both the controller and responder
+// are deleted.  EnterUnlinkingMode is the programmatic equivalent
+// to pressing the set button until the device beeps, releasing, then
+// pressing the set button again until the device beeps again. UnlinkingMode
+// is usually indicated by a flashing RED LED on the device
 func (i2 *I2Device) EnterUnlinkingMode(group Group) error {
 	return extractError(i2.SendCommand(CmdEnterUnlinkingMode.SubCommand(int(group)), nil))
 }
 
+// ExitLinkingMode takes a controller out of linking/unlinking mode.
 func (i2 *I2Device) ExitLinkingMode() error {
 	return extractError(i2.SendCommand(CmdExitLinkingMode, nil))
 }
 
+// WriteLink will write the link record to the device's link database
 func (i2 *I2Device) WriteLink(link *LinkRecord) (err error) {
 	if link.memAddress == MemAddress(0x0000) {
 		err = ErrInvalidMemAddress
@@ -74,6 +91,8 @@ func (i2 *I2Device) WriteLink(link *LinkRecord) (err error) {
 	return err
 }
 
+// String returns the string "I2 Device (<address>)" where <address> is the destination
+// address of the device
 func (i2 *I2Device) String() string {
 	return sprintf("I2 Device (%s)", i2.Address())
 }

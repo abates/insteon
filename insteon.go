@@ -108,11 +108,13 @@ type Category byte
 // SubCategory is the type for the SubCategory byte in the DevCat
 type SubCategory byte
 
-// MarhsalJSON will convert the DevCat to a valid JSON byte string
+// MarshalJSON will convert the DevCat to a valid JSON byte string
 func (dc DevCat) MarshalJSON() ([]byte, error) {
 	return json.Marshal(sprintf("%02x.%02x", dc[0], dc[1]))
 }
 
+// UnmarshalJSON will unmarshal the input json byte string into the
+// DevCat receiver
 func (dc *DevCat) UnmarshalJSON(data []byte) (err error) {
 	var s string
 	if err = json.Unmarshal(data, &s); err == nil {

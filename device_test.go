@@ -13,4 +13,4 @@ func (td *TestDevice) Notify(msg *Message) error {
 	return nil
 }
 
-func (te *TestDevice) Address() Address { return Address{} }
+func (td *TestDevice) Address() Address { return Address{} }

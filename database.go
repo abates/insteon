@@ -14,6 +14,8 @@ type DeviceInfo struct {
 	mutex           sync.Mutex
 }
 
+// Complete indicates whether or not a record appears to be complete.  A complete
+// record will have a non-zero DevCat and a non-zero FirmwareVersion
 func (info *DeviceInfo) Complete() bool {
 	return info.DevCat != DevCat{0x00, 0x00} && info.FirmwareVersion != FirmwareVersion(0x00)
 }

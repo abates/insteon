@@ -73,26 +73,37 @@ const (
 	// CmdAllLinkRecall is an all-link command to recall the state assigned to the entry in the all-link database
 	CmdAllLinkRecall Command = 0x1100 // All-link recall
 
+	// CmdAllLinkAlias2High will execute substitute Direct Command
 	CmdAllLinkAlias2High Command = 0x1200 // All-link Alias 2 High
 
+	// CmdAllLinkAlias1Low will execute substitute Direct Command
 	CmdAllLinkAlias1Low Command = 0x1300 // All-link Alias 1 Low
 
+	// CmdAllLinkAlias2Low will execute substitute Direct Command
 	CmdAllLinkAlias2Low Command = 0x1400 // All-link Alias 2 Low
 
+	// CmdAllLinkAlias3High will execute substitute Direct Command
 	CmdAllLinkAlias3High Command = 0x1500 // All-link Alias 3 High
 
+	// CmdAllLinkAlias3Low will execute substitute Direct Command
 	CmdAllLinkAlias3Low Command = 0x1600 // All-link Alias 3 Low
 
+	// CmdAllLinkAlias4High will execute substitute Direct Command
 	CmdAllLinkAlias4High Command = 0x1700 // All-link Alias 4 High
 
+	// CmdAllLinkAlias4Low will execute substitute Direct Command
 	CmdAllLinkAlias4Low Command = 0x1800 // All-link Alias 4 Low
 
+	// CmdGetOperatingFlags is used to request a given operating flag
 	CmdGetOperatingFlags Command = 0x1f00 // Get Operating Flags
 
+	// CmdSetOperatingFlags is used to set a given operating flag
 	CmdSetOperatingFlags Command = 0x2000 // Set Operating Flags
 
+	// CmdAllLinkAlias5 will execute substitute Direct Command
 	CmdAllLinkAlias5 Command = 0x2100 // All-link Alias 5
 
+	// CmdBroadCastStatusChange is sent by a device when its status changes
 	CmdBroadCastStatusChange Command = 0x2700 // Broadcast Status Change
 
 	// CmdReadWriteALDB Read/Write ALDB
@@ -103,6 +114,8 @@ const (
 // take or what kind of information is contained in the message
 type Command uint16
 
+// SubCommand will return a new command where the subcommand byte is updated
+// to reflect command2 from the arguments
 func (cmd Command) SubCommand(command2 int) Command {
 	return Command(uint16(cmd)&0xff00 | uint16(0xff&command2))
 }

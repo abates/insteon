@@ -57,48 +57,79 @@ func (dr *DeviceRegistry) Find(category Category) (DeviceInitializer, bool) {
 	return initializer, found
 }
 
+// CommandRequest is used to request that a given command and payload are sent to a device
 type CommandRequest struct {
+	// Command to send to the device
 	Command Command
+
+	// Payload to include, if set
 	Payload []byte
-	RecvCh  chan<- *CommandResponse
-	DoneCh  chan<- *CommandRequest
-	Ack     *Message
-	Err     error
+
+	// RecvCh to receive subsuquent messages
+	RecvCh chan<- *CommandResponse
+
+	// DoneCh that will be written to by the connection once the request is complete
+	DoneCh chan<- *CommandRequest
+
+	// Ack contains the response Ack/Nak from the device
+	Ack *Message
+
+	// Err includes any error that occurred while trying to send the request
+	Err error
+
 	timeout time.Time
 }
 
+// CommandResponse is used for sending messages back to a caller in conjunction with a CommandRequest
 type CommandResponse struct {
+	// Message that was received
 	Message *Message
-	DoneCh  chan<- bool
+
+	// DoneCh to indicate whether more messages should be received or not.  This must always be written
+	// to or the go process will hang
+	DoneCh chan<- bool
 }
 
+// Device is any implementation that returns the device address and can send commands to the
+// destination addresss
 type Device interface {
 	// Address will return the 3 byte destination address of the device.
 	// All device implemtaions must be able to return their address
 	Address() Address
 
 	// SendCommand will send the given command bytes to the device including
-	// a payload (for extended messages) if payload length is zero then a standard
+	// a payload (for extended messages). If payload length is zero then a standard
 	// length message is used to deliver the commands. The command bytes from the
 	// response ack are returned as well as any error
 	SendCommand(cmd Command, payload []byte) (response Command, err error)
 
+	// SendCommandAndListen performs the same function as SendCommand.  However, instead of returning
+	// the Ack/Nak command, it returns a channel that can be read to get messages received after
+	// the command was sent.  This is useful for things like retrieving the link database where the
+	// response information is not in the Ack but in one or more ALDB responses.  Once all information
+	// has been received the command response DoneCh should be sent a "false" value to indicate no
+	// more messages are expected.
 	SendCommandAndListen(cmd Command, payload []byte) (recvCh <-chan *CommandResponse, err error)
 }
 
+// PingableDevice is any device that implements the Ping method
 type PingableDevice interface {
 	Ping() error
 }
 
+// NameableDevice is any device that have a settable text string
 type NameableDevice interface {
 	TextString() (string, error)
 	SetTextString(string) error
 }
 
+// FXDevice indicates the device is capable of user-defined FX commands
 type FXDevice interface {
 	FXUsername() (string, error)
 }
 
+// AllLinkableDevice is any device that has an all-link database that
+// can be programmed remotely
 type AllLinkableDevice interface {
 	// AssignToAllLinkGroup should be called after the set button
 	// has been pressed on a responder. If the set button was pressed
@@ -114,6 +145,7 @@ type AllLinkableDevice interface {
 // LinkableDevice is any device that can be put into
 // linking mode and the link database can be managed remotely
 type LinkableDevice interface {
+	// Address is the remote/destination address of the device
 	Address() Address
 
 	// EnterLinkingMode is the programmatic equivalent of holding down
