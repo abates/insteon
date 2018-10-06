@@ -78,8 +78,8 @@ func TestPacketString(t *testing.T) {
 		input    *Packet
 		expected string
 	}{
-		{&Packet{Command: CmdGetInfo, Ack: 0x06}, fmt.Sprintf("%s ACK", CmdGetInfo)},
-		{&Packet{Command: CmdGetInfo, Ack: 0x15}, fmt.Sprintf("%s NAK", CmdGetInfo)},
+		{&Packet{Command: CmdGetInfo, Ack: 0x06}, fmt.Sprintf("%v ACK", CmdGetInfo)},
+		{&Packet{Command: CmdGetInfo, Ack: 0x15}, fmt.Sprintf("%v NAK", CmdGetInfo)},
 	}
 
 	for i, test := range tests {
@@ -99,11 +99,11 @@ func TestPacketFormat(t *testing.T) {
 		{"%x", &Packet{Command: 0x01, Ack: 0x06}, "0106"},
 		{"%x", &Packet{Command: 0x01, Payload: []byte{2, 3, 4, 5, 15}, Ack: 0x06}, "01020304050f06"},
 		{"%X", &Packet{Command: 0x01, Payload: []byte{2, 3, 4, 5, 15}, Ack: 0x06}, "01020304050F06"},
-		{"%s", &Packet{Command: CmdGetInfo, Ack: 0x06}, fmt.Sprintf("%s ACK", CmdGetInfo)},
-		{"%v", &Packet{Command: CmdGetInfo, Payload: []byte{2, 3, 4, 5, 15}, Ack: 0x06}, fmt.Sprintf("%s 02 03 04 05 0f ACK", CmdGetInfo)},
-		{"%v", &Packet{Command: CmdGetInfo, Payload: []byte{2, 3, 4, 5, 15}, Ack: 0x15}, fmt.Sprintf("%s 02 03 04 05 0f NAK", CmdGetInfo)},
-		{"%q", &Packet{Command: CmdGetInfo, Payload: []byte{2, 3, 4, 5, 15}, Ack: 0x15}, fmt.Sprintf("%q", fmt.Sprintf("%s NAK", CmdGetInfo))},
-		{"%d", &Packet{Command: CmdGetInfo, Ack: 0x06}, fmt.Sprintf("%%!d(packet=%s ACK)", CmdGetInfo)},
+		{"%s", &Packet{Command: CmdGetInfo, Ack: 0x06}, fmt.Sprintf("%v ACK", CmdGetInfo)},
+		{"%v", &Packet{Command: CmdGetInfo, Payload: []byte{2, 3, 4, 5, 15}, Ack: 0x06}, fmt.Sprintf("%v 02 03 04 05 0f ACK", CmdGetInfo)},
+		{"%v", &Packet{Command: CmdGetInfo, Payload: []byte{2, 3, 4, 5, 15}, Ack: 0x15}, fmt.Sprintf("%v 02 03 04 05 0f NAK", CmdGetInfo)},
+		{"%q", &Packet{Command: CmdGetInfo, Payload: []byte{2, 3, 4, 5, 15}, Ack: 0x15}, fmt.Sprintf("%q", fmt.Sprintf("%v NAK", CmdGetInfo))},
+		{"%d", &Packet{Command: CmdGetInfo, Ack: 0x06}, fmt.Sprintf("%%!d(packet=%v ACK)", CmdGetInfo)},
 	}
 
 	for i, test := range tests {
