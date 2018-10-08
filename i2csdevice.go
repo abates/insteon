@@ -9,8 +9,9 @@ type I2CsDevice struct {
 
 // NewI2CsDevice will initialize a new I2CsDevice object and make
 // it ready for use
-func NewI2CsDevice(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) Device {
-	return &I2CsDevice{NewI2Device(address, sendCh, recvCh, timeout).(*I2Device)}
+func NewI2CsDevice(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (Device, error) {
+	i2Device, err := NewI2Device(info, address, sendCh, recvCh, timeout)
+	return &I2CsDevice{i2Device.(*I2Device)}, err
 }
 
 // EnterLinkingMode will put the device into linking mode. This is

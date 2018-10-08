@@ -56,6 +56,10 @@ func (rcf RecordControlFlags) String() string {
 	return str
 }
 
+// UnmarshalText takes a two character input string and converts it
+// to the correct RecordControlFlags.  The first character can be
+// either "A" for available or "U" for unavailable (in use) and the
+// second character is either "C" for controller or "R" for responder
 func (rcf *RecordControlFlags) UnmarshalText(text []byte) (err error) {
 	str := strings.Split(string(text), "")
 	if len(str) != 2 {
@@ -86,6 +90,9 @@ type Group byte
 // String representation of the group number
 func (g Group) String() string { return sprintf("%d", byte(g)) }
 
+// UnmarshalText takes an input string and converts
+// it to its Group equivalent.  The decimal input value
+// must be positive and less than 256
 func (g *Group) UnmarshalText(text []byte) error {
 	value, err := strconv.Atoi(string(text))
 	if err == nil {
@@ -109,6 +116,8 @@ type LinkRecord struct {
 	Data       [3]byte
 }
 
+// String converts the LinkRecord to a human readable string that looks similar to:
+//    UR        1 01.02.03   00 1c 01
 func (l *LinkRecord) String() string {
 	return sprintf("%s %s %s 0x%02x 0x%02x 0x%02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
 }
@@ -139,6 +148,9 @@ func (l *LinkRecord) MarshalBinary() ([]byte, error) {
 	return data, nil
 }
 
+// MarshalText will convert the LinkRecord to a text string that can be
+// used as input to the UnmarshalText. This is useful in allowing a user
+// to manuall edit link records
 func (l *LinkRecord) MarshalText() ([]byte, error) {
 	str := sprintf("%-5s %5s %8s   %02x %02x %02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
 	return []byte(str), nil
@@ -161,6 +173,13 @@ func (l *LinkRecord) UnmarshalBinary(buf []byte) (err error) {
 	return err
 }
 
+// UnmarshalText takes an input text string and assigns the values
+// to the RecordControlFlags receiver.  The input text string
+// should be in the following form:
+//    Flags Group Address    Data
+//    UR        1 01.02.03   00 1c 01
+// Each field is unmarshaled using the corresponding type's
+// UnmarshalText functions
 func (l *LinkRecord) UnmarshalText(buf []byte) (err error) {
 	fields := bytes.Fields(buf)
 	if len(fields) != 6 {

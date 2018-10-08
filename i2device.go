@@ -9,8 +9,9 @@ type I2Device struct {
 
 // NewI2Device will construct an device object that can communicate with version 2
 // Insteon engines
-func NewI2Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) Device {
-	return &I2Device{NewI1Device(address, sendCh, recvCh, timeout).(*I1Device)}
+func NewI2Device(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (Device, error) {
+	i1Device, err := NewI1Device(info, address, sendCh, recvCh, timeout)
+	return &I2Device{i1Device.(*I1Device)}, err
 }
 
 // AddLink will either add the link to the All-Link database

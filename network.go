@@ -171,10 +171,7 @@ func (network *Network) IDRequest(dst Address) (info DeviceInfo, err error) {
 			select {
 			case msg := <-conn.recvCh:
 				if msg.Broadcast() {
-					info.FirmwareVersion = FirmwareVersion(msg.Dst[2])
-					info.DevCat = DevCat{msg.Dst[0], msg.Dst[1]}
-					network.DB.UpdateFirmwareVersion(dst, info.FirmwareVersion)
-					network.DB.UpdateDevCat(dst, info.DevCat)
+					info, _ = network.DB.Find(dst)
 					return
 				}
 			case <-time.After(network.timeout):
@@ -207,39 +204,23 @@ func (network *Network) connect(dst Address, version EngineVersion, match ...Com
 // either an I1Device, I2Device or I2CSDevice. For a fully initialized
 // device (dimmer, switch, thermostat, etc) use Connect
 func (network *Network) Dial(dst Address) (device Device, err error) {
-	var version EngineVersion
-	if info, found := network.DB.Find(dst); found {
-		version = info.EngineVersion
-	} else {
-		version, err = network.EngineVersion(dst)
+	var info DeviceInfo
+	var found bool
+	if info, found = network.DB.Find(dst); !found {
+		info.EngineVersion, err = network.EngineVersion(dst)
 		// ErrNotLinked here is only returned by i2cs devices
 		if err == ErrNotLinked {
 			network.DB.UpdateEngineVersion(dst, VerI2Cs)
-			Log.Debugf("Got ErrNotLinked, creating I2CS device")
-			err = nil
-			version = VerI2Cs
-		} else if err == ErrReadTimeout {
-			Log.Debugf("Timed out waiting for engine version ACK")
-			err = nil
-			version = VerI1
+			info.EngineVersion = VerI2Cs
 		}
 	}
 
 	if err == nil {
-		connection := network.connect(dst, version)
-		switch version {
-		case VerI1:
-			Log.Debugf("Version 1 device detected")
-			device = NewI1Device(dst, connection.sendCh, connection.recvCh, network.timeout)
-		case VerI2:
-			Log.Debugf("Version 2 device detected")
-			device = NewI2Device(dst, connection.sendCh, connection.recvCh, network.timeout)
-		case VerI2Cs:
-			Log.Debugf("Version 2 CS device detected")
-			device = NewI2CsDevice(dst, connection.sendCh, connection.recvCh, network.timeout)
-		default:
-			Log.Infof("Unknown Insteon Engine Version %d for device %v", version, dst)
-			err = ErrVersion
+		var constructor DeviceConstructor
+		connection := network.connect(dst, info.EngineVersion)
+		constructor, err = BaseConstructor(info.EngineVersion)
+		if err == nil {
+			device, err = constructor(info, dst, connection.sendCh, connection.recvCh, network.timeout)
 		}
 	}
 	return device, err
@@ -252,23 +233,23 @@ func (network *Network) Dial(dst Address) (device Device, err error) {
 func (network *Network) Connect(dst Address) (device Device, err error) {
 	var info DeviceInfo
 	var found bool
+	if info, found = network.DB.Find(dst); !found {
+		info.EngineVersion, err = network.EngineVersion(dst)
+		if err == nil {
+			info, err = network.IDRequest(dst)
+		}
+	}
 
-	device, err = network.Dial(dst)
 	if err == nil {
-		if info, found = network.DB.Find(dst); !found {
-			info.EngineVersion, err = network.EngineVersion(dst)
-			if err == nil {
-				info, err = network.IDRequest(dst)
-			}
+		var constructor DeviceConstructor
+		var found bool
+		if constructor, found = Devices.Find(info.DevCat.Category()); !found {
+			constructor, err = BaseConstructor(info.EngineVersion)
 		}
 
 		if err == nil {
-			if initializer, found := Devices.Find(info.DevCat.Category()); found {
-				device = initializer(device, info)
-			}
-		} else if err == ErrReadTimeout {
-			Log.Debugf("Timed out waiting for engine version ACK")
-			err = nil
+			connection := network.connect(dst, info.EngineVersion)
+			device, err = constructor(info, dst, connection.sendCh, connection.recvCh, network.timeout)
 		}
 	}
 	return

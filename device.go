@@ -1,6 +1,8 @@
 package insteon
 
-import "time"
+import (
+	"time"
+)
 
 // Insteon Engine Versions
 const (
@@ -13,21 +15,14 @@ const (
 // device is running
 type EngineVersion int
 
-// The DeviceInitializer is a function that should return a fully initialized device.
-// The input device will be previously initialized as an I1, I2 or I2CS device, depending
-// on the determination made in the Network code.  Device innitializers are
-// stored by device category and will be called based on the devcat response from
-// the device on the Insteon network.  Initializers should take the input device
-// and use that to communicate directly with physical device.  In addition to the Device
-// argument, a DeviceInfo struct is included which includes devcat, firmware and engine
-// version information.
-type DeviceInitializer func(Device, DeviceInfo) Device
+// DeviceConstructor will return an initialized device for the given input arguments
+type DeviceConstructor func(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (Device, error)
 
 // Devices is a global DeviceRegistry. This device registry should only be used
 // if you are adding a new device category to the system
 var Devices DeviceRegistry
 
-// DeviceRegistry is a mechanism to keep track of specific initializers for different
+// DeviceRegistry is a mechanism to keep track of specific constructors for different
 // device categories
 type DeviceRegistry struct {
 	// devices key is the first byte of the
@@ -35,26 +30,26 @@ type DeviceRegistry struct {
 	// the category and the second byte the sub
 	// category, but we've combined both bytes
 	// into a single type
-	devices map[Category]DeviceInitializer
+	devices map[Category]DeviceConstructor
 }
 
-// Register will assign the given initializer to the supplied category
-func (dr *DeviceRegistry) Register(category Category, initializer DeviceInitializer) {
+// Register will assign the given constructor to the supplied category
+func (dr *DeviceRegistry) Register(category Category, constructor DeviceConstructor) {
 	if dr.devices == nil {
-		dr.devices = make(map[Category]DeviceInitializer)
+		dr.devices = make(map[Category]DeviceConstructor)
 	}
-	dr.devices[category] = initializer
+	dr.devices[category] = constructor
 }
 
-// Delete will remove a device initializer rom the registry
+// Delete will remove a device constructor from the registry
 func (dr *DeviceRegistry) Delete(category Category) {
 	delete(dr.devices, category)
 }
 
-// Find looks for an initializer corresponding to the given category
-func (dr *DeviceRegistry) Find(category Category) (DeviceInitializer, bool) {
-	initializer, found := dr.devices[category]
-	return initializer, found
+// Find looks for a constructor corresponding to the given category
+func (dr *DeviceRegistry) Find(category Category) (DeviceConstructor, bool) {
+	constructor, found := dr.devices[category]
+	return constructor, found
 }
 
 // CommandRequest is used to request that a given command and payload are sent to a device
@@ -114,12 +109,16 @@ type Device interface {
 
 // PingableDevice is any device that implements the Ping method
 type PingableDevice interface {
+	// Ping sends a ping request to the device and waits for a single ACK
 	Ping() error
 }
 
 // NameableDevice is any device that have a settable text string
 type NameableDevice interface {
+	// TextString returns the information assigned to the device
 	TextString() (string, error)
+
+	// SetTextString assigns the information to the device
 	SetTextString(string) error
 }
 
@@ -182,4 +181,20 @@ type LinkableDevice interface {
 
 	// WriteLink will write the link record to the device's link database
 	WriteLink(*LinkRecord) error
+}
+
+// BaseConstructor returns the appropriate constructor for a plain I1, I2 or I2CS
+// device based on the engine version supplied
+func BaseConstructor(version EngineVersion) (constructor DeviceConstructor, err error) {
+	switch version {
+	case VerI1:
+		constructor = NewI1Device
+	case VerI2:
+		constructor = NewI2Device
+	case VerI2Cs:
+		constructor = NewI2CsDevice
+	default:
+		err = ErrVersion
+	}
+	return
 }

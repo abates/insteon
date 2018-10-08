@@ -58,7 +58,9 @@ func (pdb *productDatabase) update(address Address, callback func(*DeviceInfo)) 
 	pdb.mutex.Lock()
 	deviceInfo, found := pdb.devices[address]
 	if !found {
-		deviceInfo = &DeviceInfo{}
+		deviceInfo = &DeviceInfo{
+			Address: address,
+		}
 		pdb.devices[address] = deviceInfo
 	}
 	callback(deviceInfo)

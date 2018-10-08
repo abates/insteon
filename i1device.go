@@ -20,7 +20,7 @@ type I1Device struct {
 }
 
 // NewI1Device will construct an I1Device for the given address
-func NewI1Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) Device {
+func NewI1Device(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (Device, error) {
 	i1 := &I1Device{
 		address:         address,
 		devCat:          DevCat{0xff, 0xff},
@@ -34,7 +34,7 @@ func NewI1Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *
 	}
 
 	go i1.process()
-	return i1
+	return i1, nil
 }
 
 func (i1 *I1Device) process() {

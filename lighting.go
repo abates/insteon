@@ -1,5 +1,9 @@
 package insteon
 
+import (
+	"time"
+)
+
 var (
 	LightingCategories = []Category{Category(1), Category(2)}
 )
@@ -28,8 +32,8 @@ const (
 )
 
 func init() {
-	Devices.Register(0x01, dimmableLightingFactory)
-	Devices.Register(0x02, switchedLightingFactory)
+	Devices.Register(0x01, NewDimmableDevice)
+	Devices.Register(0x02, NewSwitchedDevice)
 }
 
 type SwitchConfig struct {
@@ -331,10 +335,34 @@ func (dd *DimmableDevice) DimmerConfig() (config DimmerConfig, err error) {
 	return config, err
 }
 
-func dimmableLightingFactory(device Device, info DeviceInfo) Device {
+func NewSwitchedDevice(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (device Device, err error) {
+	constructor, err := BaseConstructor(info.EngineVersion)
+	if err == nil {
+		var upstream Device
+		upstream, err = constructor(info, address, sendCh, recvCh, timeout)
+		if err == nil {
+			device = &SwitchedDevice{upstream, info.FirmwareVersion}
+		}
+	}
+	return
+}
+
+func NewDimmableDevice(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (device Device, err error) {
+	constructor, err := BaseConstructor(info.EngineVersion)
+	if err == nil {
+		var upstream Device
+		upstream, err = constructor(info, address, sendCh, recvCh, timeout)
+		if err == nil {
+			device = &DimmableDevice{&SwitchedDevice{upstream, info.FirmwareVersion}, info.FirmwareVersion}
+		}
+	}
+	return
+}
+
+/*func dimmableLightingFactory(device Device, info DeviceInfo) Device {
 	return &DimmableDevice{&SwitchedDevice{device, info.FirmwareVersion}, info.FirmwareVersion}
 }
 
 func switchedLightingFactory(device Device, info DeviceInfo) Device {
 	return &SwitchedDevice{device, info.FirmwareVersion}
-}
+}*/
