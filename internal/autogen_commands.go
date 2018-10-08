@@ -1,3 +1,17 @@
+// Copyright 2018 Andrew Bates
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -11,7 +25,7 @@ import (
 	"time"
 )
 
-type Command struct {
+type command struct {
 	Name    string
 	Comment string
 	String  string
@@ -19,17 +33,17 @@ type Command struct {
 	Byte2   string
 }
 
-type CommandGroup struct {
+type commandGroup struct {
 	Name     string
 	Byte0    string
-	Commands []Command
+	Commands []command
 }
 
-var commands = []CommandGroup{
+var commands = []commandGroup{
 	{
 		Name:  "Standard Direct Commands",
 		Byte0: "0x00",
-		Commands: []Command{
+		Commands: []command{
 			{"CmdAssignToAllLinkGroup", "Assign to ALL-Link Group", "Assign to All-Link Group", "0x01", "0x00"},
 			{"CmdDeleteFromAllLinkGroup", "Delete from All-Link Group", "Delete from All-Link Group", "0x02", "0x00"},
 			{"CmdProductDataReq", "Product Data Request", "Product Data Request", "0x03", "0x00"},
@@ -48,7 +62,7 @@ var commands = []CommandGroup{
 	{
 		Name:  "Extended Direct Commands",
 		Byte0: "0x01",
-		Commands: []Command{
+		Commands: []command{
 			{"CmdProductDataResp", "Product Data Response", "Product Data Response", "0x03", "0x00"},
 			{"CmdFxUsernameResp", "FX Username Response", "Fx Username Response", "0x03", "0x01"},
 			{"CmdDeviceTextStringResp", "Device Text String Response", "Text String Response", "0x03", "0x02"},
@@ -65,7 +79,7 @@ var commands = []CommandGroup{
 	{
 		Name:  "All-Link Messages",
 		Byte0: "0x0c",
-		Commands: []Command{
+		Commands: []command{
 			{"CmdAllLinkRecall", "is an all-link command to recall the state assigned to the entry in the all-link database", "All-link recall", "0x11", "0x00"},
 			{"CmdAllLinkAlias2High", "will execute substitute Direct Command", "All-link Alias 2 High", "0x12", "0x00"},
 			{"CmdAllLinkAlias1Low", "will execute substitute Direct Command", "All-link Alias 1 Low", "0x13", "0x00"},
@@ -80,7 +94,7 @@ var commands = []CommandGroup{
 	{
 		Name:  "Standard Broadcast Messages",
 		Byte0: "0x08",
-		Commands: []Command{
+		Commands: []command{
 			{"CmdSetButtonPressedResponder", "Broadcast command indicating the set button has been pressed", "Set-button Pressed (responder)", "0x01", "0x00"},
 			{"CmdSetButtonPressedController", "Broadcast command indicating the set button has been pressed", "Set-button Pressed (controller)", "0x02", "0x00"},
 			{"CmdTestPowerlinePhase", "is used for determining which powerline phase (A/B) to which the device is attached", "Test Powerline Phase", "0x03", "0x00"},
@@ -91,7 +105,7 @@ var commands = []CommandGroup{
 	{
 		Name:  "Lighting Standard Direct Messages",
 		Byte0: "0x00",
-		Commands: []Command{
+		Commands: []command{
 			{"CmdLightOn", "", "Light On", "0x11", "0xff"},
 			{"CmdLightOnFast", "", "Light On Fast", "0x12", "0x00"},
 			{"CmdLightOff", "", "Light Off", "0x13", "0x00"},
@@ -135,7 +149,7 @@ var unitPkgPath string
 func owner() string { return "Andrew Bates" }
 
 func main() {
-	cmdStrings := []Command{}
+	cmdStrings := []command{}
 	licenseText, _ := ioutil.ReadFile("internal/license.tmpl")
 	funcs := template.FuncMap{"now": time.Now, "owner": owner}
 	license := template.Must(template.New("license").Funcs(funcs).Parse(string(licenseText)))
