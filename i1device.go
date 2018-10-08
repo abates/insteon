@@ -176,7 +176,7 @@ func (i1 *I1Device) DeleteFromAllLinkGroup(group Group) (err error) {
 func (i1 *I1Device) ProductData() (data *ProductData, err error) {
 	recvCh, err := i1.SendCommandAndListen(CmdProductDataReq, nil)
 	for resp := range recvCh {
-		if resp.Message.Command&0xff00 == CmdProductDataResp&0xff00 {
+		if resp.Message.Command[1] == CmdProductDataResp[1] {
 			data = &ProductData{}
 			err = data.UnmarshalBinary(resp.Message.Payload)
 			resp.DoneCh <- true

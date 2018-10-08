@@ -36,7 +36,7 @@ func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
 	recvCh, err := i2.SendCommandAndListen(CmdReadWriteALDB, buf)
 
 	for response := range recvCh {
-		if response.Message.Flags.Extended() && response.Message.Command&0xff00 == CmdReadWriteALDB&0xff00 {
+		if response.Message.Flags.Extended() && response.Message.Command[1] == CmdReadWriteALDB[1] {
 			lr := &LinkRequest{}
 			err = lr.UnmarshalBinary(response.Message.Payload)
 			if err == nil && lr.MemAddress != lastAddress {

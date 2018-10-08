@@ -8,29 +8,6 @@ var (
 	LightingCategories = []Category{Category(1), Category(2)}
 )
 
-const (
-	CmdLightOn             Command = 0x11ff
-	CmdLightOnFast         Command = 0x1200
-	CmdLightOff            Command = 0x1300
-	CmdLightOffFast        Command = 0x1400
-	CmdLightBrighten       Command = 0x1500
-	CmdLightDim            Command = 0x1600
-	CmdLightStartManual    Command = 0x1700
-	CmdLightStopManual     Command = 0x1800
-	CmdLightStatusRequest  Command = 0x1900
-	CmdLightInstantChange  Command = 0x2100
-	CmdLightManualOn       Command = 0x2201
-	CmdLightManualOff      Command = 0x2301
-	CmdTapSetButtonOnce    Command = 0x2501
-	CmdTapSetButtonTwice   Command = 0x2502
-	CmdLightSetStatus      Command = 0x2700
-	CmdLightOnAtRamp       Command = 0x2e00
-	CmdLightOnAtRampV67    Command = 0x3400
-	CmdLightOffAtRamp      Command = 0x2f00
-	CmdLightOffAtRampV67   Command = 0x3500
-	CmdLightExtendedSetGet Command = 0x2e00
-)
-
 func init() {
 	Devices.Register(0x01, NewDimmableDevice)
 	Devices.Register(0x02, NewSwitchedDevice)
@@ -138,7 +115,7 @@ func (sd *SwitchedDevice) Off() error {
 func (sd *SwitchedDevice) Status() (level int, err error) {
 	response, err := sd.SendCommand(CmdLightStatusRequest, nil)
 	if err == nil {
-		level = int(response >> 8)
+		level = int(response[1])
 	}
 	return level, err
 }
@@ -187,7 +164,7 @@ func (sd *SwitchedDevice) OperatingFlags() (*LightFlags, error) {
 	flags := &LightFlags{}
 	response, err := sd.SendCommand(CmdGetOperatingFlags, nil)
 	if err == nil {
-		flags.UnmarshalBinary([]byte{byte(response >> 8)})
+		flags.UnmarshalBinary([]byte{response[1]})
 	}
 	return flags, err
 }
@@ -215,15 +192,15 @@ func (sd *SwitchedDevice) String() string {
 }
 
 func (sd *SwitchedDevice) SetX10Address(button int, houseCode, unitCode byte) error {
-	_, err := sd.SendCommand(CmdLightExtendedSetGet, []byte{byte(button), 0x04, houseCode, unitCode})
+	_, err := sd.SendCommand(CmdExtendedGetSet, []byte{byte(button), 0x04, houseCode, unitCode})
 	return err
 }
 
 func (sd *SwitchedDevice) SwitchConfig() (config SwitchConfig, err error) {
 	// SEE DimmerConfig() notes for explanation of D1 and D2 (payload[0] and payload[1])
-	recvCh, err := sd.SendCommandAndListen(CmdLightExtendedSetGet, []byte{0x00, 0x00})
+	recvCh, err := sd.SendCommandAndListen(CmdExtendedGetSet, []byte{0x00, 0x00})
 	for response := range recvCh {
-		if response.Message.Command == CmdLightExtendedSetGet {
+		if response.Message.Command == CmdExtendedGetSet {
 			err = config.UnmarshalBinary(response.Message.Payload)
 			response.DoneCh <- true
 		}
@@ -308,13 +285,13 @@ func (dd *DimmableDevice) String() string {
 
 func (dd *DimmableDevice) SetDefaultRamp(rate int) error {
 	// See notes on DimmerConfig() for information about D1 (payload[0])
-	_, err := dd.SendCommand(CmdLightExtendedSetGet, []byte{0x01, 0x05, byte(rate)})
+	_, err := dd.SendCommand(CmdExtendedGetSet, []byte{0x01, 0x05, byte(rate)})
 	return err
 }
 
 func (dd *DimmableDevice) SetDefaultOnLevel(level int) error {
 	// See notes on DimmerConfig() for information about D1 (payload[0])
-	_, err := dd.SendCommand(CmdLightExtendedSetGet, []byte{0x01, 0x06, byte(level)})
+	_, err := dd.SendCommand(CmdExtendedGetSet, []byte{0x01, 0x06, byte(level)})
 	return err
 }
 
@@ -324,9 +301,9 @@ func (dd *DimmableDevice) DimmerConfig() (config DimmerConfig, err error) {
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
-	recvCh, err := dd.SendCommandAndListen(CmdLightExtendedSetGet, []byte{0x01, 0x00})
+	recvCh, err := dd.SendCommandAndListen(CmdExtendedGetSet, []byte{0x01, 0x00})
 	for response := range recvCh {
-		if response.Message.Command == CmdLightExtendedSetGet {
+		if response.Message.Command == CmdExtendedGetSet {
 			err = config.UnmarshalBinary(response.Message.Payload)
 			response.DoneCh <- true
 		}

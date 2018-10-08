@@ -85,13 +85,13 @@ func (network *Network) receive(buf []byte) {
 		Log.Tracef("Received Insteon Message %v", msg)
 		if msg.Broadcast() {
 			// Set Button Pressed Controller/Responder
-			if msg.Command&0xff00 == 0x0100 || msg.Command&0xff00 == 0x0200 {
+			if msg.Command[1] == 0x01 || msg.Command[1] == 0x02 {
 				network.DB.UpdateFirmwareVersion(msg.Src, FirmwareVersion(msg.Dst[2]))
 				network.DB.UpdateDevCat(msg.Src, DevCat{msg.Dst[0], msg.Dst[1]})
 			}
-		} else if msg.Ack() && msg.Command&0xff00 == 0x0d00 {
+		} else if msg.Ack() && msg.Command[1] == 0x0d {
 			// Engine Version Request ACK
-			network.DB.UpdateEngineVersion(msg.Src, EngineVersion(0x00ff&msg.Command))
+			network.DB.UpdateEngineVersion(msg.Src, EngineVersion(msg.Command[2]))
 		}
 
 		for _, connection := range network.connections {
@@ -144,7 +144,7 @@ func (network *Network) EngineVersion(dst Address) (engineVersion EngineVersion,
 	<-doneCh
 
 	if request.Err == nil {
-		engineVersion = EngineVersion(request.Ack.Command & 0x00ff)
+		engineVersion = EngineVersion(request.Ack.Command[2])
 	}
 	return engineVersion, request.Err
 }

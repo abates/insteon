@@ -68,7 +68,7 @@ func (conn *connection) process() {
 }
 
 func errLookup(command Command) (err error) {
-	switch command & 0xff {
+	switch command[2] & 0xff {
 	case 0xfd:
 		err = ErrUnknownCommand
 	case 0xfe:
@@ -82,7 +82,7 @@ func errLookup(command Command) (err error) {
 }
 
 func i2csErrLookup(command Command) (err error) {
-	switch command & 0xff {
+	switch command[2] & 0xff {
 	case 0xfb:
 		err = ErrIllegalValue
 	case 0xfc:
@@ -102,7 +102,7 @@ func i2csErrLookup(command Command) (err error) {
 func (conn *connection) receiveAck(msg *Message) {
 	if len(conn.queue) > 0 {
 		request := conn.queue[0]
-		if msg.Command&0xff00 == request.Message.Command&0xff00 {
+		if msg.Command[1]&0xff == request.Message.Command[1]&0xff {
 			conn.queue[0].Ack = msg
 			if msg.Flags.Type() == MsgTypeDirectNak {
 				if VerI1 <= conn.version && conn.version <= VerI2 {
@@ -122,7 +122,7 @@ func (conn *connection) receiveAck(msg *Message) {
 
 func (conn *connection) receiveMatch(msg *Message) {
 	for _, m := range conn.match {
-		if (msg.Command == m) || (msg.Command&0xff00 == m) {
+		if (msg.Command == m) || (msg.Command[1] == m[1] && m[2] == 0x00) {
 			conn.recvCh <- msg
 		}
 	}
