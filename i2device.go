@@ -23,9 +23,8 @@ type I2Device struct {
 
 // NewI2Device will construct an device object that can communicate with version 2
 // Insteon engines
-func NewI2Device(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (Device, error) {
-	i1Device, err := NewI1Device(info, address, sendCh, recvCh, timeout)
-	return &I2Device{i1Device.(*I1Device)}, err
+func NewI2Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) *I2Device {
+	return &I2Device{NewI1Device(address, sendCh, recvCh, timeout)}
 }
 
 // AddLink will either add the link to the All-Link database
@@ -56,15 +55,12 @@ func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
 			if err == nil && lr.MemAddress != lastAddress {
 				lastAddress = lr.MemAddress
 				links = append(links, lr.Link)
-				response.DoneCh <- false
 			} else if err == ErrEndOfLinks {
-				response.DoneCh <- true
+				response.DoneCh <- response
 				err = nil
 			} else {
-				response.DoneCh <- true
+				response.DoneCh <- response
 			}
-		} else {
-			response.DoneCh <- false
 		}
 	}
 	return links, err

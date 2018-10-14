@@ -31,10 +31,11 @@ type I1Device struct {
 	sendCh         chan *CommandRequest
 	recvCh         <-chan *Message
 	doneCh         chan *MessageRequest
+	listenDoneCh   chan *CommandResponse
 }
 
 // NewI1Device will construct an I1Device for the given address
-func NewI1Device(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (Device, error) {
+func NewI1Device(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) *I1Device {
 	i1 := &I1Device{
 		address:         address,
 		devCat:          DevCat{0xff, 0xff},
@@ -45,18 +46,19 @@ func NewI1Device(info DeviceInfo, address Address, sendCh chan<- *MessageRequest
 		sendCh:         make(chan *CommandRequest, 1),
 		recvCh:         recvCh,
 		doneCh:         make(chan *MessageRequest, 1),
+		listenDoneCh:   make(chan *CommandResponse, 1),
 	}
 
 	go i1.process()
-	return i1, nil
+	return i1
 }
 
 func (i1 *I1Device) process() {
+	defer close(i1.upstreamSendCh)
 	for {
 		select {
 		case request, open := <-i1.sendCh:
 			if !open {
-				close(i1.upstreamSendCh)
 				return
 			}
 
@@ -66,29 +68,30 @@ func (i1 *I1Device) process() {
 			}
 		case msg, open := <-i1.recvCh:
 			if !open {
-				close(i1.upstreamSendCh)
 				return
 			}
 			i1.receive(msg)
-		case request := <-i1.doneCh:
-			i1.queue[0].Ack = request.Ack
-			i1.queue[0].Err = request.Err
-			i1.queue[0].DoneCh <- i1.queue[0]
-			if i1.queue[0].RecvCh != nil {
-				if i1.queue[0].Err == nil {
-					i1.waitRequest = i1.queue[0]
-					i1.waitRequest.timeout = time.Now().Add(i1.timeout)
-				} else {
-					close(i1.queue[0].RecvCh)
-				}
+		case request, open := <-i1.doneCh:
+			if !open {
+				return
 			}
-			i1.queue = i1.queue[1:]
-			i1.send()
+			i1.receiveAck(request)
+		case response := <-i1.listenDoneCh:
+			if response.request == i1.waitRequest {
+				close(i1.waitRequest.RecvCh)
+				i1.waitRequest = nil
+				i1.send()
+			}
 		case <-time.After(i1.timeout):
 			// prevent head of line blocking for a request that hasn't signaled it is done
 			if i1.waitRequest != nil && i1.waitRequest.timeout.Before(time.Now()) {
 				close(i1.waitRequest.RecvCh)
 				i1.waitRequest = nil
+				i1.send()
+			} else if len(i1.queue) > 0 && i1.queue[0].timeout.Before(time.Now()) {
+				i1.queue[0].Err = ErrReadTimeout
+				i1.queue[0].DoneCh <- i1.queue[0]
+				i1.queue = i1.queue[1:]
 				i1.send()
 			}
 		}
@@ -116,26 +119,27 @@ func (i1 *I1Device) send() {
 
 func (i1 *I1Device) receive(msg *Message) {
 	if i1.waitRequest != nil {
-		doneCh := make(chan bool, 1)
-		i1.waitRequest.RecvCh <- &CommandResponse{Message: msg, DoneCh: doneCh}
-		if <-doneCh {
-			close(i1.waitRequest.RecvCh)
-			i1.waitRequest = nil
-			i1.send()
-		}
+		i1.waitRequest.RecvCh <- &CommandResponse{Message: msg, DoneCh: i1.listenDoneCh, request: i1.waitRequest}
+		i1.waitRequest.timeout = time.Now().Add(i1.timeout)
 	}
 }
 
-// SendCommandAndListen performs the same function as SendCommand.  However, instead of returning
-// the Ack/Nak command, it returns a channel that can be read to get messages received after
-// the command was sent.  This is useful for things like retrieving the link database where the
-// response information is not in the Ack but in one or more ALDB responses.  Once all information
-// has been received the command response DoneCh should be sent a "false" value to indicate no
-// more messages are expected.
-func (i1 *I1Device) SendCommandAndListen(command Command, payload []byte) (<-chan *CommandResponse, error) {
-	recvCh := make(chan *CommandResponse, 1)
-	_, err := i1.sendCommand(command, payload, recvCh)
-	return recvCh, err
+func (i1 *I1Device) receiveAck(request *MessageRequest) {
+	if len(i1.queue) > 0 {
+		i1.queue[0].Ack = request.Ack
+		i1.queue[0].Err = request.Err
+		i1.queue[0].DoneCh <- i1.queue[0]
+		if i1.queue[0].RecvCh != nil {
+			if i1.queue[0].Err == nil {
+				i1.waitRequest = i1.queue[0]
+				i1.waitRequest.timeout = time.Now().Add(i1.timeout)
+			} else {
+				close(i1.queue[0].RecvCh)
+			}
+		}
+		i1.queue = i1.queue[1:]
+		i1.send()
+	}
 }
 
 func (i1 *I1Device) sendCommand(command Command, payload []byte, recvCh chan<- *CommandResponse) (response Command, err error) {
@@ -163,6 +167,18 @@ func (i1 *I1Device) sendCommand(command Command, payload []byte, recvCh chan<- *
 // response ack are returned as well as any error
 func (i1 *I1Device) SendCommand(command Command, payload []byte) (response Command, err error) {
 	return i1.sendCommand(command, payload, nil)
+}
+
+// SendCommandAndListen performs the same function as SendCommand.  However, instead of returning
+// the Ack/Nak command, it returns a channel that can be read to get messages received after
+// the command was sent.  This is useful for things like retrieving the link database where the
+// response information is not in the Ack but in one or more ALDB responses.  Once all information
+// has been received the command response DoneCh should be sent a "false" value to indicate no
+// more messages are expected.
+func (i1 *I1Device) SendCommandAndListen(command Command, payload []byte) (<-chan *CommandResponse, error) {
+	recvCh := make(chan *CommandResponse, 1)
+	_, err := i1.sendCommand(command, payload, recvCh)
+	return recvCh, err
 }
 
 // Address is the Insteon address of the device
@@ -193,9 +209,7 @@ func (i1 *I1Device) ProductData() (data *ProductData, err error) {
 		if resp.Message.Command[1] == CmdProductDataResp[1] {
 			data = &ProductData{}
 			err = data.UnmarshalBinary(resp.Message.Payload)
-			resp.DoneCh <- true
-		} else {
-			resp.DoneCh <- false
+			resp.DoneCh <- resp
 		}
 	}
 	return data, err

@@ -27,12 +27,12 @@ const (
 )
 
 type Port struct {
-	in        *bufio.Reader
-	out       io.Writer
-	timeout   time.Duration
-	lastWrite time.Time
+	in      *bufio.Reader
+	out     io.Writer
+	timeout time.Duration
 
 	sendCh  chan []byte
+	readCh  chan []byte
 	recvCh  chan []byte
 	closeCh chan chan error
 }
@@ -44,29 +44,56 @@ func NewPort(readWriter io.ReadWriter, timeout time.Duration) *Port {
 		timeout: timeout,
 
 		sendCh:  make(chan []byte, 1),
+		readCh:  make(chan []byte, 1),
 		recvCh:  make(chan []byte, 1),
 		closeCh: make(chan chan error),
 	}
 	go port.readLoop()
-	go port.writeLoop()
+	go port.process()
 	return port
 }
 
 func (port *Port) readLoop() {
 	for {
+		packet, err := port.readPacket()
+		if err == nil {
+			port.readCh <- packet
+		} else {
+			insteon.Log.Infof("Error reading packet: %v", err)
+		}
+	}
+}
+
+func (port *Port) process() {
+	for {
 		select {
+		case packet := <-port.readCh:
+			port.recvCh <- packet
+		case buf, open := <-port.sendCh:
+			if !open {
+				if closer, ok := port.out.(io.Closer); ok {
+					err := closer.Close()
+					if err != nil {
+						insteon.Log.Infof("Failed to close io writer: %v", err)
+					}
+				}
+				return
+			}
+			port.send(buf)
 		case closeCh := <-port.closeCh:
 			closeCh <- nil
 			return
-		default:
-			packet, err := port.readPacket()
-			insteon.Log.Tracef("RX Packet %s", hexDump("%02x", packet, " "))
-			if err == nil {
-				port.recvCh <- packet
-			} else {
-				insteon.Log.Infof("Error reading packet: %v", err)
-			}
 		}
+	}
+}
+
+func (port *Port) send(buf []byte) {
+	_, err := port.out.Write(buf)
+	<-time.After(writeDelay)
+	if err == nil {
+		insteon.Log.Tracef("TX %s", hexDump("%02x", buf, " "))
+	} else {
+		insteon.Log.Infof("Failed to write: %v", err)
 	}
 }
 
@@ -105,29 +132,6 @@ func (port *Port) readPacket() (buf []byte, err error) {
 		}
 	}
 	return buf, err
-}
-
-func (port *Port) writeLoop() {
-	for buf := range port.sendCh {
-		if !port.lastWrite.Add(writeDelay).Before(time.Now()) {
-			<-time.After(writeDelay)
-		}
-		_, err := port.out.Write(buf)
-		port.lastWrite = time.Now()
-		if err == nil {
-			insteon.Log.Tracef("TX %s", hexDump("%02x", buf, " "))
-		} else {
-			insteon.Log.Infof("Failed to write: %v", err)
-		}
-	}
-
-	if closer, ok := port.out.(io.Closer); ok {
-		err := closer.Close()
-		if err != nil {
-			insteon.Log.Infof("Failed to close io writer: %v", err)
-		}
-	}
-	return
 }
 
 func (port *Port) Close() error {

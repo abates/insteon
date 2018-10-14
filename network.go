@@ -74,11 +74,11 @@ func New(sendCh chan<- *PacketRequest, recvCh <-chan []byte, timeout time.Durati
 }
 
 func (network *Network) process() {
+	defer network.close()
 	for {
 		select {
 		case pkt, open := <-network.recvCh:
 			if !open {
-				network.close()
 				return
 			}
 			network.receive(pkt)
@@ -229,12 +229,17 @@ func (network *Network) Dial(dst Address) (device Device, err error) {
 		}
 	}
 
-	if err == nil {
-		var constructor DeviceConstructor
+	if err == nil || err == ErrNotLinked {
 		connection := network.connect(dst, info.EngineVersion)
-		constructor, err = BaseConstructor(info.EngineVersion)
-		if err == nil {
-			device, err = constructor(info, dst, connection.sendCh, connection.recvCh, network.timeout)
+		switch info.EngineVersion {
+		case VerI1:
+			device = NewI1Device(dst, connection.sendCh, connection.recvCh, network.timeout)
+		case VerI2:
+			device = NewI2Device(dst, connection.sendCh, connection.recvCh, network.timeout)
+		case VerI2Cs:
+			device = NewI2CsDevice(dst, connection.sendCh, connection.recvCh, network.timeout)
+		default:
+			err = ErrVersion
 		}
 	}
 	return device, err
@@ -255,15 +260,11 @@ func (network *Network) Connect(dst Address) (device Device, err error) {
 	}
 
 	if err == nil {
-		var constructor DeviceConstructor
-		var found bool
-		if constructor, found = Devices.Find(info.DevCat.Category()); !found {
-			constructor, err = BaseConstructor(info.EngineVersion)
-		}
-
-		if err == nil {
+		if constructor, found := Devices.Find(info.DevCat.Category()); found {
 			connection := network.connect(dst, info.EngineVersion)
 			device, err = constructor(info, dst, connection.sendCh, connection.recvCh, network.timeout)
+		} else {
+			device, err = network.Dial(dst)
 		}
 	}
 	return
@@ -273,6 +274,7 @@ func (network *Network) close() error {
 	for _, connection := range network.connections {
 		close(connection)
 	}
+	network.connections = nil
 	return nil
 }
 

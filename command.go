@@ -31,7 +31,7 @@ func (cmd Command) String() string {
 	if str, found := cmdStrings[cmd]; found {
 		return str
 	} else if str, found := cmdStrings[Command{cmd[0], cmd[1], 0x00}]; found {
-		return str
+		return fmt.Sprintf("%s(%d)", str, cmd[2])
 	}
 	return fmt.Sprintf("Command(0x%02x, 0x%02x, 0x%02x)", cmd[0], cmd[1], cmd[2])
 }

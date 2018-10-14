@@ -19,6 +19,24 @@ import (
 	"testing"
 )
 
+func TestDeviceInfoComplete(t *testing.T) {
+	tests := []struct {
+		input    DeviceInfo
+		expected bool
+	}{
+		{DeviceInfo{DevCat: DevCat{0x00, 0x00}, FirmwareVersion: FirmwareVersion(0)}, false},
+		{DeviceInfo{DevCat: DevCat{0x00, 0x01}, FirmwareVersion: FirmwareVersion(0)}, false},
+		{DeviceInfo{DevCat: DevCat{0x00, 0x01}, FirmwareVersion: FirmwareVersion(1)}, true},
+		{DeviceInfo{DevCat: DevCat{0x00, 0x01}, FirmwareVersion: FirmwareVersion(0)}, false},
+	}
+
+	for i, test := range tests {
+		if test.input.Complete() != test.expected {
+			t.Errorf("tests[%d] expected %v got %v", i, test.expected, test.input.Complete())
+		}
+	}
+}
+
 type testProductDB struct {
 	updates    sync.Map
 	deviceInfo *DeviceInfo

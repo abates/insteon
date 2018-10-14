@@ -71,10 +71,25 @@ func dimmerCmd(args []string, next cli.NextFunc) (err error) {
 func dimmerConfigCmd(args []string, next cli.NextFunc) error {
 	config, err := dimmer.DimmerConfig()
 	if err == nil {
-		fmt.Printf("  X10 Address: %02x.%02x\n", config.HouseCode, config.UnitCode)
-		fmt.Printf(" Default Ramp: %d\n", config.Ramp)
-		fmt.Printf("Default Level: %d\n", config.OnLevel)
-		fmt.Printf("          SNR: %d\n", config.SNR)
+		fmt.Printf("           X10 Address: %02x.%02x\n", config.HouseCode, config.UnitCode)
+		fmt.Printf("          Default Ramp: %d\n", config.Ramp)
+		fmt.Printf("         Default Level: %d\n", config.OnLevel)
+		fmt.Printf("                   SNR: %d\n", config.SNT)
+	}
+
+	flags, err := dimmer.OperatingFlags()
+	if err == nil {
+		fmt.Printf("          Program Lock: %v\n", flags.ProgramLock())
+		fmt.Printf("             LED on Tx: %v\n", flags.TxLED())
+		fmt.Printf("            Resume Dim: %v\n", flags.ResumeDim())
+		fmt.Printf("                LED On: %v\n", flags.LED())
+		fmt.Printf("         Load Sense On: %v\n", flags.LoadSense())
+		fmt.Printf("              DB Delta: %v\n", flags.DBDelta())
+		fmt.Printf("                   SNR: %v\n", flags.SNR())
+		fmt.Printf("          SNR Failures: %v\n", flags.SNRFailCount())
+		fmt.Printf("           X10 Enabled: %v\n", flags.X10Enabled())
+		fmt.Printf("        Blink on Error: %v\n", flags.ErrorBlink())
+		fmt.Printf("Cleanup Report Enabled: %v\n", flags.CleanupReport())
 	}
 	return err
 }

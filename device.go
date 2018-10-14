@@ -94,18 +94,22 @@ type CommandResponse struct {
 	// Message that was received
 	Message *Message
 
-	// DoneCh to indicate whether more messages should be received or not.  This must always be written
-	// to or the go process will hang
-	DoneCh chan<- bool
+	// DoneCh to indicate whether more messages should be received or not.
+	DoneCh chan<- *CommandResponse
+
+	request *CommandRequest
 }
 
-// Device is any implementation that returns the device address and can send commands to the
-// destination addresss
-type Device interface {
+// Addressable is any receiver that can be queried for its address
+type Addressable interface {
 	// Address will return the 3 byte destination address of the device.
 	// All device implemtaions must be able to return their address
 	Address() Address
+}
 
+// Commandable is the most basic capability that any device must implement.  Commandable
+// devices can be sent commands and can receive messages
+type Commandable interface {
 	// SendCommand will send the given command bytes to the device including
 	// a payload (for extended messages). If payload length is zero then a standard
 	// length message is used to deliver the commands. The command bytes from the
@@ -119,6 +123,13 @@ type Device interface {
 	// has been received the command response DoneCh should be sent a "false" value to indicate no
 	// more messages are expected.
 	SendCommandAndListen(cmd Command, payload []byte) (recvCh <-chan *CommandResponse, err error)
+}
+
+// Device is any implementation that returns the device address and can send commands to the
+// destination addresss
+type Device interface {
+	Addressable
+	Commandable
 }
 
 // PingableDevice is any device that implements the Ping method
@@ -195,20 +206,4 @@ type LinkableDevice interface {
 
 	// WriteLink will write the link record to the device's link database
 	WriteLink(*LinkRecord) error
-}
-
-// BaseConstructor returns the appropriate constructor for a plain I1, I2 or I2CS
-// device based on the engine version supplied
-func BaseConstructor(version EngineVersion) (constructor DeviceConstructor, err error) {
-	switch version {
-	case VerI1:
-		constructor = NewI1Device
-	case VerI2:
-		constructor = NewI2Device
-	case VerI2Cs:
-		constructor = NewI2CsDevice
-	default:
-		err = ErrVersion
-	}
-	return
 }

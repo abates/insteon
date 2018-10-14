@@ -26,7 +26,7 @@ func newTestNetwork(bufSize int) (*Network, chan *PacketRequest, chan []byte) {
 	return New(sendCh, recvCh, time.Millisecond), sendCh, recvCh
 }
 
-func TestNetworkProcess(t *testing.T) {
+/*func TestNetworkProcess(t *testing.T) {
 	connection := make(chan *Message, 1)
 	network, _, recvCh := newTestNetwork(0)
 	network.connectCh <- connection
@@ -45,7 +45,7 @@ func TestNetworkProcess(t *testing.T) {
 	if len(network.connections) != 0 {
 		t.Errorf("Expected connnection queue to be empty, got %d", len(network.connections))
 	}
-}
+}*/
 
 func TestNetworkReceive(t *testing.T) {
 	tests := []struct {
@@ -57,15 +57,21 @@ func TestNetworkReceive(t *testing.T) {
 	}
 
 	for i, test := range tests {
+		recvCh := make(chan []byte, 1)
 		testDb := newTestProductDB()
 		connection := make(chan *Message, 1)
+
 		network := &Network{
+			recvCh:      recvCh,
 			DB:          testDb,
 			connections: []chan<- *Message{connection},
 		}
 
 		buf, _ := test.input.MarshalBinary()
-		network.receive(buf)
+		recvCh <- buf
+		close(recvCh)
+		network.process()
+
 		for _, update := range test.expectedUpdates {
 			if !testDb.WasUpdated(update) {
 				t.Errorf("tests[%d] expected %v to be updated in the database", i, update)
@@ -236,10 +242,10 @@ func TestNetworkDial(t *testing.T) {
 		{&DeviceInfo{EngineVersion: VerI2}, 0, nil, nil, &I2Device{}},
 		{&DeviceInfo{EngineVersion: VerI2Cs}, 0, nil, nil, &I2CsDevice{}},
 		{nil, 0, nil, nil, &I1Device{}},
-		/*{nil, 1, nil, nil, &I2Device{}},
+		{nil, 1, nil, nil, &I2Device{}},
 		{nil, 2, nil, nil, &I2CsDevice{}},
 		{nil, 3, nil, ErrVersion, nil},
-		{nil, 0, ErrNotLinked, nil, &I2CsDevice{}},*/
+		{nil, 0, ErrNotLinked, ErrNotLinked, &I2CsDevice{}},
 	}
 
 	for i, test := range tests {

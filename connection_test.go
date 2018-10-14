@@ -28,44 +28,32 @@ func newTestConnection(dst Address) (*connection, chan *MessageRequest, chan *Me
 // TODO need to rewrite this test because it sucks and is full
 // of race conditions
 func TestConnectionProcess(t *testing.T) {
-	/*oldTimeout := Timeout
-	Timeout = time.Millisecond
-	conn, _, recvCh := newTestConnection(testSrcAddr)
-	close(recvCh)
-	select {
-	case _, open := <-conn.recvCh:
-		if open {
-			t.Errorf("Expected recvCh to be closed")
+	doneCh := make(chan *MessageRequest, 1)
+	recvCh := make(chan *Message, 1)
+	upstreamRecvCh := make(chan *Message, 1)
+	upstreamSendCh := make(chan *MessageRequest, 1)
+
+	conn := &connection{
+		recvCh:         recvCh,
+		upstreamRecvCh: upstreamRecvCh,
+		upstreamSendCh: upstreamSendCh,
+		queue:          []*MessageRequest{{DoneCh: doneCh}},
+		timeout:        time.Millisecond,
+	}
+
+	go func() {
+		request := <-doneCh
+		if request.Err != ErrReadTimeout {
+			t.Errorf("Expected %v got %v", ErrReadTimeout, request.Err)
 		}
-	case <-time.After(Timeout):
-		t.Errorf("Expected recvCh to be closed")
-	}
+		close(upstreamRecvCh)
+	}()
 
-	conn, sendCh, _ := newTestConnection(testSrcAddr)
-	close(conn.sendCh)
+	conn.process()
 
-	select {
-	case _, open := <-sendCh:
-		if open {
-			t.Errorf("Expected sendCh to be closed")
-		}
-	case <-time.After(Timeout):
-		t.Errorf("Expected sendCh to be closed")
+	if len(conn.queue) > 0 {
+		t.Errorf("Expected empty queue")
 	}
-
-	conn, sendCh, recvCh = newTestConnection(testSrcAddr)
-	doneCh := make(chan bool, 1)
-	request := &MessageRequest{timeout: time.Now().Add(Timeout), DoneCh: doneCh}
-	conn.queue = append(conn.queue, request)
-	<-doneCh
-	if request.Err != ErrReadTimeout {
-		t.Errorf("Expected %v got %v", ErrReadTimeout, request.Err)
-	}
-
-	if len(conn.queue) != 0 {
-		t.Errorf("Expected queue to be zero, got %d", len(conn.queue))
-	}
-	Timeout = oldTimeout*/
 }
 
 func TestConnectionReceiveAck(t *testing.T) {

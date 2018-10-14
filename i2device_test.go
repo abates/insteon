@@ -14,28 +14,12 @@
 
 package insteon
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
-func TestDeviceRegistry(t *testing.T) {
-	dr := &DeviceRegistry{}
-
-	if _, found := dr.Find(Category(1)); found {
-		t.Errorf("Expected nothing found for Category(1)")
-	}
-
-	dr.Register(Category(1), func(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (Device, error) {
-		return nil, nil
-	})
-
-	if _, found := dr.Find(Category(1)); !found {
-		t.Errorf("Expected to find Category(1)")
-	}
-
-	dr.Delete(Category(1))
-	if _, found := dr.Find(Category(1)); found {
-		t.Errorf("Expected nothing found for Category(1)")
+func TestI2DeviceIsLinkable(t *testing.T) {
+	device := Device(&I2Device{})
+	linkable := device.(LinkableDevice)
+	if linkable == nil {
+		t.Errorf("linkable should not be nil")
 	}
 }

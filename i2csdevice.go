@@ -23,9 +23,8 @@ type I2CsDevice struct {
 
 // NewI2CsDevice will initialize a new I2CsDevice object and make
 // it ready for use
-func NewI2CsDevice(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (Device, error) {
-	i2Device, err := NewI2Device(info, address, sendCh, recvCh, timeout)
-	return &I2CsDevice{i2Device.(*I2Device)}, err
+func NewI2CsDevice(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) *I2CsDevice {
+	return &I2CsDevice{NewI2Device(address, sendCh, recvCh, timeout)}
 }
 
 // EnterLinkingMode will put the device into linking mode. This is
@@ -39,4 +38,15 @@ func (i2cs *I2CsDevice) EnterLinkingMode(group Group) (err error) {
 // address of the device
 func (i2cs *I2CsDevice) String() string {
 	return sprintf("I2CS Device (%s)", i2cs.Address())
+}
+
+// SendCommand will send the given command bytes to the device including
+// a payload (for extended messages). If payload length is zero then a standard
+// length message is used to deliver the commands. The command bytes from the
+// response ack are returned as well as any error
+func (i2cs *I2CsDevice) SendCommand(command Command, payload []byte) (response Command, err error) {
+	if command[1] == CmdSetOperatingFlags[1] && len(payload) == 0 {
+		payload = make([]byte, 14)
+	}
+	return i2cs.I2Device.SendCommand(command, payload)
 }

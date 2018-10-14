@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
@@ -29,6 +30,7 @@ func init() {
 	cmd.Register("on", "", "turn the switch/light on", switchOnCmd)
 	cmd.Register("off", "", "turn the switch/light off", switchOffCmd)
 	cmd.Register("status", "", "get the switch status", switchStatusCmd)
+	cmd.Register("setled", "", "set operating flags", switchSetLedCmd)
 }
 
 func swCmd(args []string, next cli.NextFunc) (err error) {
@@ -42,7 +44,7 @@ func swCmd(args []string, next cli.NextFunc) (err error) {
 		return fmt.Errorf("invalid device address: %v", err)
 	}
 
-	device, err := devConnect(modem.Network, addr)
+	device, err = devConnect(modem.Network, addr)
 	if err == nil {
 		var ok bool
 		if sw, ok = device.(insteon.Switch); ok {
@@ -57,7 +59,7 @@ func swCmd(args []string, next cli.NextFunc) (err error) {
 func switchConfigCmd([]string, cli.NextFunc) error {
 	config, err := sw.SwitchConfig()
 	if err == nil {
-		err = printDevInfo(sw.(insteon.Device), fmt.Sprintf("  X10 Address: %02x.%02x", config.HouseCode, config.UnitCode))
+		err = printDevInfo(device, fmt.Sprintf("  X10 Address: %02x.%02x", config.HouseCode, config.UnitCode))
 	}
 	return err
 }
@@ -80,6 +82,21 @@ func switchStatusCmd([]string, cli.NextFunc) error {
 		} else {
 			fmt.Printf("Switch is on at level %d\n", level)
 		}
+	}
+	return err
+}
+
+func switchSetCmd(args []string, next cli.NextFunc) error {
+	return next()
+}
+
+func switchSetLedCmd(args []string, next cli.NextFunc) error {
+	if len(args) < 2 {
+		return fmt.Errorf("Expected device address and flag value")
+	}
+	b, err := strconv.ParseBool(args[1])
+	if err == nil {
+		err = sw.SetLED(b)
 	}
 	return err
 }
