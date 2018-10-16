@@ -200,10 +200,7 @@ func TestI1DeviceQueueTimeout(t *testing.T) {
 	}
 
 	go func() {
-		_, open := <-requestDoneCh
-		if open {
-			t.Errorf("expected closed channel")
-		}
+		<-requestDoneCh
 		close(recvCh)
 	}()
 
