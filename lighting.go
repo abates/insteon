@@ -457,16 +457,11 @@ func (dd *dimmableDevice) DimmerConfig() (config DimmerConfig, err error) {
 	return config, err
 }
 
-/*func (sd *switchedDevice) setOperatingFlags(flags byte) error {
-}*/
-
-func (sd *switchedDevice) setOperatingFlags(index byte, flag bool) error {
-	if flag {
-		return extractError(sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(index)), nil))
-		//return sd.setOperatingFlags(index)
+func (sd *switchedDevice) setOperatingFlags(flags byte, conditional bool) error {
+	if conditional {
+		return extractError(sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)), nil))
 	}
-	return extractError(sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(index)), nil))
-	//return sd.setOperatingFlags(index + 1)
+	return extractError(sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)), nil))
 }
 
 func (sd *switchedDevice) SetProgramLock(flag bool) error { return sd.setOperatingFlags(0, flag) }

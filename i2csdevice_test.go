@@ -16,32 +16,18 @@ package insteon
 
 import "testing"
 
-func TestI2DeviceIsLinkable(t *testing.T) {
-	device := Device(&I2Device{})
-	linkable := device.(LinkableDevice)
-	if linkable == nil {
-		t.Errorf("linkable should not be nil")
-	}
-}
-
-func TestI2DeviceCommands(t *testing.T) {
+func TestI2CsDeviceCommands(t *testing.T) {
 	tests := []struct {
-		callback    func(*I2Device) error
+		callback    func(*I2CsDevice) error
 		expectedCmd Command
 		expectedErr error
 	}{
-		{func(i2cs *I2Device) error { return i2cs.AddLink(nil) }, Command{}, ErrNotImplemented},
-		{func(i2cs *I2Device) error { return i2cs.RemoveLinks(nil) }, Command{}, ErrNotImplemented},
-		{func(i2cs *I2Device) error { return i2cs.EnterLinkingMode(10) }, CmdEnterLinkingMode.SubCommand(10), nil},
-		{func(i2cs *I2Device) error { return i2cs.EnterUnlinkingMode(10) }, CmdEnterUnlinkingMode.SubCommand(10), nil},
-		{func(i2cs *I2Device) error { return i2cs.ExitLinkingMode() }, CmdExitLinkingMode, nil},
-		{func(i2cs *I2Device) error { return i2cs.WriteLink(&LinkRecord{}) }, CmdReadWriteALDB, ErrInvalidMemAddress},
-		{func(i2cs *I2Device) error { return i2cs.WriteLink(&LinkRecord{memAddress: 0x01}) }, CmdReadWriteALDB, nil},
+		{func(i2cs *I2CsDevice) error { return i2cs.EnterLinkingMode(15) }, CmdEnterLinkingModeExt.SubCommand(15), nil},
 	}
 
 	for i, test := range tests {
 		sendCh := make(chan *CommandRequest, 1)
-		device := &I2Device{&I1Device{sendCh: sendCh}}
+		device := &I2CsDevice{&I2Device{&I1Device{sendCh: sendCh}}}
 
 		if test.expectedErr != ErrNotImplemented {
 			go func() {
@@ -65,9 +51,23 @@ func TestI2DeviceCommands(t *testing.T) {
 	}
 }
 
-func TestI2CsDeviceString(t *testing.T) {
-	device := &I2Device{&I1Device{address: Address{3, 4, 5}}}
-	expected := "I2 Device (03.04.05)"
+func TestI2CsSendCommand(t *testing.T) {
+	sendCh := make(chan *CommandRequest, 1)
+	device := &I2CsDevice{&I2Device{&I1Device{sendCh: sendCh}}}
+	go func() {
+		request := <-sendCh
+		request.Ack = &Message{}
+		request.DoneCh <- request
+		if len(request.Payload) != 14 {
+			t.Errorf("Expected payload to be set")
+		}
+	}()
+	device.SendCommand(CmdSetOperatingFlags, nil)
+}
+
+func TestI2DeviceString(t *testing.T) {
+	device := &I2CsDevice{&I2Device{&I1Device{address: Address{3, 4, 5}}}}
+	expected := "I2CS Device (03.04.05)"
 	if device.String() != expected {
 		t.Errorf("expected %q got %q", expected, device.String())
 	}

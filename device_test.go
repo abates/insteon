@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"encoding"
 	"testing"
 	"time"
 )
@@ -37,5 +38,29 @@ func TestDeviceRegistry(t *testing.T) {
 	dr.Delete(Category(1))
 	if _, found := dr.Find(Category(1)); found {
 		t.Errorf("Expected nothing found for Category(1)")
+	}
+}
+
+func testRecv(sendCh <-chan *CommandRequest, ackMsg *Message, respCmd Command, payloads ...encoding.BinaryMarshaler) {
+	// receive command request and send ack
+	request := <-sendCh
+	request.Ack = ackMsg
+	request.DoneCh <- request
+
+	doneCh := make(chan *CommandResponse, 1)
+
+	// return subsequent traffic
+	for {
+		if len(payloads) > 0 {
+			msg := &Message{Command: respCmd}
+			msg.Payload, _ = payloads[0].MarshalBinary()
+			msg.Payload = append(msg.Payload, make([]byte, 14-len(msg.Payload))...)
+			request.RecvCh <- &CommandResponse{Message: msg, DoneCh: doneCh}
+			payloads = payloads[1:]
+		} else {
+			<-doneCh
+			close(request.RecvCh)
+			return
+		}
 	}
 }

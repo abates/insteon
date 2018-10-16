@@ -268,28 +268,28 @@ func TestI1DeviceProductData(t *testing.T) {
 
 	expected := ProductData{ProductKey{1, 2, 3}, DevCat{4, 5}}
 
-	go func() {
-		request := <-sendCh
-		request.Ack = &Message{}
-		request.DoneCh <- request
-		msg := &Message{Command: CmdProductDataResp}
-		msg.Payload, _ = expected.MarshalBinary()
-		msg.Payload = append(msg.Payload, make([]byte, 14-len(msg.Payload))...)
-		doneCh := make(chan *CommandResponse, 1)
-
-		sentResponse := &CommandResponse{Message: msg, DoneCh: doneCh}
-		request.RecvCh <- sentResponse
-		response := <-doneCh
-		if response != sentResponse {
-			t.Errorf("expected %v got %v", sentResponse, response)
-		}
-		close(request.RecvCh)
-	}()
+	go testRecv(sendCh, &Message{}, CmdProductDataResp, &expected)
 
 	pd, err := device.ProductData()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	} else if *pd != expected {
 		t.Errorf("Expected %v got %v", expected, *pd)
+	}
+}
+
+func TestI1DeviceBlockDataTransfer(t *testing.T) {
+	device := &I1Device{}
+	_, err := device.BlockDataTransfer(0, 0, 0)
+	if err != ErrNotImplemented {
+		t.Errorf("expected %v got %v", ErrNotImplemented, err)
+	}
+}
+
+func TestI1DeviceString(t *testing.T) {
+	device := &I1Device{address: Address{3, 4, 5}}
+	expected := "I1 Device (03.04.05)"
+	if device.String() != expected {
+		t.Errorf("expected %q got %q", expected, device.String())
 	}
 }
