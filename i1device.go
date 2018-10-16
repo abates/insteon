@@ -76,7 +76,11 @@ func (i1 *I1Device) process() {
 				return
 			}
 			i1.receiveAck(request)
-		case response := <-i1.listenDoneCh:
+		case response, open := <-i1.listenDoneCh:
+			if !open {
+				return
+			}
+
 			if response.request == i1.waitRequest {
 				close(i1.waitRequest.RecvCh)
 				i1.waitRequest = nil
@@ -222,7 +226,7 @@ func (i1 *I1Device) Ping() (err error) {
 
 // SetAllLinkCommandAlias will set the device's standard command to be used
 // when the given alias command is sent
-func (i1 *I1Device) SetAllLinkCommandAlias(match, replace *Command) error {
+func (i1 *I1Device) SetAllLinkCommandAlias(match, replace Command) error {
 	// TODO implement
 	return ErrNotImplemented
 }

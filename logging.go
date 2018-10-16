@@ -90,6 +90,14 @@ func (s *Logger) Infof(format string, v ...interface{}) {
 	s.logf(LevelInfo, format, v...)
 }
 
+// Errorf will print a message at the Info level if the supplied error is
+// non-nil
+func (s *Logger) Errorf(err error, format string, v ...interface{}) {
+	if err != nil {
+		s.logf(LevelInfo, format, v...)
+	}
+}
+
 // Debugf will print a message at the Debug level
 func (s *Logger) Debugf(format string, v ...interface{}) {
 	s.logf(LevelDebug, format, v...)

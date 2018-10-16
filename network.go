@@ -95,7 +95,8 @@ func (network *Network) process() {
 
 func (network *Network) receive(buf []byte) {
 	msg := &Message{}
-	if err := msg.UnmarshalBinary(buf); err == nil {
+	err := msg.UnmarshalBinary(buf)
+	if err == nil {
 		Log.Tracef("Received Insteon Message %v", msg)
 		if msg.Broadcast() {
 			// Set Button Pressed Controller/Responder
@@ -111,9 +112,9 @@ func (network *Network) receive(buf []byte) {
 		for _, connection := range network.connections {
 			connection <- msg
 		}
-	} else {
-		Log.Tracef("Failed unmarshalling message received from network: %v", err)
 	}
+	Log.Errorf(err, "Failed unmarshalling message received from network: %v", err)
+
 }
 
 func (network *Network) disconnect(connection chan<- *Message) {
