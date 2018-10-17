@@ -84,7 +84,7 @@ func TestConnectionReceiveAck(t *testing.T) {
 		conn.queue = append(conn.queue, request)
 		conn.receive(test.returnedAck)
 
-		if !IsError(request.Err, test.expectedErr) {
+		if !isError(request.Err, test.expectedErr) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedErr, request.Err)
 		} else if request.Ack != test.returnedAck {
 			t.Errorf("tests[%d] expected %v got %v", i, test.returnedAck, request.Ack)

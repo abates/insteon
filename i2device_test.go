@@ -65,7 +65,24 @@ func TestI2DeviceCommands(t *testing.T) {
 	}
 }
 
-func TestI2CsDeviceString(t *testing.T) {
+func TestI2DeviceLinks(t *testing.T) {
+	sendCh := make(chan *CommandRequest, 1)
+	device := &I2Device{&I1Device{sendCh: sendCh}}
+
+	link1 := &LinkRequest{MemAddress: 0xffff, Type: 0x02, Link: &LinkRecord{Flags: 0x01}}
+	link2 := &LinkRequest{MemAddress: 0, Type: 0x02, Link: &LinkRecord{}}
+
+	go testRecv(sendCh, &Message{}, CmdReadWriteALDB, link1, link2)
+
+	links, err := device.Links()
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	} else if len(links) != 1 {
+		t.Errorf("Expected 1 link got %v", len(links))
+	}
+}
+
+func TestI2DeviceString(t *testing.T) {
 	device := &I2Device{&I1Device{address: Address{3, 4, 5}}}
 	expected := "I2 Device (03.04.05)"
 	if device.String() != expected {

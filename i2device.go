@@ -52,13 +52,17 @@ func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
 		if response.Message.Flags.Extended() && response.Message.Command[1] == CmdReadWriteALDB[1] {
 			lr := &LinkRequest{}
 			err = lr.UnmarshalBinary(response.Message.Payload)
+			// make sure there was no error unmarshalling, also make sure
+			// that it's a new memory address.  Since insteon messages
+			// are retransmitted, it is possible that the same ALDB response
+			// will be received more than once
 			if err == nil && lr.MemAddress != lastAddress {
 				lastAddress = lr.MemAddress
 				links = append(links, lr.Link)
-			} else if err == ErrEndOfLinks {
-				response.DoneCh <- response
-				err = nil
-			} else {
+			} else if err != nil {
+				if err == ErrEndOfLinks {
+					err = nil
+				}
 				response.DoneCh <- response
 			}
 		}

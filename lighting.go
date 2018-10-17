@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -298,10 +299,11 @@ func (sd *switchedDevice) Status() (level int, err error) {
 }
 
 func (sd *switchedDevice) String() string {
+	address := ""
 	if addr, ok := sd.Commandable.(Addressable); ok {
-		return sprintf("Switch (%s)", addr.Address())
+		address = fmt.Sprintf(" (%s)", addr.Address())
 	}
-	return sprintf("Switch")
+	return fmt.Sprintf("Switch%s", address)
 }
 
 func (sd *switchedDevice) SetX10Address(button int, houseCode, unitCode byte) error {
@@ -319,6 +321,38 @@ func (sd *switchedDevice) SwitchConfig() (config SwitchConfig, err error) {
 		}
 	}
 	return config, err
+}
+
+func (sd *switchedDevice) setOperatingFlags(flags byte, conditional bool) error {
+	if conditional {
+		return extractError(sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)), nil))
+	}
+	return extractError(sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)+1), nil))
+}
+
+func (sd *switchedDevice) SetProgramLock(flag bool) error { return sd.setOperatingFlags(0, flag) }
+func (sd *switchedDevice) SetTxLED(flag bool) error       { return sd.setOperatingFlags(2, flag) }
+func (sd *switchedDevice) SetResumeDim(flag bool) error   { return sd.setOperatingFlags(4, flag) }
+func (sd *switchedDevice) SetLoadSense(flag bool) error   { return sd.setOperatingFlags(6, !flag) }
+func (sd *switchedDevice) SetLED(flag bool) error         { return sd.setOperatingFlags(8, !flag) }
+
+func (sd *switchedDevice) OperatingFlags() (flags LightFlags, err error) {
+	commands := []Command{
+		CmdGetOperatingFlags.SubCommand(0x00),
+		CmdGetOperatingFlags.SubCommand(0x01),
+		CmdGetOperatingFlags.SubCommand(0x02),
+		CmdGetOperatingFlags.SubCommand(0x03),
+		CmdGetOperatingFlags.SubCommand(0x05),
+	}
+
+	for i, cmd := range commands {
+		cmd, err = sd.SendCommand(cmd, nil)
+		if err != nil {
+			break
+		}
+		flags[i] = cmd[2]
+	}
+	return
 }
 
 type i1DimmableDevice struct {
@@ -363,7 +397,7 @@ func (dd *dimmableDevice) OnLevel(level int) error {
 }
 
 func (dd *dimmableDevice) OnFast(level int) error {
-	_, err := dd.SendCommand(CmdLightOnFast, nil)
+	_, err := dd.SendCommand(CmdLightOnFast.SubCommand(level), nil)
 	return err
 }
 
@@ -423,10 +457,11 @@ func (dd *dimmableDevice) OffAtRamp(ramp int) (err error) {
 }
 
 func (dd *dimmableDevice) String() string {
+	address := ""
 	if addr, ok := dd.Commandable.(Addressable); ok {
-		return sprintf("Dimmable Light (%s)", addr.Address())
+		address = fmt.Sprintf(" (%s)", addr.Address())
 	}
-	return sprintf("Dimmable Light")
+	return fmt.Sprintf("Dimmable Light%s", address)
 }
 
 func (dd *dimmableDevice) SetDefaultRamp(rate int) error {
@@ -455,38 +490,6 @@ func (dd *dimmableDevice) DimmerConfig() (config DimmerConfig, err error) {
 		}
 	}
 	return config, err
-}
-
-func (sd *switchedDevice) setOperatingFlags(flags byte, conditional bool) error {
-	if conditional {
-		return extractError(sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)), nil))
-	}
-	return extractError(sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)), nil))
-}
-
-func (sd *switchedDevice) SetProgramLock(flag bool) error { return sd.setOperatingFlags(0, flag) }
-func (sd *switchedDevice) SetTxLED(flag bool) error       { return sd.setOperatingFlags(2, flag) }
-func (sd *switchedDevice) SetResumeDim(flag bool) error   { return sd.setOperatingFlags(4, flag) }
-func (sd *switchedDevice) SetLoadSense(flag bool) error   { return sd.setOperatingFlags(6, !flag) }
-func (sd *switchedDevice) SetLED(flag bool) error         { return sd.setOperatingFlags(8, !flag) }
-
-func (sd *switchedDevice) OperatingFlags() (flags LightFlags, err error) {
-	commands := []Command{
-		CmdGetOperatingFlags.SubCommand(0x00),
-		CmdGetOperatingFlags.SubCommand(0x01),
-		CmdGetOperatingFlags.SubCommand(0x02),
-		CmdGetOperatingFlags.SubCommand(0x03),
-		CmdGetOperatingFlags.SubCommand(0x05),
-	}
-
-	for i, cmd := range commands {
-		cmd, err = sd.SendCommand(cmd, nil)
-		if err != nil {
-			break
-		}
-		flags[i] = cmd[2]
-	}
-	return
 }
 
 func switchedDeviceFactory(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (device Device, err error) {

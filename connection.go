@@ -90,7 +90,7 @@ func errLookup(command Command) (err error) {
 	case 0xff:
 		err = ErrNotLinked
 	default:
-		err = NewTraceError(ErrUnexpectedResponse)
+		err = newTraceError(ErrUnexpectedResponse)
 	}
 	return
 }
@@ -108,7 +108,7 @@ func i2csErrLookup(command Command) (err error) {
 	case 0xff:
 		err = ErrNotLinked
 	default:
-		err = NewTraceError(ErrUnexpectedResponse)
+		err = newTraceError(ErrUnexpectedResponse)
 	}
 	return
 }

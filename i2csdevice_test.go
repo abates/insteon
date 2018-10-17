@@ -65,7 +65,7 @@ func TestI2CsSendCommand(t *testing.T) {
 	device.SendCommand(CmdSetOperatingFlags, nil)
 }
 
-func TestI2DeviceString(t *testing.T) {
+func TestI2CsDeviceString(t *testing.T) {
 	device := &I2CsDevice{&I2Device{&I1Device{address: Address{3, 4, 5}}}}
 	expected := "I2CS Device (03.04.05)"
 	if device.String() != expected {

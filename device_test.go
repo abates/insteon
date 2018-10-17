@@ -52,7 +52,7 @@ func testRecv(sendCh <-chan *CommandRequest, ackMsg *Message, respCmd Command, p
 	// return subsequent traffic
 	for {
 		if len(payloads) > 0 {
-			msg := &Message{Command: respCmd}
+			msg := &Message{Command: respCmd, Flags: ExtendedDirectMessage}
 			msg.Payload, _ = payloads[0].MarshalBinary()
 			msg.Payload = append(msg.Payload, make([]byte, 14-len(msg.Payload))...)
 			request.RecvCh <- &CommandResponse{Message: msg, DoneCh: doneCh}
@@ -63,4 +63,20 @@ func testRecv(sendCh <-chan *CommandRequest, ackMsg *Message, respCmd Command, p
 			return
 		}
 	}
+}
+
+type commandable struct {
+	sentCmd     Command
+	sentPayload []byte
+	respCmd     Command
+}
+
+func (c *commandable) SendCommand(cmd Command, payload []byte) (response Command, err error) {
+	c.sentCmd = cmd
+	c.sentPayload = payload
+	return c.respCmd, nil
+}
+
+func (c *commandable) SendCommandAndListen(cmd Command, payload []byte) (recvCh <-chan *CommandResponse, err error) {
+	return nil, nil
 }

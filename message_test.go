@@ -215,7 +215,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 	for i, test := range tests {
 		message := &Message{}
 		err := message.UnmarshalBinary(test.input)
-		if !IsError(err, test.expectedError) {
+		if !isError(err, test.expectedError) {
 			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
 			continue
 		} else if err != nil {
