@@ -268,7 +268,12 @@ func TestI1DeviceProductData(t *testing.T) {
 
 	expected := ProductData{ProductKey{1, 2, 3}, DevCat{4, 5}}
 
-	go testRecv(sendCh, &Message{}, CmdProductDataResp, &expected)
+	go func() {
+		request := <-sendCh
+		request.Ack = &Message{}
+		request.DoneCh <- request
+		testRecv(request.RecvCh, CmdProductDataResp, &expected)
+	}()
 
 	pd, err := device.ProductData()
 	if err != nil {

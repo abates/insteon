@@ -72,7 +72,12 @@ func TestI2DeviceLinks(t *testing.T) {
 	link1 := &LinkRequest{MemAddress: 0xffff, Type: 0x02, Link: &LinkRecord{Flags: 0x01}}
 	link2 := &LinkRequest{MemAddress: 0, Type: 0x02, Link: &LinkRecord{}}
 
-	go testRecv(sendCh, &Message{}, CmdReadWriteALDB, link1, link2)
+	go func() {
+		request := <-sendCh
+		request.Ack = &Message{}
+		request.DoneCh <- request
+		testRecv(request.RecvCh, CmdReadWriteALDB, link1, link2)
+	}()
 
 	links, err := device.Links()
 	if err != nil {

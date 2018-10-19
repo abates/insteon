@@ -43,7 +43,7 @@ type SwitchConfig struct {
 // UnmarshalBinary takes the given byte buffer and unmarshals it into
 // the receiver
 func (sc *SwitchConfig) UnmarshalBinary(buf []byte) error {
-	if len(buf) < 12 {
+	if len(buf) < 14 {
 		return ErrBufferTooShort
 	}
 	sc.HouseCode = int(buf[4])
@@ -126,7 +126,7 @@ type DimmerConfig struct {
 
 // UnmarshalBinary will parse the byte buffer into the receiver
 func (dc *DimmerConfig) UnmarshalBinary(buf []byte) error {
-	if len(buf) < 12 {
+	if len(buf) < 14 {
 		return ErrBufferTooShort
 	}
 	dc.HouseCode = int(buf[4])
@@ -345,12 +345,9 @@ func (sd *switchedDevice) OperatingFlags() (flags LightFlags, err error) {
 		CmdGetOperatingFlags.SubCommand(0x05),
 	}
 
-	for i, cmd := range commands {
-		cmd, err = sd.SendCommand(cmd, nil)
-		if err != nil {
-			break
-		}
-		flags[i] = cmd[2]
+	for i := 0; i < len(commands) && err == nil; i++ {
+		commands[i], err = sd.SendCommand(commands[i], nil)
+		flags[i] = commands[i][2]
 	}
 	return
 }

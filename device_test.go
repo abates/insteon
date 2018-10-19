@@ -41,12 +41,7 @@ func TestDeviceRegistry(t *testing.T) {
 	}
 }
 
-func testRecv(sendCh <-chan *CommandRequest, ackMsg *Message, respCmd Command, payloads ...encoding.BinaryMarshaler) {
-	// receive command request and send ack
-	request := <-sendCh
-	request.Ack = ackMsg
-	request.DoneCh <- request
-
+func testRecv(recvCh chan<- *CommandResponse, respCmd Command, payloads ...encoding.BinaryMarshaler) {
 	doneCh := make(chan *CommandResponse, 1)
 
 	// return subsequent traffic
@@ -55,28 +50,43 @@ func testRecv(sendCh <-chan *CommandRequest, ackMsg *Message, respCmd Command, p
 			msg := &Message{Command: respCmd, Flags: ExtendedDirectMessage}
 			msg.Payload, _ = payloads[0].MarshalBinary()
 			msg.Payload = append(msg.Payload, make([]byte, 14-len(msg.Payload))...)
-			request.RecvCh <- &CommandResponse{Message: msg, DoneCh: doneCh}
+			recvCh <- &CommandResponse{Message: msg, DoneCh: doneCh}
 			payloads = payloads[1:]
 		} else {
 			<-doneCh
-			close(request.RecvCh)
+			close(recvCh)
 			return
 		}
 	}
 }
 
+func mkPayload(buf ...byte) []byte {
+	return append(buf, make([]byte, 14-len(buf))...)
+}
+
 type commandable struct {
-	sentCmd     Command
-	sentPayload []byte
-	respCmd     Command
+	sentCmds     []Command
+	sentPayloads [][]byte
+	respCmds     []Command
+	recvCmd      Command
+	recvPayloads []encoding.BinaryMarshaler
 }
 
 func (c *commandable) SendCommand(cmd Command, payload []byte) (response Command, err error) {
-	c.sentCmd = cmd
-	c.sentPayload = payload
-	return c.respCmd, nil
+	c.sentCmds = append(c.sentCmds, cmd)
+	c.sentPayloads = append(c.sentPayloads, payload)
+	resp := Command{}
+	if len(c.respCmds) > 0 {
+		resp = c.respCmds[0]
+		c.respCmds = c.respCmds[1:]
+	}
+	return resp, nil
 }
 
-func (c *commandable) SendCommandAndListen(cmd Command, payload []byte) (recvCh <-chan *CommandResponse, err error) {
-	return nil, nil
+func (c *commandable) SendCommandAndListen(cmd Command, payload []byte) (<-chan *CommandResponse, error) {
+	c.SendCommand(cmd, payload)
+
+	recvCh := make(chan *CommandResponse, 1)
+	go testRecv(recvCh, c.recvCmd, c.recvPayloads...)
+	return recvCh, nil
 }
