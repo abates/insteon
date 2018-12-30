@@ -19,24 +19,44 @@ import "testing"
 func TestAddressUnmarshalText(t *testing.T) {
 	tests := []struct {
 		input   string
-		correct bool
+		want    Address
+		wantErr bool
 	}{
-		{"01.02.03", true},
-		{"abcd", false},
-		{"01b.02.03", false},
+		{"01.02.03", Address{1, 2, 3}, false},
+		{"a1.b2.c3", Address{0xA1, 0xB2, 0xC3}, false},
+		{"D1.E2.F3", Address{0xD1, 0xE2, 0xF3}, false},
+		{"a1b2c3", Address{0xA1, 0xB2, 0xC3}, false},
+		{"D1E2F3", Address{0xD1, 0xE2, 0xF3}, false},
+		{"abcd", Address{}, true},
+		{"abcdefg", Address{}, true},
+		{"01b.02.03", Address{}, true},
 	}
 
 	for i, test := range tests {
 		address := Address{}
 		err := address.UnmarshalText([]byte(test.input))
-		if err == nil && !test.correct {
+		if test.wantErr && err == nil {
 			t.Errorf("tests[%d] expected failure", i)
-		} else if err != nil && test.correct {
+		} else if !test.wantErr && err != nil {
 			t.Errorf("tests[%d] failed: %v", i, err)
 		}
+		if test.want != address {
+			t.Errorf("tests[%d] expected %q got %q", i, test.input, test.want)
+		}
+	}
+}
 
-		if test.correct && test.input != address.String() {
-			t.Errorf("tests[%d] expected %q got %q", i, test.input, address.String())
+func TestAddressString(t *testing.T) {
+	tests := []struct {
+		input Address
+		want  string
+	}{
+		{Address{0, 1, 2}, "00.01.02"},
+	}
+	for i, test := range tests {
+		got := test.input.String()
+		if got != test.want {
+			t.Errorf("tests[%d] %q.String(): expected %q got %q", i, test.input, test.want, got)
 		}
 	}
 }
