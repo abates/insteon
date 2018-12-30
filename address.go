@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 )
@@ -33,16 +34,23 @@ func (a Address) String() string { return sprintf("%02x.%02x.%02x", a[0], a[1], 
 // Insteon address. If the address cannot be parsed then
 // UnmarshalText returns an ErrAddressFormat error
 func (a *Address) UnmarshalText(text []byte) error {
+
+	// Support non-period separated input too.
+	if len(text) == 6 {
+		text = bytes.Join([][]byte{text[0:2], text[2:4], text[4:6]}, []byte("."))
+	}
+	if len(text) != 8 {
+		return ErrAddrFormat
+	}
 	var b1, b2, b3 byte
 	_, err := fmt.Sscanf(string(text), "%2x.%2x.%2x", &b1, &b2, &b3)
-	if err == nil {
-		a[0] = b1
-		a[1] = b2
-		a[2] = b3
-	} else {
-		err = ErrAddrFormat
+	if err != nil {
+		return ErrAddrFormat
 	}
-	return err
+	a[0] = b1
+	a[1] = b2
+	a[2] = b3
+	return nil
 }
 
 // MarshalJSON will convert the address to a JSON string
