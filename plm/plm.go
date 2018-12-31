@@ -86,7 +86,8 @@ func New(port *Port, timeout time.Duration) *PLM {
 	go plm.process()
 
 	sendCh, recvCh := plm.Connect(CmdSendInsteonMsg, CmdStdMsgReceived, CmdExtMsgReceived)
-	plm.Network = insteon.New(sendCh, recvCh, timeout)
+	// 2*timeout so that we timeout before the downstream receiver times out
+	plm.Network = insteon.New(sendCh, recvCh, 2*timeout)
 	return plm
 }
 

@@ -141,8 +141,12 @@ func (network *Network) sendMessage(msg *Message) error {
 		doneCh := make(chan *PacketRequest, 1)
 		request := &PacketRequest{buf, nil, doneCh}
 		network.sendCh <- request
-		<-doneCh
-		err = request.Err
+		select {
+		case <-time.After(network.timeout):
+			err = ErrSendTimeout
+		case <-doneCh:
+			err = request.Err
+		}
 	}
 	return err
 }

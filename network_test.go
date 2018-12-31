@@ -87,13 +87,15 @@ func TestNetworkReceive(t *testing.T) {
 func TestNetworkSendMessage(t *testing.T) {
 	tests := []struct {
 		input      *Message
+		timeout    bool
 		err        error
 		deviceInfo *DeviceInfo
 		bufUpdated bool
 	}{
-		{TestProductDataResponse, nil, &DeviceInfo{EngineVersion: VerI1}, false},
-		{TestProductDataResponse, nil, &DeviceInfo{EngineVersion: VerI2Cs}, true},
-		{TestProductDataResponse, ErrReadTimeout, nil, false},
+		{TestProductDataResponse, false, nil, &DeviceInfo{EngineVersion: VerI1}, false},
+		{TestProductDataResponse, false, nil, &DeviceInfo{EngineVersion: VerI2Cs}, true},
+		{TestProductDataResponse, false, ErrReadTimeout, nil, false},
+		{TestProductDataResponse, true, ErrSendTimeout, nil, false},
 	}
 
 	for i, test := range tests {
@@ -101,17 +103,20 @@ func TestNetworkSendMessage(t *testing.T) {
 		testDb := newTestProductDB()
 		testDb.deviceInfo = test.deviceInfo
 		network := &Network{
-			DB:     testDb,
-			sendCh: sendCh,
+			DB:      testDb,
+			sendCh:  sendCh,
+			timeout: time.Millisecond,
 		}
 
 		go func(i int) {
-			request := <-sendCh
-			if test.bufUpdated && request.Payload[len(request.Payload)-1] == 0x00 {
-				t.Errorf("tests[%d] expected checksum to be set", i)
+			if !test.timeout {
+				request := <-sendCh
+				if test.bufUpdated && request.Payload[len(request.Payload)-1] == 0x00 {
+					t.Errorf("tests[%d] expected checksum to be set", i)
+				}
+				request.Err = test.err
+				request.DoneCh <- request
 			}
-			request.Err = test.err
-			request.DoneCh <- request
 		}(i)
 
 		err := network.sendMessage(test.input)

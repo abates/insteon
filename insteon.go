@@ -28,6 +28,10 @@ var (
 	// a specific message
 	ErrReadTimeout = errors.New("Read Timeout")
 
+	// ErrSendTimeout indicates the timeout period expired while trying to
+	// send a message
+	ErrSendTimeout = errors.New("Send Timeout")
+
 	// ErrNotImplemented indicates that a device function has not yet been implemented
 	ErrNotImplemented = errors.New("Command is not yet implemented")
 

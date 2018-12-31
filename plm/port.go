@@ -57,6 +57,7 @@ func (port *Port) readLoop() {
 	for {
 		packet, err := port.readPacket()
 		if err == nil {
+			insteon.Log.Tracef("RX %s", hexDump("%02x", packet, " "))
 			port.readCh <- packet
 		} else {
 			insteon.Log.Infof("Error reading packet: %v", err)
