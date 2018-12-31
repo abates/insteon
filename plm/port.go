@@ -22,10 +22,6 @@ import (
 	"github.com/abates/insteon"
 )
 
-const (
-	writeDelay = 500 * time.Millisecond
-)
-
 type Port struct {
 	in      *bufio.Reader
 	out     io.Writer
@@ -90,7 +86,6 @@ func (port *Port) process() {
 
 func (port *Port) send(buf []byte) {
 	_, err := port.out.Write(buf)
-	<-time.After(writeDelay)
 	if err == nil {
 		insteon.Log.Tracef("TX %s", hexDump("%02x", buf, " "))
 	} else {

@@ -23,6 +23,10 @@ import (
 	"github.com/abates/insteon"
 )
 
+const (
+	writeDelay = 500 * time.Millisecond
+)
+
 var (
 	ErrReadTimeout        = errors.New("Timeout reading from plm")
 	ErrNoSync             = errors.New("No sync byte received")
@@ -60,6 +64,7 @@ type PacketRequest struct {
 
 type PLM struct {
 	timeout     time.Duration
+	nextWrite   time.Time
 	connections []chan<- *Packet
 	queue       []*PacketRequest
 
@@ -128,9 +133,18 @@ func (plm *PLM) send() {
 	if len(plm.queue) > 0 {
 		request := plm.queue[0]
 		if buf, err := request.Packet.MarshalBinary(); err == nil {
+			// try to prevent sending insteon messages too quickly
+			if time.Now().Before(plm.nextWrite) {
+				<-time.After(plm.nextWrite.Sub(time.Now()))
+			}
 			insteon.Log.Debugf("Sending packet to port")
 			request.timeout = time.Now().Add(plm.timeout)
 			plm.upstreamSendCh <- buf
+			if 0x61 <= request.Packet.Command && request.Packet.Command <= 0x63 {
+				plm.nextWrite = time.Now().Add(writeDelay)
+			} else {
+				plm.nextWrite = time.Now()
+			}
 		} else {
 			insteon.Log.Infof("Failed to marshal packet: %v", err)
 			request.Err = err
