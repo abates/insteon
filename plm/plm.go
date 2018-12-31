@@ -212,16 +212,19 @@ func (plm *PLM) Retry(packet *Packet, retries int) (ack *Packet, err error) {
 
 	plm.sendCh <- request
 	<-doneCh
-	if request.Err == ErrNak && retries > 0 {
-		for request.Err == ErrNak && retries > 0 {
-			insteon.Log.Debugf("Received NAK sending %q. Retrying", packet)
+	if (request.Err == ErrNak || request.Err == ErrReadTimeout) && retries > 0 {
+		for (request.Err == ErrNak || request.Err == ErrReadTimeout) && retries > 0 {
+			if request.Err == ErrReadTimeout {
+				insteon.Log.Infof("Read timeout waiting for PLM ACK")
+			}
+			insteon.Log.Debugf("Received %q sending %q. Retrying", request.Err.Error(), packet)
 			retries--
 			plm.sendCh <- request
 			<-doneCh
 		}
 
-		if request.Err == ErrNak {
-			insteon.Log.Debugf("Retry count exceeded")
+		if request.Err == ErrNak || request.Err == ErrReadTimeout {
+			insteon.Log.Debugf("Retry count exceeded: %v", request.Err)
 			request.Err = ErrRetryCountExceeded
 		}
 	}
@@ -240,7 +243,7 @@ func (plm *PLM) connect(sendCmd Command, recvCmds ...Command) *connection {
 
 	go func() {
 		for request := range sendCh {
-			_, request.Err = plm.Retry(&Packet{Command: request.Command, Payload: request.Payload}, 0)
+			_, request.Err = plm.Retry(&Packet{Command: request.Command, Payload: request.Payload}, 3)
 			request.DoneCh <- request
 		}
 		plm.disconnectCh <- recvCh
