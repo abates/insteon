@@ -73,7 +73,10 @@ func (conn *connection) send(request *insteon.PacketRequest) {
 
 	conn.upstreamSendCh <- &CommandRequest{Command: conn.sendCmd, Payload: payload, DoneCh: doneCh}
 	upstreamRequest := <-doneCh
-	request.Err = upstreamRequest.Err
+	// ignore read timeout for testing
+	if upstreamRequest.Err != ErrReadTimeout {
+		request.Err = upstreamRequest.Err
+	}
 	request.DoneCh <- request
 }
 
