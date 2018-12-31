@@ -108,9 +108,9 @@ func (port *Port) readPacket() (buf []byte, err error) {
 			if packetLen, found := commandLens[Command(b)]; found {
 				buf = append(buf, []byte{0x02, b}...)
 				buf = append(buf, make([]byte, packetLen)...)
-				log.Tracef("Attempting to read %d more bytes", packetLen)
+				insteon.Log.Tracef("Attempting to read %d more bytes", packetLen)
 				_, err = io.ReadAtLeast(port.in, buf[2:], packetLen)
-				log.Tracef("Completed read: %s", hexDump("%02x", buf, " "))
+				insteon.Log.Tracef("Completed read: %s", hexDump("%02x", buf, " "))
 				break
 			} else {
 				err = port.in.UnreadByte()
