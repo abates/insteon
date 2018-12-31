@@ -100,6 +100,7 @@ func (port *Port) readPacket() (buf []byte, err error) {
 	for err == nil {
 		var b byte
 		b, err = port.in.ReadByte()
+		// first byte of PLM packets is always 0x02
 		if b != 0x02 {
 			continue
 		} else {
@@ -107,13 +108,16 @@ func (port *Port) readPacket() (buf []byte, err error) {
 			if packetLen, found := commandLens[Command(b)]; found {
 				buf = append(buf, []byte{0x02, b}...)
 				buf = append(buf, make([]byte, packetLen)...)
+				log.Tracef("Attempting to read %d more bytes", packetLen)
 				_, err = io.ReadAtLeast(port.in, buf[2:], packetLen)
+				log.Tracef("Completed read: %s", hexDump("%02x", buf, " "))
 				break
 			} else {
 				err = port.in.UnreadByte()
 			}
 		}
-		// I don't remember why this is here...
+
+		// prevent infinite loop while trying to synchronize
 		if time.Now().After(timeout) {
 			err = insteon.ErrReadTimeout
 			break
