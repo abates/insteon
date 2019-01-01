@@ -57,6 +57,7 @@ var (
 	logLevelFlag   LogLevelFlag
 	serialPortFlag string
 	timeoutFlag    time.Duration
+	writeDelayFlag time.Duration
 
 	Commands = cli.New(os.Args[0], "", "", run)
 )
@@ -66,6 +67,7 @@ func init() {
 	Commands.Flags.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
 	Commands.Flags.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
 	Commands.Flags.DurationVar(&timeoutFlag, "timeout", 3*time.Second, "read/write timeout duration")
+	Commands.Flags.DurationVar(&writeDelayFlag, "writeDelay", 500*time.Millisecond, "writeDelay duration")
 }
 
 func getResponse(message string, acceptable ...string) (resp string) {
@@ -101,7 +103,7 @@ func run(args []string, next cli.NextFunc) error {
 	if err == nil {
 		defer s.Close()
 
-		modem = plm.New(plm.NewPort(s, timeoutFlag), timeoutFlag)
+		modem = plm.New(plm.NewPort(s, timeoutFlag), timeoutFlag, plm.WriteDelay(writeDelayFlag))
 		defer modem.Close()
 		if logLevelFlag == insteon.LevelTrace {
 			//modem.StartMonitor()
