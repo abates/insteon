@@ -25,3 +25,18 @@ func TestPlmTimeout(t *testing.T) {
 
 	plm.process()
 }
+
+func TestPlmOption(t *testing.T) {
+	want := 1234 * time.Millisecond
+
+	without := New(&Port{}, 5*time.Second)
+	if without.writeDelay == want {
+		t.Errorf("writeDelay is %v, expected anything else", without.writeDelay)
+	}
+
+	with := New(&Port{}, 5*time.Second, WriteDelay(want))
+	if with.writeDelay != want {
+		t.Errorf("writeDelay is %v, wanted %v", without.writeDelay, want)
+	}
+
+}

@@ -23,10 +23,6 @@ import (
 	"github.com/abates/insteon"
 )
 
-const (
-	writeDelay = 500 * time.Millisecond
-)
-
 var (
 	ErrReadTimeout        = errors.New("Timeout reading from plm")
 	ErrNoSync             = errors.New("No sync byte received")
@@ -64,6 +60,7 @@ type PacketRequest struct {
 
 type PLM struct {
 	timeout     time.Duration
+	writeDelay  time.Duration
 	nextWrite   time.Time
 	connections []chan<- *Packet
 	queue       []*PacketRequest
@@ -77,9 +74,14 @@ type PLM struct {
 	Network *insteon.Network
 }
 
-func New(port *Port, timeout time.Duration) *PLM {
+// The Option mechanism is based on the method described at https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
+type Option func(p *PLM) error
+
+// New creates a new PLM instance.
+func New(port *Port, timeout time.Duration, options ...Option) *PLM {
 	plm := &PLM{
-		timeout: timeout,
+		timeout:    timeout,
+		writeDelay: 500 * time.Millisecond,
 
 		sendCh:         make(chan *PacketRequest, 1),
 		upstreamSendCh: port.sendCh,
@@ -88,12 +90,29 @@ func New(port *Port, timeout time.Duration) *PLM {
 		disconnectCh:   make(chan chan<- *Packet),
 	}
 
+	for _, o := range options {
+		err := o(plm)
+		if err != nil {
+			insteon.Log.Infof("error setting option %v: %v", err, err)
+			return nil
+			// TODO: change New() to return an error if there's an error
+		}
+	}
+
 	go plm.process()
 
 	sendCh, recvCh := plm.Connect(CmdSendInsteonMsg, CmdStdMsgReceived, CmdExtMsgReceived)
 	// 2*timeout so that we timeout before the downstream receiver times out
 	plm.Network = insteon.New(sendCh, recvCh, 2*timeout)
 	return plm
+}
+
+// WriteDelay can be passed as a parameter to New to change the delay used after writing a command before reading the response.
+func WriteDelay(d time.Duration) Option {
+	return func(p *PLM) error {
+		p.writeDelay = d
+		return nil
+	}
 }
 
 func (plm *PLM) process() {
@@ -141,7 +160,7 @@ func (plm *PLM) send() {
 			request.timeout = time.Now().Add(plm.timeout)
 			plm.upstreamSendCh <- buf
 			if 0x61 <= request.Packet.Command && request.Packet.Command <= 0x63 {
-				plm.nextWrite = time.Now().Add(writeDelay)
+				plm.nextWrite = time.Now().Add(plm.writeDelay)
 			} else {
 				plm.nextWrite = time.Now()
 			}
