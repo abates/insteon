@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path"
@@ -41,6 +42,25 @@ func (ll LogLevel) String() string {
 		return "TRACE"
 	}
 	return ""
+}
+
+func (ll *LogLevel) Set(s string) (err error) {
+	switch s {
+	case "none":
+	case "info":
+		(*ll) = LevelInfo
+	case "debug":
+		(*ll) = LevelDebug
+	case "trace":
+		(*ll) = LevelTrace
+	default:
+		err = fmt.Errorf("valid values {none|info|debug|trace}")
+	}
+	return err
+}
+
+func (ll *LogLevel) Get() interface{} {
+	return LogLevel(*ll)
 }
 
 const (

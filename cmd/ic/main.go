@@ -27,34 +27,9 @@ import (
 	"github.com/tarm/serial"
 )
 
-type LogLevelFlag insteon.LogLevel
-
-func (llf *LogLevelFlag) Set(s string) (err error) {
-	switch s {
-	case "none":
-	case "info":
-		(*llf) = insteon.LevelInfo
-	case "debug":
-		(*llf) = insteon.LevelDebug
-	case "trace":
-		(*llf) = insteon.LevelTrace
-	default:
-		err = fmt.Errorf("valid values {none|info|debug|trace}")
-	}
-	return err
-}
-
-func (llf *LogLevelFlag) Get() interface{} {
-	return insteon.LogLevel(*llf)
-}
-
-func (llf *LogLevelFlag) String() string {
-	return insteon.LogLevel(*llf).String()
-}
-
 var (
 	modem          *plm.PLM
-	logLevelFlag   LogLevelFlag
+	logLevelFlag   insteon.LogLevel
 	serialPortFlag string
 	timeoutFlag    time.Duration
 	writeDelayFlag time.Duration
@@ -91,7 +66,7 @@ func getResponse(message string, acceptable ...string) (resp string) {
 
 func run(args []string, next cli.NextFunc) error {
 	if logLevelFlag > insteon.LevelNone {
-		insteon.Log.Level(insteon.LogLevel(logLevelFlag))
+		insteon.Log.Level(logLevelFlag)
 	}
 
 	c := &serial.Config{
