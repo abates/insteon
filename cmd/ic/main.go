@@ -17,6 +17,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -69,14 +70,24 @@ func run(args []string, next cli.NextFunc) error {
 		insteon.Log.Level(logLevelFlag)
 	}
 
-	c := &serial.Config{
-		Name: serialPortFlag,
-		Baud: 19200,
+	// allow simulation from stdin
+	var s io.ReadWriter
+	var err error
+	if serialPortFlag == "-" {
+		s = &simReaderWriter{}
+	} else {
+		c := &serial.Config{
+			Name: serialPortFlag,
+			Baud: 19200,
+		}
+
+		s, err = serial.OpenPort(c)
 	}
 
-	s, err := serial.OpenPort(c)
 	if err == nil {
-		defer s.Close()
+		if closer, ok := s.(io.Closer); ok {
+			defer closer.Close()
+		}
 
 		modem = plm.New(plm.NewPort(s, timeoutFlag), timeoutFlag, plm.WriteDelay(writeDelayFlag))
 		defer modem.Close()
