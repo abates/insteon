@@ -17,6 +17,7 @@ package plm
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -336,6 +337,11 @@ func (plm *PLM) String() string {
 }
 
 func (plm *PLM) close() {
+	for _, request := range plm.queue {
+		request.Err = io.EOF
+		request.DoneCh <- request
+	}
+
 	for _, connection := range plm.connections {
 		close(connection)
 	}

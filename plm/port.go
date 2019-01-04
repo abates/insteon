@@ -56,24 +56,37 @@ func (port *Port) readLoop() {
 			insteon.Log.Tracef("RX %s", hexDump("%02x", packet, " "))
 			port.readCh <- packet
 		} else {
+			if err == io.EOF {
+				close(port.readCh)
+				break
+			}
 			insteon.Log.Infof("Error reading packet: %v", err)
 		}
 	}
+	insteon.Log.Debugf("Port exiting read loop")
 }
 
 func (port *Port) process() {
+	defer func() {
+		close(port.recvCh)
+		if closer, ok := port.out.(io.Closer); ok {
+			err := closer.Close()
+			if err != nil {
+				insteon.Log.Infof("Failed to close io writer: %v", err)
+			}
+		}
+		insteon.Log.Debugf("Port exiting process loop")
+	}()
+
 	for {
 		select {
-		case packet := <-port.readCh:
+		case packet, open := <-port.readCh:
+			if !open {
+				return
+			}
 			port.recvCh <- packet
 		case buf, open := <-port.sendCh:
 			if !open {
-				if closer, ok := port.out.(io.Closer); ok {
-					err := closer.Close()
-					if err != nil {
-						insteon.Log.Infof("Failed to close io writer: %v", err)
-					}
-				}
 				return
 			}
 			port.send(buf)
@@ -85,10 +98,9 @@ func (port *Port) process() {
 }
 
 func (port *Port) send(buf []byte) {
+	insteon.Log.Tracef("TX %s", hexDump("%02x", buf, " "))
 	_, err := port.out.Write(buf)
-	if err == nil {
-		insteon.Log.Tracef("TX %s", hexDump("%02x", buf, " "))
-	} else {
+	if err != nil {
 		insteon.Log.Infof("Failed to write: %v", err)
 	}
 }
@@ -100,6 +112,10 @@ func (port *Port) readPacket() (buf []byte, err error) {
 	for err == nil {
 		var b byte
 		b, err = port.in.ReadByte()
+		if err != nil {
+			break
+		}
+
 		// first byte of PLM packets is always 0x02
 		if b != 0x02 {
 			insteon.Log.Tracef("Expected STX (0x02) got 0x%02x", b)
