@@ -15,3 +15,8 @@
 
 # vim swap files
 .*.swp
+
+# emacs backup files
+*~
+# emacs temp files
+\#*#
