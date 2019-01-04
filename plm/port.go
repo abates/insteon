@@ -102,6 +102,7 @@ func (port *Port) readPacket() (buf []byte, err error) {
 		b, err = port.in.ReadByte()
 		// first byte of PLM packets is always 0x02
 		if b != 0x02 {
+			insteon.Log.Tracef("Expected STX (0x02) got 0x%02x", b)
 			continue
 		} else {
 			b, err = port.in.ReadByte()
