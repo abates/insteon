@@ -293,7 +293,7 @@ func (sd *switchedDevice) Off() error {
 func (sd *switchedDevice) Status() (level int, err error) {
 	response, err := sd.SendCommand(CmdLightStatusRequest, nil)
 	if err == nil {
-		level = int(response[1])
+		level = int(response[2])
 	}
 	return level, err
 }
