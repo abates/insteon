@@ -116,21 +116,19 @@ func i2csErrLookup(command Command) (err error) {
 func (conn *connection) receiveAck(msg *Message) {
 	if len(conn.queue) > 0 {
 		request := conn.queue[0]
-		if msg.Command[1]&0xff == request.Message.Command[1]&0xff {
-			conn.queue[0].Ack = msg
-			if msg.Flags.Type() == MsgTypeDirectNak {
-				if VerI1 <= conn.version && conn.version <= VerI2 {
-					request.Err = errLookup(msg.Command)
-				} else if conn.version == VerI2Cs {
-					request.Err = i2csErrLookup(msg.Command)
-				}
+		conn.queue[0].Ack = msg
+		if msg.Flags.Type() == MsgTypeDirectNak {
+			if VerI1 <= conn.version && conn.version <= VerI2 {
+				request.Err = errLookup(msg.Command)
+			} else if conn.version == VerI2Cs {
+				request.Err = i2csErrLookup(msg.Command)
 			}
-
-			conn.queue[0].DoneCh <- conn.queue[0]
-
-			conn.queue = conn.queue[1:]
-			conn.send()
 		}
+
+		conn.queue[0].DoneCh <- conn.queue[0]
+
+		conn.queue = conn.queue[1:]
+		conn.send()
 	}
 }
 
