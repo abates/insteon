@@ -36,7 +36,7 @@ func newTestNetwork(bufSize int) (*Network, chan *PacketRequest, chan []byte) {
 	select {
 	case <-connection:
 	case <-time.After(time.Millisecond):
-		t.Errorf("Expected connection to receive a message")
+		t.Error("Expected connection to receive a message")
 	}
 
 	network.disconnectCh <- connection
@@ -49,243 +49,257 @@ func newTestNetwork(bufSize int) (*Network, chan *PacketRequest, chan []byte) {
 
 func TestNetworkReceive(t *testing.T) {
 	tests := []struct {
+		desc            string
 		input           *Message
 		expectedUpdates []string
 	}{
-		{TestMessageSetButtonPressedController, []string{"FirmwareVersion", "DevCat"}},
-		{TestMessageEngineVersionAck, []string{"EngineVersion"}},
+		{"SetButtonPressed", TestMessageSetButtonPressedController, []string{"FirmwareVersion", "DevCat"}},
+		{"EngineVersion", TestMessageEngineVersionAck, []string{"EngineVersion"}},
 	}
 
-	for i, test := range tests {
-		recvCh := make(chan []byte, 1)
-		testDb := newTestProductDB()
-		connection := make(chan *Message, 1)
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			recvCh := make(chan []byte, 1)
+			testDb := newTestProductDB()
+			connection := make(chan *Message, 1)
 
-		network := &Network{
-			recvCh:      recvCh,
-			DB:          testDb,
-			connections: []chan<- *Message{connection},
-		}
-
-		buf, _ := test.input.MarshalBinary()
-		recvCh <- buf
-		close(recvCh)
-		network.process()
-
-		for _, update := range test.expectedUpdates {
-			if !testDb.WasUpdated(update) {
-				t.Errorf("tests[%d] expected %v to be updated in the database", i, update)
+			network := &Network{
+				recvCh:      recvCh,
+				DB:          testDb,
+				connections: []chan<- *Message{connection},
 			}
-		}
 
-		if len(connection) != 1 {
-			t.Errorf("tests[%d] expected connection to have received the message", i)
-		}
+			buf, _ := test.input.MarshalBinary()
+			recvCh <- buf
+			close(recvCh)
+			network.process()
+
+			for _, update := range test.expectedUpdates {
+				if !testDb.WasUpdated(update) {
+					t.Errorf("expected %v to be updated in the database", update)
+				}
+			}
+
+			if len(connection) != 1 {
+				t.Error("expected connection to have received the message")
+			}
+		})
 	}
 }
 
 func TestNetworkSendMessage(t *testing.T) {
 	tests := []struct {
+		desc       string
 		input      *Message
 		timeout    bool
 		err        error
 		deviceInfo *DeviceInfo
 		bufUpdated bool
 	}{
-		{TestProductDataResponse, false, nil, &DeviceInfo{EngineVersion: VerI1}, false},
-		{TestProductDataResponse, false, nil, &DeviceInfo{EngineVersion: VerI2Cs}, true},
-		{TestProductDataResponse, false, ErrReadTimeout, nil, false},
-		{TestProductDataResponse, true, ErrSendTimeout, nil, false},
+		{"VerI1", TestProductDataResponse, false, nil, &DeviceInfo{EngineVersion: VerI1}, false},
+		{"VerI2Cs", TestProductDataResponse, false, nil, &DeviceInfo{EngineVersion: VerI2Cs}, true},
+		{"ErrReadTimeout", TestProductDataResponse, false, ErrReadTimeout, nil, false},
+		{"ErrSendTimeout", TestProductDataResponse, true, ErrSendTimeout, nil, false},
 	}
 
-	for i, test := range tests {
-		sendCh := make(chan *PacketRequest, 1)
-		testDb := newTestProductDB()
-		testDb.deviceInfo = test.deviceInfo
-		network := &Network{
-			DB:      testDb,
-			sendCh:  sendCh,
-			timeout: time.Millisecond,
-		}
-
-		go func(i int) {
-			if !test.timeout {
-				request := <-sendCh
-				if test.bufUpdated && request.Payload[len(request.Payload)-1] == 0x00 {
-					t.Errorf("tests[%d] expected checksum to be set", i)
-				}
-				request.Err = test.err
-				request.DoneCh <- request
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			sendCh := make(chan *PacketRequest, 1)
+			testDb := newTestProductDB()
+			testDb.deviceInfo = test.deviceInfo
+			network := &Network{
+				DB:      testDb,
+				sendCh:  sendCh,
+				timeout: time.Millisecond,
 			}
-		}(i)
 
-		err := network.sendMessage(test.input)
-		if err != test.err {
-			t.Errorf("tests[%d] expected %v got %v", i, test.err, err)
-		}
+			go func() {
+				if !test.timeout {
+					request := <-sendCh
+					if test.bufUpdated && request.Payload[len(request.Payload)-1] == 0x00 {
+						t.Error("expected checksum to be set")
+					}
+					request.Err = test.err
+					request.DoneCh <- request
+				}
+			}()
+
+			err := network.sendMessage(test.input)
+			if err != test.err {
+				t.Errorf("got error %v, want %v", err, test.err)
+			}
+		})
 	}
 }
 
 func TestNetworkEngineVersion(t *testing.T) {
 	tests := []struct {
+		desc            string
 		returnedAck     *Message
 		returnedErr     error
 		expectedVersion EngineVersion
 	}{
-		{TestMessageEngineVersionAck, nil, 1},
-		{TestMessageEngineVersionAck, nil, 2},
-		{TestMessageEngineVersionAck, nil, 3},
-		{TestMessageEngineVersionAck, ErrReadTimeout, 0},
+		{"v1", TestMessageEngineVersionAck, nil, 1},
+		{"v2", TestMessageEngineVersionAck, nil, 2},
+		{"v3", TestMessageEngineVersionAck, nil, 3},
+		{"err", TestMessageEngineVersionAck, ErrReadTimeout, 0},
 	}
 
-	for i, test := range tests {
-		sendCh := make(chan *PacketRequest, 1)
-		recvCh := make(chan []byte, 1)
-		network := New(sendCh, recvCh, time.Millisecond)
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			sendCh := make(chan *PacketRequest, 1)
+			recvCh := make(chan []byte, 1)
+			network := New(sendCh, recvCh, time.Millisecond)
 
-		go func() {
-			request := <-sendCh
-			if test.returnedErr == nil {
-				ack := *test.returnedAck
-				ack.Src = testDstAddr
-				ack.Command = Command{0x00, ack.Command[1], byte(test.expectedVersion)}
-				buf, _ := ack.MarshalBinary()
-				recvCh <- buf
-			} else {
-				request.Err = test.returnedErr
+			go func() {
+				request := <-sendCh
+				if test.returnedErr == nil {
+					ack := *test.returnedAck
+					ack.Src = testDstAddr
+					ack.Command = Command{0x00, ack.Command[1], byte(test.expectedVersion)}
+					buf, _ := ack.MarshalBinary()
+					recvCh <- buf
+				} else {
+					request.Err = test.returnedErr
+				}
+				request.DoneCh <- request
+			}()
+
+			version, err := network.EngineVersion(testDstAddr)
+
+			if err != test.returnedErr {
+				t.Errorf("got error %v, want %v", err, test.returnedErr)
 			}
-			request.DoneCh <- request
-		}()
 
-		version, err := network.EngineVersion(testDstAddr)
-
-		if err != test.returnedErr {
-			t.Errorf("tests[%d] expected %v got %v", i, test.returnedErr, err)
-		}
-
-		if version != test.expectedVersion {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedVersion, version)
-		}
-		network.Close()
+			if version != test.expectedVersion {
+				t.Errorf("got version %v, want %v", version, test.expectedVersion)
+			}
+			network.Close()
+		})
 	}
 }
 
 func TestNetworkIDRequest(t *testing.T) {
 	tests := []struct {
+		desc             string
 		timeout          bool
 		returnedErr      error
 		expectedErr      error
 		expectedDevCat   DevCat
 		expectedFirmware FirmwareVersion
 	}{
-		{false, ErrReadTimeout, ErrReadTimeout, DevCat{0, 0}, 0},
-		{false, nil, nil, DevCat{1, 2}, 3},
-		{false, nil, nil, DevCat{2, 3}, 4},
-		{true, nil, ErrReadTimeout, DevCat{0, 0}, 0},
+		{"1", false, ErrReadTimeout, ErrReadTimeout, DevCat{0, 0}, 0},
+		{"2", false, nil, nil, DevCat{1, 2}, 3},
+		{"3", false, nil, nil, DevCat{2, 3}, 4},
+		{"4", true, nil, ErrReadTimeout, DevCat{0, 0}, 0},
 	}
 
-	for i, test := range tests {
-		sendCh := make(chan *PacketRequest, 1)
-		recvCh := make(chan []byte, 1)
-		network := New(sendCh, recvCh, time.Millisecond)
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			sendCh := make(chan *PacketRequest, 1)
+			recvCh := make(chan []byte, 1)
+			network := New(sendCh, recvCh, time.Millisecond)
 
-		go func() {
-			request := <-sendCh
-			if test.returnedErr == nil {
-				// the test has to send an ACK, since the device would ack the set button pressed
-				// command before sending a broadcast response
-				ack := &Message{}
-				ack.UnmarshalBinary(request.Payload)
-				src := ack.Dst
-				ack.Dst = ack.Src
-				ack.Src = src
-				ack.Flags = StandardDirectAck
-				buf, _ := ack.MarshalBinary()
-				recvCh <- buf
-
-				if !test.timeout {
-					// send the broadcast
-					msg := *TestMessageSetButtonPressedController
-					msg.Src = src
-					msg.Dst = Address{test.expectedDevCat[0], test.expectedDevCat[1], byte(test.expectedFirmware)}
-					buf, _ = msg.MarshalBinary()
+			go func() {
+				request := <-sendCh
+				if test.returnedErr == nil {
+					// the test has to send an ACK, since the device would ack the set button pressed
+					// command before sending a broadcast response
+					ack := &Message{}
+					ack.UnmarshalBinary(request.Payload)
+					src := ack.Dst
+					ack.Dst = ack.Src
+					ack.Src = src
+					ack.Flags = StandardDirectAck
+					buf, _ := ack.MarshalBinary()
 					recvCh <- buf
+
+					if !test.timeout {
+						// send the broadcast
+						msg := *TestMessageSetButtonPressedController
+						msg.Src = src
+						msg.Dst = Address{test.expectedDevCat[0], test.expectedDevCat[1], byte(test.expectedFirmware)}
+						buf, _ = msg.MarshalBinary()
+						recvCh <- buf
+					}
+				} else {
+					request.Err = test.returnedErr
 				}
-			} else {
-				request.Err = test.returnedErr
+				request.DoneCh <- request
+			}()
+
+			info, err := network.IDRequest(testDstAddr)
+
+			if err != test.expectedErr {
+				t.Errorf("got error %v, want %v", err, test.returnedErr)
 			}
-			request.DoneCh <- request
-		}()
 
-		info, err := network.IDRequest(testDstAddr)
+			if info.FirmwareVersion != test.expectedFirmware {
+				t.Errorf("got FirmwareVersion %v, want %v", info.FirmwareVersion, test.expectedFirmware)
+			}
 
-		if err != test.expectedErr {
-			t.Errorf("tests[%d] expected %v got %v", i, test.returnedErr, err)
-		}
-
-		if info.FirmwareVersion != test.expectedFirmware {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedFirmware, info.FirmwareVersion)
-		}
-
-		if info.DevCat != test.expectedDevCat {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedDevCat, info.DevCat)
-		}
-		network.Close()
-
+			if info.DevCat != test.expectedDevCat {
+				t.Errorf("got DevCat %v, want %v", info.DevCat, test.expectedDevCat)
+			}
+			network.Close()
+		})
 	}
 }
 
 func TestNetworkDial(t *testing.T) {
 	tests := []struct {
+		desc          string
 		deviceInfo    *DeviceInfo
 		engineVersion byte
 		sendError     error
 		expectedErr   error
 		expected      interface{}
 	}{
-		{&DeviceInfo{EngineVersion: VerI1}, 0, nil, nil, &I1Device{}},
-		{&DeviceInfo{EngineVersion: VerI2}, 0, nil, nil, &I2Device{}},
-		{&DeviceInfo{EngineVersion: VerI2Cs}, 0, nil, nil, &I2CsDevice{}},
-		{nil, 0, nil, nil, &I1Device{}},
-		{nil, 1, nil, nil, &I2Device{}},
-		{nil, 2, nil, nil, &I2CsDevice{}},
-		{nil, 3, nil, ErrVersion, nil},
-		{nil, 0, ErrNotLinked, ErrNotLinked, &I2CsDevice{}},
+		{"1", &DeviceInfo{EngineVersion: VerI1}, 0, nil, nil, &I1Device{}},
+		{"2", &DeviceInfo{EngineVersion: VerI2}, 0, nil, nil, &I2Device{}},
+		{"3", &DeviceInfo{EngineVersion: VerI2Cs}, 0, nil, nil, &I2CsDevice{}},
+		{"4", nil, 0, nil, nil, &I1Device{}},
+		{"5", nil, 1, nil, nil, &I2Device{}},
+		{"6", nil, 2, nil, nil, &I2CsDevice{}},
+		{"7", nil, 3, nil, ErrVersion, nil},
+		{"8", nil, 0, ErrNotLinked, ErrNotLinked, &I2CsDevice{}},
 	}
 
-	for i, test := range tests {
-		testDb := newTestProductDB()
-		network, sendCh, recvCh := newTestNetwork(1)
-		network.DB = testDb
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			testDb := newTestProductDB()
+			network, sendCh, recvCh := newTestNetwork(1)
+			network.DB = testDb
 
-		if test.deviceInfo == nil {
-			go func() {
-				request := <-sendCh
-				if test.sendError == nil {
-					msg := *TestMessageEngineVersionAck
-					msg.Src = Address{1, 2, 3}
-					msg.Command = Command{0x00, msg.Command[1], byte(test.engineVersion)}
-					buf, _ := msg.MarshalBinary()
-					recvCh <- buf
-					request.DoneCh <- request
-				} else {
-					request.Err = test.sendError
-					request.DoneCh <- request
-				}
-			}()
-		} else {
-			testDb.deviceInfo = test.deviceInfo
-		}
+			if test.deviceInfo == nil {
+				go func() {
+					request := <-sendCh
+					if test.sendError == nil {
+						msg := *TestMessageEngineVersionAck
+						msg.Src = Address{1, 2, 3}
+						msg.Command = Command{0x00, msg.Command[1], byte(test.engineVersion)}
+						buf, _ := msg.MarshalBinary()
+						recvCh <- buf
+						request.DoneCh <- request
+					} else {
+						request.Err = test.sendError
+						request.DoneCh <- request
+					}
+				}()
+			} else {
+				testDb.deviceInfo = test.deviceInfo
+			}
 
-		device, err := network.Dial(Address{1, 2, 3})
+			device, err := network.Dial(Address{1, 2, 3})
 
-		if err != test.expectedErr {
-			t.Errorf("tests[%d] Expected error %v got %v", i, test.expectedErr, err)
-		} else if reflect.TypeOf(device) != reflect.TypeOf(test.expected) {
-			t.Fatalf("tests[%d] expected type %T got type %T", i, test.expected, device)
-		}
+			if err != test.expectedErr {
+				t.Errorf("got error %v, want %v", err, test.expectedErr)
+			} else if reflect.TypeOf(device) != reflect.TypeOf(test.expected) {
+				t.Fatalf("got type %T, want type %T", device, test.expected)
+			}
 
-		network.Close()
+			network.Close()
+		})
 	}
 }
 
@@ -296,10 +310,10 @@ func TestNetworkClose(t *testing.T) {
 	select {
 	case _, open := <-network.closeCh:
 		if open {
-			t.Errorf("Expected closeCh to be closed")
+			t.Error("Expected closeCh to be closed")
 		}
 	default:
-		t.Errorf("Expected read from closeCh to indicate a closed channel")
+		t.Error("Expected read from closeCh to indicate a closed channel")
 	}
 }
 
@@ -315,7 +329,7 @@ func TestNetworkConnect(t *testing.T) {
 		{nil, VerI1, Address{42, 2, 3}, &I2Device{}},
 	}
 
-	for i, test := range tests {
+	for _, test := range tests {
 		var category Category
 		testDb := newTestProductDB()
 		bridge := &testBridge{}
@@ -341,7 +355,7 @@ func TestNetworkConnect(t *testing.T) {
 		device, _ := network.Connect(Address{1, 2, 3})
 
 		if device != test.expected {
-			t.Fatalf("tests[%d] expected %v got %v", i, test.expected, device)
+			t.Fatalf("expected %v got %v", test.expected, device)
 		}
 		Devices.Delete(category)
 	}

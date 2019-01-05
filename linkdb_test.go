@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 
@@ -29,11 +30,13 @@ func TestMemAddress(t *testing.T) {
 		{0x0f00, "0f.00"},
 	}
 
-	for i, test := range tests {
-		addr := MemAddress(test.input)
-		if addr.String() != test.expected {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expected, addr.String())
-		}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%04x", test.input), func(t *testing.T) {
+			addr := MemAddress(test.input)
+			if addr.String() != test.expected {
+				t.Errorf("got %v, want %v", addr.String(), test.expected)
+			}
+		})
 	}
 }
 
@@ -48,16 +51,19 @@ func TestLinkRequestType(t *testing.T) {
 		{0x03, "Unknown"},
 	}
 
-	for i, test := range tests {
-		lrt := LinkRequestType(test.input)
-		if test.expected != lrt.String() {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expected, lrt.String())
-		}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%02x", test.input), func(t *testing.T) {
+			lrt := LinkRequestType(test.input)
+			if test.expected != lrt.String() {
+				t.Errorf("got %v, want %v", lrt.String(), test.expected)
+			}
+		})
 	}
 }
 
 func TestLinkRequest(t *testing.T) {
 	tests := []struct {
+		desc            string
 		input           []byte
 		marshal         []byte
 		expectedType    LinkRequestType
@@ -66,13 +72,13 @@ func TestLinkRequest(t *testing.T) {
 		expectedString  string
 		expectedError   error
 	}{
-		// test 0
 		{
+			desc:          "error buffer too short",
 			input:         []byte{},
 			expectedError: ErrBufferTooShort,
 		},
-		// test 1
 		{
+			desc:            "success",
 			input:           []byte{0xff, 0x00, 0x0f, 0xff, 0x08},
 			marshal:         []byte{0x0, 0x00, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			expectedType:    LinkRequestType(0x00),
@@ -80,8 +86,8 @@ func TestLinkRequest(t *testing.T) {
 			expectedRecords: 8,
 			expectedString:  "Link Read 0f.ff 8",
 		},
-		// test 2
 		{
+			desc:            "error end of links 1",
 			input:           []byte{0xff, 0x01, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			marshal:         []byte{0x00, 0x01, 0x0f, 0xff, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			expectedType:    LinkRequestType(0x01),
@@ -90,8 +96,8 @@ func TestLinkRequest(t *testing.T) {
 			expectedString:  "Link Resp 0f.ff 0",
 			expectedError:   ErrEndOfLinks,
 		},
-		// test 3
 		{
+			desc:            "error end of links 2",
 			input:           []byte{0xff, 0x02, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			marshal:         []byte{0x00, 0x02, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			expectedType:    LinkRequestType(0x02),
@@ -102,36 +108,38 @@ func TestLinkRequest(t *testing.T) {
 		},
 	}
 
-	for i, test := range tests {
-		linkRequest := &LinkRequest{}
-		err := linkRequest.UnmarshalBinary(test.input)
-		if !isError(err, test.expectedError) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
-			continue
-		} else if err != nil {
-			continue
-		}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			linkRequest := &LinkRequest{}
+			err := linkRequest.UnmarshalBinary(test.input)
+			if !isError(err, test.expectedError) {
+				t.Errorf("got error %v, want %v", err, test.expectedError)
+				return
+			} else if err != nil {
+				return
+			}
 
-		if linkRequest.Type != test.expectedType {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedType, linkRequest.Type)
-		}
+			if linkRequest.Type != test.expectedType {
+				t.Errorf("got Type %v, want %v", linkRequest.Type, test.expectedType)
+			}
 
-		if linkRequest.MemAddress != test.expectedAddress {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedAddress, linkRequest.MemAddress)
-		}
+			if linkRequest.MemAddress != test.expectedAddress {
+				t.Errorf("got MemAddress %v, want %v", linkRequest.MemAddress, test.expectedAddress)
+			}
 
-		if linkRequest.NumRecords != test.expectedRecords {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedRecords, linkRequest.NumRecords)
-		}
+			if linkRequest.NumRecords != test.expectedRecords {
+				t.Errorf("got NumRecords %v, want %v", linkRequest.NumRecords, test.expectedRecords)
+			}
 
-		if linkRequest.String()[0:len(test.expectedString)] != test.expectedString {
-			t.Errorf("tests[%d] expected %q got %q", i, test.expectedString, linkRequest.String()[0:len(test.expectedString)])
-		}
+			if linkRequest.String()[0:len(test.expectedString)] != test.expectedString {
+				t.Errorf("got String %q, want %q", linkRequest.String()[0:len(test.expectedString)], test.expectedString)
+			}
 
-		buf, _ := linkRequest.MarshalBinary()
-		if !bytes.Equal(test.marshal, buf) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.marshal, buf)
-		}
+			buf, _ := linkRequest.MarshalBinary()
+			if !bytes.Equal(test.marshal, buf) {
+				t.Errorf("got MarshalBinary %v, want %v", buf, test.marshal)
+			}
+		})
 	}
 }
 

@@ -24,7 +24,7 @@ func TestDeviceRegistry(t *testing.T) {
 	dr := &DeviceRegistry{}
 
 	if _, found := dr.Find(Category(1)); found {
-		t.Errorf("Expected nothing found for Category(1)")
+		t.Error("Expected nothing found for Category(1)")
 	}
 
 	dr.Register(Category(1), func(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (Device, error) {
@@ -32,12 +32,12 @@ func TestDeviceRegistry(t *testing.T) {
 	})
 
 	if _, found := dr.Find(Category(1)); !found {
-		t.Errorf("Expected to find Category(1)")
+		t.Error("Expected to find Category(1)")
 	}
 
 	dr.Delete(Category(1))
 	if _, found := dr.Find(Category(1)); found {
-		t.Errorf("Expected nothing found for Category(1)")
+		t.Error("Expected nothing found for Category(1)")
 	}
 }
 
