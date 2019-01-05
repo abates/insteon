@@ -64,16 +64,17 @@ func TestMessageType(t *testing.T) {
 
 	for i, test := range tests {
 		if test.input.Direct() != test.expectedDirect {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedDirect, test.input.Direct())
+			t.Errorf("tests[%d] Direct expected %v got %v", i, test.expectedDirect, test.input.Direct())
 		}
 
 		if test.input.Broadcast() != test.expectedBroadcast {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedBroadcast, test.input.Broadcast())
+			t.Errorf("tests[%d] Broadcast expected %v got %v", i, test.expectedBroadcast, test.input.Broadcast())
 		}
 
 		if test.input.String() != test.expectedString {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedString, test.input.String())
+			t.Errorf("tests[%d] String expected %v got %v", i, test.expectedString, test.input.String())
 		}
+
 	}
 }
 
@@ -107,27 +108,27 @@ func TestFlags(t *testing.T) {
 
 	for i, test := range tests {
 		if test.input.Type() != test.expectedType {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedType, test.input.Type())
+			t.Errorf("tests[%d] expected type %v got %v", i, test.expectedType, test.input.Type())
 		}
 
 		if test.input.Standard() != test.expectedStandard {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedStandard, test.input.Standard())
+			t.Errorf("tests[%d] expected standard %v got %v", i, test.expectedStandard, test.input.Standard())
 		}
 
 		if test.input.Extended() != test.expectedExtended {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedExtended, test.input.Extended())
+			t.Errorf("tests[%d] expected extended %v got %v", i, test.expectedExtended, test.input.Extended())
 		}
 
 		if test.input.TTL() != test.expectedTTL {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedTTL, test.input.TTL())
+			t.Errorf("tests[%d] expected ttl %v got %v", i, test.expectedTTL, test.input.TTL())
 		}
 
 		if test.input.MaxTTL() != test.expectedMaxTTL {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedMaxTTL, test.input.MaxTTL())
+			t.Errorf("tests[%d] expected max ttl %v got %v", i, test.expectedMaxTTL, test.input.MaxTTL())
 		}
 
 		if test.input.String() != test.expectedString {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedString, test.input.String())
+			t.Errorf("tests[%d] expected string %v got %v", i, test.expectedString, test.input.String())
 		}
 	}
 }
@@ -216,22 +217,22 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		message := &Message{}
 		err := message.UnmarshalBinary(test.input)
 		if !isError(err, test.expectedError) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
+			t.Errorf("tests[%d] expected Error %v got %v", i, test.expectedError, err)
 			continue
 		} else if err != nil {
 			continue
 		}
 
 		if test.expectedSrc != message.Src {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedSrc, message.Src)
+			t.Errorf("tests[%d] expected Src %v got %v", i, test.expectedSrc, message.Src)
 		}
 
 		if test.expectedDst != message.Dst {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedDst, message.Dst)
+			t.Errorf("tests[%d] expected Dst %v got %v", i, test.expectedDst, message.Dst)
 		}
 
 		if test.expectedFlags != message.Flags {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedFlags, message.Flags)
+			t.Errorf("tests[%d] expected Flags %v got %v", i, test.expectedFlags, message.Flags)
 		}
 
 		if test.expectedAck != message.Ack() {
@@ -275,6 +276,32 @@ func TestChecksum(t *testing.T) {
 		got := checksum(test.input)
 		if got != test.expected {
 			t.Errorf("tests[%d] expected %02x got %02d", i, test.expected, got)
+		}
+	}
+}
+
+func TestCommonTypeConsts(t *testing.T) {
+	tests := []struct {
+		want Flags
+		MessageType
+		Extended bool
+		MaxHops  uint8
+		HopsLeft uint8
+	}{
+		{StandardBroadcast, MsgTypeBroadcast, false, 2, 2},
+		{StandardAllLinkBroadcast, MsgTypeAllLinkBroadcast, false, 2, 2},
+		{StandardDirectMessage, MsgTypeDirect, false, 2, 2},
+		{StandardDirectAck, MsgTypeDirectAck, false, 2, 2},
+		{StandardDirectNak, MsgTypeDirectNak, false, 2, 2},
+		{ExtendedDirectMessage, MsgTypeDirect, true, 2, 2},
+		{ExtendedDirectAck, MsgTypeDirectAck, true, 2, 2},
+		{ExtendedDirectNak, MsgTypeDirectNak, true, 2, 2},
+	}
+
+	for _, test := range tests {
+		got := Flag(test.MessageType, test.Extended, test.MaxHops, test.HopsLeft)
+		if got != test.want {
+			t.Errorf("Got %v, wanted %v", got, test.want)
 		}
 	}
 }
