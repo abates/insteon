@@ -14,41 +14,47 @@
 
 package plm
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestSettingConfigFlags(t *testing.T) {
 	config := Config(0x00)
 
 	tests := []struct {
+		desc     string
 		getter   func() bool
 		setter   func()
 		clearer  func()
 		expected byte
 	}{
-		{config.AutomaticLinking, config.setAutomaticLinking, config.clearAutomaticLinking, 0x80},
-		{config.MonitorMode, config.setMonitorMode, config.clearMonitorMode, 0x40},
-		{config.AutomaticLED, config.setAutomaticLED, config.clearAutomaticLED, 0x20},
-		{config.DeadmanMode, config.setDeadmanMode, config.clearDeadmanMode, 0x10},
+		{"AutomaticLinking", config.AutomaticLinking, config.setAutomaticLinking, config.clearAutomaticLinking, 0x80},
+		{"MonitorMode", config.MonitorMode, config.setMonitorMode, config.clearMonitorMode, 0x40},
+		{"AutomaticLED", config.AutomaticLED, config.setAutomaticLED, config.clearAutomaticLED, 0x20},
+		{"DeadmanMode", config.DeadmanMode, config.setDeadmanMode, config.clearDeadmanMode, 0x10},
 	}
 
-	for i, test := range tests {
-		if test.getter() {
-			t.Errorf("tests[%d] expected false got %v", i, test.getter())
-		}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			if test.getter() {
+				t.Errorf("getter got %v, want false", test.getter())
+			}
 
-		test.setter()
-		if !test.getter() {
-			t.Errorf("tests[%d] expected true got %v", i, test.getter())
-		}
+			test.setter()
+			if !test.getter() {
+				t.Errorf("getter got %v, want true", test.getter())
+			}
 
-		if byte(config) != test.expected {
-			t.Errorf("tests[%d] expected 0x%02x got 0x%02x", i, test.expected, byte(config))
-		}
+			if byte(config) != test.expected {
+				t.Errorf("config got 0x%02x, want 0x%02x", byte(config), test.expected)
+			}
 
-		test.clearer()
-		if byte(config) != 0x00 {
-			t.Errorf("tests[%d] expected 0x00 got 0x%02x", i, byte(config))
-		}
+			test.clearer()
+			if byte(config) != 0x00 {
+				t.Errorf("config got 0x%02x, want 0x00", byte(config))
+			}
+		})
 	}
 }
 
@@ -64,11 +70,13 @@ func TestConfigString(t *testing.T) {
 		{0xf0, "LMAD"},
 	}
 
-	for i, test := range tests {
-		config := Config(test.input)
-		if config.String() != test.expected {
-			t.Errorf("tests[%d] expected %q got %q", i, test.expected, config.String())
-		}
+	for _, test := range tests {
+		t.Run(test.expected, func(t *testing.T) {
+			config := Config(test.input)
+			if config.String() != test.expected {
+				t.Errorf("got %q, expected %q", config.String(), test.expected)
+			}
+		})
 	}
 }
 
@@ -90,16 +98,18 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 		t.Errorf("Expected error, got nil")
 	}
 
-	for i, test := range tests {
-		config.UnmarshalBinary([]byte{test.input})
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("0x%02x", test.input), func(t *testing.T) {
+			config.UnmarshalBinary([]byte{test.input})
 
-		if byte(config) != test.input {
-			t.Errorf("tests[%d] expected 0x%02x got 0x%02x", i, test.input, config)
-		}
+			if byte(config) != test.input {
+				t.Errorf("got 0x%02x, want 0x%02x", config, test.input)
+			}
 
-		buf, _ := config.MarshalBinary()
-		if buf[0] != test.input {
-			t.Errorf("tests[%d] expected 0x%02x got 0x%02x", i, test.input, buf[0])
-		}
+			buf, _ := config.MarshalBinary()
+			if buf[0] != test.input {
+				t.Errorf("got 0x%02x, want 0x%02x", buf[0], test.input)
+			}
+		})
 	}
 }

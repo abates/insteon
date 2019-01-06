@@ -15,7 +15,7 @@
 package insteon
 
 import (
-	"fmt"
+	"errors"
 	"log"
 	"os"
 	"path"
@@ -54,7 +54,7 @@ func (ll *LogLevel) Set(s string) (err error) {
 	case "trace":
 		(*ll) = LevelTrace
 	default:
-		err = fmt.Errorf("valid values {none|info|debug|trace}")
+		err = errors.New("valid values {none|info|debug|trace}")
 	}
 	return err
 }

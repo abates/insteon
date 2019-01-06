@@ -37,7 +37,7 @@ func TestCommand(t *testing.T) {
 							value, _ := hex.DecodeString(strings.TrimPrefix(i.Value, "0x"))
 							cmd := Command(value[0])
 							if cmd.String() != str {
-								t.Errorf("Expected %v string to be %q but got %q", name, str, cmd.String())
+								t.Errorf("%v: got String %q, want %q", name, cmd.String(), str)
 							}
 
 							if _, found := commandLens[cmd]; !found {

@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 )
@@ -27,13 +28,14 @@ func TestDeviceInfoComplete(t *testing.T) {
 		{DeviceInfo{DevCat: DevCat{0x00, 0x00}, FirmwareVersion: FirmwareVersion(0)}, false},
 		{DeviceInfo{DevCat: DevCat{0x00, 0x01}, FirmwareVersion: FirmwareVersion(0)}, false},
 		{DeviceInfo{DevCat: DevCat{0x00, 0x01}, FirmwareVersion: FirmwareVersion(1)}, true},
-		{DeviceInfo{DevCat: DevCat{0x00, 0x01}, FirmwareVersion: FirmwareVersion(0)}, false},
 	}
 
-	for i, test := range tests {
-		if test.input.Complete() != test.expected {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expected, test.input.Complete())
-		}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%+v %+v", test.input.DevCat, test.input.FirmwareVersion), func(t *testing.T) {
+			if test.input.Complete() != test.expected {
+				t.Errorf("got %v, want %v ", test.input.Complete(), test.expected)
+			}
+		})
 	}
 }
 
@@ -75,27 +77,30 @@ func (tpd *testProductDB) Find(address Address) (deviceInfo DeviceInfo, found bo
 func TestProductDatabaseUpdateFind(t *testing.T) {
 	address := Address{0, 1, 2}
 	tests := []struct {
+		desc   string
 		update func(*productDatabase)
 		test   func(DeviceInfo) bool
 	}{
-		{func(pdb *productDatabase) { pdb.UpdateFirmwareVersion(address, FirmwareVersion(42)) }, func(di DeviceInfo) bool { return di.FirmwareVersion == FirmwareVersion(42) }},
-		{func(pdb *productDatabase) { pdb.UpdateEngineVersion(address, EngineVersion(42)) }, func(di DeviceInfo) bool { return di.EngineVersion == EngineVersion(42) }},
-		{func(pdb *productDatabase) { pdb.UpdateDevCat(address, DevCat{42, 42}) }, func(di DeviceInfo) bool { return di.DevCat == DevCat{42, 42} }},
+		{"UpdateFirmwareVersion", func(pdb *productDatabase) { pdb.UpdateFirmwareVersion(address, FirmwareVersion(42)) }, func(di DeviceInfo) bool { return di.FirmwareVersion == FirmwareVersion(42) }},
+		{"UpdateEngineVersion", func(pdb *productDatabase) { pdb.UpdateEngineVersion(address, EngineVersion(42)) }, func(di DeviceInfo) bool { return di.EngineVersion == EngineVersion(42) }},
+		{"UpdateDevCat", func(pdb *productDatabase) { pdb.UpdateDevCat(address, DevCat{42, 42}) }, func(di DeviceInfo) bool { return di.DevCat == DevCat{42, 42} }},
 	}
 
-	for i, test := range tests {
-		pdb := NewProductDB().(*productDatabase)
-		if _, found := pdb.Find(address); found {
-			t.Errorf("tests[%d] expected not found but got found", i)
-		} else {
-			test.update(pdb)
-			if deviceInfo, found := pdb.Find(address); found {
-				if !test.test(deviceInfo) {
-					t.Errorf("tests[%d] failed", i)
-				}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			pdb := NewProductDB().(*productDatabase)
+			if _, found := pdb.Find(address); found {
+				t.Error("got found, want not found ")
 			} else {
-				t.Errorf("tests[%d] did not find device for address %s", i, address)
+				test.update(pdb)
+				if deviceInfo, found := pdb.Find(address); found {
+					if !test.test(deviceInfo) {
+						t.Error("test func failed")
+					}
+				} else {
+					t.Errorf("did not find device for address %s", address)
+				}
 			}
-		}
+		})
 	}
 }

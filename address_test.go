@@ -14,7 +14,10 @@
 
 package insteon
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestAddressUnmarshalText(t *testing.T) {
 	tests := []struct {
@@ -32,17 +35,19 @@ func TestAddressUnmarshalText(t *testing.T) {
 		{"01b.02.03", Address{}, true},
 	}
 
-	for i, test := range tests {
-		address := Address{}
-		err := address.UnmarshalText([]byte(test.input))
-		if test.wantErr && err == nil {
-			t.Errorf("tests[%d] expected failure", i)
-		} else if !test.wantErr && err != nil {
-			t.Errorf("tests[%d] failed: %v", i, err)
-		}
-		if test.want != address {
-			t.Errorf("tests[%d] expected %q got %q", i, test.input, test.want)
-		}
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			address := Address{}
+			err := address.UnmarshalText([]byte(test.input))
+			if test.wantErr && err == nil {
+				t.Errorf("expected failure for UnmarshalText(%q)", test.input)
+			} else if !test.wantErr && err != nil {
+				t.Errorf("UnmarshalText(%q) failed: %v", test.input, err)
+			}
+			if test.want != address {
+				t.Errorf("UnmarshalText(%q) got %q, want %q", test.input, address, test.want)
+			}
+		})
 	}
 }
 
@@ -53,11 +58,13 @@ func TestAddressString(t *testing.T) {
 	}{
 		{Address{0, 1, 2}, "00.01.02"},
 	}
-	for i, test := range tests {
-		got := test.input.String()
-		if got != test.want {
-			t.Errorf("tests[%d] %q.String(): expected %q got %q", i, test.input, test.want, got)
-		}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
+			got := test.input.String()
+			if got != test.want {
+				t.Errorf("%q.String(): got %q, want %q", test.input, got, test.want)
+			}
+		})
 	}
 }
 
@@ -72,20 +79,22 @@ func TestAddressMarshaling(t *testing.T) {
 		{"\"01.02\"", Address{0, 0, 0}, "", "Expected Scanf to parse 3 digits, got 2"},
 	}
 
-	for i, test := range tests {
-		var address Address
-		err := address.UnmarshalJSON([]byte(test.input))
-		if err == nil {
-			if address != test.expectedAddress {
-				t.Errorf("tests[%d] expected %q got %q", i, test.expectedAddress, address)
-			} else {
-				data, _ := address.MarshalJSON()
-				if string(data) != test.expectedJSON {
-					t.Errorf("tests[%d] expected %q got %q", i, test.expectedJSON, string(data))
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			var address Address
+			err := address.UnmarshalJSON([]byte(test.input))
+			if err == nil {
+				if address != test.expectedAddress {
+					t.Errorf("address.UnmarshalJSON(%q) got %+v, want %+v", test.input, address, test.expectedAddress)
+				} else {
+					data, _ := address.MarshalJSON()
+					if string(data) != test.expectedJSON {
+						t.Errorf("address.UnmarshalJSON(%q) got %+v, want %+v", test.input, string(data), test.expectedJSON)
+					}
 				}
+			} else if err.Error() != test.expectedError {
+				t.Errorf("address.UnmarshalJSON(%q) error got %q expected %q", test.input, err, test.expectedError)
 			}
-		} else if err.Error() != test.expectedError {
-			t.Errorf("tests[%d] expected error %v got %v", i, test.expectedError, err)
-		}
+		})
 	}
 }

@@ -52,43 +52,46 @@ func TestConnectionProcess(t *testing.T) {
 	conn.process()
 
 	if len(conn.queue) > 0 {
-		t.Errorf("Expected empty queue")
+		t.Error("Expected empty queue")
 	}
 }
 
 func TestConnectionReceiveAck(t *testing.T) {
 	tests := []struct {
+		desc        string
 		version     EngineVersion
 		returnedAck *Message
 		expectedErr error
 	}{
-		{VerI1, TestMessageUnknownCommandNak, ErrUnknownCommand},
-		{VerI1, TestMessageNoLoadDetected, ErrNoLoadDetected},
-		{VerI1, TestMessageNotLinked, ErrNotLinked},
-		{VerI1, &Message{Src: testDstAddr, Flags: StandardDirectNak, Command: Command{0x00, 0x00, 0x01}}, ErrUnexpectedResponse},
-		{VerI2Cs, TestMessageIllegalValue, ErrIllegalValue},
-		{VerI2Cs, TestMessagePreNak, ErrPreNak},
-		{VerI2Cs, TestMessageIncorrectChecksum, ErrIncorrectChecksum},
-		{VerI2Cs, TestMessageNoLoadDetectedI2Cs, ErrNoLoadDetected},
-		{VerI2Cs, TestMessageNotLinkedI2Cs, ErrNotLinked},
-		{VerI2Cs, &Message{Src: testDstAddr, Flags: StandardDirectNak, Command: Command{0x00, 0x00, 0x01}}, ErrUnexpectedResponse},
+		{"I1 MessageUnknownCommandNak", VerI1, TestMessageUnknownCommandNak, ErrUnknownCommand},
+		{"I1 MessageNoLoadDetected", VerI1, TestMessageNoLoadDetected, ErrNoLoadDetected},
+		{"I1 MessageNotLinked", VerI1, TestMessageNotLinked, ErrNotLinked},
+		{"I1 UnexpectedResponse", VerI1, &Message{Src: testDstAddr, Flags: StandardDirectNak, Command: Command{0x00, 0x00, 0x01}}, ErrUnexpectedResponse},
+		{"I2Cs MessageIllegalValue", VerI2Cs, TestMessageIllegalValue, ErrIllegalValue},
+		{"I2Cs MessagePreNak", VerI2Cs, TestMessagePreNak, ErrPreNak},
+		{"I2Cs MessageIncorrectChecksum", VerI2Cs, TestMessageIncorrectChecksum, ErrIncorrectChecksum},
+		{"I2Cs MessageNoLoadDetectedI2Cs", VerI2Cs, TestMessageNoLoadDetectedI2Cs, ErrNoLoadDetected},
+		{"I2Cs MessageNotLinkedI2Cs", VerI2Cs, TestMessageNotLinkedI2Cs, ErrNotLinked},
+		{"I2Cs UnexpectedResponse", VerI2Cs, &Message{Src: testDstAddr, Flags: StandardDirectNak, Command: Command{0x00, 0x00, 0x01}}, ErrUnexpectedResponse},
 	}
 
-	for i, test := range tests {
-		conn := &connection{
-			addr:    testDstAddr,
-			version: test.version,
-		}
-		doneCh := make(chan *MessageRequest, 1)
-		request := &MessageRequest{Message: &Message{Command: Command{test.returnedAck.Command[0], test.returnedAck.Command[1], 0x00}}, DoneCh: doneCh}
-		conn.queue = append(conn.queue, request)
-		conn.receive(test.returnedAck)
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			conn := &connection{
+				addr:    testDstAddr,
+				version: test.version,
+			}
+			doneCh := make(chan *MessageRequest, 1)
+			request := &MessageRequest{Message: &Message{Command: Command{test.returnedAck.Command[0], test.returnedAck.Command[1], 0x00}}, DoneCh: doneCh}
+			conn.queue = append(conn.queue, request)
+			conn.receive(test.returnedAck)
 
-		if !isError(request.Err, test.expectedErr) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedErr, request.Err)
-		} else if request.Ack != test.returnedAck {
-			t.Errorf("tests[%d] expected %v got %v", i, test.returnedAck, request.Ack)
-		}
+			if !isError(request.Err, test.expectedErr) {
+				t.Errorf("expected %v got %v", test.expectedErr, request.Err)
+			} else if request.Ack != test.returnedAck {
+				t.Errorf("expected %v got %v", test.returnedAck, request.Ack)
+			}
+		})
 	}
 }
 

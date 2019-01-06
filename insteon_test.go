@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 
@@ -39,12 +40,14 @@ func TestAddress(t *testing.T) {
 		{[3]byte{0x47, 0x2d, 0x10}, "47.2d.10"},
 	}
 
-	for i, test := range tests {
-		address := Address(test.input)
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
+			address := Address(test.input)
 
-		if address.String() != test.str {
-			t.Errorf("tests[%d] expected %q got %q", i, test.str, address.String())
-		}
+			if address.String() != test.str {
+				t.Errorf("got %q, want %q", address.String(), test.str)
+			}
+		})
 	}
 }
 
@@ -56,11 +59,13 @@ func TestProductKey(t *testing.T) {
 		{[3]byte{0x01, 0x02, 0x03}, "0x010203"},
 	}
 
-	for i, test := range tests {
-		key := ProductKey(test.input)
-		if key.String() != test.expectedString {
-			t.Errorf("tests[%d] expectdd %q got %q", i, test.expectedString, key.String())
-		}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
+			key := ProductKey(test.input)
+			if key.String() != test.expectedString {
+				t.Errorf("got ProductKey %q, want %q", key.String(), test.expectedString)
+			}
+		})
 	}
 }
 
@@ -74,19 +79,21 @@ func TestDevCat(t *testing.T) {
 		{[2]byte{0x01, 0x02}, Category(0x01), SubCategory(0x02), "01.02"},
 	}
 
-	for i, test := range tests {
-		devCat := DevCat(test.input)
-		if devCat.Category() != test.expectedCategory {
-			t.Errorf("tests[%d] expected 0x%02x got 0x%02x", i, test.expectedCategory, devCat.Category())
-		}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
+			devCat := DevCat(test.input)
+			if devCat.Category() != test.expectedCategory {
+				t.Errorf("got Category 0x%02x, want 0x%02x", devCat.Category(), test.expectedCategory)
+			}
 
-		if devCat.SubCategory() != test.expectedSubCategory {
-			t.Errorf("tests[%d] expected 0x%02x got 0x%02x", i, test.expectedSubCategory, devCat.SubCategory())
-		}
+			if devCat.SubCategory() != test.expectedSubCategory {
+				t.Errorf("got SubCategory 0x%02x, want 0x%02x", devCat.SubCategory(), test.expectedSubCategory)
+			}
 
-		if devCat.String() != test.expectedString {
-			t.Errorf("tests[%d] expected %q got %q", i, test.expectedString, devCat.String())
-		}
+			if devCat.String() != test.expectedString {
+				t.Errorf("got String %q, want %q", devCat.String(), test.expectedString)
+			}
+		})
 	}
 }
 
@@ -101,55 +108,60 @@ func TestDevCatMarshaling(t *testing.T) {
 		{"\"01\"", DevCat{0, 0}, "", "Expected Scanf to parse 2 digits, got 1"},
 	}
 
-	for i, test := range tests {
-		var devCat DevCat
-		err := devCat.UnmarshalJSON([]byte(test.input))
-		if err == nil {
-			if devCat != test.expectedDevCat {
-				t.Errorf("tests[%d] expected %q got %q", i, test.expectedDevCat, devCat)
-			} else {
-				data, _ := devCat.MarshalJSON()
-				if string(data) != test.expectedJSON {
-					t.Errorf("tests[%d] expected %q got %q", i, test.expectedJSON, string(data))
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
+			var devCat DevCat
+			err := devCat.UnmarshalJSON([]byte(test.input))
+			if err == nil {
+				if devCat != test.expectedDevCat {
+					t.Errorf("got %q, want %q", devCat, test.expectedDevCat)
+				} else {
+					data, _ := devCat.MarshalJSON()
+					if string(data) != test.expectedJSON {
+						t.Errorf("got JSON %q, want %q", string(data), test.expectedJSON)
+					}
 				}
+			} else if err.Error() != test.expectedError {
+				t.Errorf("got error %v, want %v", err, test.expectedError)
 			}
-		} else if err.Error() != test.expectedError {
-			t.Errorf("tests[%d] expected error %v got %v", i, test.expectedError, err)
-		}
+		})
 	}
 }
 
 func TestProductDataMarshaling(t *testing.T) {
 	tests := []struct {
+		desc           string
 		input          []byte
 		expectedDevCat [2]byte
 		expectedKey    [3]byte
 		expectedError  error
 	}{
-		{[]byte{0, 1, 2, 3, 4, 5, 255, 0, 0, 0, 0, 0, 0, 0}, [2]byte{4, 5}, [3]byte{1, 2, 3}, nil},
-		{[]byte{}, [2]byte{0, 0}, [3]byte{0, 0, 0}, ErrBufferTooShort},
+		{"0 1 2 3...", []byte{0, 1, 2, 3, 4, 5, 255, 0, 0, 0, 0, 0, 0, 0}, [2]byte{4, 5}, [3]byte{1, 2, 3}, nil},
+		{"too short", []byte{}, [2]byte{0, 0}, [3]byte{0, 0, 0}, ErrBufferTooShort},
 	}
 
-	for i, test := range tests {
-		pd := &ProductData{}
-		err := pd.UnmarshalBinary(test.input)
-		if !isError(err, test.expectedError) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
-		}
-
-		if err == nil {
-			if pd.Key != ProductKey(test.expectedKey) {
-				t.Errorf("tests[%d] expected %x got %x", i, test.expectedKey, pd.Key)
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			pd := &ProductData{}
+			err := pd.UnmarshalBinary(test.input)
+			if !isError(err, test.expectedError) {
+				t.Errorf("got error %v, want %v", err, test.expectedError)
 			}
 
-			if pd.DevCat != DevCat(test.expectedDevCat) {
-				t.Errorf("tests[%d] expected %x got %x", i, test.expectedDevCat, pd.DevCat)
-			}
+			if err == nil {
+				if pd.Key != ProductKey(test.expectedKey) {
+					t.Errorf("got ProductKey %x, want %x", pd.Key, test.expectedKey)
+				}
 
-			buf, _ := pd.MarshalBinary()
-			if !bytes.Equal(buf, test.input[0:7]) {
-				t.Errorf("tests[%d] expected %x got %x", i, test.input[0:7], buf)
+				if pd.DevCat != DevCat(test.expectedDevCat) {
+					t.Errorf("got DevCat %x, want %x", pd.DevCat, test.expectedDevCat)
+				}
+
+				buf, _ := pd.MarshalBinary()
+				if !bytes.Equal(buf, test.input[0:7]) {
+					t.Errorf("got MarshalBinary %x, want %x", buf, test.input[0:7])
+				}
 			}
-		}
+		})
 	}
 }
