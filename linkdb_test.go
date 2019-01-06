@@ -33,6 +33,7 @@ func TestMemAddress(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%04x", test.input), func(t *testing.T) {
+			t.Parallel()
 			addr := MemAddress(test.input)
 			if addr.String() != test.expected {
 				t.Errorf("got %v, want %v", addr.String(), test.expected)
@@ -55,6 +56,7 @@ func TestLinkRequestType(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%02x", test.input), func(t *testing.T) {
+			t.Parallel()
 			lrt := LinkRequestType(test.input)
 			if test.expected != lrt.String() {
 				t.Errorf("got %v, want %v", lrt.String(), test.expected)
@@ -113,6 +115,7 @@ func TestLinkRequest(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			linkRequest := &LinkRequest{}
 			err := linkRequest.UnmarshalBinary(test.input)
 			if !isError(err, test.expectedError) {

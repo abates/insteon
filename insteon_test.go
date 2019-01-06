@@ -44,6 +44,7 @@ func TestAddress(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
+			t.Parallel()
 			address := Address(test.input)
 
 			if address.String() != test.str {
@@ -64,6 +65,7 @@ func TestProductKey(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
+			t.Parallel()
 			key := ProductKey(test.input)
 			if key.String() != test.expectedString {
 				t.Errorf("got ProductKey %q, want %q", key.String(), test.expectedString)
@@ -85,6 +87,7 @@ func TestDevCat(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
+			t.Parallel()
 			devCat := DevCat(test.input)
 			if devCat.Category() != test.expectedCategory {
 				t.Errorf("got Category 0x%02x, want 0x%02x", devCat.Category(), test.expectedCategory)
@@ -115,6 +118,7 @@ func TestDevCatMarshaling(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
+			t.Parallel()
 			var devCat DevCat
 			err := devCat.UnmarshalJSON([]byte(test.input))
 			if err == nil {
@@ -148,6 +152,7 @@ func TestProductDataMarshaling(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			pd := &ProductData{}
 			err := pd.UnmarshalBinary(test.input)
 			if !isError(err, test.expectedError) {

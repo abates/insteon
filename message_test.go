@@ -65,6 +65,7 @@ func TestMessageType(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.expectedString, func(t *testing.T) {
+			t.Parallel()
 			if test.input.Direct() != test.expectedDirect {
 				t.Errorf("got Direct %v, want %v", test.input.Direct(), test.expectedDirect)
 			}
@@ -111,6 +112,7 @@ func TestFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.expectedString, func(t *testing.T) {
+			t.Parallel()
 			if test.input.Type() != test.expectedType {
 				t.Errorf("got Type %v, want %v", test.input.Type(), test.expectedType)
 			}
@@ -230,6 +232,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			message := &Message{}
 			err := message.UnmarshalBinary(test.input)
 			if !isError(err, test.expectedError) {
@@ -293,6 +296,7 @@ func TestChecksum(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			got := checksum(test.input)
 			if got != test.expected {
 				t.Errorf("got checksum %02x, want %02x", got, test.expected)

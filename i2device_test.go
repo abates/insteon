@@ -44,6 +44,7 @@ func TestI2DeviceCommands(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			sendCh := make(chan *CommandRequest, 1)
 			device := &I2Device{&I1Device{sendCh: sendCh}}
 

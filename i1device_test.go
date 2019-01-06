@@ -28,6 +28,7 @@ func TestI1DeviceSend(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			sendCh := make(chan *CommandRequest, 1)
 			upstreamSendCh := make(chan *MessageRequest, 1)
 			device := &I1Device{
@@ -92,6 +93,7 @@ func TestI1DeviceReceiveAck(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			recvCh := make(chan *Message, 1)
 			doneCh := make(chan *MessageRequest, 1)
 			requestDoneCh := make(chan *CommandRequest, 1)
@@ -251,6 +253,7 @@ func TestI1DeviceCommands(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			sendCh := make(chan *CommandRequest, 1)
 			device := &I1Device{
 				sendCh: sendCh,

@@ -37,6 +37,7 @@ func TestLogLevel(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("level %q", test.str), func(t *testing.T) {
+			t.Parallel()
 			if test.str != test.level.String() {
 				t.Errorf("got %q, want %q", test.level.String(), test.str)
 			}

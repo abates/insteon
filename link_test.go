@@ -36,6 +36,7 @@ func TestRecordControlFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%02x", test.input), func(t *testing.T) {
+			t.Parallel()
 			flags := RecordControlFlags(test.input)
 			if flags.InUse() != test.expectedInUse {
 				t.Errorf("got InUse %v, want %v", flags.InUse(), test.expectedInUse)
@@ -78,6 +79,7 @@ func TestRecordControlFlagsUnmarshalText(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
+			t.Parallel()
 			var flags RecordControlFlags
 			err := flags.UnmarshalText([]byte(test.input))
 			if err == nil {
@@ -109,6 +111,7 @@ func TestSettingRecordControlFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			test.set()
 			if byte(flags) != test.expected {
 				t.Errorf("got flags 0x%02x, want 0x%02x", byte(flags), test.expected)
@@ -151,6 +154,7 @@ func TestLinkEqual(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			if test.link1.Equal(test.link2) != test.expected {
 				t.Errorf("got %v, want %v", !test.expected, test.expected)
 			}
@@ -188,6 +192,7 @@ func TestLinkMarshalUnmarshal(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			link := &LinkRecord{}
 			err := link.UnmarshalBinary(test.input)
 			if !isError(err, test.expectedError) {
@@ -239,6 +244,7 @@ func TestLinkRecordMarshalText(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.expectedString, func(t *testing.T) {
+			t.Parallel()
 			if test.expectedErr == "" {
 				buf, _ := test.expected.MarshalText()
 				if !bytes.Equal([]byte(test.expectedString), buf) {
@@ -276,6 +282,7 @@ func TestGroupUnmarshalText(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
+			t.Parallel()
 			var group Group
 			err := group.UnmarshalText([]byte(test.input))
 			if err == nil {

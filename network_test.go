@@ -60,6 +60,7 @@ func TestNetworkReceive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			recvCh := make(chan []byte, 1)
 			testDb := newTestProductDB()
 			connection := make(chan *Message, 1)
@@ -106,6 +107,7 @@ func TestNetworkSendMessage(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			sendCh := make(chan *PacketRequest, 1)
 			testDb := newTestProductDB()
 			testDb.deviceInfo = test.deviceInfo
@@ -150,6 +152,7 @@ func TestNetworkEngineVersion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			sendCh := make(chan *PacketRequest, 1)
 			recvCh := make(chan []byte, 1)
 			network := New(sendCh, recvCh, time.Millisecond)
@@ -200,6 +203,7 @@ func TestNetworkIDRequest(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			sendCh := make(chan *PacketRequest, 1)
 			recvCh := make(chan []byte, 1)
 			network := New(sendCh, recvCh, time.Millisecond)
@@ -272,6 +276,7 @@ func TestNetworkDial(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			testDb := newTestProductDB()
 			network, sendCh, recvCh := newTestNetwork(1)
 			network.DB = testDb

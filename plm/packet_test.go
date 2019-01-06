@@ -37,6 +37,7 @@ func TestPacketAckNak(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("0x%02x 0x%02x", test.cmd, test.input), func(t *testing.T) {
+			t.Parallel()
 			p := &Packet{Command: test.cmd, Ack: test.input}
 			if p.ACK() != test.ack {
 				t.Errorf("got ack %v, want %v ", p.ACK(), test.ack)
@@ -63,6 +64,7 @@ func TestPacketMarshalUnmarshalBinary(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			packet := &Packet{}
 			err := packet.UnmarshalBinary(test.input)
 			if err == test.expectedErr {
@@ -90,6 +92,7 @@ func TestPacketMarshalBinary(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			buf, _ := test.input.MarshalBinary()
 			if !bytes.Equal(test.expected, buf) {
 				t.Errorf("got %v, want %v", test.expected, buf)
@@ -110,6 +113,7 @@ func TestPacketString(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.expected, func(t *testing.T) {
+			t.Parallel()
 			str := test.input.String()
 			if str != test.expected {
 				t.Errorf("got %q, want %q", str, test.expected)
@@ -137,6 +141,7 @@ func TestPacketFormat(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.expected, func(t *testing.T) {
+			t.Parallel()
 			str := fmt.Sprintf(test.format, test.input)
 			if str != test.expected {
 				t.Errorf("got %q, want %q", str, test.expected)

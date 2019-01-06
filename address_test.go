@@ -38,6 +38,7 @@ func TestAddressUnmarshalText(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
+			t.Parallel()
 			address := Address{}
 			err := address.UnmarshalText([]byte(test.input))
 			if test.wantErr && err == nil {
@@ -62,6 +63,7 @@ func TestAddressString(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
+			t.Parallel()
 			got := test.input.String()
 			if got != test.want {
 				t.Errorf("%q.String(): got %q, want %q", test.input, got, test.want)
@@ -84,6 +86,7 @@ func TestAddressMarshaling(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
+			t.Parallel()
 			var address Address
 			err := address.UnmarshalJSON([]byte(test.input))
 			if err == nil {

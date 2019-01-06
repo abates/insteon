@@ -83,6 +83,7 @@ func TestConnectionReceive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			sendCh := make(chan *CommandRequest, 1)
 			recvCh := make(chan *Packet, 1)
 			conn := &connection{

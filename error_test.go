@@ -33,6 +33,7 @@ func TestBufError(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			if test.input.Error() != test.expected {
 				t.Errorf("got %v expected %v", test.input.Error(), test.expected)
 			}
@@ -70,6 +71,7 @@ func TestIsError(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			if isError(test.cause, test.check) != test.expected {
 				switch e := test.cause.(type) {
 				case *traceError:

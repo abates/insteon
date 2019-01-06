@@ -33,6 +33,7 @@ func TestDeviceInfoComplete(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%+v %+v", test.input.DevCat, test.input.FirmwareVersion), func(t *testing.T) {
+			t.Parallel()
 			if test.input.Complete() != test.expected {
 				t.Errorf("got %v, want %v ", test.input.Complete(), test.expected)
 			}
@@ -90,6 +91,7 @@ func TestProductDatabaseUpdateFind(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			pdb := NewProductDB().(*productDatabase)
 			if _, found := pdb.Find(address); found {
 				t.Error("got found, want not found ")

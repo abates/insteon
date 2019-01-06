@@ -38,6 +38,7 @@ func TestSettingConfigFlags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 			if test.getter() {
 				t.Errorf("getter got %v, want false", test.getter())
 			}
@@ -74,6 +75,7 @@ func TestConfigString(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.expected, func(t *testing.T) {
+			t.Parallel()
 			config := Config(test.input)
 			if config.String() != test.expected {
 				t.Errorf("got %q, expected %q", config.String(), test.expected)
@@ -103,6 +105,7 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("0x%02x", test.input), func(t *testing.T) {
+			t.Parallel()
 			config.UnmarshalBinary([]byte{test.input})
 
 			if byte(config) != test.input {
