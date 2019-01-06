@@ -26,6 +26,7 @@ func init() {
 }
 
 func TestFirmwareVersionString(t *testing.T) {
+	t.Parallel()
 	ver := FirmwareVersion(0x42)
 	if ver.String() != "0x42" {
 		t.Errorf("expected %q got %q", "0x42", ver.String())
@@ -33,6 +34,7 @@ func TestFirmwareVersionString(t *testing.T) {
 }
 
 func TestAddress(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input [3]byte
 		str   string
@@ -52,6 +54,7 @@ func TestAddress(t *testing.T) {
 }
 
 func TestProductKey(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input          [3]byte
 		expectedString string
@@ -70,6 +73,7 @@ func TestProductKey(t *testing.T) {
 }
 
 func TestDevCat(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input               [2]byte
 		expectedCategory    Category
@@ -98,6 +102,7 @@ func TestDevCat(t *testing.T) {
 }
 
 func TestDevCatMarshaling(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input          string
 		expectedDevCat DevCat
@@ -129,6 +134,7 @@ func TestDevCatMarshaling(t *testing.T) {
 }
 
 func TestProductDataMarshaling(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc           string
 		input          []byte

@@ -48,6 +48,7 @@ func newTestNetwork(bufSize int) (*Network, chan *PacketRequest, chan []byte) {
 }*/
 
 func TestNetworkReceive(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc            string
 		input           *Message
@@ -88,6 +89,7 @@ func TestNetworkReceive(t *testing.T) {
 }
 
 func TestNetworkSendMessage(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc       string
 		input      *Message
@@ -133,6 +135,7 @@ func TestNetworkSendMessage(t *testing.T) {
 }
 
 func TestNetworkEngineVersion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc            string
 		returnedAck     *Message
@@ -180,6 +183,7 @@ func TestNetworkEngineVersion(t *testing.T) {
 }
 
 func TestNetworkIDRequest(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc             string
 		timeout          bool
@@ -247,6 +251,7 @@ func TestNetworkIDRequest(t *testing.T) {
 }
 
 func TestNetworkDial(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc          string
 		deviceInfo    *DeviceInfo
@@ -304,6 +309,7 @@ func TestNetworkDial(t *testing.T) {
 }
 
 func TestNetworkClose(t *testing.T) {
+	t.Parallel()
 	network, _, _ := newTestNetwork(1)
 	network.Close()
 
@@ -319,6 +325,7 @@ func TestNetworkClose(t *testing.T) {
 
 /*
 func TestNetworkConnect(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		deviceInfo    *DeviceInfo
 		engineVersion EngineVersion

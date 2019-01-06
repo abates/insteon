@@ -23,6 +23,7 @@ import (
 )
 
 func TestLogLevel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		level LogLevel
 		str   string
@@ -44,6 +45,7 @@ func TestLogLevel(t *testing.T) {
 }
 
 func TestLogging(t *testing.T) {
+	t.Parallel()
 	levels := []LogLevel{LevelNone, LevelInfo, LevelDebug}
 	for _, level := range levels {
 		messages := []string{}

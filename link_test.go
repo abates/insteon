@@ -21,6 +21,7 @@ import (
 )
 
 func TestRecordControlFlags(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input              byte
 		expectedInUse      bool
@@ -60,6 +61,7 @@ func TestRecordControlFlags(t *testing.T) {
 }
 
 func TestRecordControlFlagsUnmarshalText(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input       string
 		expectedErr string
@@ -92,6 +94,7 @@ func TestRecordControlFlagsUnmarshalText(t *testing.T) {
 }
 
 func TestSettingRecordControlFlags(t *testing.T) {
+	t.Parallel()
 	flags := RecordControlFlags(0xff)
 	tests := []struct {
 		desc     string
@@ -115,6 +118,7 @@ func TestSettingRecordControlFlags(t *testing.T) {
 }
 
 func TestLinkEqual(t *testing.T) {
+	t.Parallel()
 	availableController := RecordControlFlags(0x40)
 	availableResponder := RecordControlFlags(0x00)
 	usedController := RecordControlFlags(0xc0)
@@ -155,6 +159,7 @@ func TestLinkEqual(t *testing.T) {
 }
 
 func TestLinkMarshalUnmarshal(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc            string
 		input           []byte
@@ -222,6 +227,7 @@ func TestLinkMarshalUnmarshal(t *testing.T) {
 }
 
 func TestLinkRecordMarshalText(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		expectedString string
 		expected       LinkRecord
@@ -256,6 +262,7 @@ func TestLinkRecordMarshalText(t *testing.T) {
 }
 
 func TestGroupUnmarshalText(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input       string
 		expectedErr string

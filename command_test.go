@@ -25,6 +25,7 @@ import (
 )
 
 func TestCommandSubCommand(t *testing.T) {
+	t.Parallel()
 	cmd := Command{0x00, 0x01, 0x02}
 	cmd = cmd.SubCommand(3)
 	if cmd[2] != 3 {
@@ -33,6 +34,7 @@ func TestCommandSubCommand(t *testing.T) {
 }
 
 func TestCommandString(t *testing.T) {
+	t.Parallel()
 	fs := token.NewFileSet()
 	parsedFile, err := parser.ParseFile(fs, "commands.go", nil, parser.ParseComments)
 	if err == nil {

@@ -10,6 +10,7 @@ import (
 )
 
 func TestSwitchConfig(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input             []byte
 		expectedErr       error
@@ -43,6 +44,7 @@ func TestSwitchConfig(t *testing.T) {
 }
 
 func TestDimmerConfig(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input             []byte
 		expectedErr       error
@@ -91,6 +93,7 @@ func TestDimmerConfig(t *testing.T) {
 }
 
 func TestLightFlags(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    LightFlags
 		test     func(flags LightFlags) bool
@@ -125,6 +128,7 @@ func TestLightFlags(t *testing.T) {
 }
 
 func TestSwitchIsASwitch(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		device interface{}
 	}{
@@ -141,6 +145,7 @@ func TestSwitchIsASwitch(t *testing.T) {
 }
 
 func TestSwitchProcess(t *testing.T) {
+	t.Parallel()
 	downstreamCh := make(chan *Message, 1)
 	recvCh := make(chan *Message, 1)
 	sd := &switchedDevice{downstreamRecvCh: downstreamCh, recvCh: recvCh}
@@ -161,6 +166,7 @@ func TestSwitchProcess(t *testing.T) {
 }
 
 func TestSwitchedDeviceFactory(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		info     DeviceInfo
 		expected interface{}
@@ -187,6 +193,7 @@ func TestSwitchedDeviceFactory(t *testing.T) {
 }
 
 func TestSwitchCommands(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		firmwareVersion FirmwareVersion
 		callback        func(*switchedDevice) error
@@ -232,6 +239,7 @@ func TestSwitchCommands(t *testing.T) {
 }
 
 func TestSwitchedDeviceConfig(t *testing.T) {
+	t.Parallel()
 	sender := &commandable{
 		recvCmd: CmdExtendedGetSet,
 	}
@@ -250,6 +258,7 @@ func TestSwitchedDeviceConfig(t *testing.T) {
 }
 
 func TestSwitchedDeviceOperatingFlags(t *testing.T) {
+	t.Parallel()
 	sender := &commandable{
 		respCmds: []Command{
 			CmdGetOperatingFlags.SubCommand(3),
@@ -271,6 +280,7 @@ func TestSwitchedDeviceOperatingFlags(t *testing.T) {
 }
 
 func TestDimmerIsADimmer(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		device interface{}
 	}{
@@ -287,6 +297,7 @@ func TestDimmerIsADimmer(t *testing.T) {
 }
 
 func TestDimmerProcess(t *testing.T) {
+	t.Parallel()
 	downstreamCh := make(chan *Message, 1)
 	recvCh := make(chan *Message, 1)
 	dd := &dimmableDevice{downstreamRecvCh: downstreamCh, recvCh: recvCh}
@@ -307,6 +318,7 @@ func TestDimmerProcess(t *testing.T) {
 }
 
 func TestDimmerCommands(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		firmwareVersion FirmwareVersion
 		callback        func(*dimmableDevice) error
@@ -353,6 +365,7 @@ func TestDimmerCommands(t *testing.T) {
 }
 
 func TestDimmableDeviceConfig(t *testing.T) {
+	t.Parallel()
 	sender := &commandable{
 		recvCmd: CmdExtendedGetSet,
 	}
@@ -371,6 +384,7 @@ func TestDimmableDeviceConfig(t *testing.T) {
 }
 
 func TestDimmableDeviceFactory(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		info     DeviceInfo
 		expected interface{}

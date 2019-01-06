@@ -20,6 +20,7 @@ import (
 )
 
 func TestSettingConfigFlags(t *testing.T) {
+	t.Parallel()
 	config := Config(0x00)
 
 	tests := []struct {
@@ -59,6 +60,7 @@ func TestSettingConfigFlags(t *testing.T) {
 }
 
 func TestConfigString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    byte
 		expected string
@@ -81,6 +83,7 @@ func TestConfigString(t *testing.T) {
 }
 
 func TestConfigMarshalUnmarshal(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input byte
 	}{

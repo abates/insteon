@@ -28,6 +28,7 @@ func newTestConnection(dst Address) (*connection, chan *MessageRequest, chan *Me
 // TODO need to rewrite this test because it sucks and is full
 // of race conditions
 func TestConnectionProcess(t *testing.T) {
+	t.Parallel()
 	doneCh := make(chan *MessageRequest, 1)
 	recvCh := make(chan *Message, 1)
 	upstreamRecvCh := make(chan *Message, 1)
@@ -57,6 +58,7 @@ func TestConnectionProcess(t *testing.T) {
 }
 
 func TestConnectionReceiveAck(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc        string
 		version     EngineVersion
@@ -96,6 +98,7 @@ func TestConnectionReceiveAck(t *testing.T) {
 }
 
 func TestConnectionReceiveMatch(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    *Message
 		match    Command
@@ -123,6 +126,7 @@ func TestConnectionReceiveMatch(t *testing.T) {
 }
 
 func TestConnectionReceive(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    *Message
 		expected int
@@ -145,6 +149,7 @@ func TestConnectionReceive(t *testing.T) {
 }
 
 func TestConnectionSend(t *testing.T) {
+	t.Parallel()
 	upstreamSendCh := make(chan *MessageRequest, 1)
 	conn := &connection{
 		addr:           testDstAddr,

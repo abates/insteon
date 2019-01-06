@@ -6,6 +6,7 @@ import (
 )
 
 func TestI1DeviceIsDevice(t *testing.T) {
+	t.Parallel()
 	var device interface{}
 	device = &I1Device{}
 
@@ -15,6 +16,7 @@ func TestI1DeviceIsDevice(t *testing.T) {
 }
 
 func TestI1DeviceSend(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc          string
 		payload       []byte
@@ -49,6 +51,7 @@ func TestI1DeviceSend(t *testing.T) {
 }
 
 func TestI1DeviceReceive(t *testing.T) {
+	t.Parallel()
 	// This test is flaky about 15% of the time.
 	recvCh := make(chan *Message, 1)
 	requestRecvCh := make(chan *CommandResponse, 1)
@@ -75,6 +78,7 @@ func TestI1DeviceReceive(t *testing.T) {
 }
 
 func TestI1DeviceReceiveAck(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc           string
 		input          *MessageRequest
@@ -136,6 +140,7 @@ func TestI1DeviceReceiveAck(t *testing.T) {
 }
 
 func TestI1DeviceDoneCh(t *testing.T) {
+	t.Parallel()
 	doneCh := make(chan *CommandResponse, 1)
 	requestDoneCh := make(chan *CommandRequest, 1)
 	requestRecvCh := make(chan *CommandResponse, 1)
@@ -166,6 +171,7 @@ func TestI1DeviceDoneCh(t *testing.T) {
 }
 
 func TestI1DeviceWaitRequestTimeout(t *testing.T) {
+	t.Parallel()
 	recvCh := make(chan *Message, 1)
 	doneCh := make(chan *CommandResponse, 1)
 	requestDoneCh := make(chan *CommandRequest, 1)
@@ -194,6 +200,7 @@ func TestI1DeviceWaitRequestTimeout(t *testing.T) {
 }
 
 func TestI1DeviceQueueTimeout(t *testing.T) {
+	t.Parallel()
 	recvCh := make(chan *Message, 1)
 	doneCh := make(chan *CommandResponse, 1)
 	requestDoneCh := make(chan *CommandRequest, 1)
@@ -218,6 +225,7 @@ func TestI1DeviceQueueTimeout(t *testing.T) {
 }
 
 func TestI1DeviceAddress(t *testing.T) {
+	t.Parallel()
 	expected := Address{3, 4, 5}
 	device := &I1Device{address: expected}
 	if device.Address() != expected {
@@ -226,6 +234,7 @@ func TestI1DeviceAddress(t *testing.T) {
 }
 
 func TestI1DeviceCommands(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc        string
 		callback    func(*I1Device) error
@@ -271,6 +280,7 @@ func TestI1DeviceCommands(t *testing.T) {
 }
 
 func TestI1DeviceProductData(t *testing.T) {
+	t.Parallel()
 	sendCh := make(chan *CommandRequest, 1)
 	device := &I1Device{
 		sendCh: sendCh,
@@ -294,6 +304,7 @@ func TestI1DeviceProductData(t *testing.T) {
 }
 
 func TestI1DeviceBlockDataTransfer(t *testing.T) {
+	t.Parallel()
 	device := &I1Device{}
 	_, err := device.BlockDataTransfer(0, 0, 0)
 	if err != ErrNotImplemented {
@@ -302,6 +313,7 @@ func TestI1DeviceBlockDataTransfer(t *testing.T) {
 }
 
 func TestI1DeviceString(t *testing.T) {
+	t.Parallel()
 	device := &I1Device{address: Address{3, 4, 5}}
 	expected := "I1 Device (03.04.05)"
 	if device.String() != expected {

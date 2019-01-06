@@ -22,6 +22,7 @@ import (
 )
 
 func TestPacketAckNak(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		cmd   Command
 		input byte
@@ -49,6 +50,7 @@ func TestPacketAckNak(t *testing.T) {
 }
 
 func TestPacketMarshalUnmarshalBinary(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc        string
 		input       []byte
@@ -77,6 +79,7 @@ func TestPacketMarshalUnmarshalBinary(t *testing.T) {
 }
 
 func TestPacketMarshalBinary(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc     string
 		input    *Packet
@@ -96,6 +99,7 @@ func TestPacketMarshalBinary(t *testing.T) {
 }
 
 func TestPacketString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    *Packet
 		expected string
@@ -115,6 +119,7 @@ func TestPacketString(t *testing.T) {
 }
 
 func TestPacketFormat(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		format   string
 		input    *Packet

@@ -21,6 +21,7 @@ import (
 )
 
 func TestBufError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc     string
 		input    error
@@ -40,6 +41,7 @@ func TestBufError(t *testing.T) {
 }
 
 func TestError(t *testing.T) {
+	t.Parallel()
 	err := &traceError{
 		Cause: errors.New("Foo"),
 		Frame: runtime.Frame{File: "/foo/bar/run.go", Line: 10, Function: "Woops"},
@@ -51,6 +53,7 @@ func TestError(t *testing.T) {
 }
 
 func TestIsError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc     string
 		cause    error
@@ -81,6 +84,7 @@ func TestIsError(t *testing.T) {
 }
 
 func TestTraceError(t *testing.T) {
+	t.Parallel()
 	err := newTraceError(ErrBufferTooShort)
 	if _, ok := err.(*traceError); !ok {
 		t.Errorf("expected *Error got %T", err)

@@ -17,6 +17,7 @@ package insteon
 import "testing"
 
 func TestI2DeviceIsLinkable(t *testing.T) {
+	t.Parallel()
 	device := Device(&I2Device{})
 	linkable := device.(LinkableDevice)
 	if linkable == nil {
@@ -25,6 +26,7 @@ func TestI2DeviceIsLinkable(t *testing.T) {
 }
 
 func TestI2DeviceCommands(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc        string
 		callback    func(*I2Device) error
@@ -69,6 +71,7 @@ func TestI2DeviceCommands(t *testing.T) {
 }
 
 func TestI2DeviceLinks(t *testing.T) {
+	t.Parallel()
 	sendCh := make(chan *CommandRequest, 1)
 	device := &I2Device{&I1Device{sendCh: sendCh}}
 
@@ -91,6 +94,7 @@ func TestI2DeviceLinks(t *testing.T) {
 }
 
 func TestI2DeviceString(t *testing.T) {
+	t.Parallel()
 	device := &I2Device{&I1Device{address: Address{3, 4, 5}}}
 	expected := "I2 Device (03.04.05)"
 	if device.String() != expected {

@@ -20,6 +20,7 @@ import (
 )
 
 func TestAddressUnmarshalText(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input   string
 		want    Address
@@ -52,6 +53,7 @@ func TestAddressUnmarshalText(t *testing.T) {
 }
 
 func TestAddressString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input Address
 		want  string
@@ -69,6 +71,7 @@ func TestAddressString(t *testing.T) {
 }
 
 func TestAddressMarshaling(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input           string
 		expectedAddress Address

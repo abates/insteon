@@ -21,6 +21,7 @@ import (
 )
 
 func TestDeviceRegistry(t *testing.T) {
+	t.Parallel()
 	dr := &DeviceRegistry{}
 
 	if _, found := dr.Find(Category(1)); found {

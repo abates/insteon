@@ -46,6 +46,7 @@ var (
 )
 
 func TestMessageType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input             MessageType
 		expectedDirect    bool
@@ -80,6 +81,7 @@ func TestMessageType(t *testing.T) {
 }
 
 func TestFlags(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input            Flags
 		expectedType     MessageType
@@ -137,6 +139,7 @@ func TestFlags(t *testing.T) {
 }
 
 func TestMessageMarshalUnmarshal(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc            string
 		input           []byte
@@ -270,6 +273,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 }
 
 func TestChecksum(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc     string
 		input    []byte
@@ -298,6 +302,7 @@ func TestChecksum(t *testing.T) {
 }
 
 func TestCommonTypeConsts(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		want Flags
 		MessageType

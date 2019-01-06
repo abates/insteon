@@ -21,6 +21,7 @@ import (
 )
 
 func TestDeviceInfoComplete(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    DeviceInfo
 		expected bool
@@ -75,6 +76,7 @@ func (tpd *testProductDB) Find(address Address) (deviceInfo DeviceInfo, found bo
 }
 
 func TestProductDatabaseUpdateFind(t *testing.T) {
+	t.Parallel()
 	address := Address{0, 1, 2}
 	tests := []struct {
 		desc   string

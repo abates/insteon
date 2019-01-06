@@ -21,6 +21,7 @@ import (
 )
 
 func TestMemAddress(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    int
 		expected string
@@ -41,6 +42,7 @@ func TestMemAddress(t *testing.T) {
 }
 
 func TestLinkRequestType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    byte
 		expected string
@@ -62,6 +64,7 @@ func TestLinkRequestType(t *testing.T) {
 }
 
 func TestLinkRequest(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc            string
 		input           []byte
@@ -144,10 +147,13 @@ func TestLinkRequest(t *testing.T) {
 }
 
 func TestAddLink(t *testing.T) {
+	t.Parallel()
 }
 
 func TestRemoveLink(t *testing.T) {
+	t.Parallel()
 }
 
 func TestCleanup(t *testing.T) {
+	t.Parallel()
 }

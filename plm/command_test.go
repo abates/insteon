@@ -24,6 +24,7 @@ import (
 )
 
 func TestCommand(t *testing.T) {
+	t.Parallel()
 	fs := token.NewFileSet()
 	parsedFile, err := parser.ParseFile(fs, "command.go", nil, parser.ParseComments)
 	if err == nil {

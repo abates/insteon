@@ -43,6 +43,7 @@ func testClosedChannels(sendCh chan *CommandRequest, conn *connection) (string, 
 }
 
 func TestConnectionSend(t *testing.T) {
+	t.Parallel()
 	sendCh := make(chan *CommandRequest, 1)
 	conn := newConnection(sendCh, nil, CmdSendInsteonMsg)
 
@@ -68,6 +69,7 @@ func TestConnectionSend(t *testing.T) {
 }
 
 func TestConnectionReceive(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc     string
 		input    *Packet

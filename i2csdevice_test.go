@@ -17,6 +17,7 @@ package insteon
 import "testing"
 
 func TestI2CsDeviceCommands(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		desc        string
 		callback    func(*I2CsDevice) error
@@ -55,6 +56,7 @@ func TestI2CsDeviceCommands(t *testing.T) {
 }
 
 func TestI2CsSendCommand(t *testing.T) {
+	t.Parallel()
 	sendCh := make(chan *CommandRequest, 1)
 	device := &I2CsDevice{&I2Device{&I1Device{sendCh: sendCh}}}
 	go func() {
@@ -69,6 +71,7 @@ func TestI2CsSendCommand(t *testing.T) {
 }
 
 func TestI2CsDeviceString(t *testing.T) {
+	t.Parallel()
 	device := &I2CsDevice{&I2Device{&I1Device{address: Address{3, 4, 5}}}}
 	expected := "I2CS Device (03.04.05)"
 	if device.String() != expected {

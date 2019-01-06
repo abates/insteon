@@ -6,6 +6,7 @@ import (
 )
 
 func TestPlmTimeout(t *testing.T) {
+	t.Parallel()
 	upstreamRecvCh := make(chan []byte, 1)
 	doneCh := make(chan *PacketRequest, 1)
 	request := &PacketRequest{DoneCh: doneCh}
@@ -27,6 +28,7 @@ func TestPlmTimeout(t *testing.T) {
 }
 
 func TestPlmOption(t *testing.T) {
+	t.Parallel()
 	want := 1234 * time.Millisecond
 
 	without := New(&Port{}, 5*time.Second)
