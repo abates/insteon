@@ -50,14 +50,14 @@ func TestConnectionSend(t *testing.T) {
 	conn.sendCh <- &insteon.PacketRequest{DoneCh: doneCh}
 	request := <-sendCh
 	if request.Command != CmdSendInsteonMsg {
-		t.Errorf("Expected %v to be sent, but got %v instead", CmdSendInsteonMsg, request.Command)
+		t.Errorf("sent %v, want %v", request.Command, CmdSendInsteonMsg)
 		request.DoneCh <- request
 	} else {
 		request.Err = ErrReadTimeout
 		request.DoneCh <- request
 		packetRequest := <-doneCh
 		if packetRequest.Err != ErrReadTimeout {
-			t.Errorf("Expected %v but got %v", ErrReadTimeout, packetRequest.Err)
+			t.Errorf("got error %v, want %v", packetRequest.Err, ErrReadTimeout)
 		}
 	}
 
@@ -69,37 +69,40 @@ func TestConnectionSend(t *testing.T) {
 
 func TestConnectionReceive(t *testing.T) {
 	tests := []struct {
+		desc     string
 		input    *Packet
 		match    []Command
 		expected bool
 	}{
-		{&Packet{Command: CmdStdMsgReceived}, []Command{CmdStdMsgReceived}, true},
-		{&Packet{Command: CmdNak}, []Command{CmdStdMsgReceived}, false},
-		{&Packet{Command: CmdNak}, nil, true},
+		{"Received-Received", &Packet{Command: CmdStdMsgReceived}, []Command{CmdStdMsgReceived}, true},
+		{"Nak-Received", &Packet{Command: CmdNak}, []Command{CmdStdMsgReceived}, false},
+		{"Nak", &Packet{Command: CmdNak}, nil, true},
 	}
 
-	for i, test := range tests {
-		sendCh := make(chan *CommandRequest, 1)
-		recvCh := make(chan *Packet, 1)
-		conn := &connection{
-			upstreamRecvCh: recvCh,
-			matches:        test.match,
-			upstreamSendCh: sendCh,
-			recvCh:         make(chan []byte, 1),
-		}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			sendCh := make(chan *CommandRequest, 1)
+			recvCh := make(chan *Packet, 1)
+			conn := &connection{
+				upstreamRecvCh: recvCh,
+				matches:        test.match,
+				upstreamSendCh: sendCh,
+				recvCh:         make(chan []byte, 1),
+			}
 
-		recvCh <- test.input
-		close(recvCh)
-		conn.process()
+			recvCh <- test.input
+			close(recvCh)
+			conn.process()
 
-		if test.expected && len(conn.recvCh) == 0 {
-			t.Errorf("tests[%d] expected packet to be delivered", i)
-		} else {
-			<-conn.recvCh
-		}
+			if test.expected && len(conn.recvCh) == 0 {
+				t.Errorf("expected packet to be delivered")
+			} else {
+				<-conn.recvCh
+			}
 
-		if msg, passed := testClosedChannels(sendCh, conn); !passed {
-			t.Errorf("%v", msg)
-		}
+			if msg, passed := testClosedChannels(sendCh, conn); !passed {
+				t.Errorf("%v", msg)
+			}
+		})
 	}
 }

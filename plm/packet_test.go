@@ -34,56 +34,64 @@ func TestPacketAckNak(t *testing.T) {
 		{0x01, 0x15, false, false},
 	}
 
-	for i, test := range tests {
-		p := &Packet{Command: test.cmd, Ack: test.input}
-		if p.ACK() != test.ack {
-			t.Errorf("tests[%d] expected ack to be %v got %v", i, test.ack, p.ACK())
-		}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("0x%02x 0x%02x", test.cmd, test.input), func(t *testing.T) {
+			p := &Packet{Command: test.cmd, Ack: test.input}
+			if p.ACK() != test.ack {
+				t.Errorf("got ack %v, want %v ", p.ACK(), test.ack)
+			}
 
-		if p.NAK() != test.nak {
-			t.Errorf("tests[%d] expected nak to be %v got %v", i, test.nak, p.NAK())
-		}
+			if p.NAK() != test.nak {
+				t.Errorf("got nak %v, want %v", p.NAK(), test.nak)
+			}
+		})
 	}
 }
 
 func TestPacketMarshalUnmarshalBinary(t *testing.T) {
 	tests := []struct {
+		desc        string
 		input       []byte
 		expected    *Packet
 		expectedErr error
 	}{
-		{[]byte{0x00}, &Packet{}, ErrNoSync},
-		{[]byte{0x02, byte(CmdSendInsteonMsg), 0x01, 0x02, 0x03, 0x04, 0x06}, &Packet{Ack: 0x06, Command: CmdSendInsteonMsg, Payload: []byte{0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04}}, nil},
+		{"error", []byte{0x00}, &Packet{}, ErrNoSync},
+		{"message", []byte{0x02, byte(CmdSendInsteonMsg), 0x01, 0x02, 0x03, 0x04, 0x06}, &Packet{Ack: 0x06, Command: CmdSendInsteonMsg, Payload: []byte{0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04}}, nil},
 	}
 
-	for i, test := range tests {
-		packet := &Packet{}
-		err := packet.UnmarshalBinary(test.input)
-		if err == test.expectedErr {
-			if err == nil {
-				if !reflect.DeepEqual(packet, test.expected) {
-					t.Errorf("tests[%d] expected %v got %v", i, test.expected, packet)
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			packet := &Packet{}
+			err := packet.UnmarshalBinary(test.input)
+			if err == test.expectedErr {
+				if err == nil {
+					if !reflect.DeepEqual(packet, test.expected) {
+						t.Errorf("got %v, want %v", packet, test.expected)
+					}
 				}
+			} else {
+				t.Errorf("got error %v, want %v", err, test.expectedErr)
 			}
-		} else {
-			t.Errorf("tests[%d] expected error %v got %v", i, test.expectedErr, err)
-		}
+		})
 	}
 }
 
 func TestPacketMarshalBinary(t *testing.T) {
 	tests := []struct {
+		desc     string
 		input    *Packet
 		expected []byte
 	}{
-		{&Packet{Ack: 0x06, Command: CmdSendInsteonMsg, Payload: []byte{0x01, 0x02, 0x03, 0x04}}, []byte{0x02, byte(CmdSendInsteonMsg), 0x01, 0x02, 0x03, 0x04}},
+		{"1234", &Packet{Ack: 0x06, Command: CmdSendInsteonMsg, Payload: []byte{0x01, 0x02, 0x03, 0x04}}, []byte{0x02, byte(CmdSendInsteonMsg), 0x01, 0x02, 0x03, 0x04}},
 	}
 
-	for i, test := range tests {
-		buf, _ := test.input.MarshalBinary()
-		if !bytes.Equal(test.expected, buf) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expected, buf)
-		}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			buf, _ := test.input.MarshalBinary()
+			if !bytes.Equal(test.expected, buf) {
+				t.Errorf("got %v, want %v", test.expected, buf)
+			}
+		})
 	}
 }
 
@@ -96,11 +104,13 @@ func TestPacketString(t *testing.T) {
 		{&Packet{Command: CmdGetInfo, Ack: 0x15}, fmt.Sprintf("%v NAK", CmdGetInfo)},
 	}
 
-	for i, test := range tests {
-		str := test.input.String()
-		if str != test.expected {
-			t.Errorf("tests[%d] expected %q got %q", i, test.expected, str)
-		}
+	for _, test := range tests {
+		t.Run(test.expected, func(t *testing.T) {
+			str := test.input.String()
+			if str != test.expected {
+				t.Errorf("got %q, want %q", str, test.expected)
+			}
+		})
 	}
 }
 
@@ -120,10 +130,12 @@ func TestPacketFormat(t *testing.T) {
 		{"%d", &Packet{Command: CmdGetInfo, Ack: 0x06}, fmt.Sprintf("%%!d(packet=%v ACK)", CmdGetInfo)},
 	}
 
-	for i, test := range tests {
-		str := fmt.Sprintf(test.format, test.input)
-		if str != test.expected {
-			t.Errorf("tests[%d] expected %q got %q", i, test.expected, str)
-		}
+	for _, test := range tests {
+		t.Run(test.expected, func(t *testing.T) {
+			str := fmt.Sprintf(test.format, test.input)
+			if str != test.expected {
+				t.Errorf("got %q, want %q", str, test.expected)
+			}
+		})
 	}
 }

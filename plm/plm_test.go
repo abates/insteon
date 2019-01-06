@@ -18,7 +18,7 @@ func TestPlmTimeout(t *testing.T) {
 	go func() {
 		<-doneCh
 		if request.Err != ErrReadTimeout {
-			t.Errorf("Expected %v got %v", ErrReadTimeout, request.Err)
+			t.Errorf("got error %v, want %v", request.Err, ErrReadTimeout)
 		}
 		close(upstreamRecvCh)
 	}()
@@ -36,7 +36,7 @@ func TestPlmOption(t *testing.T) {
 
 	with := New(&Port{}, 5*time.Second, WriteDelay(want))
 	if with.writeDelay != want {
-		t.Errorf("writeDelay is %v, wanted %v", without.writeDelay, want)
+		t.Errorf("writeDelay is %v, want %v", without.writeDelay, want)
 	}
 
 }
