@@ -190,7 +190,7 @@ func (plm *PLM) receive(buf []byte) {
 	err := packet.UnmarshalBinary(buf)
 
 	if err == nil {
-		insteon.Log.Tracef("RX %v", packet)
+		insteon.Log.Tracef("%v", packet)
 		if 0x50 <= packet.Command && packet.Command <= 0x58 {
 			for _, connection := range plm.connections {
 				connection <- packet

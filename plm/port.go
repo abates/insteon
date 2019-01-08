@@ -51,9 +51,8 @@ func NewPort(readWriter io.ReadWriter, timeout time.Duration) *Port {
 
 func (port *Port) readLoop() {
 	for {
-		packet, err := port.readPacket()
+		packet, err := port.receive()
 		if err == nil {
-			insteon.Log.Tracef("RX %s", hexDump("%02x", packet, " "))
 			port.readCh <- packet
 		} else {
 			if err == io.EOF {
@@ -105,7 +104,7 @@ func (port *Port) send(buf []byte) {
 	}
 }
 
-func (port *Port) readPacket() (buf []byte, err error) {
+func (port *Port) receive() (buf []byte, err error) {
 	timeout := time.Now().Add(port.timeout)
 
 	// synchronize
@@ -118,7 +117,7 @@ func (port *Port) readPacket() (buf []byte, err error) {
 
 		// first byte of PLM packets is always 0x02
 		if b != 0x02 {
-			insteon.Log.Tracef("Expected STX (0x02) got 0x%02x", b)
+			insteon.Log.Tracef("Expected Start of Text (0x02) got 0x%02x", b)
 			continue
 		} else {
 			b, err = port.in.ReadByte()
@@ -147,7 +146,12 @@ func (port *Port) readPacket() (buf []byte, err error) {
 			buf = append(buf, make([]byte, 14)...)
 			_, err = io.ReadAtLeast(port.in, buf[9:], 14)
 		}
+
+		if err == nil {
+			insteon.Log.Tracef("RX %s", hexDump("%02x", buf, " "))
+		}
 	}
+
 	return buf, err
 }
 
