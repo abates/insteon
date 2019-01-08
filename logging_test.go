@@ -34,10 +34,12 @@ func TestLogLevel(t *testing.T) {
 		{LogLevel(-1), ""},
 	}
 
-	for i, test := range tests {
-		if test.str != test.level.String() {
-			t.Errorf("tests[%d] expected %q got %q", i, test.str, test.level.String())
-		}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("level %q", test.str), func(t *testing.T) {
+			if test.str != test.level.String() {
+				t.Errorf("got %q, want %q", test.level.String(), test.str)
+			}
+		})
 	}
 }
 
@@ -66,7 +68,7 @@ func TestLogging(t *testing.T) {
 			expected += "\n"
 		}
 		if expected != buffer.String() {
-			t.Errorf("Expected %q got %q", expected, buffer.String())
+			t.Errorf("got %q, want %q", buffer.String(), expected)
 		}
 	}
 }

@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -85,7 +86,7 @@ func (rcf *RecordControlFlags) UnmarshalText(text []byte) (err error) {
 	} else if str[0] == "U" {
 		rcf.setInUse()
 	} else {
-		err = fmt.Errorf("Invalid value for Available flag")
+		err = errors.New("Invalid value for Available flag")
 	}
 
 	if str[1] == "C" {
@@ -93,7 +94,7 @@ func (rcf *RecordControlFlags) UnmarshalText(text []byte) (err error) {
 	} else if str[1] == "R" {
 		rcf.setResponder()
 	} else {
-		err = fmt.Errorf("Invalid value for Controller flag")
+		err = errors.New("Invalid value for Controller flag")
 	}
 	return err
 }
@@ -113,10 +114,10 @@ func (g *Group) UnmarshalText(text []byte) error {
 		if 0 < value && value < 256 {
 			*g = Group(byte(value))
 		} else {
-			err = fmt.Errorf("valid groups are between 1 and 255 (inclusive)")
+			err = errors.New("valid groups are between 1 and 255 (inclusive)")
 		}
 	} else {
-		err = fmt.Errorf("invalid number format")
+		err = errors.New("invalid number format")
 	}
 	return err
 }

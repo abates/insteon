@@ -181,7 +181,7 @@ func TestSwitchedDeviceFactory(t *testing.T) {
 				t.Errorf("expected %q got %q", "Switch (05.06.07)", stringer.String())
 			}
 		} else {
-			t.Errorf("expected stringer")
+			t.Error("expected stringer")
 		}
 	}
 }
@@ -391,7 +391,7 @@ func TestDimmableDeviceFactory(t *testing.T) {
 				t.Errorf("expected %q got %q", "Dimmable Light (03.04.05)", stringer.String())
 			}
 		} else {
-			t.Errorf("expected stringer")
+			t.Error("expected stringer")
 		}
 	}
 }

@@ -10,42 +10,46 @@ func TestI1DeviceIsDevice(t *testing.T) {
 	device = &I1Device{}
 
 	if _, ok := device.(Device); !ok {
-		t.Errorf("Expected I1Device to be linkable")
+		t.Error("Expected I1Device to be linkable")
 	}
 }
 
 func TestI1DeviceSend(t *testing.T) {
 	tests := []struct {
+		desc          string
 		payload       []byte
 		expectedFlags Flags
 	}{
-		{nil, StandardDirectMessage},
-		{[]byte{1, 2, 3, 4}, ExtendedDirectMessage},
+		{"SD", nil, StandardDirectMessage},
+		{"ED", []byte{1, 2, 3, 4}, ExtendedDirectMessage},
 	}
 
-	for i, test := range tests {
-		sendCh := make(chan *CommandRequest, 1)
-		upstreamSendCh := make(chan *MessageRequest, 1)
-		device := &I1Device{
-			sendCh:         sendCh,
-			upstreamSendCh: upstreamSendCh,
-		}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			sendCh := make(chan *CommandRequest, 1)
+			upstreamSendCh := make(chan *MessageRequest, 1)
+			device := &I1Device{
+				sendCh:         sendCh,
+				upstreamSendCh: upstreamSendCh,
+			}
 
-		sendCh <- &CommandRequest{Payload: test.payload}
-		close(sendCh)
-		device.process()
-		if len(upstreamSendCh) != 1 {
-			t.Errorf("tests[%d] expected message to be sent upstream", i)
-		}
+			sendCh <- &CommandRequest{Payload: test.payload}
+			close(sendCh)
+			device.process()
+			if len(upstreamSendCh) != 1 {
+				t.Error("expected message to be sent upstream")
+			}
 
-		request := <-upstreamSendCh
-		if request.Message.Flags != test.expectedFlags {
-			t.Errorf("tests[%d] expected flags to be %v got %v", i, test.expectedFlags, request.Message.Flags)
-		}
+			request := <-upstreamSendCh
+			if request.Message.Flags != test.expectedFlags {
+				t.Errorf("got %v, want flags %v", request.Message.Flags, test.expectedFlags)
+			}
+		})
 	}
 }
 
 func TestI1DeviceReceive(t *testing.T) {
+	// This test is flaky about 15% of the time.
 	recvCh := make(chan *Message, 1)
 	requestRecvCh := make(chan *CommandResponse, 1)
 	upstreamSendCh := make(chan *MessageRequest, 1)
@@ -61,70 +65,73 @@ func TestI1DeviceReceive(t *testing.T) {
 	close(recvCh)
 	device.process()
 	if len(requestRecvCh) != 1 {
-		t.Errorf("expected message to be sent to waiting request")
+		t.Error("expected message to be sent to waiting request")
 	}
 
 	var zeroTime time.Time
 	if waitRequest.timeout == zeroTime {
-		t.Errorf("expected timeout to be set")
+		t.Error("expected timeout to be set")
 	}
 }
 
 func TestI1DeviceReceiveAck(t *testing.T) {
 	tests := []struct {
+		desc           string
 		input          *MessageRequest
 		recvChSet      bool
 		waitRequestSet bool
 	}{
-		{&MessageRequest{Ack: &Message{}, Err: ErrReadTimeout}, false, false},
-		{&MessageRequest{Ack: &Message{}, Err: ErrReadTimeout}, true, false},
-		{&MessageRequest{Ack: &Message{}, Err: nil}, true, true},
+		{"read timeout - no recv", &MessageRequest{Ack: &Message{}, Err: ErrReadTimeout}, false, false},
+		{"read timeout - recv", &MessageRequest{Ack: &Message{}, Err: ErrReadTimeout}, true, false},
+		{"waitRequest", &MessageRequest{Ack: &Message{}, Err: nil}, true, true},
 	}
 
-	for i, test := range tests {
-		recvCh := make(chan *Message, 1)
-		doneCh := make(chan *MessageRequest, 1)
-		requestDoneCh := make(chan *CommandRequest, 1)
-		requestRecvCh := make(chan *CommandResponse, 1)
-		upstreamSendCh := make(chan *MessageRequest, 1)
-		device := &I1Device{
-			recvCh:         recvCh,
-			upstreamSendCh: upstreamSendCh,
-			doneCh:         doneCh,
-			queue:          []*CommandRequest{{DoneCh: requestDoneCh}},
-		}
-
-		if test.recvChSet {
-			device.queue[0].RecvCh = requestRecvCh
-		}
-
-		doneCh <- test.input
-		close(doneCh)
-		device.process()
-		cmdRequest := <-requestDoneCh
-		if cmdRequest.Ack != test.input.Ack {
-			t.Errorf("tests[%d] expected %v got %v", i, test.input.Ack, cmdRequest.Ack)
-		}
-
-		if cmdRequest.Err != test.input.Err {
-			t.Errorf("tests[%d] expected %v got %v", i, test.input.Err, cmdRequest.Err)
-		}
-
-		if test.waitRequestSet {
-			if device.waitRequest == nil {
-				t.Errorf("tests[%d] expected waitRequest to be set", i)
-				select {
-				case _, ok := <-requestRecvCh:
-					if ok {
-						t.Errorf("tests[%d] expected recv channel to be closed", i)
-					}
-				case <-time.After(time.Second):
-					t.Errorf("tests[%d] timeout waiting for channel to close", i)
-				}
-			} else if device.waitRequest != cmdRequest {
-				t.Errorf("tests[%d] expected %v got %v", i, cmdRequest, device.waitRequest)
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			recvCh := make(chan *Message, 1)
+			doneCh := make(chan *MessageRequest, 1)
+			requestDoneCh := make(chan *CommandRequest, 1)
+			requestRecvCh := make(chan *CommandResponse, 1)
+			upstreamSendCh := make(chan *MessageRequest, 1)
+			device := &I1Device{
+				recvCh:         recvCh,
+				upstreamSendCh: upstreamSendCh,
+				doneCh:         doneCh,
+				queue:          []*CommandRequest{{DoneCh: requestDoneCh}},
 			}
-		}
+
+			if test.recvChSet {
+				device.queue[0].RecvCh = requestRecvCh
+			}
+
+			doneCh <- test.input
+			close(doneCh)
+			device.process()
+			cmdRequest := <-requestDoneCh
+			if cmdRequest.Ack != test.input.Ack {
+				t.Errorf("got %v, want %v", cmdRequest.Ack, test.input.Ack)
+			}
+
+			if cmdRequest.Err != test.input.Err {
+				t.Errorf("got %v, want %v", cmdRequest.Err, test.input.Err)
+			}
+
+			if test.waitRequestSet {
+				if device.waitRequest == nil {
+					t.Error("expected waitRequest to be set")
+					select {
+					case _, ok := <-requestRecvCh:
+						if ok {
+							t.Error("expected recv channel to be closed")
+						}
+					case <-time.After(time.Second):
+						t.Error("timeout waiting for channel to close")
+					}
+				} else if device.waitRequest != cmdRequest {
+					t.Errorf("got %v, want %v", device.waitRequest, cmdRequest)
+				}
+			}
+		})
 	}
 }
 
@@ -145,16 +152,16 @@ func TestI1DeviceDoneCh(t *testing.T) {
 	device.process()
 
 	if device.waitRequest != nil {
-		t.Errorf("expected nil wait request")
+		t.Error("expected nil wait request")
 	}
 
 	select {
 	case _, ok := <-requestRecvCh:
 		if ok {
-			t.Errorf("expected recv channel to be closed")
+			t.Error("expected recv channel to be closed")
 		}
 	case <-time.After(time.Second):
-		t.Errorf("timeout waiting for channel to close")
+		t.Error("timeout waiting for channel to close")
 	}
 }
 
@@ -175,14 +182,14 @@ func TestI1DeviceWaitRequestTimeout(t *testing.T) {
 	go func() {
 		_, open := <-requestRecvCh
 		if open {
-			t.Errorf("expected closed channel")
+			t.Error("expected closed channel")
 		}
 		close(recvCh)
 	}()
 
 	device.process()
 	if device.waitRequest != nil {
-		t.Errorf("expected waitRequest to be nil")
+		t.Error("expected waitRequest to be nil")
 	}
 }
 
@@ -206,7 +213,7 @@ func TestI1DeviceQueueTimeout(t *testing.T) {
 
 	device.process()
 	if len(device.queue) > 0 {
-		t.Errorf("expected queue to be empty")
+		t.Error("expected queue to be empty")
 	}
 }
 
@@ -220,43 +227,46 @@ func TestI1DeviceAddress(t *testing.T) {
 
 func TestI1DeviceCommands(t *testing.T) {
 	tests := []struct {
+		desc        string
 		callback    func(*I1Device) error
 		expectedCmd Command
 		expectedErr error
 	}{
-		{func(i1 *I1Device) error { return i1.AssignToAllLinkGroup(10) }, CmdAssignToAllLinkGroup.SubCommand(10), nil},
-		{func(i1 *I1Device) error { return i1.AssignToAllLinkGroup(10) }, CmdAssignToAllLinkGroup.SubCommand(10), ErrReadTimeout},
-		{func(i1 *I1Device) error { return i1.DeleteFromAllLinkGroup(10) }, CmdDeleteFromAllLinkGroup.SubCommand(10), nil},
-		{func(i1 *I1Device) error { return i1.Ping() }, CmdPing, nil},
-		{func(i1 *I1Device) error { return i1.SetAllLinkCommandAlias(Command{}, Command{}) }, Command{}, ErrNotImplemented},
-		{func(i1 *I1Device) error { return i1.SetAllLinkCommandAliasData(nil) }, Command{}, ErrNotImplemented},
+		{"AssignToAllLinkGroup", func(i1 *I1Device) error { return i1.AssignToAllLinkGroup(10) }, CmdAssignToAllLinkGroup.SubCommand(10), nil},
+		{"AssignToAllLinkGroup ReadTimeout", func(i1 *I1Device) error { return i1.AssignToAllLinkGroup(10) }, CmdAssignToAllLinkGroup.SubCommand(10), ErrReadTimeout},
+		{"DeleteFromAllLinkGroup", func(i1 *I1Device) error { return i1.DeleteFromAllLinkGroup(10) }, CmdDeleteFromAllLinkGroup.SubCommand(10), nil},
+		{"CmdPing", func(i1 *I1Device) error { return i1.Ping() }, CmdPing, nil},
+		{"SetAllLinkCommandAlias NotImplemented", func(i1 *I1Device) error { return i1.SetAllLinkCommandAlias(Command{}, Command{}) }, Command{}, ErrNotImplemented},
+		{"SetAllLinkCommandAlias NotImplemented 2", func(i1 *I1Device) error { return i1.SetAllLinkCommandAliasData(nil) }, Command{}, ErrNotImplemented},
 	}
 
-	for i, test := range tests {
-		sendCh := make(chan *CommandRequest, 1)
-		device := &I1Device{
-			sendCh: sendCh,
-		}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			sendCh := make(chan *CommandRequest, 1)
+			device := &I1Device{
+				sendCh: sendCh,
+			}
 
-		if test.expectedErr != ErrNotImplemented {
-			go func() {
-				request := <-sendCh
-				if request.Command != test.expectedCmd {
-					t.Errorf("tests[%d] expected Command %v got %v", i, test.expectedCmd, request.Command)
-				}
-				if test.expectedErr != nil {
-					request.Err = test.expectedErr
-				} else {
-					request.Ack = &Message{Command: test.expectedCmd}
-				}
-				request.DoneCh <- request
-			}()
-		}
+			if test.expectedErr != ErrNotImplemented {
+				go func() {
+					request := <-sendCh
+					if request.Command != test.expectedCmd {
+						t.Errorf("got Command %v, want %v", request.Command, test.expectedCmd)
+					}
+					if test.expectedErr != nil {
+						request.Err = test.expectedErr
+					} else {
+						request.Ack = &Message{Command: test.expectedCmd}
+					}
+					request.DoneCh <- request
+				}()
+			}
 
-		err := test.callback(device)
-		if err != test.expectedErr {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedErr, err)
-		}
+			err := test.callback(device)
+			if err != test.expectedErr {
+				t.Errorf("got error %v, want %v", err, test.expectedErr)
+			}
+		})
 	}
 }
 

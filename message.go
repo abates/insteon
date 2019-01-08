@@ -27,14 +27,14 @@ type MessageType int
 
 // All of the valid message types
 const (
-	MsgTypeDirect = iota
-	MsgTypeDirectAck
-	MsgTypeAllLinkCleanup
-	MsgTypeAllLinkCleanupAck
-	MsgTypeBroadcast
-	MsgTypeDirectNak
-	MsgTypeAllLinkBroadcast
-	MsgTypeAllLinkCleanupNak
+	MsgTypeDirect            MessageType = 0    // D
+	MsgTypeDirectAck                     = 0x20 // D (Ack)
+	MsgTypeDirectNak                     = 0xA0 // D (Nak)
+	MsgTypeAllLinkCleanup                = 0x40 // C
+	MsgTypeAllLinkCleanupAck             = 0x60 // C (Ack)
+	MsgTypeAllLinkCleanupNak             = 0xE0 // C (Nak)
+	MsgTypeBroadcast                     = 0x80 // B
+	MsgTypeAllLinkBroadcast              = 0xC0 // A
 )
 
 func (m MessageType) String() string {
@@ -68,7 +68,7 @@ func (m MessageType) Direct() bool {
 
 // Broadcast will indicate whether the MessageType represents a broadcast message
 func (m MessageType) Broadcast() bool {
-	return m&0x0f == 0x04 || m&0x0f == 0x06
+	return m&0x80 > 0 && m&0x20 == 0
 }
 
 // Flags for common message types
@@ -86,8 +86,21 @@ const (
 // Flags is the flags byte in an insteon message
 type Flags byte
 
+// Flag allows building of MessageFlags from component parts.
+func Flag(messageType MessageType, extended bool, hopsLeft, maxHops uint8) Flags {
+	if hopsLeft > 3 || maxHops > 3 {
+		return 0
+	}
+	var e uint8
+	if extended {
+		e = 1
+	}
+
+	return Flags(uint8(messageType) | e<<4 | hopsLeft<<2 | maxHops)
+}
+
 // Type will return the MessageType of the flags
-func (f Flags) Type() MessageType { return MessageType((f & 0xf0) >> 5) }
+func (f Flags) Type() MessageType { return MessageType(f & 0xe0) }
 
 // Standard will indicate if the insteon message is standard length
 func (f Flags) Standard() bool { return f&0x10 == 0x00 }

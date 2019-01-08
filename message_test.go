@@ -62,18 +62,20 @@ func TestMessageType(t *testing.T) {
 		{MsgTypeAllLinkCleanupNak, true, false, "C NAK"},
 	}
 
-	for i, test := range tests {
-		if test.input.Direct() != test.expectedDirect {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedDirect, test.input.Direct())
-		}
+	for _, test := range tests {
+		t.Run(test.expectedString, func(t *testing.T) {
+			if test.input.Direct() != test.expectedDirect {
+				t.Errorf("got Direct %v, want %v", test.input.Direct(), test.expectedDirect)
+			}
 
-		if test.input.Broadcast() != test.expectedBroadcast {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedBroadcast, test.input.Broadcast())
-		}
+			if test.input.Broadcast() != test.expectedBroadcast {
+				t.Errorf("got Broadcast %v, want %v", test.input.Broadcast(), test.expectedBroadcast)
+			}
 
-		if test.input.String() != test.expectedString {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedString, test.input.String())
-		}
+			if test.input.String() != test.expectedString {
+				t.Errorf("got String %q, want %q", test.input.String(), test.expectedString)
+			}
+		})
 	}
 }
 
@@ -105,35 +107,38 @@ func TestFlags(t *testing.T) {
 		{0xff, MsgTypeAllLinkCleanupNak, true, false, 3, 3, "EC NAK 3:3"},
 	}
 
-	for i, test := range tests {
-		if test.input.Type() != test.expectedType {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedType, test.input.Type())
-		}
+	for _, test := range tests {
+		t.Run(test.expectedString, func(t *testing.T) {
+			if test.input.Type() != test.expectedType {
+				t.Errorf("got Type %v, want %v", test.input.Type(), test.expectedType)
+			}
 
-		if test.input.Standard() != test.expectedStandard {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedStandard, test.input.Standard())
-		}
+			if test.input.Standard() != test.expectedStandard {
+				t.Errorf("got Standard %v, want %v", test.input.Standard(), test.expectedStandard)
+			}
 
-		if test.input.Extended() != test.expectedExtended {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedExtended, test.input.Extended())
-		}
+			if test.input.Extended() != test.expectedExtended {
+				t.Errorf("got Extended %v, want %v", test.input.Extended(), test.expectedExtended)
+			}
 
-		if test.input.TTL() != test.expectedTTL {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedTTL, test.input.TTL())
-		}
+			if test.input.TTL() != test.expectedTTL {
+				t.Errorf("got TTL %v, want %v", test.input.TTL(), test.expectedTTL)
+			}
 
-		if test.input.MaxTTL() != test.expectedMaxTTL {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedMaxTTL, test.input.MaxTTL())
-		}
+			if test.input.MaxTTL() != test.expectedMaxTTL {
+				t.Errorf("got MaxTTL %v, want %v", test.input.MaxTTL(), test.expectedMaxTTL)
+			}
 
-		if test.input.String() != test.expectedString {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedString, test.input.String())
-		}
+			if test.input.String() != test.expectedString {
+				t.Errorf("got String %q, want %q", test.input.String(), test.expectedString)
+			}
+		})
 	}
 }
 
 func TestMessageMarshalUnmarshal(t *testing.T) {
 	tests := []struct {
+		desc            string
 		input           []byte
 		version         EngineVersion
 		expectedSrc     Address
@@ -146,6 +151,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 	}{
 		// Test 0
 		{
+			desc:            "0",
 			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x0a, 0x10, 0x00},
 			version:         VerI1,
 			expectedSrc:     Address{0x01, 0x02, 0x03},
@@ -155,6 +161,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		},
 		// Test 1
 		{
+			desc:            "1",
 			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x8a, 0x01, 0x00},
 			version:         VerI1,
 			expectedSrc:     Address{0x01, 0x02, 0x03},
@@ -164,11 +171,13 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		},
 		// Test 2
 		{
+			desc:          "2",
 			input:         []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x0a, 0x10},
 			expectedError: ErrBufferTooShort,
 		},
 		// Test 3
 		{
+			desc:            "3",
 			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x1a, 0x09, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe},
 			version:         VerI1,
 			expectedSrc:     Address{0x01, 0x02, 0x03},
@@ -178,11 +187,13 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		},
 		// Test 4
 		{
+			desc:          "4",
 			input:         []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x1a, 0x09, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 			expectedError: ErrBufferTooShort,
 		},
 		// Test 5
 		{
+			desc:            "5",
 			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x1a, 0x2f, 0x00, 0x00, 0x02, 0x0f, 0xff, 0x08, 0xe2, 0x01, 0x08, 0xb6, 0xea, 0x00, 0x1b, 0x01, 0x12},
 			version:         VerI2Cs,
 			expectedSrc:     Address{0x01, 0x02, 0x03},
@@ -192,6 +203,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		},
 		// Test 6
 		{
+			desc:            "6",
 			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xaa, 0x01, 0x00},
 			version:         VerI1,
 			expectedSrc:     Address{0x01, 0x02, 0x03},
@@ -202,6 +214,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		},
 		// Test 7
 		{
+			desc:            "7",
 			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x2a, 0x01, 0x00},
 			version:         VerI1,
 			expectedSrc:     Address{0x01, 0x02, 0x03},
@@ -212,69 +225,100 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		},
 	}
 
-	for i, test := range tests {
-		message := &Message{}
-		err := message.UnmarshalBinary(test.input)
-		if !isError(err, test.expectedError) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedError, err)
-			continue
-		} else if err != nil {
-			continue
-		}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			message := &Message{}
+			err := message.UnmarshalBinary(test.input)
+			if !isError(err, test.expectedError) {
+				t.Errorf("expected %v got %v", test.expectedError, err)
+				return
+			} else if err != nil {
+				return
+			}
 
-		if test.expectedSrc != message.Src {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedSrc, message.Src)
-		}
+			if test.expectedSrc != message.Src {
+				t.Errorf("got Src %v, want %v", message.Src, test.expectedSrc)
+			}
 
-		if test.expectedDst != message.Dst {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedDst, message.Dst)
-		}
+			if test.expectedDst != message.Dst {
+				t.Errorf("got Dst %v, want %v", message.Dst, test.expectedDst)
+			}
 
-		if test.expectedFlags != message.Flags {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedFlags, message.Flags)
-		}
+			if test.expectedFlags != message.Flags {
+				t.Errorf("got Flags %v, want %v", message.Flags, test.expectedFlags)
+			}
 
-		if test.expectedAck != message.Ack() {
-			t.Errorf("tests[%d] expected Ack %v got %v", i, test.expectedAck, message.Ack())
-		}
+			if test.expectedAck != message.Ack() {
+				t.Errorf("got Ack %v, want %v", message.Ack(), test.expectedAck)
+			}
 
-		if test.expectedNak != message.Nak() {
-			t.Errorf("tests[%d] expected Nak %v got %v", i, test.expectedNak, message.Nak())
-		}
+			if test.expectedNak != message.Nak() {
+				t.Errorf("got Nak %v, want %v", message.Nak(), test.expectedNak)
+			}
 
-		if test.expectedCommand != message.Command {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedCommand, message.Command)
-		}
+			if test.expectedCommand != message.Command {
+				t.Errorf("got Command %v, want %v", message.Command, test.expectedCommand)
+			}
 
-		buf, _ := message.MarshalBinary()
+			buf, _ := message.MarshalBinary()
 
-		if !bytes.Equal(buf, test.input) {
-			t.Errorf("tests[%d] expected %v got %v", i, test.input, buf)
-		}
+			if !bytes.Equal(buf, test.input) {
+				t.Errorf("got bytes %v, want %v", buf, test.input)
+			}
+		})
 	}
 }
 
 func TestChecksum(t *testing.T) {
 	tests := []struct {
+		desc     string
 		input    []byte
 		expected byte
 	}{
-		{[]byte{0x2E, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xd1},
-		{[]byte{0x2F, 0x00, 0x00, 0x00, 0x0F, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xC2},
-		{[]byte{0x2F, 0x00, 0x01, 0x01, 0x0F, 0xFF, 0x00, 0xA2, 0x00, 0x19, 0x70, 0x1A, 0xFF, 0x1F, 0x01}, 0x5D},
-		{[]byte{0x2F, 0x00, 0x00, 0x00, 0x0F, 0xF7, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xCA},
-		{[]byte{0x2F, 0x00, 0x01, 0x01, 0x0F, 0xF7, 0x00, 0xE2, 0x01, 0x19, 0x70, 0x1A, 0xFF, 0x1F, 0x01}, 0x24},
-		{[]byte{0x2F, 0x00, 0x00, 0x00, 0x0F, 0xEF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xD2},
-		{[]byte{0x2F, 0x00, 0x01, 0x01, 0x0F, 0xEF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xD1},
-		{[]byte{0x2F, 0x00, 0x01, 0x02, 0x0F, 0xFF, 0x08, 0xE2, 0x01, 0x08, 0xB6, 0xEA, 0x00, 0x1B, 0x01}, 0x11},
-		{[]byte{0x09, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xF6},
-		{[]byte{0x2f, 0x00, 0x00, 0x02, 0x0f, 0xff, 0x08, 0xe2, 0x01, 0x08, 0xb6, 0xea, 0x00, 0x1b, 0x01}, 0x12},
+		{"1", []byte{0x2E, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xd1},
+		{"2", []byte{0x2F, 0x00, 0x00, 0x00, 0x0F, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xC2},
+		{"3", []byte{0x2F, 0x00, 0x01, 0x01, 0x0F, 0xFF, 0x00, 0xA2, 0x00, 0x19, 0x70, 0x1A, 0xFF, 0x1F, 0x01}, 0x5D},
+		{"4", []byte{0x2F, 0x00, 0x00, 0x00, 0x0F, 0xF7, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xCA},
+		{"5", []byte{0x2F, 0x00, 0x01, 0x01, 0x0F, 0xF7, 0x00, 0xE2, 0x01, 0x19, 0x70, 0x1A, 0xFF, 0x1F, 0x01}, 0x24},
+		{"6", []byte{0x2F, 0x00, 0x00, 0x00, 0x0F, 0xEF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xD2},
+		{"7", []byte{0x2F, 0x00, 0x01, 0x01, 0x0F, 0xEF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xD1},
+		{"8", []byte{0x2F, 0x00, 0x01, 0x02, 0x0F, 0xFF, 0x08, 0xE2, 0x01, 0x08, 0xB6, 0xEA, 0x00, 0x1B, 0x01}, 0x11},
+		{"9", []byte{0x09, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 0xF6},
+		{"A", []byte{0x2f, 0x00, 0x00, 0x02, 0x0f, 0xff, 0x08, 0xe2, 0x01, 0x08, 0xb6, 0xea, 0x00, 0x1b, 0x01}, 0x12},
 	}
 
-	for i, test := range tests {
-		got := checksum(test.input)
-		if got != test.expected {
-			t.Errorf("tests[%d] expected %02x got %02d", i, test.expected, got)
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got := checksum(test.input)
+			if got != test.expected {
+				t.Errorf("got checksum %02x, want %02x", got, test.expected)
+			}
+		})
+	}
+}
+
+func TestCommonTypeConsts(t *testing.T) {
+	tests := []struct {
+		want Flags
+		MessageType
+		Extended bool
+		MaxHops  uint8
+		HopsLeft uint8
+	}{
+		{StandardBroadcast, MsgTypeBroadcast, false, 2, 2},
+		{StandardAllLinkBroadcast, MsgTypeAllLinkBroadcast, false, 2, 2},
+		{StandardDirectMessage, MsgTypeDirect, false, 2, 2},
+		{StandardDirectAck, MsgTypeDirectAck, false, 2, 2},
+		{StandardDirectNak, MsgTypeDirectNak, false, 2, 2},
+		{ExtendedDirectMessage, MsgTypeDirect, true, 2, 2},
+		{ExtendedDirectAck, MsgTypeDirectAck, true, 2, 2},
+		{ExtendedDirectNak, MsgTypeDirectNak, true, 2, 2},
+	}
+
+	for _, test := range tests {
+		got := Flag(test.MessageType, test.Extended, test.MaxHops, test.HopsLeft)
+		if got != test.want {
+			t.Errorf("Got %v, wanted %v", got, test.want)
 		}
 	}
 }

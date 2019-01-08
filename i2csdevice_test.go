@@ -18,36 +18,39 @@ import "testing"
 
 func TestI2CsDeviceCommands(t *testing.T) {
 	tests := []struct {
+		desc        string
 		callback    func(*I2CsDevice) error
 		expectedCmd Command
 		expectedErr error
 	}{
-		{func(i2cs *I2CsDevice) error { return i2cs.EnterLinkingMode(15) }, CmdEnterLinkingModeExt.SubCommand(15), nil},
+		{"EnterLinkingMode", func(i2cs *I2CsDevice) error { return i2cs.EnterLinkingMode(15) }, CmdEnterLinkingModeExt.SubCommand(15), nil},
 	}
 
-	for i, test := range tests {
-		sendCh := make(chan *CommandRequest, 1)
-		device := &I2CsDevice{&I2Device{&I1Device{sendCh: sendCh}}}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			sendCh := make(chan *CommandRequest, 1)
+			device := &I2CsDevice{&I2Device{&I1Device{sendCh: sendCh}}}
 
-		if test.expectedErr != ErrNotImplemented {
-			go func() {
-				request := <-sendCh
-				if request.Command != test.expectedCmd {
-					t.Errorf("tests[%d] expected Command %v got %v", i, test.expectedCmd, request.Command)
-				}
-				if test.expectedErr != nil {
-					request.Err = test.expectedErr
-				} else {
-					request.Ack = &Message{Command: test.expectedCmd}
-				}
-				request.DoneCh <- request
-			}()
-		}
+			if test.expectedErr != ErrNotImplemented {
+				go func() {
+					request := <-sendCh
+					if request.Command != test.expectedCmd {
+						t.Errorf("got Command %v, want %v", request.Command, test.expectedCmd)
+					}
+					if test.expectedErr != nil {
+						request.Err = test.expectedErr
+					} else {
+						request.Ack = &Message{Command: test.expectedCmd}
+					}
+					request.DoneCh <- request
+				}()
+			}
 
-		err := test.callback(device)
-		if err != test.expectedErr {
-			t.Errorf("tests[%d] expected %v got %v", i, test.expectedErr, err)
-		}
+			err := test.callback(device)
+			if err != test.expectedErr {
+				t.Errorf("got error %v, want %v", err, test.expectedErr)
+			}
+		})
 	}
 }
 
@@ -59,7 +62,7 @@ func TestI2CsSendCommand(t *testing.T) {
 		request.Ack = &Message{}
 		request.DoneCh <- request
 		if len(request.Payload) != 14 {
-			t.Errorf("Expected payload to be set")
+			t.Error("Expected payload to be set")
 		}
 	}()
 	device.SendCommand(CmdSetOperatingFlags, nil)
