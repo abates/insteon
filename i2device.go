@@ -106,6 +106,20 @@ func (i2 *I2Device) WriteLink(link *LinkRecord) (err error) {
 	return err
 }
 
+// AppendLink will add a new link record to the end of the All-Link database
+func (i2 *I2Device) AppendLink(link *LinkRecord) (err error) {
+	// determine address of last link record
+	links, err := i2.Links()
+	if err == nil {
+		link.memAddress = BaseLinkDBAddress
+		if len(links) > 0 {
+			link.memAddress = links[len(links)-1].memAddress - LinkRecordSize
+		}
+		err = i2.WriteLink(link)
+	}
+	return err
+}
+
 // String returns the string "I2 Device (<address>)" where <address> is the destination
 // address of the device
 func (i2 *I2Device) String() string {

@@ -172,6 +172,9 @@ type LinkableDevice interface {
 	// Address is the remote/destination address of the device
 	Address() Address
 
+	// AppendLink will add a new link record to the end of the All-Link database
+	AppendLink(link *LinkRecord) error
+
 	// EnterLinkingMode is the programmatic equivalent of holding down
 	// the set button for two seconds. If the device is the first
 	// to enter linking mode, then it is the controller. The next

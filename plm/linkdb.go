@@ -172,6 +172,10 @@ func (db *PLM) WriteLink(*insteon.LinkRecord) error {
 	return insteon.ErrNotImplemented
 }
 
+func (db *PLM) AppendLink(*insteon.LinkRecord) error {
+	return insteon.ErrNotImplemented
+}
+
 func (db *PLM) Cleanup() (err error) {
 	removeable := make([]*insteon.LinkRecord, 0)
 	links, err := db.Links()

@@ -195,7 +195,17 @@ func devEditCmd([]string, cli.NextFunc) error {
 								fmt.Printf("Skipping invalid line %q: %v\n", string(line), err)
 							}
 						} else {
-							fmt.Printf("Adding line %q\n", string(line))
+							link := &insteon.LinkRecord{}
+							err = link.UnmarshalText(line)
+							if err == nil {
+								fmt.Printf("Adding line %q...", string(line))
+								err = linkable.AppendLink(link)
+								if err == nil {
+									fmt.Printf("done\n")
+								} else {
+									fmt.Printf("%v\n", err)
+								}
+							}
 						}
 						i++
 					}
