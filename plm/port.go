@@ -26,11 +26,6 @@ type Port struct {
 	in      *bufio.Reader
 	out     io.Writer
 	timeout time.Duration
-
-	sendCh  chan []byte
-	readCh  chan []byte
-	recvCh  chan []byte
-	closeCh chan chan error
 }
 
 func NewPort(readWriter io.ReadWriter, timeout time.Duration) *Port {
@@ -38,65 +33,11 @@ func NewPort(readWriter io.ReadWriter, timeout time.Duration) *Port {
 		in:      bufio.NewReader(readWriter),
 		out:     readWriter,
 		timeout: timeout,
-
-		sendCh:  make(chan []byte, 1),
-		readCh:  make(chan []byte, 1),
-		recvCh:  make(chan []byte, 1),
-		closeCh: make(chan chan error),
 	}
-	go port.readLoop()
-	go port.process()
 	return port
 }
 
-func (port *Port) readLoop() {
-	for {
-		packet, err := port.receive()
-		if err == nil {
-			port.readCh <- packet
-		} else {
-			if err == io.EOF {
-				close(port.readCh)
-				break
-			}
-			insteon.Log.Infof("Error reading packet: %v", err)
-		}
-	}
-	insteon.Log.Debugf("Port exiting read loop")
-}
-
-func (port *Port) process() {
-	defer func() {
-		close(port.recvCh)
-		if closer, ok := port.out.(io.Closer); ok {
-			err := closer.Close()
-			if err != nil {
-				insteon.Log.Infof("Failed to close io writer: %v", err)
-			}
-		}
-		insteon.Log.Debugf("Port exiting process loop")
-	}()
-
-	for {
-		select {
-		case packet, open := <-port.readCh:
-			if !open {
-				return
-			}
-			port.recvCh <- packet
-		case buf, open := <-port.sendCh:
-			if !open {
-				return
-			}
-			port.send(buf)
-		case closeCh := <-port.closeCh:
-			closeCh <- nil
-			return
-		}
-	}
-}
-
-func (port *Port) send(buf []byte) {
+func (port *Port) Write(buf []byte) {
 	insteon.Log.Tracef("TX %s", hexDump("%02x", buf, " "))
 	_, err := port.out.Write(buf)
 	if err != nil {
@@ -104,7 +45,7 @@ func (port *Port) send(buf []byte) {
 	}
 }
 
-func (port *Port) receive() (buf []byte, err error) {
+func (port *Port) Read() (buf []byte, err error) {
 	timeout := time.Now().Add(port.timeout)
 
 	// synchronize
@@ -155,9 +96,9 @@ func (port *Port) receive() (buf []byte, err error) {
 	return buf, err
 }
 
-func (port *Port) Close() error {
-	close(port.sendCh)
-	closeCh := make(chan error)
-	port.closeCh <- closeCh
-	return <-closeCh
+func (port *Port) Close() (err error) {
+	if closer, ok := port.out.(io.Closer); ok {
+		err = closer.Close()
+	}
+	return err
 }

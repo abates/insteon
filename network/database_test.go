@@ -12,22 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package network
 
 import (
 	"fmt"
 	"sync"
 	"testing"
+
+	"github.com/abates/insteon"
 )
 
 func TestDeviceInfoComplete(t *testing.T) {
 	tests := []struct {
-		input    DeviceInfo
+		input    insteon.DeviceInfo
 		expected bool
 	}{
-		{DeviceInfo{DevCat: DevCat{0x00, 0x00}, FirmwareVersion: FirmwareVersion(0)}, false},
-		{DeviceInfo{DevCat: DevCat{0x00, 0x01}, FirmwareVersion: FirmwareVersion(0)}, false},
-		{DeviceInfo{DevCat: DevCat{0x00, 0x01}, FirmwareVersion: FirmwareVersion(1)}, true},
+		{insteon.DeviceInfo{DevCat: insteon.DevCat{0x00, 0x00}, FirmwareVersion: insteon.FirmwareVersion(0)}, false},
+		{insteon.DeviceInfo{DevCat: insteon.DevCat{0x00, 0x01}, FirmwareVersion: insteon.FirmwareVersion(0)}, false},
+		{insteon.DeviceInfo{DevCat: insteon.DevCat{0x00, 0x01}, FirmwareVersion: insteon.FirmwareVersion(1)}, true},
 	}
 
 	for _, test := range tests {
@@ -41,7 +43,7 @@ func TestDeviceInfoComplete(t *testing.T) {
 
 type testProductDB struct {
 	updates    sync.Map
-	deviceInfo *DeviceInfo
+	deviceInfo *insteon.DeviceInfo
 }
 
 func newTestProductDB() *testProductDB {
@@ -55,35 +57,35 @@ func (tpd *testProductDB) WasUpdated(key string) bool {
 	return false
 }
 
-func (tpd *testProductDB) UpdateDevCat(address Address, devCat DevCat) {
+func (tpd *testProductDB) UpdateDevCat(address insteon.Address, devCat insteon.DevCat) {
 	tpd.updates.Store("DevCat", true)
 }
 
-func (tpd *testProductDB) UpdateEngineVersion(address Address, engineVersion EngineVersion) {
+func (tpd *testProductDB) UpdateEngineVersion(address insteon.Address, engineVersion insteon.EngineVersion) {
 	tpd.updates.Store("EngineVersion", true)
 }
 
-func (tpd *testProductDB) UpdateFirmwareVersion(address Address, firmwareVersion FirmwareVersion) {
+func (tpd *testProductDB) UpdateFirmwareVersion(address insteon.Address, firmwareVersion insteon.FirmwareVersion) {
 	tpd.updates.Store("FirmwareVersion", true)
 }
 
-func (tpd *testProductDB) Find(address Address) (deviceInfo DeviceInfo, found bool) {
+func (tpd *testProductDB) Find(address insteon.Address) (deviceInfo insteon.DeviceInfo, found bool) {
 	if tpd.deviceInfo == nil {
-		return DeviceInfo{}, false
+		return insteon.DeviceInfo{}, false
 	}
 	return *tpd.deviceInfo, true
 }
 
 func TestProductDatabaseUpdateFind(t *testing.T) {
-	address := Address{0, 1, 2}
+	address := insteon.Address{0, 1, 2}
 	tests := []struct {
 		desc   string
 		update func(*productDatabase)
-		test   func(DeviceInfo) bool
+		test   func(insteon.DeviceInfo) bool
 	}{
-		{"UpdateFirmwareVersion", func(pdb *productDatabase) { pdb.UpdateFirmwareVersion(address, FirmwareVersion(42)) }, func(di DeviceInfo) bool { return di.FirmwareVersion == FirmwareVersion(42) }},
-		{"UpdateEngineVersion", func(pdb *productDatabase) { pdb.UpdateEngineVersion(address, EngineVersion(42)) }, func(di DeviceInfo) bool { return di.EngineVersion == EngineVersion(42) }},
-		{"UpdateDevCat", func(pdb *productDatabase) { pdb.UpdateDevCat(address, DevCat{42, 42}) }, func(di DeviceInfo) bool { return di.DevCat == DevCat{42, 42} }},
+		{"UpdateFirmwareVersion", func(pdb *productDatabase) { pdb.UpdateFirmwareVersion(address, insteon.FirmwareVersion(42)) }, func(di insteon.DeviceInfo) bool { return di.FirmwareVersion == insteon.FirmwareVersion(42) }},
+		{"UpdateEngineVersion", func(pdb *productDatabase) { pdb.UpdateEngineVersion(address, insteon.EngineVersion(42)) }, func(di insteon.DeviceInfo) bool { return di.EngineVersion == insteon.EngineVersion(42) }},
+		{"UpdateDevCat", func(pdb *productDatabase) { pdb.UpdateDevCat(address, insteon.DevCat{42, 42}) }, func(di insteon.DeviceInfo) bool { return di.DevCat == insteon.DevCat{42, 42} }},
 	}
 
 	for _, test := range tests {

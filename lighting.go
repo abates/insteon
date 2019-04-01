@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -26,8 +27,9 @@ var (
 )
 
 func init() {
-	Devices.Register(0x01, dimmableDeviceFactory)
-	Devices.Register(0x02, switchedDeviceFactory)
+	// TODO FIX THIS
+	//Devices.Register(0x01, dimmableDeviceFactory)
+	//Devices.Register(0x02, switchedDeviceFactory)
 }
 
 // SwitchConfig contains the HouseCode and UnitCode for a switch's
@@ -61,6 +63,8 @@ func (sc *SwitchConfig) MarshalBinary() ([]byte, error) {
 
 // Switch is any implementation that satisfies the following switch functions
 type Switch interface {
+	Device
+
 	// On changes the device state to on
 	On() error
 
@@ -242,39 +246,11 @@ type Dimmer interface {
 	DimmerConfig() (DimmerConfig, error)
 }
 
-type i1SwitchedDevice struct {
-	*I1Device
-	Switch
-}
-
-func (i1 *i1SwitchedDevice) String() string { return i1.Switch.String() }
-
-type i2SwitchedDevice struct {
-	*I2Device
-	Switch
-}
-
-func (i2 *i2SwitchedDevice) String() string { return i2.Switch.String() }
-
-type i2CsSwitchedDevice struct {
-	*I2CsDevice
-	Switch
-}
-
-func (i2 *i2CsSwitchedDevice) String() string { return i2.Switch.String() }
-
 type switchedDevice struct {
-	Commandable
+	sync.Mutex
+	Device
+	timeout         time.Duration
 	firmwareVersion FirmwareVersion
-
-	recvCh           <-chan *Message
-	downstreamRecvCh chan<- *Message
-}
-
-func (sd *switchedDevice) process() {
-	for message := range sd.recvCh {
-		sd.downstreamRecvCh <- message
-	}
 }
 
 func (sd *switchedDevice) On() error {
@@ -300,7 +276,7 @@ func (sd *switchedDevice) Status() (level int, err error) {
 
 func (sd *switchedDevice) String() string {
 	address := ""
-	if addr, ok := sd.Commandable.(Addressable); ok {
+	if addr, ok := sd.Device.(Addressable); ok {
 		address = fmt.Sprintf(" (%s)", addr.Address())
 	}
 	return fmt.Sprintf("Switch%s", address)
@@ -312,12 +288,21 @@ func (sd *switchedDevice) SetX10Address(button int, houseCode, unitCode byte) er
 }
 
 func (sd *switchedDevice) SwitchConfig() (config SwitchConfig, err error) {
+	sd.Lock()
+	defer sd.Unlock()
+
 	// SEE DimmerConfig() notes for explanation of D1 and D2 (payload[0] and payload[1])
-	recvCh, err := sd.SendCommandAndListen(CmdExtendedGetSet, []byte{0x00, 0x00})
-	for response := range recvCh {
-		if response.Message.Command == CmdExtendedGetSet {
-			err = config.UnmarshalBinary(response.Message.Payload)
-			response.DoneCh <- response
+	_, err = sd.Device.SendCommand(CmdExtendedGetSet, []byte{0x00, 0x00})
+	timeout := time.Now().Add(sd.timeout)
+	for err == nil {
+		var msg *Message
+		msg, err = sd.Device.Receive()
+		if err == nil {
+			if msg.Command == CmdExtendedGetSet {
+				err = config.UnmarshalBinary(msg.Payload)
+			} else if timeout.Before(time.Now()) {
+				err = ErrReadTimeout
+			}
 		}
 	}
 	return config, err
@@ -352,40 +337,11 @@ func (sd *switchedDevice) OperatingFlags() (flags LightFlags, err error) {
 	return
 }
 
-type i1DimmableDevice struct {
-	Dimmer
-	*i1SwitchedDevice
-}
-
-func (i1 *i1DimmableDevice) String() string { return i1.Dimmer.String() }
-
-type i2DimmableDevice struct {
-	Dimmer
-	*i2SwitchedDevice
-}
-
-func (i2 *i2DimmableDevice) String() string { return i2.Dimmer.String() }
-
-type i2CsDimmableDevice struct {
-	Dimmer
-	*i2CsSwitchedDevice
-}
-
-func (i2cs *i2CsDimmableDevice) String() string { return i2cs.Dimmer.String() }
-
 type dimmableDevice struct {
+	sync.Mutex
 	Switch
-	Commandable
+	timeout         time.Duration
 	firmwareVersion FirmwareVersion
-
-	recvCh           <-chan *Message
-	downstreamRecvCh chan<- *Message
-}
-
-func (dd *dimmableDevice) process() {
-	for message := range dd.recvCh {
-		dd.downstreamRecvCh <- message
-	}
 }
 
 func (dd *dimmableDevice) OnLevel(level int) error {
@@ -455,7 +411,7 @@ func (dd *dimmableDevice) OffAtRamp(ramp int) (err error) {
 
 func (dd *dimmableDevice) String() string {
 	address := ""
-	if addr, ok := dd.Commandable.(Addressable); ok {
+	if addr, ok := dd.Switch.(Addressable); ok {
 		address = fmt.Sprintf(" (%s)", addr.Address())
 	}
 	return fmt.Sprintf("Dimmable Light%s", address)
@@ -474,84 +430,55 @@ func (dd *dimmableDevice) SetDefaultOnLevel(level int) error {
 }
 
 func (dd *dimmableDevice) DimmerConfig() (config DimmerConfig, err error) {
+	dd.Lock()
+	defer dd.Unlock()
+
 	// The documentation talks about D1 (payload[0]) being the button/group number, but my
 	// SwitchLinc dimmers all return the same information regardless of
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
-	recvCh, err := dd.SendCommandAndListen(CmdExtendedGetSet, []byte{0x01, 0x00})
-	for response := range recvCh {
-		if response.Message.Command == CmdExtendedGetSet {
-			err = config.UnmarshalBinary(response.Message.Payload)
-			response.DoneCh <- response
+	_, err = dd.Switch.SendCommand(CmdExtendedGetSet, []byte{0x01, 0x00})
+	timeout := time.Now().Add(dd.timeout)
+	for err == nil {
+		var msg *Message
+		msg, err = dd.Switch.Receive()
+		if err == nil {
+			if msg.Command == CmdExtendedGetSet {
+				err = config.UnmarshalBinary(msg.Payload)
+			} else if timeout.Before(time.Now()) {
+				err = ErrReadTimeout
+			}
 		}
 	}
 	return config, err
 }
 
-func switchedDeviceFactory(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (device Device, err error) {
-	downstreamRecvCh := make(chan *Message, 1)
-	sd := &switchedDevice{
-		firmwareVersion: info.FirmwareVersion,
-
-		recvCh:           recvCh,
-		downstreamRecvCh: downstreamRecvCh,
-	}
-
+func switchedDeviceFactory(info DeviceInfo, address Address, connection Connection, timeout time.Duration) (device Device, err error) {
 	switch info.EngineVersion {
 	case VerI1:
-		device = &i1SwitchedDevice{
-			I1Device: NewI1Device(address, sendCh, downstreamRecvCh, timeout),
-			Switch:   sd,
-		}
+		device = &switchedDevice{Device: NewI1Device(address, connection, timeout)}
 	case VerI2:
-		device = &i2SwitchedDevice{
-			I2Device: NewI2Device(address, sendCh, downstreamRecvCh, timeout),
-			Switch:   sd,
-		}
+		device = &switchedDevice{Device: NewI2Device(address, connection, timeout)}
 	case VerI2Cs:
-		device = &i2CsSwitchedDevice{
-			I2CsDevice: NewI2CsDevice(address, sendCh, downstreamRecvCh, timeout),
-			Switch:     sd,
-		}
+		device = &switchedDevice{Device: NewI2CsDevice(address, connection, timeout)}
 	}
 
-	sd.Commandable = device
-	go sd.process()
-	return
+	sd := &switchedDevice{
+		Device:          device,
+		timeout:         timeout,
+		firmwareVersion: info.FirmwareVersion,
+	}
+
+	return sd, nil
 }
 
-func dimmableDeviceFactory(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (device Device, err error) {
-	downstreamRecvCh := make(chan *Message, 1)
-	sd, err := switchedDeviceFactory(info, address, sendCh, downstreamRecvCh, timeout)
+func dimmableDeviceFactory(info DeviceInfo, address Address, connection Connection, timeout time.Duration) (device Device, err error) {
+	sd, err := switchedDeviceFactory(info, address, connection, timeout)
 	dd := &dimmableDevice{
-		Commandable:     sd,
+		Switch:          sd.(Switch),
+		timeout:         timeout,
 		firmwareVersion: info.FirmwareVersion,
-
-		recvCh:           recvCh,
-		downstreamRecvCh: downstreamRecvCh,
 	}
-
-	switch sw := sd.(type) {
-	case *i1SwitchedDevice:
-		dd.Switch = sw.Switch
-		device = &i1DimmableDevice{
-			i1SwitchedDevice: sw,
-			Dimmer:           dd,
-		}
-	case *i2SwitchedDevice:
-		dd.Switch = sw.Switch
-		device = &i2DimmableDevice{
-			i2SwitchedDevice: sw,
-			Dimmer:           dd,
-		}
-	case *i2CsSwitchedDevice:
-		dd.Switch = sw.Switch
-		device = &i2CsDimmableDevice{
-			i2CsSwitchedDevice: sw,
-			Dimmer:             dd,
-		}
-	}
-	go dd.process()
-	return device, err
+	return dd, err
 }

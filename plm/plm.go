@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/abates/insteon"
@@ -43,36 +44,15 @@ func hexDump(format string, buf []byte, sep string) string {
 	return strings.Join(str, sep)
 }
 
-type CommandRequest struct {
-	Command Command
-	Payload []byte
-	Err     error
-	DoneCh  chan<- *CommandRequest
-}
-
-type PacketRequest struct {
-	Packet  *Packet
-	Retry   int
-	Ack     *Packet
-	Err     error
-	DoneCh  chan<- *PacketRequest
-	timeout time.Time
-}
-
 type PLM struct {
-	timeout     time.Duration
-	writeDelay  time.Duration
-	nextWrite   time.Time
-	connections []chan<- *Packet
-	queue       []*PacketRequest
+	sync.Mutex
+	timeout    time.Duration
+	writeDelay time.Duration
+	nextWrite  time.Time
+	port       *Port
 
-	sendCh         chan *PacketRequest
-	upstreamSendCh chan<- []byte
-	upstreamRecvCh <-chan []byte
-	connectCh      chan chan<- *Packet
-	disconnectCh   chan chan<- *Packet
-
-	Network *insteon.Network
+	insteonRxCh chan []byte
+	plmCh       chan *Packet
 }
 
 // The Option mechanism is based on the method described at https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
@@ -81,14 +61,11 @@ type Option func(p *PLM) error
 // New creates a new PLM instance.
 func New(port *Port, timeout time.Duration, options ...Option) *PLM {
 	plm := &PLM{
-		timeout:    timeout,
-		writeDelay: 500 * time.Millisecond,
-
-		sendCh:         make(chan *PacketRequest, 1),
-		upstreamSendCh: port.sendCh,
-		upstreamRecvCh: port.recvCh,
-		connectCh:      make(chan chan<- *Packet),
-		disconnectCh:   make(chan chan<- *Packet),
+		timeout:     timeout,
+		writeDelay:  500 * time.Millisecond,
+		port:        port,
+		insteonRxCh: make(chan []byte),
+		plmCh:       make(chan *Packet),
 	}
 
 	for _, o := range options {
@@ -100,11 +77,7 @@ func New(port *Port, timeout time.Duration, options ...Option) *PLM {
 		}
 	}
 
-	go plm.process()
-
-	sendCh, recvCh := plm.Connect(CmdSendInsteonMsg, CmdStdMsgReceived, CmdExtMsgReceived)
-	// 2*timeout so that we timeout before the downstream receiver times out
-	plm.Network = insteon.New(sendCh, recvCh, 2*timeout)
+	go plm.readLoop()
 	return plm
 }
 
@@ -116,162 +89,123 @@ func WriteDelay(d time.Duration) Option {
 	}
 }
 
-func (plm *PLM) process() {
+func (plm *PLM) readLoop() {
 	for {
-		select {
-		case buf, open := <-plm.upstreamRecvCh:
-			if !open {
-				plm.close()
-				return
-			}
-			plm.receive(buf)
-		case request, open := <-plm.sendCh:
-			if !open {
-				plm.close()
-				return
-			}
-			plm.queue = append(plm.queue, request)
-			if len(plm.queue) == 1 {
-				plm.send()
-			}
-		case connection := <-plm.connectCh:
-			plm.connections = append(plm.connections, connection)
-		case connection := <-plm.disconnectCh:
-			plm.disconnect(connection)
-		case <-time.After(plm.timeout):
-			if len(plm.queue) > 0 && plm.queue[0].timeout.Before(time.Now()) {
-				request := plm.queue[0]
-				request.Err = ErrReadTimeout
-				request.DoneCh <- request
-				plm.queue = plm.queue[1:]
-			}
-		}
-	}
-}
+		buf, err := plm.port.Read()
+		if err == nil {
+			packet := &Packet{}
+			err := packet.UnmarshalBinary(buf)
 
-func (plm *PLM) send() {
-	if len(plm.queue) > 0 {
-		request := plm.queue[0]
-		if buf, err := request.Packet.MarshalBinary(); err == nil {
-			// try to prevent sending insteon messages too quickly
-			if time.Now().Before(plm.nextWrite) {
-				<-time.After(plm.nextWrite.Sub(time.Now()))
-			}
-			insteon.Log.Debugf("Sending packet to port")
-			request.timeout = time.Now().Add(plm.timeout)
-			plm.upstreamSendCh <- buf
-			if 0x61 <= request.Packet.Command && request.Packet.Command <= 0x63 {
-				plm.nextWrite = time.Now().Add(plm.writeDelay)
+			if err == nil {
+				insteon.Log.Tracef("%v", packet)
+				if packet.Command == 0x50 || packet.Command == 0x51 {
+					plm.insteonRxCh <- packet.Payload
+				} else {
+					plm.plmCh <- packet
+				}
 			} else {
-				plm.nextWrite = time.Now()
+				insteon.Log.Infof("Failed to unmarshal packet: %v", err)
 			}
 		} else {
-			insteon.Log.Infof("Failed to marshal packet: %v", err)
-			request.Err = err
-			request.DoneCh <- request
-			plm.queue = plm.queue[1:]
-			plm.send()
-		}
-	}
-}
-
-func (plm *PLM) disconnect(connection chan<- *Packet) {
-	for i, conn := range plm.connections {
-		if conn == connection {
-			close(conn)
-			plm.connections = append(plm.connections[0:i], plm.connections[i+1:]...)
+			if err != io.EOF {
+				insteon.Log.Infof("Failed to read from PLM port: %v", err)
+			}
 			break
 		}
 	}
 }
 
-func (plm *PLM) receive(buf []byte) {
-	packet := &Packet{}
-	err := packet.UnmarshalBinary(buf)
-
+// transmit a packet and wait for the PLM to ack that the packet was
+// sent.  This is a blocking function. Only callers that have aquired
+// the mutex shoud call this function
+func (plm *PLM) tx(txPacket *Packet) (ack *Packet, err error) {
+	buf, err := txPacket.MarshalBinary()
 	if err == nil {
-		insteon.Log.Tracef("%v", packet)
-		if 0x50 <= packet.Command && packet.Command <= 0x58 {
-			for _, connection := range plm.connections {
-				connection <- packet
-			}
-		} else {
-			plm.receiveAck(packet)
+		if time.Now().Before(plm.nextWrite) {
+			<-time.After(plm.nextWrite.Sub(time.Now()))
 		}
-	} else {
-		insteon.Log.Infof("Failed to unmarshal packet: %v", err)
+
+		timeout := time.Now().Add(plm.timeout)
+		plm.port.Write(buf)
+		if 0x61 <= txPacket.Command && txPacket.Command <= 0x63 {
+			plm.nextWrite = time.Now().Add(plm.writeDelay)
+		} else {
+			plm.nextWrite = time.Now()
+		}
+
+		// loop until either timeout or the appropriate ack is received
+		for timeout.After(time.Now()) {
+			select {
+			case rxPacket := <-plm.plmCh:
+				if txPacket.Command == rxPacket.Command {
+					ack = rxPacket
+					if rxPacket.NAK() {
+						err = ErrNak
+					}
+				}
+			case <-time.After(plm.timeout):
+				err = ErrAckTimeout
+			}
+		}
 	}
+	return
 }
 
-func (plm *PLM) receiveAck(packet *Packet) {
-	if len(plm.queue) > 0 {
-		request := plm.queue[0]
-		if packet.Command == plm.queue[0].Packet.Command {
-			request.Ack = packet
-			if packet.NAK() {
-				request.Err = ErrNak
-			}
-			request.DoneCh <- plm.queue[0]
-			plm.queue = plm.queue[1:]
-			plm.send()
-		}
-	}
+// send a packet and wait for the PLM to ack that the packet was
+// sent.  This is a blocking function
+func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
+	plm.Lock()
+	defer plm.Unlock()
+	return plm.tx(txPacket)
 }
+
+func (plm *PLM) Connect(addr insteon.Address) insteon.Connection {
+	return insteon.NewConnection(plm, plm.insteonRxCh, addr, plm.timeout)
+}
+
+// Send will send an insteon message with the payload set to
+// buf
+func (plm *PLM) Send(msg insteon.Message) error {
+	buf, err := msg.MarshalBinary()
+	if err == nil {
+		_, err = plm.send(&Packet{Command: 0x62, Payload: buf})
+	}
+	return err
+}
+
+// Receive an insteon message from the PLM
+/*func (plm *PLM) Receive() (msg *insteon.Message, err error) {
+	select {
+	case buf := <-plm.insteonCh:
+		msg = &insteon.Message{}
+		err = msg.UnmarshalBinary(buf)
+	case <-time.After(plm.timeout):
+		err = ErrReadTimeout
+	}
+	return
+}*/
 
 // Retry will deliver a packet to the Insteon network. If delivery fails (due
 // to a NAK from the PLM) then we will retry and decrement retries. This
 // continues until the packet is sent (as acknowledged by the PLM) or retries
 // reaches zero
 func (plm *PLM) Retry(packet *Packet, retries int) (ack *Packet, err error) {
-	doneCh := make(chan *PacketRequest, 1)
-	request := &PacketRequest{
-		Packet: packet,
-		Retry:  retries,
-		DoneCh: doneCh,
+	plm.Lock()
+	defer plm.Unlock()
+	for err == ErrNak && retries > 0 {
+		ack, err = plm.tx(packet)
+		retries--
 	}
 
-	plm.sendCh <- request
-	<-doneCh
-	if request.Err == ErrNak && retries > 0 {
-		for request.Err == ErrNak && retries > 0 {
-			insteon.Log.Debugf("Received NAK sending %q. Retrying", packet)
-			retries--
-			plm.sendCh <- request
-			<-doneCh
-		}
-
-		if request.Err == ErrNak {
-			insteon.Log.Debugf("Retry count exceeded")
-			request.Err = ErrRetryCountExceeded
-		}
+	if err == ErrNak {
+		insteon.Log.Debugf("Retry count exceeded")
+		err = ErrRetryCountExceeded
 	}
-	return request.Ack, request.Err
-}
-
-func (plm *PLM) Connect(sendCmd Command, recvCmds ...Command) (chan<- *insteon.PacketRequest, <-chan []byte) {
-	conn := plm.connect(sendCmd, recvCmds...)
-	return conn.sendCh, conn.recvCh
-}
-
-func (plm *PLM) connect(sendCmd Command, recvCmds ...Command) *connection {
-	sendCh := make(chan *CommandRequest, 1)
-	recvCh := make(chan *Packet, 1)
-	plm.connectCh <- recvCh
-
-	go func() {
-		for request := range sendCh {
-			_, request.Err = plm.Retry(&Packet{Command: request.Command, Payload: request.Payload}, 0)
-			request.DoneCh <- request
-		}
-		plm.disconnectCh <- recvCh
-	}()
-
-	conn := newConnection(sendCh, recvCh, sendCmd, recvCmds...)
-	return conn
+	return ack, err
 }
 
 func (plm *PLM) Info() (*Info, error) {
-	ack, err := plm.Retry(&Packet{Command: CmdGetInfo}, 0)
+	ack, err := plm.send(&Packet{Command: CmdGetInfo})
 	if err == nil {
 		info := &Info{}
 		err := info.UnmarshalBinary(ack.Payload)
@@ -284,7 +218,7 @@ func (plm *PLM) Reset() error {
 	timeout := plm.timeout
 	plm.timeout = 20 * time.Second
 
-	ack, err := plm.Retry(&Packet{Command: CmdReset}, 0)
+	ack, err := plm.send(&Packet{Command: CmdReset})
 
 	if err == nil && ack.NAK() {
 		err = ErrNak
@@ -294,7 +228,7 @@ func (plm *PLM) Reset() error {
 }
 
 func (plm *PLM) Config() (*Config, error) {
-	ack, err := plm.Retry(&Packet{Command: CmdGetConfig}, 0)
+	ack, err := plm.send(&Packet{Command: CmdGetConfig})
 	if err == nil && ack.NAK() {
 		err = ErrNak
 	} else if err == nil {
@@ -307,7 +241,7 @@ func (plm *PLM) Config() (*Config, error) {
 
 func (plm *PLM) SetConfig(config *Config) error {
 	payload, _ := config.MarshalBinary()
-	ack, err := plm.Retry(&Packet{Command: CmdSetConfig, Payload: payload}, 0)
+	ack, err := plm.send(&Packet{Command: CmdSetConfig, Payload: payload})
 	if err == nil && ack.NAK() {
 		err = ErrNak
 	}
@@ -336,19 +270,6 @@ func (plm *PLM) String() string {
 	return fmt.Sprintf("PLM (%s)", plm.Address())
 }
 
-func (plm *PLM) close() {
-	for _, request := range plm.queue {
-		request.Err = io.EOF
-		request.DoneCh <- request
-	}
-
-	for _, connection := range plm.connections {
-		close(connection)
-	}
-	close(plm.upstreamSendCh)
-}
-
-func (plm *PLM) Close() error {
-	close(plm.sendCh)
-	return nil
+func (plm *PLM) Close() {
+	plm.port.Close()
 }

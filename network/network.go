@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package network
 
 import (
+	"io"
 	"time"
+
+	"github.com/abates/insteon"
 )
 
 // PacketRequest is used to request that a packetized (marshaled) insteon
@@ -33,9 +36,9 @@ type PacketRequest struct {
 // encountered an error, the Ack and Err fields will be filled and DoneCh
 // will be written to and closed
 type MessageRequest struct {
-	Message *Message
+	Message *insteon.Message
 	timeout time.Time
-	Ack     *Message
+	Ack     *insteon.Message
 	Err     error
 	DoneCh  chan<- *MessageRequest
 }
@@ -45,27 +48,25 @@ type MessageRequest struct {
 type Network struct {
 	timeout     time.Duration
 	DB          ProductDatabase
-	connections []chan<- *Message
+	connections []insteon.Connection
 
-	sendCh       chan<- *PacketRequest
-	recvCh       <-chan []byte
-	connectCh    chan chan<- *Message
-	disconnectCh chan chan<- *Message
+	bridge       insteon.Bridge
+	connectCh    chan insteon.Connection
+	disconnectCh chan insteon.Connection
 	closeCh      chan chan error
 }
 
 // New creates a new Insteon network instance for the send and receive channels.  The timeout
 // indicates how long the network (and subsuquent devices) should wait when expecting incoming
 // messages/responses
-func New(sendCh chan<- *PacketRequest, recvCh <-chan []byte, timeout time.Duration) *Network {
+func New(bridge insteon.Bridge, timeout time.Duration) *Network {
 	network := &Network{
 		timeout: timeout,
 		DB:      NewProductDB(),
+		bridge:  bridge,
 
-		sendCh:       sendCh,
-		recvCh:       recvCh,
-		connectCh:    make(chan chan<- *Message),
-		disconnectCh: make(chan chan<- *Message),
+		connectCh:    make(chan insteon.Connection),
+		disconnectCh: make(chan insteon.Connection),
 		closeCh:      make(chan chan error),
 	}
 
@@ -77,11 +78,8 @@ func (network *Network) process() {
 	defer network.close()
 	for {
 		select {
-		case pkt, open := <-network.recvCh:
-			if !open {
-				return
-			}
-			network.receive(pkt)
+		case buf := <-network.bridge.Receive():
+			network.receive(buf)
 		case connection := <-network.connectCh:
 			network.connections = append(network.connections, connection)
 		case connection := <-network.disconnectCh:
@@ -94,67 +92,62 @@ func (network *Network) process() {
 }
 
 func (network *Network) receive(buf []byte) {
-	msg := &Message{}
+	msg := &insteon.Message{}
 	err := msg.UnmarshalBinary(buf)
 	if err == nil {
-		Log.Tracef("Received Insteon Message %v", msg)
+		insteon.Log.Tracef("Received Insteon Message %v", msg)
 		if msg.Broadcast() {
 			// Set Button Pressed Controller/Responder
 			if msg.Command[1] == 0x01 || msg.Command[1] == 0x02 {
-				network.DB.UpdateFirmwareVersion(msg.Src, FirmwareVersion(msg.Dst[2]))
-				network.DB.UpdateDevCat(msg.Src, DevCat{msg.Dst[0], msg.Dst[1]})
+				network.DB.UpdateFirmwareVersion(msg.Src, insteon.FirmwareVersion(msg.Dst[2]))
+				network.DB.UpdateDevCat(msg.Src, insteon.DevCat{msg.Dst[0], msg.Dst[1]})
 			}
 		} else if msg.Ack() && msg.Command[1] == 0x0d {
 			// Engine Version Request ACK
-			network.DB.UpdateEngineVersion(msg.Src, EngineVersion(msg.Command[2]))
+			network.DB.UpdateEngineVersion(msg.Src, insteon.EngineVersion(msg.Command[2]))
 		}
 
 		for _, connection := range network.connections {
-			connection <- msg
+			// TODO: FIX THIS
+			connection.Push(msg)
 		}
+	} else {
+		insteon.Log.Infof("Failed to unmarshal buffer: %v", err)
 	}
-	Log.Errorf(err, "Failed unmarshalling message received from network: %v", err)
-
 }
 
-func (network *Network) disconnect(connection chan<- *Message) {
+func (network *Network) disconnect(connection insteon.Connection) {
 	for i, conn := range network.connections {
 		if conn == connection {
-			close(conn)
+			if closer, ok := conn.(io.Closer); ok {
+				closer.Close()
+			}
 			network.connections = append(network.connections[0:i], network.connections[i+1:]...)
 			break
 		}
 	}
 }
 
-func (network *Network) sendMessage(msg *Message) error {
+/*func (network *Network) sendMessage(msg *insteon.Message) error {
 	buf, err := msg.MarshalBinary()
 
 	if err == nil {
-		Log.Tracef("Sending %v to network", msg)
+		insteon.Log.Tracef("Sending %v to network", msg)
 		if info, found := network.DB.Find(msg.Dst); found {
-			if msg.Flags.Extended() && info.EngineVersion == VerI2Cs {
+			if msg.Flags.Extended() && info.EngineVersion == insteon.VerI2Cs {
 				buf[len(buf)-1] = checksum(buf[7:22])
 			}
 		}
-
-		doneCh := make(chan *PacketRequest, 1)
-		request := &PacketRequest{buf, nil, doneCh}
-		network.sendCh <- request
-		select {
-		case <-time.After(network.timeout):
-			err = ErrSendTimeout
-		case <-doneCh:
-			err = request.Err
-		}
+		insteon.Log.Tracef("Sending %v to network", msg)
+		err = network.bridge.Send(buf)
 	}
 	return err
-}
+}*/
 
 // EngineVersion will query the dst device to determine its Insteon engine
 // version
-func (network *Network) EngineVersion(dst Address) (engineVersion EngineVersion, err error) {
-	conn := network.connect(dst, 1, CmdGetEngineVersion)
+func (network *Network) EngineVersion(dst insteon.Address) (engineVersion insteon.EngineVersion, err error) {
+	/*conn := network.connect(dst, 1, CmdGetEngineVersion)
 	defer func() { close(conn.sendCh) }()
 
 	doneCh := make(chan *MessageRequest, 1)
@@ -164,8 +157,8 @@ func (network *Network) EngineVersion(dst Address) (engineVersion EngineVersion,
 
 	if request.Err == nil {
 		engineVersion = EngineVersion(request.Ack.Command[2])
-	}
-	return engineVersion, request.Err
+	}*/
+	return engineVersion, nil
 }
 
 // IDRequest will send an ID Request message to the destination device and wait for
@@ -174,46 +167,33 @@ func (network *Network) EngineVersion(dst Address) (engineVersion EngineVersion,
 // is then returned in the DeviceInfo object.  It should be noted that the returned
 // DeviceInfo object will not have the engine version field populated as this information
 // is not included in the broadcast response.
-func (network *Network) IDRequest(dst Address) (info DeviceInfo, err error) {
-	info = DeviceInfo{
+func (network *Network) IDRequest(dst insteon.Address) (info insteon.DeviceInfo, err error) {
+	info = insteon.DeviceInfo{
 		Address: dst,
 	}
-	conn := network.connect(dst, 1, CmdSetButtonPressedResponder, CmdSetButtonPressedController)
-	defer func() { close(conn.sendCh) }()
-	doneCh := make(chan *MessageRequest, 1)
-	request := &MessageRequest{Message: &Message{Command: CmdIDRequest, Flags: StandardDirectMessage}, DoneCh: doneCh}
-	conn.sendCh <- request
-	<-doneCh
-	err = request.Err
-	if err == nil {
-		for {
-			select {
-			case msg := <-conn.recvCh:
-				if msg.Broadcast() {
-					info, _ = network.DB.Find(dst)
-					return
-				}
-			case <-time.After(network.timeout):
-				err = ErrReadTimeout
+	conn := network.connect(dst, 1, insteon.CmdSetButtonPressedResponder, insteon.CmdSetButtonPressedController)
+
+	_, err = conn.Send(&insteon.Message{Command: insteon.CmdIDRequest, Flags: insteon.StandardDirectMessage})
+	timeout := time.Now().Add(network.timeout)
+	for err == nil {
+		var msg *insteon.Message
+		msg, err = conn.Receive()
+		if err == nil {
+			if msg.Broadcast() {
+				info, _ = network.DB.Find(dst)
 				return
+			} else if timeout.Before(time.Now()) {
+				err = insteon.ErrReadTimeout
 			}
 		}
 	}
+
 	return
 }
 
-func (network *Network) connect(dst Address, version EngineVersion, match ...Command) *connection {
-	sendCh := make(chan *MessageRequest, 1)
-	recvCh := make(chan *Message, 1)
-	go func() {
-		for request := range sendCh {
-			request.Err = network.sendMessage(request.Message)
-			request.DoneCh <- request
-		}
-		network.disconnectCh <- recvCh
-	}()
-	connection := newConnection(sendCh, recvCh, dst, version, network.timeout, match...)
-	network.connectCh <- recvCh
+func (network *Network) connect(dst insteon.Address, version insteon.EngineVersion, match ...insteon.Command) insteon.Connection {
+	connection := insteon.NewConnection(network.bridge, dst, version, network.timeout, match...)
+	network.connectCh <- connection
 	return connection
 }
 
@@ -222,29 +202,29 @@ func (network *Network) connect(dst Address, version EngineVersion, match ...Com
 // the engine version (1, 2, or 2CS) that the device is running and return
 // either an I1Device, I2Device or I2CSDevice. For a fully initialized
 // device (dimmer, switch, thermostat, etc) use Connect
-func (network *Network) Dial(dst Address) (device Device, err error) {
-	var info DeviceInfo
+func (network *Network) Dial(dst insteon.Address) (device insteon.Device, err error) {
+	var info insteon.DeviceInfo
 	var found bool
 	if info, found = network.DB.Find(dst); !found {
 		info.EngineVersion, err = network.EngineVersion(dst)
 		// ErrNotLinked here is only returned by i2cs devices
-		if err == ErrNotLinked {
-			network.DB.UpdateEngineVersion(dst, VerI2Cs)
-			info.EngineVersion = VerI2Cs
+		if err == insteon.ErrNotLinked {
+			network.DB.UpdateEngineVersion(dst, insteon.VerI2Cs)
+			info.EngineVersion = insteon.VerI2Cs
 		}
 	}
 
-	if err == nil || err == ErrNotLinked {
+	if err == nil || err == insteon.ErrNotLinked {
 		connection := network.connect(dst, info.EngineVersion)
 		switch info.EngineVersion {
-		case VerI1:
-			device = NewI1Device(dst, connection.sendCh, connection.recvCh, network.timeout)
-		case VerI2:
-			device = NewI2Device(dst, connection.sendCh, connection.recvCh, network.timeout)
-		case VerI2Cs:
-			device = NewI2CsDevice(dst, connection.sendCh, connection.recvCh, network.timeout)
+		case insteon.VerI1:
+			device = insteon.NewI1Device(dst, connection, network.timeout)
+		case insteon.VerI2:
+			device = insteon.NewI2Device(dst, connection, network.timeout)
+		case insteon.VerI2Cs:
+			device = insteon.NewI2CsDevice(dst, connection, network.timeout)
 		default:
-			err = ErrVersion
+			err = insteon.ErrVersion
 		}
 	}
 	return device, err
@@ -254,8 +234,8 @@ func (network *Network) Dial(dst Address) (device Device, err error) {
 // in order to return a category specific device (dimmer, switch, etc). If, for
 // some reason, the devcat cannot be determined, then the device returned
 // by Dial is returned
-func (network *Network) Connect(dst Address) (device Device, err error) {
-	var info DeviceInfo
+func (network *Network) Connect(dst insteon.Address) (device insteon.Device, err error) {
+	var info insteon.DeviceInfo
 	var found bool
 	if info, found = network.DB.Find(dst); !found {
 		info.EngineVersion, err = network.EngineVersion(dst)
@@ -265,9 +245,9 @@ func (network *Network) Connect(dst Address) (device Device, err error) {
 	}
 
 	if err == nil {
-		if constructor, found := Devices.Find(info.DevCat.Category()); found {
-			connection := network.connect(dst, info.EngineVersion)
-			device, err = constructor(info, dst, connection.sendCh, connection.recvCh, network.timeout)
+		if constructor, found := insteon.Devices.Find(info.DevCat.Category()); found {
+			bridge := network.connect(dst, info.EngineVersion)
+			device, err = constructor(info, dst, bridge, network.timeout)
 		} else {
 			device, err = network.Dial(dst)
 		}
@@ -276,9 +256,6 @@ func (network *Network) Connect(dst Address) (device Device, err error) {
 }
 
 func (network *Network) close() error {
-	for _, connection := range network.connections {
-		close(connection)
-	}
 	network.connections = nil
 	return nil
 }
@@ -289,8 +266,11 @@ func (network *Network) Close() error {
 	network.closeCh <- ch
 	close(network.closeCh)
 	err := <-ch
-	if err == nil {
-		close(network.sendCh)
+	if closer, ok := network.bridge.(io.Closer); ok {
+		err1 := closer.Close()
+		if err == nil {
+			err = err1
+		}
 	}
 	return err
 }

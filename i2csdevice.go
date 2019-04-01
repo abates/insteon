@@ -14,17 +14,21 @@
 
 package insteon
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // I2CsDevice can communicate with Version 2 (checksum) Insteon Engines
 type I2CsDevice struct {
+	sync.Mutex
 	*I2Device
 }
 
 // NewI2CsDevice will initialize a new I2CsDevice object and make
 // it ready for use
-func NewI2CsDevice(address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) *I2CsDevice {
-	return &I2CsDevice{NewI2Device(address, sendCh, recvCh, timeout)}
+func NewI2CsDevice(address Address, connection Connection, timeout time.Duration) *I2CsDevice {
+	return &I2CsDevice{I2Device: NewI2Device(address, connection, timeout)}
 }
 
 // EnterLinkingMode will put the device into linking mode. This is
@@ -45,8 +49,70 @@ func (i2cs *I2CsDevice) String() string {
 // length message is used to deliver the commands. The command bytes from the
 // response ack are returned as well as any error
 func (i2cs *I2CsDevice) SendCommand(command Command, payload []byte) (response Command, err error) {
+	flags := StandardDirectMessage
+
 	if command[1] == CmdSetOperatingFlags[1] && len(payload) == 0 {
 		payload = make([]byte, 14)
 	}
-	return i2cs.I2Device.SendCommand(command, payload)
+
+	if len(payload) > 0 {
+		flags = ExtendedDirectMessage
+	}
+
+	ack, err := i2cs.Send(&Message{
+		Flags:   flags,
+		Command: command,
+		Payload: payload,
+	})
+
+	if err == nil {
+		response = ack.Command
+	}
+
+	return response, err
+}
+
+func checksum(cmd Command, buf []byte) byte {
+	sum := cmd[1] + cmd[2]
+	for _, b := range buf {
+		sum += b
+	}
+	return ^sum + 1
+}
+
+func (i2cs *I2CsDevice) Send(msg *Message) (ack *Message, err error) {
+	i2cs.Lock()
+	defer i2cs.Unlock()
+	// set checksum
+	if msg.Flags.Extended() {
+		l := len(msg.Payload)
+		msg.Payload[l-1] = checksum(msg.Command, msg.Payload)
+	}
+	return i2cs.I2Device.Send(msg)
+}
+
+func i2csErrLookup(msg *Message, err error) (*Message, error) {
+	if err != nil {
+		switch msg.Command[2] & 0xff {
+		case 0xfb:
+			err = ErrIllegalValue
+		case 0xfc:
+			err = ErrPreNak
+		case 0xfd:
+			err = ErrIncorrectChecksum
+		case 0xfe:
+			err = ErrNoLoadDetected
+		case 0xff:
+			err = ErrNotLinked
+		default:
+			err = newTraceError(ErrUnexpectedResponse)
+		}
+	}
+	return msg, err
+}
+
+func (i2cs *I2CsDevice) Receive() (*Message, error) {
+	i2cs.Lock()
+	defer i2cs.Unlock()
+	return i2csErrLookup(i2cs.I2Device.Receive())
 }

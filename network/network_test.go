@@ -12,18 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package network
 
 import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/abates/insteon"
 )
 
-func newTestNetwork(bufSize int) (*Network, chan *PacketRequest, chan []byte) {
-	sendCh := make(chan *PacketRequest, bufSize)
-	recvCh := make(chan []byte, bufSize)
-	return New(sendCh, recvCh, time.Millisecond), sendCh, recvCh
+var (
+	testSrcAddr = insteon.Address{1, 2, 3}
+	testDstAddr = insteon.Address{3, 4, 5}
+
+	TestMessageSetButtonPressedController = &insteon.Message{testDstAddr, testSrcAddr, insteon.StandardBroadcast, insteon.Command{0x00, 0x02, 0xff}, nil}
+	TestMessageEngineVersionAck           = &insteon.Message{testDstAddr, testSrcAddr, insteon.StandardDirectAck, insteon.Command{0x00, 0x0d, 0x01}, nil}
+
+	TestProductDataResponse = &insteon.Message{testDstAddr, testSrcAddr, insteon.ExtendedDirectMessage, insteon.CmdProductDataResp, []byte{0, 1, 2, 3, 4, 5, 0xff, 0xff, 0, 0, 0, 0, 0, 0}}
+)
+
+type testBridge struct {
+	rx      chan []byte
+	send    chan []byte
+	sendErr error
+}
+
+func (tb *testBridge) Send(buf []byte) error {
+	tb.send <- buf
+	return tb.sendErr
+}
+
+func (tb *testBridge) Receive() <-chan []byte {
+	return tb.rx
+}
+
+func newTestNetwork() (*Network, *testBridge) {
+	bridge := &testBridge{
+		rx:   make(chan []byte),
+		send: make(chan []byte, 1),
+	}
+	return New(bridge, time.Millisecond), bridge
 }
 
 /*func TestNetworkProcess(t *testing.T) {
@@ -47,10 +76,21 @@ func newTestNetwork(bufSize int) (*Network, chan *PacketRequest, chan []byte) {
 	}
 }*/
 
+type testConnection struct {
+	rxCh chan *insteon.Message
+}
+
+func (tc *testConnection) Send(msg *insteon.Message) (*insteon.Message, error) { return nil, nil }
+func (tc *testConnection) Push(msg *insteon.Message)                           { tc.rxCh <- msg }
+func (tc *testConnection) Receive() (*insteon.Message, error) {
+	return <-tc.rxCh, nil
+}
+
 func TestNetworkReceive(t *testing.T) {
+
 	tests := []struct {
 		desc            string
-		input           *Message
+		input           *insteon.Message
 		expectedUpdates []string
 	}{
 		{"SetButtonPressed", TestMessageSetButtonPressedController, []string{"FirmwareVersion", "DevCat"}},
@@ -59,20 +99,26 @@ func TestNetworkReceive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			recvCh := make(chan []byte, 1)
 			testDb := newTestProductDB()
-			connection := make(chan *Message, 1)
-
-			network := &Network{
-				recvCh:      recvCh,
-				DB:          testDb,
-				connections: []chan<- *Message{connection},
+			conn := &testConnection{
+				rxCh: make(chan *insteon.Message, 1),
 			}
 
+			bridge := &testBridge{rx: make(chan []byte)}
+
+			network := &Network{
+				bridge:      bridge,
+				DB:          testDb,
+				connections: []insteon.Connection{conn},
+				closeCh:     make(chan chan error, 1),
+			}
+
+			go network.process()
 			buf, _ := test.input.MarshalBinary()
-			recvCh <- buf
-			close(recvCh)
-			network.process()
+			bridge.rx <- buf
+			closeCh := make(chan error)
+			network.closeCh <- closeCh
+			<-closeCh
 
 			for _, update := range test.expectedUpdates {
 				if !testDb.WasUpdated(update) {
@@ -80,53 +126,8 @@ func TestNetworkReceive(t *testing.T) {
 				}
 			}
 
-			if len(connection) != 1 {
+			if len(conn.rxCh) != 1 {
 				t.Error("expected connection to have received the message")
-			}
-		})
-	}
-}
-
-func TestNetworkSendMessage(t *testing.T) {
-	tests := []struct {
-		desc       string
-		input      *Message
-		timeout    bool
-		err        error
-		deviceInfo *DeviceInfo
-		bufUpdated bool
-	}{
-		{"VerI1", TestProductDataResponse, false, nil, &DeviceInfo{EngineVersion: VerI1}, false},
-		{"VerI2Cs", TestProductDataResponse, false, nil, &DeviceInfo{EngineVersion: VerI2Cs}, true},
-		{"ErrReadTimeout", TestProductDataResponse, false, ErrReadTimeout, nil, false},
-		{"ErrSendTimeout", TestProductDataResponse, true, ErrSendTimeout, nil, false},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			sendCh := make(chan *PacketRequest, 1)
-			testDb := newTestProductDB()
-			testDb.deviceInfo = test.deviceInfo
-			network := &Network{
-				DB:      testDb,
-				sendCh:  sendCh,
-				timeout: time.Millisecond,
-			}
-
-			go func() {
-				if !test.timeout {
-					request := <-sendCh
-					if test.bufUpdated && request.Payload[len(request.Payload)-1] == 0x00 {
-						t.Error("expected checksum to be set")
-					}
-					request.Err = test.err
-					request.DoneCh <- request
-				}
-			}()
-
-			err := network.sendMessage(test.input)
-			if err != test.err {
-				t.Errorf("got error %v, want %v", err, test.err)
 			}
 		})
 	}
@@ -135,38 +136,32 @@ func TestNetworkSendMessage(t *testing.T) {
 func TestNetworkEngineVersion(t *testing.T) {
 	tests := []struct {
 		desc            string
-		returnedAck     *Message
+		returnedAck     *insteon.Message
 		returnedErr     error
-		expectedVersion EngineVersion
+		expectedVersion insteon.EngineVersion
 	}{
 		{"v1", TestMessageEngineVersionAck, nil, 1},
 		{"v2", TestMessageEngineVersionAck, nil, 2},
 		{"v3", TestMessageEngineVersionAck, nil, 3},
-		{"err", TestMessageEngineVersionAck, ErrReadTimeout, 0},
+		{"err", TestMessageEngineVersionAck, insteon.ErrReadTimeout, 0},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			sendCh := make(chan *PacketRequest, 1)
-			recvCh := make(chan []byte, 1)
-			network := New(sendCh, recvCh, time.Millisecond)
+			network, bridge := newTestNetwork()
 
 			go func() {
-				request := <-sendCh
 				if test.returnedErr == nil {
+					<-bridge.send
 					ack := *test.returnedAck
 					ack.Src = testDstAddr
-					ack.Command = Command{0x00, ack.Command[1], byte(test.expectedVersion)}
+					ack.Command = insteon.Command{0x00, ack.Command[1], byte(test.expectedVersion)}
 					buf, _ := ack.MarshalBinary()
-					recvCh <- buf
-				} else {
-					request.Err = test.returnedErr
+					bridge.rx <- buf
 				}
-				request.DoneCh <- request
 			}()
 
 			version, err := network.EngineVersion(testDstAddr)
-
 			if err != test.returnedErr {
 				t.Errorf("got error %v, want %v", err, test.returnedErr)
 			}
@@ -185,53 +180,48 @@ func TestNetworkIDRequest(t *testing.T) {
 		timeout          bool
 		returnedErr      error
 		expectedErr      error
-		expectedDevCat   DevCat
-		expectedFirmware FirmwareVersion
+		expectedDevCat   insteon.DevCat
+		expectedFirmware insteon.FirmwareVersion
 	}{
-		{"1", false, ErrReadTimeout, ErrReadTimeout, DevCat{0, 0}, 0},
-		{"2", false, nil, nil, DevCat{1, 2}, 3},
-		{"3", false, nil, nil, DevCat{2, 3}, 4},
-		{"4", true, nil, ErrReadTimeout, DevCat{0, 0}, 0},
+		{"1", false, insteon.ErrReadTimeout, insteon.ErrReadTimeout, insteon.DevCat{0, 0}, 0},
+		{"2", false, nil, nil, insteon.DevCat{1, 2}, 3},
+		{"3", false, nil, nil, insteon.DevCat{2, 3}, 4},
+		{"4", true, nil, insteon.ErrReadTimeout, insteon.DevCat{0, 0}, 0},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			sendCh := make(chan *PacketRequest, 1)
-			recvCh := make(chan []byte, 1)
-			network := New(sendCh, recvCh, time.Millisecond)
+			network, bridge := newTestNetwork()
 
 			go func() {
-				request := <-sendCh
+				buf := <-bridge.send
 				if test.returnedErr == nil {
 					// the test has to send an ACK, since the device would ack the set button pressed
 					// command before sending a broadcast response
-					ack := &Message{}
-					ack.UnmarshalBinary(request.Payload)
+					ack := &insteon.Message{}
+					ack.UnmarshalBinary(buf)
 					src := ack.Dst
 					ack.Dst = ack.Src
 					ack.Src = src
-					ack.Flags = StandardDirectAck
+					ack.Flags = insteon.StandardDirectAck
 					buf, _ := ack.MarshalBinary()
-					recvCh <- buf
+					bridge.rx <- buf
 
 					if !test.timeout {
 						// send the broadcast
 						msg := *TestMessageSetButtonPressedController
 						msg.Src = src
-						msg.Dst = Address{test.expectedDevCat[0], test.expectedDevCat[1], byte(test.expectedFirmware)}
-						buf, _ = msg.MarshalBinary()
-						recvCh <- buf
+						msg.Dst = insteon.Address{test.expectedDevCat[0], test.expectedDevCat[1], byte(test.expectedFirmware)}
+						buf, _ := msg.MarshalBinary()
+						bridge.rx <- buf
 					}
-				} else {
-					request.Err = test.returnedErr
 				}
-				request.DoneCh <- request
 			}()
 
 			info, err := network.IDRequest(testDstAddr)
 
 			if err != test.expectedErr {
-				t.Errorf("got error %v, want %v", err, test.returnedErr)
+				t.Errorf("got error %v, want %v", err, test.expectedErr)
 			}
 
 			if info.FirmwareVersion != test.expectedFirmware {
@@ -249,48 +239,45 @@ func TestNetworkIDRequest(t *testing.T) {
 func TestNetworkDial(t *testing.T) {
 	tests := []struct {
 		desc          string
-		deviceInfo    *DeviceInfo
+		deviceInfo    *insteon.DeviceInfo
 		engineVersion byte
 		sendError     error
 		expectedErr   error
 		expected      interface{}
 	}{
-		{"1", &DeviceInfo{EngineVersion: VerI1}, 0, nil, nil, &I1Device{}},
-		{"2", &DeviceInfo{EngineVersion: VerI2}, 0, nil, nil, &I2Device{}},
-		{"3", &DeviceInfo{EngineVersion: VerI2Cs}, 0, nil, nil, &I2CsDevice{}},
-		{"4", nil, 0, nil, nil, &I1Device{}},
-		{"5", nil, 1, nil, nil, &I2Device{}},
-		{"6", nil, 2, nil, nil, &I2CsDevice{}},
-		{"7", nil, 3, nil, ErrVersion, nil},
-		{"8", nil, 0, ErrNotLinked, ErrNotLinked, &I2CsDevice{}},
+		{"1", &insteon.DeviceInfo{EngineVersion: insteon.VerI1}, 0, nil, nil, &insteon.I1Device{}},
+		{"2", &insteon.DeviceInfo{EngineVersion: insteon.VerI2}, 0, nil, nil, &insteon.I2Device{}},
+		{"3", &insteon.DeviceInfo{EngineVersion: insteon.VerI2Cs}, 0, nil, nil, &insteon.I2CsDevice{}},
+		{"4", nil, 0, nil, nil, &insteon.I1Device{}},
+		{"5", nil, 1, nil, nil, &insteon.I2Device{}},
+		{"6", nil, 2, nil, nil, &insteon.I2CsDevice{}},
+		{"7", nil, 3, nil, insteon.ErrVersion, nil},
+		{"8", nil, 0, insteon.ErrNotLinked, insteon.ErrNotLinked, &insteon.I2CsDevice{}},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			testDb := newTestProductDB()
-			network, sendCh, recvCh := newTestNetwork(1)
+			network, bridge := newTestNetwork()
 			network.DB = testDb
 
 			if test.deviceInfo == nil {
+				bridge.sendErr = test.sendError
 				go func() {
-					request := <-sendCh
+					<-bridge.send
 					if test.sendError == nil {
 						msg := *TestMessageEngineVersionAck
-						msg.Src = Address{1, 2, 3}
-						msg.Command = Command{0x00, msg.Command[1], byte(test.engineVersion)}
+						msg.Src = insteon.Address{1, 2, 3}
+						msg.Command = insteon.Command{0x00, msg.Command[1], byte(test.engineVersion)}
 						buf, _ := msg.MarshalBinary()
-						recvCh <- buf
-						request.DoneCh <- request
-					} else {
-						request.Err = test.sendError
-						request.DoneCh <- request
+						bridge.rx <- buf
 					}
 				}()
 			} else {
 				testDb.deviceInfo = test.deviceInfo
 			}
 
-			device, err := network.Dial(Address{1, 2, 3})
+			device, err := network.Dial(insteon.Address{1, 2, 3})
 
 			if err != test.expectedErr {
 				t.Errorf("got error %v, want %v", err, test.expectedErr)
@@ -304,7 +291,7 @@ func TestNetworkDial(t *testing.T) {
 }
 
 func TestNetworkClose(t *testing.T) {
-	network, _, _ := newTestNetwork(1)
+	network, _ := newTestNetwork()
 	network.Close()
 
 	select {

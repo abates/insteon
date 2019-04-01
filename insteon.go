@@ -28,6 +28,10 @@ var (
 	// a specific message
 	ErrReadTimeout = errors.New("Read Timeout")
 
+	// ErrWriteTimeout indicates the timeout period expired while waiting to
+	// write a message
+	ErrWriteTimeout = errors.New("Write Timeout")
+
 	// ErrSendTimeout indicates the timeout period expired while trying to
 	// send a message
 	ErrSendTimeout = errors.New("Send Timeout")

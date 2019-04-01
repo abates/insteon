@@ -27,7 +27,7 @@ func TestDeviceRegistry(t *testing.T) {
 		t.Error("Expected nothing found for Category(1)")
 	}
 
-	dr.Register(Category(1), func(info DeviceInfo, address Address, sendCh chan<- *MessageRequest, recvCh <-chan *Message, timeout time.Duration) (Device, error) {
+	dr.Register(Category(1), func(DeviceInfo, Address, Connection, time.Duration) (Device, error) {
 		return nil, nil
 	})
 

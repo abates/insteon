@@ -136,27 +136,19 @@ type Message struct {
 // Ack indicates if the message is an acknowledgement of a previously sent
 // message
 func (m *Message) Ack() bool {
-	return m.Flags&0xe0 == 0x20 || m.Flags&m.Flags&0xc0 == 0xa0
+	return m.Flags&0xf0 == 0x20 || m.Flags&m.Flags&0xf0 == 0x30
 }
 
 // Nak indicates a negative acknowledgement.  This indicates the device
 // is rejecting a previously sent command
 func (m *Message) Nak() bool {
-	return m.Flags&0xe0 == 0xe0 || m.Flags&m.Flags&0xe0 == 0xa0
+	return m.Flags&0xf0 == 0xa0 || m.Flags&m.Flags&0xf0 == 0xb0
 }
 
 // Broadcast indicates if the message is a broadcast message, as
 // opposed to a direct message (sent directly to the local device)
 func (m *Message) Broadcast() bool {
 	return m.Flags.Type().Broadcast()
-}
-
-func checksum(buf []byte) byte {
-	sum := byte(0)
-	for _, b := range buf {
-		sum += b
-	}
-	return ^sum + 1
 }
 
 // MarshalBinary will convert the Message to a byte slice appropriate for

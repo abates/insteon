@@ -15,159 +15,90 @@
 package insteon
 
 import (
+	"io"
 	"testing"
 	"time"
 )
 
-func newTestConnection(dst Address) (*connection, chan *MessageRequest, chan *Message) {
-	sendCh := make(chan *MessageRequest, 10)
-	recvCh := make(chan *Message, 10)
-	return newConnection(sendCh, recvCh, dst, 1, time.Millisecond), sendCh, recvCh
+type testSender struct {
+	sendCh chan *Message
 }
 
-// TODO need to rewrite this test because it sucks and is full
-// of race conditions
-func TestConnectionProcess(t *testing.T) {
-	doneCh := make(chan *MessageRequest, 1)
-	recvCh := make(chan *Message, 1)
-	upstreamRecvCh := make(chan *Message, 1)
-	upstreamSendCh := make(chan *MessageRequest, 1)
-
-	conn := &connection{
-		recvCh:         recvCh,
-		upstreamRecvCh: upstreamRecvCh,
-		upstreamSendCh: upstreamSendCh,
-		queue:          []*MessageRequest{{DoneCh: doneCh}},
-		timeout:        time.Millisecond,
-	}
-
-	go func() {
-		request := <-doneCh
-		if request.Err != ErrReadTimeout {
-			t.Errorf("Expected %v got %v", ErrReadTimeout, request.Err)
-		}
-		close(upstreamRecvCh)
-	}()
-
-	conn.process()
-
-	if len(conn.queue) > 0 {
-		t.Error("Expected empty queue")
-	}
+func (ts *testSender) Send(msg *Message) error {
+	ts.sendCh <- msg
+	return nil
 }
 
-func TestConnectionReceiveAck(t *testing.T) {
+func TestConnectionSend(t *testing.T) {
 	tests := []struct {
-		desc        string
-		version     EngineVersion
-		returnedAck *Message
+		name        string
+		input       *Message
 		expectedErr error
 	}{
-		{"I1 MessageUnknownCommandNak", VerI1, TestMessageUnknownCommandNak, ErrUnknownCommand},
-		{"I1 MessageNoLoadDetected", VerI1, TestMessageNoLoadDetected, ErrNoLoadDetected},
-		{"I1 MessageNotLinked", VerI1, TestMessageNotLinked, ErrNotLinked},
-		{"I1 UnexpectedResponse", VerI1, &Message{Src: testDstAddr, Flags: StandardDirectNak, Command: Command{0x00, 0x00, 0x01}}, ErrUnexpectedResponse},
-		{"I2Cs MessageIllegalValue", VerI2Cs, TestMessageIllegalValue, ErrIllegalValue},
-		{"I2Cs MessagePreNak", VerI2Cs, TestMessagePreNak, ErrPreNak},
-		{"I2Cs MessageIncorrectChecksum", VerI2Cs, TestMessageIncorrectChecksum, ErrIncorrectChecksum},
-		{"I2Cs MessageNoLoadDetectedI2Cs", VerI2Cs, TestMessageNoLoadDetectedI2Cs, ErrNoLoadDetected},
-		{"I2Cs MessageNotLinkedI2Cs", VerI2Cs, TestMessageNotLinkedI2Cs, ErrNotLinked},
-		{"I2Cs UnexpectedResponse", VerI2Cs, &Message{Src: testDstAddr, Flags: StandardDirectNak, Command: Command{0x00, 0x00, 0x01}}, ErrUnexpectedResponse},
+		{"I1 Send", TestProductDataResponse, nil},
+		{"I2 Send", TestProductDataResponse, nil},
+		{"I2Cs Send", TestProductDataResponse, nil},
+		{"I2Cs Send", TestProductDataResponse, ErrReadTimeout},
 	}
 
 	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			conn := &connection{
-				addr:    testDstAddr,
-				version: test.version,
-			}
-			doneCh := make(chan *MessageRequest, 1)
-			request := &MessageRequest{Message: &Message{Command: Command{test.returnedAck.Command[0], test.returnedAck.Command[1], 0x00}}, DoneCh: doneCh}
-			conn.queue = append(conn.queue, request)
-			conn.receive(test.returnedAck)
+		t.Run(test.name, func(t *testing.T) {
+			sender := &testSender{make(chan *Message, 1)}
+			rxCh := make(chan *Message, 1)
+			conn := NewConnection(sender, rxCh, Address{}, time.Millisecond)
+			go func() {
+				<-sender.sendCh
+				if test.expectedErr == nil {
+					ack := *test.input
+					src := ack.Src
+					ack.Src = ack.Dst
+					ack.Dst = src
+					ack.Flags = StandardDirectAck
+					if test.input.Flags.Extended() {
+						ack.Flags = ExtendedDirectAck
+					}
+					rxCh <- &ack
+				}
+			}()
 
-			if !isError(request.Err, test.expectedErr) {
-				t.Errorf("expected %v got %v", test.expectedErr, request.Err)
-			} else if request.Ack != test.returnedAck {
-				t.Errorf("expected %v got %v", test.returnedAck, request.Ack)
+			_, err := conn.Send(test.input)
+			if err != test.expectedErr {
+				t.Errorf("Want %v got %v", test.expectedErr, err)
+			}
+			if closer, ok := conn.(io.Closer); ok {
+				closer.Close()
 			}
 		})
 	}
 }
 
-func TestConnectionReceiveMatch(t *testing.T) {
-	tests := []struct {
-		input    *Message
-		match    Command
-		expected int
-	}{
-		{&Message{Src: testDstAddr, Command: Command{0x00, 0x00, 0x00}}, Command{0x00, 0x01, 0x01}, 0},
-		{&Message{Src: testDstAddr, Command: Command{0x00, 0x01, 0xff}}, Command{0x00, 0x01, 0x01}, 0},
-		{&Message{Src: testDstAddr, Command: Command{0x00, 0x01, 0x01}}, Command{0x00, 0x01, 0x01}, 1},
-		{&Message{Src: testDstAddr, Command: Command{0x00, 0x01, 0x01}}, Command{0x00, 0x01, 0x00}, 1},
-	}
-
-	for i, test := range tests {
-		conn := &connection{
-			addr:   testDstAddr,
-			match:  []Command{test.match},
-			recvCh: make(chan *Message, 1),
-		}
-
-		conn.receive(test.input)
-
-		if test.expected != len(conn.recvCh) {
-			t.Errorf("tests[%d] Expected %d packets to be received. Got %d", i, test.expected, len(conn.recvCh))
-		}
-	}
-}
-
 func TestConnectionReceive(t *testing.T) {
 	tests := []struct {
-		input    *Message
-		expected int
+		name        string
+		input       *Message
+		match       Command
+		expectedErr error
 	}{
-		{&Message{Src: testSrcAddr}, 0},
-		{&Message{Src: testDstAddr}, 1},
+		{"ReadTimeout 1", &Message{Command: Command{0x00, 0x00, 0x00}}, Command{0x00, 0x01, 0x01}, ErrReadTimeout},
+		{"ReadTimeout 2", &Message{Command: Command{0x00, 0x01, 0xff}}, Command{0x00, 0x01, 0x01}, ErrReadTimeout},
+		{"Match 1", &Message{Command: Command{0x00, 0x01, 0x01}}, Command{0x00, 0x01, 0x01}, nil},
+		{"Match 2", &Message{Command: Command{0x00, 0x01, 0x01}}, Command{0x00, 0x01, 0x00}, nil},
 	}
 
-	for i, test := range tests {
-		conn := &connection{
-			addr:   testDstAddr,
-			recvCh: make(chan *Message, 1),
-		}
-		conn.receive(test.input)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sender := &testSender{make(chan *Message, 1)}
+			rxCh := make(chan *Message, 1)
+			rxCh <- test.input
+			conn := NewConnection(sender, rxCh, Address{}, time.Millisecond, test.match)
+			_, err := conn.Receive()
 
-		if test.expected != len(conn.recvCh) {
-			t.Errorf("tests[%d] Expected %d packets to be received. Got %d", i, test.expected, len(conn.recvCh))
-		}
-	}
-}
-
-func TestConnectionSend(t *testing.T) {
-	upstreamSendCh := make(chan *MessageRequest, 1)
-	conn := &connection{
-		addr:           testDstAddr,
-		upstreamSendCh: upstreamSendCh,
-	}
-
-	doneCh := make(chan *MessageRequest, 1)
-	request := &MessageRequest{Message: &Message{}, DoneCh: doneCh}
-	conn.queue = append(conn.queue, request)
-	go func() {
-		request := <-upstreamSendCh
-		request.Err = ErrReadTimeout
-		request.DoneCh <- request
-	}()
-
-	conn.send()
-
-	<-doneCh
-	if request.Message.Dst != testDstAddr {
-		t.Errorf("Expected destination to be %v got %v", testSrcAddr, request.Message.Dst)
-	}
-
-	if request.Err != ErrReadTimeout {
-		t.Errorf("Expected %v got %v", ErrReadTimeout, request.Err)
+			if test.expectedErr != err {
+				t.Errorf("want %v got %v", test.expectedErr, err)
+			}
+			if closer, ok := conn.(io.Closer); ok {
+				closer.Close()
+			}
+		})
 	}
 }
