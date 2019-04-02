@@ -14,6 +14,7 @@
 
 package network
 
+/*
 import (
 	"reflect"
 	"testing"
@@ -74,7 +75,7 @@ func newTestNetwork() (*Network, *testBridge) {
 	if len(network.connections) != 0 {
 		t.Errorf("Expected connnection queue to be empty, got %d", len(network.connections))
 	}
-}*/
+}
 
 type testConnection struct {
 	rxCh chan *insteon.Message
@@ -304,7 +305,6 @@ func TestNetworkClose(t *testing.T) {
 	}
 }
 
-/*
 func TestNetworkConnect(t *testing.T) {
 	tests := []struct {
 		deviceInfo    *DeviceInfo

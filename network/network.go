@@ -75,7 +75,7 @@ func New(connection insteon.Connection, timeout time.Duration) *Network {
 }
 
 func (network *Network) process() {
-	defer network.close()
+	/*defer network.close()
 	for {
 		select {
 		case buf := <-network.connection.Receive():
@@ -88,7 +88,7 @@ func (network *Network) process() {
 			ch <- network.close()
 			return
 		}
-	}
+	}*/
 }
 
 func (network *Network) receive(buf []byte) {
@@ -107,9 +107,9 @@ func (network *Network) receive(buf []byte) {
 			network.DB.UpdateEngineVersion(msg.Src, insteon.EngineVersion(msg.Command[2]))
 		}
 
-		for _, connection := range network.connections {
+		for range network.connections {
 			// TODO: FIX THIS
-			connection.Push(msg)
+			//connection.Push(msg)
 		}
 	} else {
 		insteon.Log.Infof("Failed to unmarshal buffer: %v", err)
@@ -204,23 +204,24 @@ func (network *Network) connect(dst insteon.Address, version insteon.EngineVersi
 // some reason, the devcat cannot be determined, then the device returned
 // by Dial is returned
 func (network *Network) Connect(dst insteon.Address) (device insteon.Device, err error) {
-	var info insteon.DeviceInfo
-	var found bool
-	if info, found = network.DB.Find(dst); !found {
-		info.EngineVersion, err = network.EngineVersion(dst)
-		if err == nil {
-			info, err = network.IDRequest(dst)
+	/*
+		var info insteon.DeviceInfo
+		var found bool
+		if info, found = network.DB.Find(dst); !found {
+			info.EngineVersion, err = network.EngineVersion(dst)
+			if err == nil {
+				info, err = network.IDRequest(dst)
+			}
 		}
-	}
 
-	if err == nil {
-		if constructor, found := insteon.Devices.Find(info.DevCat.Category()); found {
-			/*bridge := network.connect(dst, info.EngineVersion)
-			device, err = constructor(info, dst, bridge, network.timeout)*/
-		} else {
-			device, err = network.Dial(dst)
-		}
-	}
+		if err == nil {
+			if constructor, found := insteon.Devices.Find(info.DevCat.Category()); found {
+				bridge := network.connect(dst, info.EngineVersion)
+				device, err = constructor(info, dst, bridge, network.timeout)
+			} else {
+				device, err = network.Dial(dst)
+			}
+		}*/
 	return
 }
 
