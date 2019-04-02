@@ -37,7 +37,7 @@ func plmResetCmd(args []string, next cli.NextFunc) (err error) {
 	if getResponse(msg, "y", "n") == "y" {
 		err = modem.Reset()
 	}
-	return nil
+	return err
 }
 
 func plmInfoCmd(args []string, next cli.NextFunc) (err error) {
