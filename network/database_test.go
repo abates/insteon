@@ -15,7 +15,6 @@
 package network
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 
