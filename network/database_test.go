@@ -22,7 +22,7 @@ import (
 	"github.com/abates/insteon"
 )
 
-func TestDeviceInfoComplete(t *testing.T) {
+/*func TestDeviceInfoComplete(t *testing.T) {
 	tests := []struct {
 		input    insteon.DeviceInfo
 		expected bool
@@ -39,7 +39,7 @@ func TestDeviceInfoComplete(t *testing.T) {
 			}
 		})
 	}
-}
+}*/
 
 type testProductDB struct {
 	updates    sync.Map
