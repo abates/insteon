@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"sync"
 	"time"
 )
 
@@ -24,6 +25,7 @@ type I1Device struct {
 	devCat          DevCat
 	firmwareVersion FirmwareVersion
 	timeout         time.Duration
+	mu              *sync.Mutex
 }
 
 // NewI1Device will construct an I1Device for the given connection
@@ -33,6 +35,7 @@ func NewI1Device(connection Connection, timeout time.Duration) *I1Device {
 		devCat:          DevCat{0xff, 0xff},
 		firmwareVersion: FirmwareVersion(0x00),
 		timeout:         timeout,
+		mu:              &sync.Mutex{},
 	}
 
 	return i1
@@ -83,6 +86,9 @@ func errLookup(msg *Message, err error) (*Message, error) {
 // length message is used to deliver the commands. The command bytes from the
 // response ack are returned as well as any error
 func (i1 *I1Device) SendCommand(command Command, payload []byte) (response Command, err error) {
+	i1.mu.Lock()
+	defer i1.mu.Unlock()
+
 	return i1.sendCommand(command, payload)
 }
 
@@ -104,6 +110,9 @@ func (i1 *I1Device) DeleteFromAllLinkGroup(group Group) (err error) {
 
 // ProductData will retrieve the device's product data
 func (i1 *I1Device) ProductData() (data *ProductData, err error) {
+	i1.mu.Lock()
+	defer i1.mu.Unlock()
+
 	_, err = i1.sendCommand(CmdProductDataReq, nil)
 	timeout := time.Now().Add(i1.timeout)
 	for err == nil {
@@ -151,6 +160,13 @@ func (i1 *I1Device) String() string {
 	return sprintf("I1 Device (%s)", i1.Address())
 }
 
-func (i1 *I1Device) Receive() (*Message, error) {
+func (i1 *I1Device) receive() (*Message, error) {
 	return errLookup(i1.Connection.Receive())
+}
+
+func (i1 *I1Device) Receive() (*Message, error) {
+	i1.mu.Lock()
+	defer i1.mu.Unlock()
+
+	return i1.receive()
 }

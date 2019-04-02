@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"reflect"
 	"testing"
 	"time"
 )
@@ -26,12 +27,19 @@ func TestDeviceRegistry(t *testing.T) {
 		t.Error("Expected nothing found for Category(1)")
 	}
 
+	constructorCalled := false
 	dr.Register(Category(1), func(DeviceInfo, Device, time.Duration) (Device, error) {
+		constructorCalled = true
 		return nil, nil
 	})
 
 	if _, found := dr.Find(Category(1)); !found {
 		t.Error("Expected to find Category(1)")
+	}
+
+	dr.New(DeviceInfo{DevCat: DevCat{1, 0}}, &testConnection{}, 0)
+	if !constructorCalled {
+		t.Errorf("Expected New() to call device constructor")
 	}
 
 	dr.Delete(Category(1))
@@ -42,4 +50,66 @@ func TestDeviceRegistry(t *testing.T) {
 
 func mkPayload(buf ...byte) []byte {
 	return append(buf, make([]byte, 14-len(buf))...)
+}
+
+func TestDeviceNew(t *testing.T) {
+	tests := []struct {
+		desc     string
+		input    EngineVersion
+		wantType reflect.Type
+		wantErr  error
+	}{
+		{"I1Device", VerI1, reflect.TypeOf(&I1Device{}), nil},
+		{"I2Device", VerI2, reflect.TypeOf(&I2Device{}), nil},
+		{"I2CsDevice", VerI2Cs, reflect.TypeOf(&I2CsDevice{}), nil},
+		{"ErrVersion", 4, reflect.TypeOf(nil), ErrVersion},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			device, gotErr := New(test.input, &testConnection{}, 0)
+			gotType := reflect.TypeOf(device)
+
+			if test.wantErr != gotErr {
+				t.Errorf("want err %v got %v", test.wantErr, gotErr)
+			} else if gotErr == nil {
+				if test.wantType != gotType {
+					t.Errorf("want type %v got %v", test.wantType, gotType)
+				}
+			}
+		})
+	}
+}
+
+func TestDeviceOpen(t *testing.T) {
+	tests := []struct {
+		desc     string
+		input    *testConnection
+		wantType reflect.Type
+		wantErr  error
+	}{
+		{"I1Device", &testConnection{engineVersion: VerI1}, reflect.TypeOf(&I1Device{}), nil},
+		{"I2Device", &testConnection{engineVersion: VerI2}, reflect.TypeOf(&I2Device{}), nil},
+		{"I2CsDevice", &testConnection{engineVersion: VerI2Cs}, reflect.TypeOf(&I2CsDevice{}), nil},
+		{"Dimmer", &testConnection{engineVersion: VerI1, devCat: DevCat{1, 0}}, reflect.TypeOf(&dimmer{}), nil},
+		{"Linkable Dimmer", &testConnection{engineVersion: VerI2Cs, devCat: DevCat{1, 0}}, reflect.TypeOf(&linkableDimmer{}), nil},
+		{"Switch", &testConnection{engineVersion: VerI1, devCat: DevCat{2, 0}}, reflect.TypeOf(&switchedDevice{}), nil},
+		{"Linkable Switch", &testConnection{engineVersion: VerI2Cs, devCat: DevCat{2, 0}}, reflect.TypeOf(&linkableSwitch{}), nil},
+		{"ErrVersion", &testConnection{engineVersion: 4}, reflect.TypeOf(nil), ErrVersion},
+		{"Not Linked", &testConnection{engineVersionErr: ErrNotLinked}, reflect.TypeOf(&I2CsDevice{}), ErrNotLinked},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			device, gotErr := Open(test.input, 0)
+			gotType := reflect.TypeOf(device)
+
+			if test.wantErr != gotErr {
+				t.Errorf("want err %v got %v", test.wantErr, gotErr)
+			}
+			if test.wantType != gotType {
+				t.Errorf("want type %v got %v", test.wantType, gotType)
+			}
+		})
+	}
 }

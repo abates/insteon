@@ -21,9 +21,11 @@ import (
 )
 
 type testConnection struct {
-	addr            Address
-	devCat          DevCat
-	firmwareVersion FirmwareVersion
+	addr             Address
+	devCat           DevCat
+	firmwareVersion  FirmwareVersion
+	engineVersion    EngineVersion
+	engineVersionErr error
 
 	sendCh  chan *Message
 	ackCh   chan *Message
@@ -34,6 +36,9 @@ type testConnection struct {
 }
 
 func (tc *testConnection) Address() Address { return tc.addr }
+func (tc *testConnection) EngineVersion() (EngineVersion, error) {
+	return tc.engineVersion, tc.engineVersionErr
+}
 func (tc *testConnection) IDRequest() (FirmwareVersion, DevCat, error) {
 	return tc.firmwareVersion, tc.devCat, nil
 }
@@ -127,6 +132,74 @@ func TestConnectionReceive(t *testing.T) {
 			}
 			if closer, ok := conn.(io.Closer); ok {
 				closer.Close()
+			}
+		})
+	}
+}
+
+func TestConnectionIDRequest(t *testing.T) {
+	txCh := make(chan *Message, 1)
+	conn := &connection{txCh: txCh, msgCh: make(chan *Message, 2), timeout: time.Nanosecond}
+
+	wantVersion := FirmwareVersion(42)
+	wantDevCat := DevCat{07, 79}
+
+	conn.msgCh <- TestAck
+	conn.msgCh <- &Message{Dst: Address{07, 79, 42}, Command: Command{0, 1}, Flags: StandardBroadcast}
+
+	gotVersion, gotDevCat, err := conn.IDRequest()
+	<-txCh
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	} else if gotVersion != wantVersion {
+		t.Errorf("Want FirmwareVersion %v got %v", wantVersion, gotVersion)
+	} else if gotDevCat != wantDevCat {
+		t.Errorf("Want DevCat %v got %v", wantDevCat, gotDevCat)
+	}
+
+	// sad path
+	go func() {
+		conn.msgCh <- TestAck
+		conn.msgCh <- TestMessagePing
+		conn.msgCh <- TestMessagePing
+		conn.msgCh <- TestMessagePing
+		conn.msgCh <- TestMessagePing
+		conn.msgCh <- TestMessagePing
+	}()
+
+	_, _, err = conn.IDRequest()
+	if err != ErrReadTimeout {
+		t.Errorf("Want ErrReadTimeout got %v", err)
+	}
+}
+
+func TestConnectionEngineVersion(t *testing.T) {
+	tests := []struct {
+		desc        string
+		input       *Message
+		wantVersion EngineVersion
+		wantErr     error
+	}{
+		{"Regular device", &Message{Command: CmdGetEngineVersion.SubCommand(42), Flags: StandardDirectAck}, EngineVersion(42), nil},
+		{"I2Cs device", &Message{Command: CmdGetEngineVersion.SubCommand(0xff), Flags: StandardDirectNak}, VerI2Cs, nil},
+		{"NAK", &Message{Command: CmdGetEngineVersion.SubCommand(0xfd), Flags: StandardDirectNak}, VerI2Cs, ErrNak},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			txCh := make(chan *Message, 1)
+			conn := &connection{txCh: txCh, msgCh: make(chan *Message, 1), timeout: time.Nanosecond}
+
+			conn.msgCh <- test.input
+
+			gotVersion, err := conn.EngineVersion()
+			<-txCh
+			if err != test.wantErr {
+				t.Errorf("want error %v got %v", test.wantErr, err)
+			} else if err == nil {
+				if gotVersion != test.wantVersion {
+					t.Errorf("Want EngineVersion %v got %v", test.wantVersion, gotVersion)
+				}
 			}
 		})
 	}

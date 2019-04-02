@@ -2,9 +2,30 @@ package insteon
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 	"time"
 )
+
+func TestDimmerFactory(t *testing.T) {
+	tests := []struct {
+		desc  string
+		input Switch
+		want  reflect.Type
+	}{
+		{"Dimmer", &switchedDevice{}, reflect.TypeOf(&dimmer{})},
+		{"Linkable Dimmer", &linkableSwitch{}, reflect.TypeOf(&linkableDimmer{})},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got := reflect.TypeOf(NewDimmer(test.input, 0, 0))
+			if test.want != got {
+				t.Errorf("want type %v got %v", test.want, got)
+			}
+		})
+	}
+}
 
 func TestDimmerConfig(t *testing.T) {
 	tests := []struct {

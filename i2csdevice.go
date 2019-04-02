@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"sync"
 	"time"
 )
 
@@ -22,15 +23,18 @@ import (
 type I2CsDevice struct {
 	*I2Device
 	connection Connection
+	mu         *sync.Mutex
 }
 
 // NewI2CsDevice will initialize a new I2CsDevice object and make
 // it ready for use
 func NewI2CsDevice(connection Connection, timeout time.Duration) *I2CsDevice {
-	i2cs := &I2CsDevice{connection: connection}
+	i2cs := &I2CsDevice{connection: connection, mu: &sync.Mutex{}}
 	// pass i2cs in here so that the downstream devices (I2Device and its I1Device) will
 	// get checksums set for extended messages
 	i2cs.I2Device = NewI2Device(i2cs, timeout)
+	i2cs.I2Device.mu = i2cs.mu
+	i2cs.I2Device.I1Device.mu = i2cs.mu
 	return i2cs
 }
 
@@ -89,9 +93,15 @@ func i2csErrLookup(msg *Message, err error) (*Message, error) {
 }
 
 func (i2cs *I2CsDevice) IDRequest() (FirmwareVersion, DevCat, error) {
+	i2cs.mu.Lock()
+	defer i2cs.mu.Unlock()
+
 	return i2cs.connection.IDRequest()
 }
 
 func (i2cs *I2CsDevice) Receive() (*Message, error) {
+	i2cs.mu.Lock()
+	defer i2cs.mu.Unlock()
+
 	return i2csErrLookup(i2cs.connection.Receive())
 }

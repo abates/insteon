@@ -67,6 +67,23 @@ func (dr *DeviceRegistry) Find(category Category) (DeviceConstructor, bool) {
 	return constructor, found
 }
 
+// New will look in the registry for a device constructor matching the
+// given device category (supplied by the DeviceInfo argument).  If found,
+// the constructor is called and the specific device type is returned.  If
+// not found, then a base device (I1Device, I2Device, I2CsDevice) is returned
+//
+// Errors are only returned if the device category is found in the registry and
+// that type's constructor returns an error
+func (dr *DeviceRegistry) New(info DeviceInfo, conn Connection, timeout time.Duration) (Device, error) {
+	device, err := New(info.EngineVersion, conn, timeout)
+	if err == nil {
+		if constructor, found := dr.Find(info.DevCat.Category()); found {
+			device, err = constructor(info, device, timeout)
+		}
+	}
+	return device, err
+}
+
 // Addressable is any receiver that can be queried for its address
 type Addressable interface {
 	// Address will return the 3 byte destination address of the device.
@@ -181,27 +198,19 @@ type DeviceInfo struct {
 	EngineVersion   EngineVersion
 }
 
-// Complete indicates whether or not a record appears to be complete.  A complete
-// record will have a non-zero DevCat and a non-zero FirmwareVersion
-func (info *DeviceInfo) Complete() bool {
-	return info.DevCat != DevCat{0x00, 0x00} && info.FirmwareVersion != FirmwareVersion(0x00)
-}
-
-// Open will return a basic device object that can appropriately communicate
-// with the physical device out on the insteon network. Dial will determine
-// the engine version (1, 2, or 2CS) that the device is running and return
-// either an I1Device, I2Device or I2CSDevice. For a fully initialized
-// device (dimmer, switch, thermostat, etc) use Connect
+// Open will create a new device that is ready to be used. Open tries to contact
+// the device to determine the device category and firmware version.  If successful,
+// then a specific device type (dimmer, switch, thermostat, etc) is returned.  If
+// the device responds with a NAK/NotLinked error, then a basic I2CsDevice is
+// returned.  Only I2CsDevices will respond with a "Not Linked" NAK when being
+// queried for the EngineVersion.
+//
+// If no spefici device type is found in the registry, then the base device (I1Device,
+// I2Device or I2CsDevice) is returned.  If, in opening the device, a "Not Linked" NAK
+// is encountered, then the I2CsDevice is returned with an ErrNotLinked error.  This
+// allows the application to initiate linking, if desired
 func Open(conn Connection, timeout time.Duration) (device Device, err error) {
-	var version EngineVersion
-	ack, err := conn.Send(&Message{Command: CmdGetEngineVersion, Flags: StandardDirectMessage})
-	if err == nil {
-		version = EngineVersion(ack.Command[2])
-		// ErrNotLinked here is only returned by i2cs devices
-	} else if err == ErrNotLinked {
-		version = VerI2Cs
-	}
-
+	version, err := conn.EngineVersion()
 	if err == nil {
 		info := DeviceInfo{
 			Address:       conn.Address(),
@@ -209,15 +218,17 @@ func Open(conn Connection, timeout time.Duration) (device Device, err error) {
 		}
 		info.FirmwareVersion, info.DevCat, err = conn.IDRequest()
 		if err == nil {
-			device, err = DeviceFactory(info, conn, timeout)
+			device, err = Devices.New(info, conn, timeout)
 		}
 	} else if err == ErrNotLinked {
-		device, err = BaseDeviceFactory(version, conn, timeout)
+		device, _ = New(VerI2Cs, conn, timeout)
 	}
 	return device, err
 }
 
-func BaseDeviceFactory(version EngineVersion, conn Connection, timeout time.Duration) (device Device, err error) {
+// New will return either an I1Device, an I2Device or an I2CsDevice based on the
+// supplied EngineVersion
+func New(version EngineVersion, conn Connection, timeout time.Duration) (device Device, err error) {
 	switch version {
 	case VerI1:
 		device = NewI1Device(conn, timeout)
@@ -229,14 +240,4 @@ func BaseDeviceFactory(version EngineVersion, conn Connection, timeout time.Dura
 		err = ErrVersion
 	}
 	return
-}
-
-func DeviceFactory(info DeviceInfo, conn Connection, timeout time.Duration) (Device, error) {
-	device, err := BaseDeviceFactory(info.EngineVersion, conn, timeout)
-	if err == nil {
-		if constructor, found := Devices.Find(info.DevCat.Category()); found {
-			device, err = constructor(info, device, timeout)
-		}
-	}
-	return device, err
 }

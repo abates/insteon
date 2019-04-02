@@ -140,3 +140,17 @@ func TestI2CsDeviceReceive(t *testing.T) {
 		})
 	}
 }
+
+func TestI2CsDeviceIDRequest(t *testing.T) {
+	wantDevCat := DevCat{1, 2}
+	wantFirmwareVersion := FirmwareVersion(3)
+	conn := &testConnection{devCat: wantDevCat, firmwareVersion: wantFirmwareVersion}
+	device := NewI2CsDevice(conn, 0)
+	gotFirmwareVersion, gotDevCat, _ := device.IDRequest()
+	if wantFirmwareVersion != gotFirmwareVersion {
+		t.Errorf("want Firmware Version %v got %v", wantFirmwareVersion, gotFirmwareVersion)
+	} else if wantDevCat != gotDevCat {
+		t.Errorf("want DevCat %v got %v", wantDevCat, gotDevCat)
+	}
+
+}

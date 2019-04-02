@@ -15,18 +15,23 @@
 package insteon
 
 import (
+	"sync"
 	"time"
 )
 
 // I2Device can communicate with Version 2 Insteon Engines
 type I2Device struct {
 	*I1Device
+	mu *sync.Mutex
 }
 
 // NewI2Device will construct an device object that can communicate with version 2
 // Insteon engines
 func NewI2Device(connection Connection, timeout time.Duration) *I2Device {
-	return &I2Device{I1Device: NewI1Device(connection, timeout)}
+	mu := &sync.Mutex{}
+	i2 := &I2Device{I1Device: NewI1Device(connection, timeout), mu: mu}
+	i2.I1Device.mu = mu
+	return i2
 }
 
 // AddLink will either add the link to the All-Link database
@@ -45,15 +50,18 @@ func (i2 *I2Device) RemoveLinks(oldLinks ...*LinkRecord) error {
 // Links will retrieve the link-database from the device and
 // return a list of LinkRecords
 func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
+	i2.mu.Lock()
+	defer i2.mu.Unlock()
+
 	Log.Debugf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
 	buf, _ := (&LinkRequest{Type: ReadLink, NumRecords: 0}).MarshalBinary()
-	_, err = i2.I1Device.SendCommand(CmdReadWriteALDB, buf)
+	_, err = i2.I1Device.sendCommand(CmdReadWriteALDB, buf)
 
 	timeout := time.Now().Add(i2.timeout)
 	for err == nil {
 		var msg *Message
-		msg, err = i2.I1Device.Receive()
+		msg, err = i2.I1Device.receive()
 		if err == nil && msg.Flags.Extended() && msg.Command[1] == CmdReadWriteALDB[1] {
 			lr := &LinkRequest{}
 			err = lr.UnmarshalBinary(msg.Payload)

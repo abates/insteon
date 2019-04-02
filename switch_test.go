@@ -2,9 +2,30 @@ package insteon
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 	"time"
 )
+
+func TestSwitchFactory(t *testing.T) {
+	tests := []struct {
+		desc  string
+		input Device
+		want  reflect.Type
+	}{
+		{"Switch", &I1Device{}, reflect.TypeOf(&switchedDevice{})},
+		{"Linkable Switch", &I2Device{}, reflect.TypeOf(&linkableSwitch{})},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got := reflect.TypeOf(NewSwitch(test.input, 0))
+			if test.want != got {
+				t.Errorf("want type %v got %v", test.want, got)
+			}
+		})
+	}
+}
 
 func TestSwitchConfig(t *testing.T) {
 	tests := []struct {

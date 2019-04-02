@@ -27,6 +27,7 @@ type Connection interface {
 	Send(*Message) (ack *Message, err error)
 	Receive() (*Message, error)
 	IDRequest() (FirmwareVersion, DevCat, error)
+	EngineVersion() (EngineVersion, error)
 }
 
 type connection struct {
@@ -56,7 +57,9 @@ func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, tim
 	return conn
 }
 
-func (conn *connection) Address() Address { return conn.addr }
+func (conn *connection) Address() Address {
+	return conn.addr
+}
 
 func (conn *connection) readLoop() {
 	for {
@@ -128,6 +131,22 @@ func (conn *connection) IDRequest() (version FirmwareVersion, devCat DevCat, err
 			} else if timeout.Before(time.Now()) {
 				err = ErrReadTimeout
 			}
+		}
+	}
+	return
+}
+
+func (conn *connection) EngineVersion() (version EngineVersion, err error) {
+	ack, err := conn.Send(&Message{Command: CmdGetEngineVersion, Flags: StandardDirectMessage})
+	if err == nil {
+		if ack.Nak() {
+			if ack.Command[2] == 0xff {
+				version = VerI2Cs
+			} else {
+				err = ErrNak
+			}
+		} else {
+			version = EngineVersion(ack.Command[2])
 		}
 	}
 	return
