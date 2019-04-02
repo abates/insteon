@@ -14,7 +14,10 @@
 
 package insteon
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestChecksum(t *testing.T) {
 	tests := []struct {
@@ -44,63 +47,96 @@ func TestChecksum(t *testing.T) {
 	}
 }
 
-/*
-func TestI2CsDeviceCommands(t *testing.T) {
+func TestI2CsErrLookup(t *testing.T) {
 	tests := []struct {
-		desc        string
-		callback    func(*I2CsDevice) error
-		expectedCmd Command
-		expectedErr error
+		desc  string
+		input *Message
+		err   error
+		want  error
 	}{
-		{"EnterLinkingMode", func(i2cs *I2CsDevice) error { return i2cs.EnterLinkingMode(15) }, CmdEnterLinkingModeExt.SubCommand(15), nil},
+		{"nil error", &Message{}, nil, nil},
+		{"ErrIllegalValue", &Message{Command: Command{0, 0, 0xfb}, Flags: StandardDirectNak}, nil, ErrIllegalValue},
+		{"ErrPreNak", &Message{Command: Command{0, 0, 0xfc}, Flags: StandardDirectNak}, nil, ErrPreNak},
+		{"ErrIncorrectChecksum", &Message{Command: Command{0, 0, 0xfd}, Flags: StandardDirectNak}, nil, ErrIncorrectChecksum},
+		{"ErrNoLoadDetected", &Message{Command: Command{0, 0, 0xfe}, Flags: StandardDirectNak}, nil, ErrNoLoadDetected},
+		{"ErrNotLinked", &Message{Command: Command{0, 0, 0xff}, Flags: StandardDirectNak}, nil, ErrNotLinked},
+		{"ErrUnexpectedResponse", &Message{Command: Command{0, 0, 0xfa}, Flags: StandardDirectNak}, nil, ErrUnexpectedResponse},
+		{"ErrReadTimeout", &Message{Command: Command{0, 0, 0xfa}, Flags: StandardDirectNak}, ErrReadTimeout, ErrReadTimeout},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			sendCh := make(chan *CommandRequest, 1)
-			device := &I2CsDevice{&I2Device{&I1Device{sendCh: sendCh}}}
-
-			if test.expectedErr != ErrNotImplemented {
-				go func() {
-					request := <-sendCh
-					if request.Command != test.expectedCmd {
-						t.Errorf("got Command %v, want %v", request.Command, test.expectedCmd)
-					}
-					if test.expectedErr != nil {
-						request.Err = test.expectedErr
-					} else {
-						request.Ack = &Message{Command: test.expectedCmd}
-					}
-					request.DoneCh <- request
-				}()
-			}
-
-			err := test.callback(device)
-			if err != test.expectedErr {
-				t.Errorf("got error %v, want %v", err, test.expectedErr)
+			_, got := i2csErrLookup(test.input, test.err)
+			if !isError(got, test.want) {
+				t.Errorf("want %v got %v", test.want, got)
 			}
 		})
 	}
 }
 
-func TestI2CsSendCommand(t *testing.T) {
-	sendCh := make(chan *CommandRequest, 1)
-	device := &I2CsDevice{&I2Device{&I1Device{sendCh: sendCh}}}
-	go func() {
-		request := <-sendCh
-		request.Ack = &Message{}
-		request.DoneCh <- request
-		if len(request.Payload) != 14 {
-			t.Error("Expected payload to be set")
-		}
-	}()
-	device.SendCommand(CmdSetOperatingFlags, nil)
+func TestI2CsDeviceSendCommand(t *testing.T) {
+	tests := []struct {
+		desc    string
+		command Command
+		payload []byte
+		flags   Flags
+	}{
+		{"SD", Command{byte(StandardDirectMessage), 1, 2}, nil, StandardDirectMessage},
+		{"ED", Command{byte(ExtendedDirectMessage), 2, 3}, []byte{1, 2, 3, 4}, ExtendedDirectMessage},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
+			device := NewI2CsDevice(conn, time.Millisecond)
+			ackFlags := StandardDirectAck
+			if len(test.payload) > 0 {
+				ackFlags = ExtendedDirectAck
+			}
+			conn.ackCh <- &Message{Flags: ackFlags}
+
+			device.SendCommand(test.command, test.payload)
+
+			msg := <-conn.sendCh
+
+			if test.command[0] == byte(ExtendedDirectMessage) && msg.Payload[len(msg.Payload)-1] == 0 {
+				t.Errorf("Expected checksum to be set")
+			}
+		})
+	}
 }
 
-func TestI2CsDeviceString(t *testing.T) {
-	device := &I2CsDevice{&I2Device{&I1Device{address: Address{3, 4, 5}}}}
-	expected := "I2CS Device (03.04.05)"
-	if device.String() != expected {
-		t.Errorf("expected %q got %q", expected, device.String())
+func TestI2CsDeviceCommands(t *testing.T) {
+	tests := []*commandTest{
+		{"EnterLinkingMode", func(d Device) error { return d.(*I2CsDevice).EnterLinkingMode(15) }, CmdEnterLinkingModeExt.SubCommand(15), nil, nil},
 	}
-}*/
+
+	testDeviceCommands(t, func(conn *testConnection) Device { return NewI2CsDevice(conn, time.Millisecond) }, tests)
+}
+
+func TestI2CsDeviceReceive(t *testing.T) {
+	tests := []struct {
+		desc    string
+		input   *Message
+		wantErr error
+	}{
+		{"ErrIllegalValue", &Message{Command: Command{0, 0, 0xfb}, Flags: StandardDirectNak}, ErrIllegalValue},
+		{"ErrPreNak", &Message{Command: Command{0, 0, 0xfc}, Flags: StandardDirectNak}, ErrPreNak},
+		{"ErrIncorrectChecksum", &Message{Command: Command{0, 0, 0xfd}, Flags: StandardDirectNak}, ErrIncorrectChecksum},
+		{"ErrNoLoadDetected", &Message{Command: Command{0, 0, 0xfe}, Flags: StandardDirectNak}, ErrNoLoadDetected},
+		{"ErrNotLinked", &Message{Command: Command{0, 0, 0xff}, Flags: StandardDirectNak}, ErrNotLinked},
+		{"ErrUnexpectedResponse", &Message{Command: Command{0, 0, 0xfa}, Flags: StandardDirectNak}, ErrUnexpectedResponse},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			conn := &testConnection{recvCh: make(chan *Message, 1)}
+			conn.recvCh <- test.input
+			device := NewI2CsDevice(conn, time.Millisecond)
+			_, err := device.Receive()
+			if !isError(err, test.wantErr) {
+				t.Errorf("want error %v got %v", test.wantErr, err)
+			}
+		})
+	}
+}

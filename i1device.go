@@ -15,28 +15,24 @@
 package insteon
 
 import (
-	"sync"
 	"time"
 )
 
 // I1Device provides remote communication to version 1 engines
 type I1Device struct {
-	sync.Mutex
-	address         Address
+	Connection
 	devCat          DevCat
 	firmwareVersion FirmwareVersion
 	timeout         time.Duration
-	connection      Connection
 }
 
-// NewI1Device will construct an I1Device for the given address
-func NewI1Device(address Address, connection Connection, timeout time.Duration) *I1Device {
+// NewI1Device will construct an I1Device for the given connection
+func NewI1Device(connection Connection, timeout time.Duration) *I1Device {
 	i1 := &I1Device{
-		address:         address,
+		Connection:      connection,
 		devCat:          DevCat{0xff, 0xff},
 		firmwareVersion: FirmwareVersion(0x00),
 		timeout:         timeout,
-		connection:      connection,
 	}
 
 	return i1
@@ -46,9 +42,14 @@ func (i1 *I1Device) sendCommand(command Command, payload []byte) (response Comma
 	flags := StandardDirectMessage
 	if len(payload) > 0 {
 		flags = ExtendedDirectMessage
+		if len(payload) < 14 {
+			tmp := make([]byte, 14)
+			copy(tmp, payload)
+			payload = tmp
+		}
 	}
 
-	ack, err := i1.connection.Send(&Message{
+	ack, err := i1.Connection.Send(&Message{
 		Flags:   flags,
 		Command: command,
 		Payload: payload,
@@ -61,14 +62,8 @@ func (i1 *I1Device) sendCommand(command Command, payload []byte) (response Comma
 	return response, err
 }
 
-func (i1 *I1Device) Send(msg *Message) (ack *Message, err error) {
-	i1.Lock()
-	defer i1.Unlock()
-	return i1.connection.Send(msg)
-}
-
 func errLookup(msg *Message, err error) (*Message, error) {
-	if err != nil {
+	if err == nil && msg.Flags.Type() == MsgTypeDirectNak {
 		switch msg.Command[2] & 0xff {
 		case 0xfd:
 			err = ErrUnknownCommand
@@ -83,25 +78,12 @@ func errLookup(msg *Message, err error) (*Message, error) {
 	return msg, err
 }
 
-func (i1 *I1Device) Receive() (*Message, error) {
-	i1.Lock()
-	defer i1.Unlock()
-	return i1.connection.Receive()
-}
-
 // SendCommand will send the given command bytes to the device including
 // a payload (for extended messages). If payload length is zero then a standard
 // length message is used to deliver the commands. The command bytes from the
 // response ack are returned as well as any error
 func (i1 *I1Device) SendCommand(command Command, payload []byte) (response Command, err error) {
-	i1.Lock()
-	defer i1.Unlock()
 	return i1.sendCommand(command, payload)
-}
-
-// Address is the Insteon address of the device
-func (i1 *I1Device) Address() Address {
-	return i1.address
 }
 
 func extractError(v interface{}, err error) error {
@@ -122,20 +104,19 @@ func (i1 *I1Device) DeleteFromAllLinkGroup(group Group) (err error) {
 
 // ProductData will retrieve the device's product data
 func (i1 *I1Device) ProductData() (data *ProductData, err error) {
-	i1.Lock()
-	defer i1.Unlock()
-
 	_, err = i1.sendCommand(CmdProductDataReq, nil)
 	timeout := time.Now().Add(i1.timeout)
-	for timeout.After(time.Now()) {
-		msg, err := i1.connection.Receive()
+	for err == nil {
+		var msg *Message
+		msg, err = i1.Connection.Receive()
 		if msg.Command[1] == CmdProductDataResp[1] {
 			data = &ProductData{}
 			err = data.UnmarshalBinary(msg.Payload)
-			return data, err
+			break
+		} else if timeout.Before(time.Now()) {
+			err = ErrReadTimeout
 		}
 	}
-	err = ErrReadTimeout
 	return data, err
 }
 
@@ -168,4 +149,8 @@ func (i1 *I1Device) BlockDataTransfer(start, end MemAddress, length int) ([]byte
 // address of the device
 func (i1 *I1Device) String() string {
 	return sprintf("I1 Device (%s)", i1.Address())
+}
+
+func (i1 *I1Device) Receive() (*Message, error) {
+	return errLookup(i1.Connection.Receive())
 }

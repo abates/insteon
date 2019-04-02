@@ -20,13 +20,42 @@ import (
 	"time"
 )
 
-type testSender struct {
-	sendCh chan *Message
+type testConnection struct {
+	addr            Address
+	devCat          DevCat
+	firmwareVersion FirmwareVersion
+
+	sendCh  chan *Message
+	ackCh   chan *Message
+	sendErr error
+
+	recvCh  chan *Message
+	recvErr error
 }
 
-func (ts *testSender) Send(msg *Message) error {
-	ts.sendCh <- msg
-	return nil
+func (tc *testConnection) Address() Address { return tc.addr }
+func (tc *testConnection) IDRequest() (FirmwareVersion, DevCat, error) {
+	return tc.firmwareVersion, tc.devCat, nil
+}
+
+func (tc *testConnection) SendCommand(cmd Command, payload []byte) (Command, error) {
+	msg, err := tc.Send(&Message{Command: cmd, Payload: payload})
+	return msg.Command, err
+}
+
+func (tc *testConnection) Send(msg *Message) (*Message, error) {
+	tc.sendCh <- msg
+	if tc.sendErr != nil {
+		return nil, tc.sendErr
+	}
+	return <-tc.ackCh, nil
+}
+
+func (tc *testConnection) Receive() (*Message, error) {
+	if tc.recvErr == nil {
+		return <-tc.recvCh, nil
+	}
+	return nil, tc.recvErr
 }
 
 func TestConnectionSend(t *testing.T) {
@@ -43,11 +72,11 @@ func TestConnectionSend(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			sender := &testSender{make(chan *Message, 1)}
+			txCh := make(chan *Message, 1)
 			rxCh := make(chan *Message, 1)
-			conn := NewConnection(sender, rxCh, Address{}, time.Millisecond)
+			conn := NewConnection(txCh, rxCh, Address{}, time.Millisecond)
 			go func() {
-				<-sender.sendCh
+				<-txCh
 				if test.expectedErr == nil {
 					ack := *test.input
 					src := ack.Src
@@ -87,10 +116,10 @@ func TestConnectionReceive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			sender := &testSender{make(chan *Message, 1)}
+			txCh := make(chan *Message, 1)
 			rxCh := make(chan *Message, 1)
 			rxCh <- test.input
-			conn := NewConnection(sender, rxCh, Address{}, time.Millisecond, test.match)
+			conn := NewConnection(txCh, rxCh, Address{}, time.Millisecond, test.match)
 			_, err := conn.Receive()
 
 			if test.expectedErr != err {

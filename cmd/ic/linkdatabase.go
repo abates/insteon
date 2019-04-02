@@ -22,7 +22,7 @@ import (
 	"github.com/abates/insteon"
 )
 
-func printLinkDatabase(linkable insteon.LinkableDevice) error {
+func printLinkDatabase(linkable insteon.Linkable) error {
 	dbLinks, err := linkable.Links()
 	fmt.Printf("Link Database:\n")
 	if len(dbLinks) > 0 {
@@ -50,7 +50,7 @@ func printLinkDatabase(linkable insteon.LinkableDevice) error {
 	return err
 }
 
-func dumpLinkDatabase(linkable insteon.LinkableDevice) error {
+func dumpLinkDatabase(linkable insteon.Linkable) error {
 	links, err := linkable.Links()
 	if err == nil {
 		fmt.Printf("links:\n")

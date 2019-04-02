@@ -23,6 +23,7 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/plm"
 )
 
 var device insteon.Device
@@ -50,15 +51,15 @@ func devCmd(args []string, next cli.NextFunc) (err error) {
 		return fmt.Errorf("invalid device address: %v", err)
 	}
 
-	device, err = devConnect(modem.Network, addr)
+	device, err = devConnect(modem, addr)
 	if err == nil {
 		err = next()
 	}
 	return err
 }
 
-func devConnect(network *insteon.Network, addr insteon.Address) (insteon.Device, error) {
-	device, err := network.Connect(addr)
+func devConnect(plm *plm.PLM, addr insteon.Address) (insteon.Device, error) {
+	device, err := plm.Open(addr)
 	if err == insteon.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if getResponse(msg, "y", "n") == "y" {
@@ -66,7 +67,7 @@ func devConnect(network *insteon.Network, addr insteon.Address) (insteon.Device,
 		}
 
 		if err == nil {
-			device, err = network.Connect(addr)
+			device, err = plm.Open(addr)
 		}
 	}
 	return device, err
@@ -110,13 +111,11 @@ func devInfoCmd([]string, cli.NextFunc) (err error) {
 
 func printDevInfo(device insteon.Device, extra string) (err error) {
 	fmt.Printf("       Device: %v\n", device)
-	info, found := modem.Network.DB.Find(device.Address())
-	if !found || !info.Complete() {
-		info, err = modem.Network.IDRequest(device.Address())
-	}
+	firmware, devCat, err := device.IDRequest()
+
 	if err == nil {
-		fmt.Printf("     Category: %v\n", info.DevCat)
-		fmt.Printf("     Firmware: %v\n", info.FirmwareVersion)
+		fmt.Printf("     Category: %v\n", devCat)
+		fmt.Printf("     Firmware: %v\n", firmware)
 
 		if extra != "" {
 			fmt.Printf("%s\n", extra)
@@ -130,10 +129,11 @@ func printDevInfo(device insteon.Device, extra string) (err error) {
 }
 
 func devVersionCmd([]string, cli.NextFunc) error {
-	if info, found := modem.Network.DB.Find(device.Address()); found {
-		fmt.Printf("Device version: %s\n", info.FirmwareVersion)
+	firmware, _, err := device.IDRequest()
+	if err == nil {
+		fmt.Printf("Device version: %s\n", firmware)
 	}
-	return nil
+	return err
 }
 
 func devEditCmd([]string, cli.NextFunc) error {

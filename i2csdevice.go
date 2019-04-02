@@ -15,20 +15,23 @@
 package insteon
 
 import (
-	"sync"
 	"time"
 )
 
 // I2CsDevice can communicate with Version 2 (checksum) Insteon Engines
 type I2CsDevice struct {
-	sync.Mutex
 	*I2Device
+	connection Connection
 }
 
 // NewI2CsDevice will initialize a new I2CsDevice object and make
 // it ready for use
-func NewI2CsDevice(address Address, connection Connection, timeout time.Duration) *I2CsDevice {
-	return &I2CsDevice{I2Device: NewI2Device(address, connection, timeout)}
+func NewI2CsDevice(connection Connection, timeout time.Duration) *I2CsDevice {
+	i2cs := &I2CsDevice{connection: connection}
+	// pass i2cs in here so that the downstream devices (I2Device and its I1Device) will
+	// get checksums set for extended messages
+	i2cs.I2Device = NewI2Device(i2cs, timeout)
+	return i2cs
 }
 
 // EnterLinkingMode will put the device into linking mode. This is
@@ -38,38 +41,14 @@ func (i2cs *I2CsDevice) EnterLinkingMode(group Group) (err error) {
 	return extractError(i2cs.SendCommand(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14)))
 }
 
+func (i2cs *I2CsDevice) Address() Address {
+	return i2cs.connection.Address()
+}
+
 // String returns the string "I2CS Device (<address>)" where <address> is the destination
 // address of the device
 func (i2cs *I2CsDevice) String() string {
 	return sprintf("I2CS Device (%s)", i2cs.Address())
-}
-
-// SendCommand will send the given command bytes to the device including
-// a payload (for extended messages). If payload length is zero then a standard
-// length message is used to deliver the commands. The command bytes from the
-// response ack are returned as well as any error
-func (i2cs *I2CsDevice) SendCommand(command Command, payload []byte) (response Command, err error) {
-	flags := StandardDirectMessage
-
-	if command[1] == CmdSetOperatingFlags[1] && len(payload) == 0 {
-		payload = make([]byte, 14)
-	}
-
-	if len(payload) > 0 {
-		flags = ExtendedDirectMessage
-	}
-
-	ack, err := i2cs.Send(&Message{
-		Flags:   flags,
-		Command: command,
-		Payload: payload,
-	})
-
-	if err == nil {
-		response = ack.Command
-	}
-
-	return response, err
 }
 
 func checksum(cmd Command, buf []byte) byte {
@@ -81,18 +60,16 @@ func checksum(cmd Command, buf []byte) byte {
 }
 
 func (i2cs *I2CsDevice) Send(msg *Message) (ack *Message, err error) {
-	i2cs.Lock()
-	defer i2cs.Unlock()
 	// set checksum
 	if msg.Flags.Extended() {
 		l := len(msg.Payload)
 		msg.Payload[l-1] = checksum(msg.Command, msg.Payload)
 	}
-	return i2cs.I2Device.Send(msg)
+	return i2cs.connection.Send(msg)
 }
 
 func i2csErrLookup(msg *Message, err error) (*Message, error) {
-	if err != nil {
+	if err == nil && msg.Flags.Type() == MsgTypeDirectNak {
 		switch msg.Command[2] & 0xff {
 		case 0xfb:
 			err = ErrIllegalValue
@@ -111,8 +88,10 @@ func i2csErrLookup(msg *Message, err error) (*Message, error) {
 	return msg, err
 }
 
+func (i2cs *I2CsDevice) IDRequest() (FirmwareVersion, DevCat, error) {
+	return i2cs.connection.IDRequest()
+}
+
 func (i2cs *I2CsDevice) Receive() (*Message, error) {
-	i2cs.Lock()
-	defer i2cs.Unlock()
-	return i2csErrLookup(i2cs.I2Device.Receive())
+	return i2csErrLookup(i2cs.connection.Receive())
 }

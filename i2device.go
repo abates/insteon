@@ -15,20 +15,18 @@
 package insteon
 
 import (
-	"sync"
 	"time"
 )
 
 // I2Device can communicate with Version 2 Insteon Engines
 type I2Device struct {
-	sync.Mutex
 	*I1Device
 }
 
 // NewI2Device will construct an device object that can communicate with version 2
 // Insteon engines
-func NewI2Device(address Address, connection Connection, timeout time.Duration) *I2Device {
-	return &I2Device{I1Device: NewI1Device(address, connection, timeout)}
+func NewI2Device(connection Connection, timeout time.Duration) *I2Device {
+	return &I2Device{I1Device: NewI1Device(connection, timeout)}
 }
 
 // AddLink will either add the link to the All-Link database
@@ -47,18 +45,16 @@ func (i2 *I2Device) RemoveLinks(oldLinks ...*LinkRecord) error {
 // Links will retrieve the link-database from the device and
 // return a list of LinkRecords
 func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
-	i2.Lock()
-	defer i2.Unlock()
-
 	Log.Debugf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
 	buf, _ := (&LinkRequest{Type: ReadLink, NumRecords: 0}).MarshalBinary()
 	_, err = i2.I1Device.SendCommand(CmdReadWriteALDB, buf)
 
+	timeout := time.Now().Add(i2.timeout)
 	for err == nil {
 		var msg *Message
 		msg, err = i2.I1Device.Receive()
-		if msg.Flags.Extended() && msg.Command[1] == CmdReadWriteALDB[1] {
+		if err == nil && msg.Flags.Extended() && msg.Command[1] == CmdReadWriteALDB[1] {
 			lr := &LinkRequest{}
 			err = lr.UnmarshalBinary(msg.Payload)
 			// make sure there was no error unmarshalling, also make sure
@@ -69,6 +65,9 @@ func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
 				lastAddress = lr.MemAddress
 				links = append(links, lr.Link)
 			}
+			timeout = time.Now().Add(i2.timeout)
+		} else if timeout.Before(time.Now()) {
+			err = ErrReadTimeout
 		}
 	}
 
@@ -132,22 +131,4 @@ func (i2 *I2Device) AppendLink(link *LinkRecord) (err error) {
 // address of the device
 func (i2 *I2Device) String() string {
 	return sprintf("I2 Device (%s)", i2.Address())
-}
-
-func (i2 *I2Device) SendCommand(command Command, payload []byte) (response Command, err error) {
-	i2.Lock()
-	defer i2.Unlock()
-	return i2.I1Device.SendCommand(command, payload)
-}
-
-func (i2 *I2Device) Send(msg *Message) (ack *Message, err error) {
-	i2.Lock()
-	defer i2.Unlock()
-	return i2.I1Device.Send(msg)
-}
-
-func (i2 *I2Device) Receive() (*Message, error) {
-	i2.Lock()
-	defer i2.Unlock()
-	return i2.I1Device.Receive()
 }

@@ -50,7 +50,7 @@ type Network struct {
 	DB          ProductDatabase
 	connections []insteon.Connection
 
-	bridge       insteon.Bridge
+	connection   insteon.Connection
 	connectCh    chan insteon.Connection
 	disconnectCh chan insteon.Connection
 	closeCh      chan chan error
@@ -59,11 +59,11 @@ type Network struct {
 // New creates a new Insteon network instance for the send and receive channels.  The timeout
 // indicates how long the network (and subsuquent devices) should wait when expecting incoming
 // messages/responses
-func New(bridge insteon.Bridge, timeout time.Duration) *Network {
+func New(connection insteon.Connection, timeout time.Duration) *Network {
 	network := &Network{
-		timeout: timeout,
-		DB:      NewProductDB(),
-		bridge:  bridge,
+		timeout:    timeout,
+		DB:         NewProductDB(),
+		connection: connection,
 
 		connectCh:    make(chan insteon.Connection),
 		disconnectCh: make(chan insteon.Connection),
@@ -78,7 +78,7 @@ func (network *Network) process() {
 	defer network.close()
 	for {
 		select {
-		case buf := <-network.bridge.Receive():
+		case buf := <-network.connection.Receive():
 			network.receive(buf)
 		case connection := <-network.connectCh:
 			network.connections = append(network.connections, connection)
@@ -192,42 +192,11 @@ func (network *Network) IDRequest(dst insteon.Address) (info insteon.DeviceInfo,
 }
 
 func (network *Network) connect(dst insteon.Address, version insteon.EngineVersion, match ...insteon.Command) insteon.Connection {
-	connection := insteon.NewConnection(network.bridge, dst, version, network.timeout, match...)
+	/*connection := insteon.NewConnection(network.bridge, dst, version, network.timeout, match...)
 	network.connectCh <- connection
 	return connection
-}
-
-// Dial will return a basic device object that can appropriately communicate
-// with the physical device out on the insteon network. Dial will determine
-// the engine version (1, 2, or 2CS) that the device is running and return
-// either an I1Device, I2Device or I2CSDevice. For a fully initialized
-// device (dimmer, switch, thermostat, etc) use Connect
-func (network *Network) Dial(dst insteon.Address) (device insteon.Device, err error) {
-	var info insteon.DeviceInfo
-	var found bool
-	if info, found = network.DB.Find(dst); !found {
-		info.EngineVersion, err = network.EngineVersion(dst)
-		// ErrNotLinked here is only returned by i2cs devices
-		if err == insteon.ErrNotLinked {
-			network.DB.UpdateEngineVersion(dst, insteon.VerI2Cs)
-			info.EngineVersion = insteon.VerI2Cs
-		}
-	}
-
-	if err == nil || err == insteon.ErrNotLinked {
-		connection := network.connect(dst, info.EngineVersion)
-		switch info.EngineVersion {
-		case insteon.VerI1:
-			device = insteon.NewI1Device(dst, connection, network.timeout)
-		case insteon.VerI2:
-			device = insteon.NewI2Device(dst, connection, network.timeout)
-		case insteon.VerI2Cs:
-			device = insteon.NewI2CsDevice(dst, connection, network.timeout)
-		default:
-			err = insteon.ErrVersion
-		}
-	}
-	return device, err
+	*/
+	return nil
 }
 
 // Connect will Dial the destination device and then determine the device category
@@ -246,8 +215,8 @@ func (network *Network) Connect(dst insteon.Address) (device insteon.Device, err
 
 	if err == nil {
 		if constructor, found := insteon.Devices.Find(info.DevCat.Category()); found {
-			bridge := network.connect(dst, info.EngineVersion)
-			device, err = constructor(info, dst, bridge, network.timeout)
+			/*bridge := network.connect(dst, info.EngineVersion)
+			device, err = constructor(info, dst, bridge, network.timeout)*/
 		} else {
 			device, err = network.Dial(dst)
 		}
@@ -266,7 +235,7 @@ func (network *Network) Close() error {
 	network.closeCh <- ch
 	close(network.closeCh)
 	err := <-ch
-	if closer, ok := network.bridge.(io.Closer); ok {
+	if closer, ok := network.connection.(io.Closer); ok {
 		err1 := closer.Close()
 		if err == nil {
 			err = err1

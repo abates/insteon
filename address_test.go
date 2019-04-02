@@ -33,6 +33,7 @@ func TestAddressUnmarshalText(t *testing.T) {
 		{"abcd", Address{}, true},
 		{"abcdefg", Address{}, true},
 		{"01b.02.03", Address{}, true},
+		{"vx.02.03", Address{}, true},
 	}
 
 	for _, test := range tests {

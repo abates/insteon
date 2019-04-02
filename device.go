@@ -29,8 +29,9 @@ const (
 // device is running
 type EngineVersion int
 
-// DeviceConstructor will return an initialized device for the given input arguments
-type DeviceConstructor func(info DeviceInfo, address Address, connection Connection, timeout time.Duration) (Device, error)
+// DeviceConstructor will return an initialized device for the given input arguments.  The DeviceInfo
+// allows a factory to select different
+type DeviceConstructor func(info DeviceInfo, device Device, timeout time.Duration) (Device, error)
 
 // Devices is a global DeviceRegistry. This device registry should only be used
 // if you are adding a new device category to the system
@@ -66,40 +67,6 @@ func (dr *DeviceRegistry) Find(category Category) (DeviceConstructor, bool) {
 	return constructor, found
 }
 
-// CommandRequest is used to request that a given command and payload are sent to a device
-type CommandRequest struct {
-	// Command to send to the device
-	Command Command
-
-	// Payload to include, if set
-	Payload []byte
-
-	// RecvCh to receive subsuquent messages
-	RecvCh chan<- *CommandResponse
-
-	// DoneCh that will be written to by the connection once the request is complete
-	DoneCh chan<- *CommandRequest
-
-	// Ack contains the response Ack/Nak from the device
-	Ack *Message
-
-	// Err includes any error that occurred while trying to send the request
-	Err error
-
-	timeout time.Time
-}
-
-// CommandResponse is used for sending messages back to a caller in conjunction with a CommandRequest
-type CommandResponse struct {
-	// Message that was received
-	Message *Message
-
-	// DoneCh to indicate whether more messages should be received or not.
-	DoneCh chan<- *CommandResponse
-
-	request *CommandRequest
-}
-
 // Addressable is any receiver that can be queried for its address
 type Addressable interface {
 	// Address will return the 3 byte destination address of the device.
@@ -107,9 +74,9 @@ type Addressable interface {
 	Address() Address
 }
 
-// Commandable is the most basic capability that any device must implement.  Commandable
-// devices can be sent commands and can receive messages
-type Commandable interface {
+// Device is the most basic capability that any device must implement. Devices
+// can be sent commands and can receive messages
+type Device interface {
 	Connection
 
 	// SendCommand will send the given command bytes to the device including
@@ -117,13 +84,6 @@ type Commandable interface {
 	// length message is used to deliver the commands. The command bytes from the
 	// response ack are returned as well as any error
 	SendCommand(cmd Command, payload []byte) (response Command, err error)
-}
-
-// Device is any implementation that returns the device address and can send commands to the
-// destination addresss
-type Device interface {
-	Addressable
-	Commandable
 }
 
 // PingableDevice is any device that implements the Ping method
@@ -146,9 +106,9 @@ type FXDevice interface {
 	FXUsername() (string, error)
 }
 
-// AllLinkableDevice is any device that has an all-link database that
+// AllLinkable is any device that has an all-link database that
 // can be programmed remotely
-type AllLinkableDevice interface {
+type AllLinkable interface {
 	// AssignToAllLinkGroup should be called after the set button
 	// has been pressed on a responder. If the set button was pressed
 	// then this method will assign the responder to the given
@@ -160,12 +120,19 @@ type AllLinkableDevice interface {
 	DeleteFromAllLinkGroup(Group) error
 }
 
-// LinkableDevice is any device that can be put into
-// linking mode and the link database can be managed remotely
 type LinkableDevice interface {
-	// Address is the remote/destination address of the device
-	Address() Address
+	Device
+	Linkable
+}
 
+type AddressableLinkable interface {
+	Addressable
+	Linkable
+}
+
+// Linkable is any device that can be put into
+// linking mode and the link database can be managed remotely
+type Linkable interface {
 	// AppendLink will add a new link record to the end of the All-Link database
 	AppendLink(link *LinkRecord) error
 
@@ -218,4 +185,58 @@ type DeviceInfo struct {
 // record will have a non-zero DevCat and a non-zero FirmwareVersion
 func (info *DeviceInfo) Complete() bool {
 	return info.DevCat != DevCat{0x00, 0x00} && info.FirmwareVersion != FirmwareVersion(0x00)
+}
+
+// Open will return a basic device object that can appropriately communicate
+// with the physical device out on the insteon network. Dial will determine
+// the engine version (1, 2, or 2CS) that the device is running and return
+// either an I1Device, I2Device or I2CSDevice. For a fully initialized
+// device (dimmer, switch, thermostat, etc) use Connect
+func Open(conn Connection, timeout time.Duration) (device Device, err error) {
+	var version EngineVersion
+	ack, err := conn.Send(&Message{Command: CmdGetEngineVersion, Flags: StandardDirectMessage})
+	if err == nil {
+		version = EngineVersion(ack.Command[2])
+		// ErrNotLinked here is only returned by i2cs devices
+	} else if err == ErrNotLinked {
+		version = VerI2Cs
+	}
+
+	if err == nil {
+		info := DeviceInfo{
+			Address:       conn.Address(),
+			EngineVersion: version,
+		}
+		info.FirmwareVersion, info.DevCat, err = conn.IDRequest()
+		if err == nil {
+			device, err = DeviceFactory(info, conn, timeout)
+		}
+	} else if err == ErrNotLinked {
+		device, err = BaseDeviceFactory(version, conn, timeout)
+	}
+	return device, err
+}
+
+func BaseDeviceFactory(version EngineVersion, conn Connection, timeout time.Duration) (device Device, err error) {
+	switch version {
+	case VerI1:
+		device = NewI1Device(conn, timeout)
+	case VerI2:
+		device = NewI2Device(conn, timeout)
+	case VerI2Cs:
+		device = NewI2CsDevice(conn, timeout)
+	default:
+		err = ErrVersion
+	}
+	return
+}
+
+func DeviceFactory(info DeviceInfo, conn Connection, timeout time.Duration) (Device, error) {
+	device, err := BaseDeviceFactory(info.EngineVersion, conn, timeout)
+	if err == nil {
+		if constructor, found := Devices.Find(info.DevCat.Category()); found {
+			device, err = constructor(info, device, timeout)
+		}
+	}
+	return device, err
 }

@@ -15,7 +15,6 @@
 package insteon
 
 import (
-	"sync"
 	"time"
 )
 
@@ -24,29 +23,30 @@ type MessageSender interface {
 }
 
 type Connection interface {
+	Address() Address
 	Send(*Message) (ack *Message, err error)
 	Receive() (*Message, error)
+	IDRequest() (FirmwareVersion, DevCat, error)
 }
 
 type connection struct {
-	sync.Mutex
 	addr    Address
 	match   []Command
 	timeout time.Duration
-	sender  MessageSender
 
+	txCh    chan<- *Message
 	rxCh    <-chan *Message
 	msgCh   chan *Message
 	closeCh chan chan error
 }
 
-func NewConnection(sender MessageSender, rxCh <-chan *Message, addr Address, timeout time.Duration, match ...Command) Connection {
+func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, timeout time.Duration, match ...Command) Connection {
 	conn := &connection{
 		addr:    addr,
 		match:   match,
 		timeout: timeout,
-		sender:  sender,
 
+		txCh:    txCh,
 		rxCh:    rxCh,
 		msgCh:   make(chan *Message, 10),
 		closeCh: make(chan chan error),
@@ -55,6 +55,8 @@ func NewConnection(sender MessageSender, rxCh <-chan *Message, addr Address, tim
 	go conn.readLoop()
 	return conn
 }
+
+func (conn *connection) Address() Address { return conn.addr }
 
 func (conn *connection) readLoop() {
 	for {
@@ -80,16 +82,13 @@ func (conn *connection) readLoop() {
 }
 
 func (conn *connection) Send(msg *Message) (ack *Message, err error) {
-	conn.Lock()
-	defer conn.Unlock()
-
 	msg.Dst = conn.addr
-	err = conn.sender.Send(msg)
+	conn.txCh <- msg
 
 	// wait for ack
 	timeout := time.Now().Add(conn.timeout)
 	for err == nil {
-		ack, err = conn.receive()
+		ack, err = conn.Receive()
 		if err == nil && (ack.Ack() || ack.Nak()) {
 			break
 		} else if timeout.Before(time.Now()) {
@@ -101,12 +100,6 @@ func (conn *connection) Send(msg *Message) (ack *Message, err error) {
 }
 
 func (conn *connection) Receive() (msg *Message, err error) {
-	conn.Lock()
-	defer conn.Unlock()
-	return conn.receive()
-}
-
-func (conn *connection) receive() (msg *Message, err error) {
 	select {
 	case msg = <-conn.msgCh:
 	case <-time.After(conn.timeout):
@@ -119,4 +112,23 @@ func (conn *connection) Close() error {
 	ch := make(chan error)
 	conn.closeCh <- ch
 	return <-ch
+}
+
+func (conn *connection) IDRequest() (version FirmwareVersion, devCat DevCat, err error) {
+	_, err = conn.Send(&Message{Command: CmdIDRequest, Flags: StandardDirectMessage})
+	timeout := time.Now().Add(conn.timeout)
+	for err == nil {
+		var msg *Message
+		msg, err = conn.Receive()
+		if err == nil {
+			if msg.Broadcast() && (msg.Command[1] == 0x01 || msg.Command[1] == 0x02) {
+				version = FirmwareVersion(msg.Dst[2])
+				devCat = DevCat{msg.Dst[0], msg.Dst[1]}
+				break
+			} else if timeout.Before(time.Now()) {
+				err = ErrReadTimeout
+			}
+		}
+	}
+	return
 }

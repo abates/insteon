@@ -130,7 +130,7 @@ func (lr *LinkRequest) MarshalBinary() (buf []byte, err error) {
 // FindDuplicateLinks will perform a linear search of the
 // LinkDB and return any links that are duplicates. Duplicate
 // links are those that are equivalent as reported by LinkRecord.Equal
-func FindDuplicateLinks(linkable LinkableDevice) ([]*LinkRecord, error) {
+func FindDuplicateLinks(linkable Linkable) ([]*LinkRecord, error) {
 	duplicates := make([]*LinkRecord, 0)
 	links, err := linkable.Links()
 	if err == nil {
@@ -148,7 +148,7 @@ func FindDuplicateLinks(linkable LinkableDevice) ([]*LinkRecord, error) {
 // FindLinkRecord will perform a linear search of the database and return
 // a LinkRecord that matches the group, address and controller/responder
 // indicator
-func FindLinkRecord(linkable LinkableDevice, controller bool, address Address, group Group) (*LinkRecord, error) {
+func FindLinkRecord(linkable Linkable, controller bool, address Address, group Group) (*LinkRecord, error) {
 	links, err := linkable.Links()
 	if err == nil {
 		for _, link := range links {
@@ -162,7 +162,7 @@ func FindLinkRecord(linkable LinkableDevice, controller bool, address Address, g
 
 // CrossLinkAll will create bi-directional links among all the devices
 // listed. This is useful for creating virtual N-Way connections
-func CrossLinkAll(group Group, linkable ...LinkableDevice) error {
+func CrossLinkAll(group Group, linkable ...AddressableLinkable) error {
 	for i, l1 := range linkable {
 		for _, l2 := range linkable[i:] {
 			if l1 != l2 {
@@ -180,7 +180,7 @@ func CrossLinkAll(group Group, linkable ...LinkableDevice) error {
 // devices. Each device will get both a controller and responder
 // link for the given group. When using lighting control devices, this
 // will effectively create a 3-Way light switch configuration
-func CrossLink(group Group, l1, l2 LinkableDevice) error {
+func CrossLink(group Group, l1, l2 AddressableLinkable) error {
 	err := Link(group, l1, l2)
 	if err == nil || err == ErrAlreadyLinked {
 		err = Link(group, l2, l1)
@@ -195,7 +195,7 @@ func CrossLink(group Group, l1, l2 LinkableDevice) error {
 // ForceLink will create links in the controller and responder All-Link
 // databases without first checking if the links exist. The links are
 // created by simulating set button presses (using EnterLinkingMode)
-func ForceLink(group Group, controller, responder LinkableDevice) (err error) {
+func ForceLink(group Group, controller, responder Linkable) (err error) {
 	Log.Debugf("Putting controller %s into linking mode", controller)
 	// controller enters all-linking mode
 	err = controller.EnterLinkingMode(group)
@@ -214,7 +214,7 @@ func ForceLink(group Group, controller, responder LinkableDevice) (err error) {
 
 // UnlinkAll will unlink all groups between a controller and
 // a responder device
-func UnlinkAll(controller, responder LinkableDevice) (err error) {
+func UnlinkAll(controller, responder AddressableLinkable) (err error) {
 	links, err := controller.Links()
 	if err == nil {
 		for _, link := range links {
@@ -230,7 +230,7 @@ func UnlinkAll(controller, responder LinkableDevice) (err error) {
 // controller is put into UnlinkingMode (analogous to unlinking mode via
 // the set button) and then the responder is put into unlinking mode (also
 // analogous to the set button pressed)
-func Unlink(group Group, controller, responder LinkableDevice) (err error) {
+func Unlink(group Group, controller, responder Linkable) (err error) {
 	// controller enters all-linking mode
 	err = controller.EnterUnlinkingMode(group)
 	defer controller.ExitLinkingMode()
@@ -256,7 +256,7 @@ func Unlink(group Group, controller, responder LinkableDevice) (err error) {
 // exist (a controller link and a responder link) then nothing is done. If only one
 // entry exists than the other is deleted and new links are created. Once the link
 // check/cleanup has taken place the new links are created using ForceLink
-func Link(group Group, controller, responder LinkableDevice) (err error) {
+func Link(group Group, controller, responder AddressableLinkable) (err error) {
 	Log.Debugf("Looking for existing links")
 	var controllerLink *LinkRecord
 	controllerLink, err = FindLinkRecord(controller, true, responder.Address(), group)

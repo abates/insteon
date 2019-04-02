@@ -51,7 +51,8 @@ type PLM struct {
 	nextWrite  time.Time
 	port       *Port
 
-	insteonRxCh chan []byte
+	insteonRxCh chan *insteon.Message
+	insteonTxCh chan *insteon.Message
 	plmCh       chan *Packet
 }
 
@@ -64,7 +65,8 @@ func New(port *Port, timeout time.Duration, options ...Option) *PLM {
 		timeout:     timeout,
 		writeDelay:  500 * time.Millisecond,
 		port:        port,
-		insteonRxCh: make(chan []byte),
+		insteonTxCh: make(chan *insteon.Message),
+		insteonRxCh: make(chan *insteon.Message),
 		plmCh:       make(chan *Packet),
 	}
 
@@ -78,6 +80,7 @@ func New(port *Port, timeout time.Duration, options ...Option) *PLM {
 	}
 
 	go plm.readLoop()
+	go plm.writeLoop()
 	return plm
 }
 
@@ -99,7 +102,13 @@ func (plm *PLM) readLoop() {
 			if err == nil {
 				insteon.Log.Tracef("%v", packet)
 				if packet.Command == 0x50 || packet.Command == 0x51 {
-					plm.insteonRxCh <- packet.Payload
+					msg := &insteon.Message{}
+					err := msg.UnmarshalBinary(packet.Payload)
+					if err == nil {
+						plm.insteonRxCh <- msg
+					} else {
+						insteon.Log.Infof("Failed to unmarshal Insteon Message: %v", err)
+					}
 				} else {
 					plm.plmCh <- packet
 				}
@@ -115,6 +124,19 @@ func (plm *PLM) readLoop() {
 	}
 }
 
+func (plm *PLM) writeLoop() {
+	for msg := range plm.insteonTxCh {
+		buf, err := msg.MarshalBinary()
+		if err == nil {
+			// slice off the source address since the PLM doesn't want it
+			buf = buf[3:]
+			_, err = plm.send(&Packet{Command: 0x62, Payload: buf})
+		} else {
+			insteon.Log.Infof("Failed to marshal insteon message: %v", err)
+		}
+	}
+}
+
 // transmit a packet and wait for the PLM to ack that the packet was
 // sent.  This is a blocking function. Only callers that have aquired
 // the mutex shoud call this function
@@ -125,7 +147,6 @@ func (plm *PLM) tx(txPacket *Packet) (ack *Packet, err error) {
 			<-time.After(plm.nextWrite.Sub(time.Now()))
 		}
 
-		timeout := time.Now().Add(plm.timeout)
 		plm.port.Write(buf)
 		if 0x61 <= txPacket.Command && txPacket.Command <= 0x63 {
 			plm.nextWrite = time.Now().Add(plm.writeDelay)
@@ -134,7 +155,8 @@ func (plm *PLM) tx(txPacket *Packet) (ack *Packet, err error) {
 		}
 
 		// loop until either timeout or the appropriate ack is received
-		for timeout.After(time.Now()) {
+		timeout := time.Now().Add(plm.timeout)
+		for err == nil {
 			select {
 			case rxPacket := <-plm.plmCh:
 				if txPacket.Command == rxPacket.Command {
@@ -142,8 +164,13 @@ func (plm *PLM) tx(txPacket *Packet) (ack *Packet, err error) {
 					if rxPacket.NAK() {
 						err = ErrNak
 					}
+					return
 				}
 			case <-time.After(plm.timeout):
+				err = ErrAckTimeout
+			}
+
+			if timeout.Before(time.Now()) {
 				err = ErrAckTimeout
 			}
 		}
@@ -160,30 +187,13 @@ func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
 }
 
 func (plm *PLM) Connect(addr insteon.Address) insteon.Connection {
-	return insteon.NewConnection(plm, plm.insteonRxCh, addr, plm.timeout)
+	return insteon.NewConnection(plm.insteonTxCh, plm.insteonRxCh, addr, plm.timeout)
 }
 
-// Send will send an insteon message with the payload set to
-// buf
-func (plm *PLM) Send(msg insteon.Message) error {
-	buf, err := msg.MarshalBinary()
-	if err == nil {
-		_, err = plm.send(&Packet{Command: 0x62, Payload: buf})
-	}
-	return err
+func (plm *PLM) Open(addr insteon.Address) (insteon.Device, error) {
+	conn := plm.Connect(addr)
+	return insteon.Open(conn, plm.timeout)
 }
-
-// Receive an insteon message from the PLM
-/*func (plm *PLM) Receive() (msg *insteon.Message, err error) {
-	select {
-	case buf := <-plm.insteonCh:
-		msg = &insteon.Message{}
-		err = msg.UnmarshalBinary(buf)
-	case <-time.After(plm.timeout):
-		err = ErrReadTimeout
-	}
-	return
-}*/
 
 // Retry will deliver a packet to the Insteon network. If delivery fails (due
 // to a NAK from the PLM) then we will retry and decrement retries. This
@@ -271,5 +281,6 @@ func (plm *PLM) String() string {
 }
 
 func (plm *PLM) Close() {
+	close(plm.insteonTxCh)
 	plm.port.Close()
 }

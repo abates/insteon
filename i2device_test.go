@@ -14,87 +14,103 @@
 
 package insteon
 
-/*
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestI2DeviceIsLinkable(t *testing.T) {
 	device := Device(&I2Device{})
-	linkable := device.(LinkableDevice)
+	linkable := device.(Linkable)
 	if linkable == nil {
 		t.Error("linkable should not be nil")
 	}
 }
 
 func TestI2DeviceCommands(t *testing.T) {
-	tests := []struct {
-		desc        string
-		callback    func(*I2Device) error
-		expectedCmd Command
-		expectedErr error
-	}{
-		{"AddLink", func(i2cs *I2Device) error { return i2cs.AddLink(nil) }, Command{}, ErrNotImplemented},
-		{"RemoveLinks", func(i2cs *I2Device) error { return i2cs.RemoveLinks(nil) }, Command{}, ErrNotImplemented},
-		{"EnterUnlinkingMode", func(i2cs *I2Device) error { return i2cs.EnterLinkingMode(10) }, CmdEnterLinkingMode.SubCommand(10), nil},
-		{"EnterUnlinkingMode", func(i2cs *I2Device) error { return i2cs.EnterUnlinkingMode(10) }, CmdEnterUnlinkingMode.SubCommand(10), nil},
-		{"ExitLinkingMode", func(i2cs *I2Device) error { return i2cs.ExitLinkingMode() }, CmdExitLinkingMode, nil},
-		{"WriteLink - error", func(i2cs *I2Device) error { return i2cs.WriteLink(&LinkRecord{}) }, CmdReadWriteALDB, ErrInvalidMemAddress},
-		{"WriteLink", func(i2cs *I2Device) error { return i2cs.WriteLink(&LinkRecord{memAddress: 0x01}) }, CmdReadWriteALDB, nil},
+	tests := []*commandTest{
+		{"AddLink", func(d Device) error { return d.(*I2Device).AddLink(nil) }, Command{}, ErrNotImplemented, nil},
+		{"RemoveLinks", func(d Device) error { return d.(*I2Device).RemoveLinks(nil) }, Command{}, ErrNotImplemented, nil},
+		{"EnterUnlinkingMode", func(d Device) error { return d.(*I2Device).EnterLinkingMode(10) }, CmdEnterLinkingMode.SubCommand(10), nil, nil},
+		{"EnterUnlinkingMode", func(d Device) error { return d.(*I2Device).EnterUnlinkingMode(10) }, CmdEnterUnlinkingMode.SubCommand(10), nil, nil},
+		{"ExitLinkingMode", func(d Device) error { return d.(*I2Device).ExitLinkingMode() }, CmdExitLinkingMode, nil, nil},
+		{"WriteLink - error", func(d Device) error { return d.(*I2Device).WriteLink(&LinkRecord{}) }, CmdReadWriteALDB, ErrInvalidMemAddress, nil},
+		{"WriteLink", func(d Device) error { return d.(*I2Device).WriteLink(&LinkRecord{memAddress: 0x01}) }, CmdReadWriteALDB, nil, nil},
 	}
 
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			sendCh := make(chan *CommandRequest, 1)
-			device := &I2Device{&I1Device{sendCh: sendCh}}
+	testDeviceCommands(t, func(conn *testConnection) Device { return NewI2Device(conn, time.Millisecond) }, tests)
+}
 
-			if test.expectedErr != ErrNotImplemented {
-				go func() {
-					request := <-sendCh
-					if request.Command != test.expectedCmd {
-						t.Errorf("got Command %v, want %v", request.Command, test.expectedCmd)
-					}
-					if test.expectedErr != nil {
-						request.Err = test.expectedErr
-					} else {
-						request.Ack = &Message{Command: test.expectedCmd}
-					}
-					request.DoneCh <- request
-				}()
-			}
-
-			err := test.callback(device)
-			if err != test.expectedErr {
-				t.Errorf("got error %v, want %v", err, test.expectedErr)
-			}
-		})
+func i2DeviceLinks(conn *testConnection) []*LinkRequest {
+	linkRequests := []*LinkRequest{
+		{MemAddress: 0xffff, Type: 0x02, Link: &LinkRecord{Flags: 0x01}},
+		{MemAddress: 0, Type: 0x02, Link: &LinkRecord{}},
 	}
+	conn.recvCh = make(chan *Message, len(linkRequests))
+
+	msgs := []*Message{}
+	for _, lr := range linkRequests {
+		msg := &Message{Command: CmdReadWriteALDB, Flags: ExtendedDirectMessage, Payload: make([]byte, 14)}
+		buf, _ := lr.MarshalBinary()
+		copy(msg.Payload, buf)
+		msgs = append(msgs, msg)
+	}
+
+	for _, msg := range msgs {
+		conn.recvCh <- msg
+	}
+
+	return linkRequests
 }
 
 func TestI2DeviceLinks(t *testing.T) {
-	sendCh := make(chan *CommandRequest, 1)
-	device := &I2Device{&I1Device{sendCh: sendCh}}
+	conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
+	device := NewI2Device(conn, time.Nanosecond)
 
-	link1 := &LinkRequest{MemAddress: 0xffff, Type: 0x02, Link: &LinkRecord{Flags: 0x01}}
-	link2 := &LinkRequest{MemAddress: 0, Type: 0x02, Link: &LinkRecord{}}
-
-	go func() {
-		request := <-sendCh
-		request.Ack = &Message{}
-		request.DoneCh <- request
-		testRecv(request.RecvCh, CmdReadWriteALDB, link1, link2)
-	}()
+	i2DeviceLinks(conn)
+	conn.ackCh <- TestAck
 
 	links, err := device.Links()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	} else if len(links) != 1 {
-		t.Errorf("got %v links, want 1", len(links))
+		t.Errorf("want 1 link got %v", len(links))
+	}
+	<-conn.sendCh
+
+	// test sad path
+	conn.ackCh <- TestAck
+	go func() {
+		time.Sleep(time.Millisecond)
+		conn.recvCh <- TestMessagePing
+	}()
+
+	_, err = device.Links()
+	if err != ErrReadTimeout {
+		t.Errorf("want ErrReadTimeout got %v", err)
 	}
 }
 
-func TestI2DeviceString(t *testing.T) {
-	device := &I2Device{&I1Device{address: Address{3, 4, 5}}}
-	expected := "I2 Device (03.04.05)"
-	if device.String() != expected {
-		t.Errorf("got %q, want %q", device.String(), expected)
-	}
-}*/
+func TestI2AppendLink(t *testing.T) {
+	conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 2)}
+	device := NewI2Device(conn, time.Nanosecond)
+
+	go func() {
+		err := device.AppendLink(&LinkRecord{})
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+	}()
+
+	i2DeviceLinks(conn)
+	// Ack the ALDB request for links
+	conn.ackCh <- TestAck
+	// Ack the ALDB for write link
+	conn.ackCh <- TestAck
+
+	// receive the ALDB request
+	<-conn.sendCh
+
+	// receive the write link request
+	<-conn.sendCh
+}

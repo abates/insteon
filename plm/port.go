@@ -46,8 +46,6 @@ func (port *Port) Write(buf []byte) {
 }
 
 func (port *Port) Read() (buf []byte, err error) {
-	timeout := time.Now().Add(port.timeout)
-
 	// synchronize
 	for err == nil {
 		var b byte
@@ -63,21 +61,16 @@ func (port *Port) Read() (buf []byte, err error) {
 		} else {
 			b, err = port.in.ReadByte()
 			if packetLen, found := commandLens[Command(b)]; found {
-				buf = append(buf, []byte{0x02, b}...)
-				buf = append(buf, make([]byte, packetLen)...)
+				buf = make([]byte, packetLen+2)
+				buf[0] = 0x02
+				buf[1] = b
 				insteon.Log.Tracef("Attempting to read %d more bytes", packetLen)
 				_, err = io.ReadAtLeast(port.in, buf[2:], packetLen)
-				insteon.Log.Tracef("Completed read: %s", hexDump("%02x", buf, " "))
+				insteon.Log.Tracef("Completed read (err %v): %s", err, hexDump("%02x", buf, " "))
 				break
 			} else {
 				err = port.in.UnreadByte()
 			}
-		}
-
-		// prevent infinite loop while trying to synchronize
-		if time.Now().After(timeout) {
-			err = insteon.ErrReadTimeout
-			break
 		}
 	}
 
