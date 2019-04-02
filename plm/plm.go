@@ -131,6 +131,9 @@ func (plm *PLM) writeLoop() {
 			// slice off the source address since the PLM doesn't want it
 			buf = buf[3:]
 			_, err = plm.send(&Packet{Command: 0x62, Payload: buf})
+			if err != nil {
+				insteon.Log.Infof("Failed to send packet: %v", err)
+			}
 		} else {
 			insteon.Log.Infof("Failed to marshal insteon message: %v", err)
 		}

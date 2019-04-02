@@ -69,7 +69,7 @@ func TestI1DeviceSendCommand(t *testing.T) {
 			}
 
 			if msg.Flags != test.flags {
-				ackFlags = ExtendedDirectAck
+				t.Errorf("want %v got %v", test.flags, msg.Flags)
 			}
 		})
 	}
