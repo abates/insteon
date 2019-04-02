@@ -141,7 +141,7 @@ func (plm *PLM) writeLoop() {
 }
 
 // transmit a packet and wait for the PLM to ack that the packet was
-// sent.  This is a blocking function. Only callers that have aquired
+// sent.  This is a blocking function. Only callers that have acquired
 // the mutex shoud call this function
 func (plm *PLM) tx(txPacket *Packet) (ack *Packet, err error) {
 	buf, err := txPacket.MarshalBinary()
