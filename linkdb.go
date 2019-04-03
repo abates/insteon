@@ -18,7 +18,7 @@ const (
 	// BaseLinkDBAddress is the base address of devices All-Link database
 	BaseLinkDBAddress = MemAddress(0x0fff)
 
-	// LinkRecordSize is the syze, in bytes, of a single All-Link record
+	// LinkRecordSize is the size, in bytes, of a single All-Link record
 	LinkRecordSize = MemAddress(8)
 )
 
