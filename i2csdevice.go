@@ -15,7 +15,6 @@
 package insteon
 
 import (
-	"sync"
 	"time"
 )
 
@@ -23,18 +22,15 @@ import (
 type I2CsDevice struct {
 	*I2Device
 	connection Connection
-	mu         *sync.Mutex
 }
 
 // NewI2CsDevice will initialize a new I2CsDevice object and make
 // it ready for use
 func NewI2CsDevice(connection Connection, timeout time.Duration) *I2CsDevice {
-	i2cs := &I2CsDevice{connection: connection, mu: &sync.Mutex{}}
+	i2cs := &I2CsDevice{connection: connection}
 	// pass i2cs in here so that the downstream devices (I2Device and its I1Device) will
 	// get checksums set for extended messages
 	i2cs.I2Device = NewI2Device(i2cs, timeout)
-	i2cs.I2Device.mu = i2cs.mu
-	i2cs.I2Device.I1Device.mu = i2cs.mu
 	return i2cs
 }
 
@@ -45,6 +41,7 @@ func (i2cs *I2CsDevice) EnterLinkingMode(group Group) (err error) {
 	return extractError(i2cs.SendCommand(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14)))
 }
 
+// Address returns the unique Insteon address of the device
 func (i2cs *I2CsDevice) Address() Address {
 	return i2cs.connection.Address()
 }
@@ -63,6 +60,12 @@ func checksum(cmd Command, buf []byte) byte {
 	return ^sum + 1
 }
 
+// Send will send the message to the device and wait for the
+// device to respond with an Ack/Nak.  Send will always return
+// but may return with a read timeout or other communication error
+// In the case of the I2CsDevice, if an extended message is being
+// sent, then the checksum of the message is computed and set as
+// the last byte of the payload
 func (i2cs *I2CsDevice) Send(msg *Message) (ack *Message, err error) {
 	// set checksum
 	if msg.Flags.Extended() {
@@ -92,16 +95,35 @@ func i2csErrLookup(msg *Message, err error) (*Message, error) {
 	return msg, err
 }
 
+// IDRequest sends an IDRequest command to the device and waits for
+// the corresponding Set Button Pressed Controller/Responder message.
+// The response is parsed and the Firmware version and DevCat are
+// returned.  A ReadTimeout may occur if the device doesn't respond
+// with the appropriate broadcast message, or if the local system
+// doesn't receive it
 func (i2cs *I2CsDevice) IDRequest() (FirmwareVersion, DevCat, error) {
-	i2cs.mu.Lock()
-	defer i2cs.mu.Unlock()
+	i2cs.Lock()
+	defer i2cs.Unlock()
 
 	return i2cs.connection.IDRequest()
 }
 
+// Receive waits for the next message from the device.  Receive
+// always returns, but may return with an error (such as ErrReadTimeout)
 func (i2cs *I2CsDevice) Receive() (*Message, error) {
-	i2cs.mu.Lock()
-	defer i2cs.mu.Unlock()
+	i2cs.Lock()
+	defer i2cs.Unlock()
 
 	return i2csErrLookup(i2cs.connection.Receive())
+}
+
+// Lock the connection so that it not usable by other go routines.  This is
+// implemented by an underlying sync.Mutex object
+func (i2cs *I2CsDevice) Lock() {
+	i2cs.connection.Lock()
+}
+
+// Unlock is the complement to the Lock function effectively unlocking the Mutex
+func (i2cs *I2CsDevice) Unlock() {
+	i2cs.connection.Unlock()
 }

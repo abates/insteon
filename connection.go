@@ -15,18 +15,52 @@
 package insteon
 
 import (
+	"sync"
 	"time"
 )
 
+// Connection is a very basic communication mechanism to send
+// and receive messages with individual Insteon devices.
 type Connection interface {
+	// Address returns the unique Insteon address of the device
 	Address() Address
+
+	// Send will send the message to the device and wait for the
+	// device to respond with an Ack/Nak.  Send will always return
+	// but may return with a read timeout or other communication error
 	Send(*Message) (ack *Message, err error)
+
+	// Receive waits for the next message from the device.  Receive
+	// always returns, but may return with an error (such as ErrReadTimeout)
 	Receive() (*Message, error)
+
+	// IDRequest sends an IDRequest command to the device and waits for
+	// the corresponding Set Button Pressed Controller/Responder message.
+	// The response is parsed and the Firmware version and DevCat are
+	// returned.  A ReadTimeout may occur if the device doesn't respond
+	// with the appropriate broadcast message, or if the local system
+	// doesn't receive it
 	IDRequest() (FirmwareVersion, DevCat, error)
+
+	// EngineVersion will query the device for its Insteon Engine Version
+	// and returns the response.  If the device never responds, then ErrReadTimeout
+	// is the returned error.  If the device responds with a Nak and Command 2
+	// is 0xff then that means the engine version is I2Cs and the device does
+	// not have a corresponding link entry.  In this case, VerI2Cs is returned
+	// as well as ErrNotLinked
 	EngineVersion() (EngineVersion, error)
+
+	// Lock the connection so that it not usable by other go routines.  This is
+	// implemented by an underlying sync.Mutex object
+	Lock()
+
+	// Unlock is the complement to the Lock function effectively unlocking the Mutex
+	Unlock()
 }
 
 type connection struct {
+	*sync.Mutex
+
 	addr    Address
 	match   []Command
 	timeout time.Duration
@@ -37,16 +71,50 @@ type connection struct {
 	closeCh chan chan error
 }
 
-func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, timeout time.Duration, match ...Command) Connection {
+// ConnectionOption provides a means to customize the connection config
+type ConnectionOption func(*connection)
+
+// ConnectionTimeout is a ConnectionOption that will set the connection's read
+// timeout
+func ConnectionTimeout(timeout time.Duration) ConnectionOption {
+	return func(conn *connection) {
+		conn.timeout = timeout
+	}
+}
+
+// ConnectionFilter will configure the connection to filter all traffic
+// except messages with matching commands
+func ConnectionFilter(match ...Command) ConnectionOption {
+	return func(conn *connection) {
+		conn.match = match
+	}
+}
+
+// ConnectionMutex provides a way to set the underlying Mutex.  This allows a global
+// mutex to be used (as in the case of a PLM)
+func ConnectionMutex(mu *sync.Mutex) ConnectionOption {
+	return func(conn *connection) {
+		conn.Mutex = mu
+	}
+}
+
+// NewConnection will return a connection that is setup and ready to be used.  The txCh and
+// rxCh will be used to send and receive insteon messages.  Any supplied options will be
+// used to customize the connection's config
+func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, options ...ConnectionOption) Connection {
 	conn := &connection{
+		Mutex:   &sync.Mutex{},
 		addr:    addr,
-		match:   match,
-		timeout: timeout,
+		timeout: 3 * time.Second,
 
 		txCh:    txCh,
 		rxCh:    rxCh,
 		msgCh:   make(chan *Message, 10),
 		closeCh: make(chan chan error),
+	}
+
+	for _, option := range options {
+		option(conn)
 	}
 
 	go conn.readLoop()
@@ -136,8 +204,11 @@ func (conn *connection) EngineVersion() (version EngineVersion, err error) {
 	ack, err := conn.Send(&Message{Command: CmdGetEngineVersion, Flags: StandardDirectMessage})
 	if err == nil {
 		if ack.Nak() {
+			// This only happens if the device is an I2Cs device and
+			// is not linked to the queryier
 			if ack.Command[2] == 0xff {
 				version = VerI2Cs
+				err = ErrNotLinked
 			} else {
 				err = ErrNak
 			}

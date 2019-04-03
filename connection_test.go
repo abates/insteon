@@ -16,11 +16,14 @@ package insteon
 
 import (
 	"io"
+	"sync"
 	"testing"
 	"time"
 )
 
 type testConnection struct {
+	sync.Mutex
+
 	addr             Address
 	devCat           DevCat
 	firmwareVersion  FirmwareVersion
@@ -79,7 +82,7 @@ func TestConnectionSend(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			txCh := make(chan *Message, 1)
 			rxCh := make(chan *Message, 1)
-			conn := NewConnection(txCh, rxCh, Address{}, time.Millisecond)
+			conn := NewConnection(txCh, rxCh, Address{}, ConnectionTimeout(time.Millisecond))
 			go func() {
 				<-txCh
 				if test.expectedErr == nil {
@@ -124,7 +127,7 @@ func TestConnectionReceive(t *testing.T) {
 			txCh := make(chan *Message, 1)
 			rxCh := make(chan *Message, 1)
 			rxCh <- test.input
-			conn := NewConnection(txCh, rxCh, Address{}, time.Millisecond, test.match)
+			conn := NewConnection(txCh, rxCh, Address{}, ConnectionFilter(test.match), ConnectionTimeout(time.Millisecond))
 			_, err := conn.Receive()
 
 			if test.expectedErr != err {
@@ -181,7 +184,7 @@ func TestConnectionEngineVersion(t *testing.T) {
 		wantErr     error
 	}{
 		{"Regular device", &Message{Command: CmdGetEngineVersion.SubCommand(42), Flags: StandardDirectAck}, EngineVersion(42), nil},
-		{"I2Cs device", &Message{Command: CmdGetEngineVersion.SubCommand(0xff), Flags: StandardDirectNak}, VerI2Cs, nil},
+		{"I2Cs device", &Message{Command: CmdGetEngineVersion.SubCommand(0xff), Flags: StandardDirectNak}, VerI2Cs, ErrNotLinked},
 		{"NAK", &Message{Command: CmdGetEngineVersion.SubCommand(0xfd), Flags: StandardDirectNak}, VerI2Cs, ErrNak},
 	}
 

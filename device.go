@@ -137,11 +137,17 @@ type AllLinkable interface {
 	DeleteFromAllLinkGroup(Group) error
 }
 
+// LinkableDevice represents a Device that contains an All-Link database
+// that can be accessed over the network.  Devices with Insteon Engine
+// version 2 and higher are Linkable
 type LinkableDevice interface {
 	Device
 	Linkable
 }
 
+// AddressableLinkable represent Linkable devices (may be devices such
+// as a PLM) that also implement an Address() method to retrieve the
+// device's Insteon address
 type AddressableLinkable interface {
 	Addressable
 	Linkable

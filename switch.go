@@ -93,6 +93,9 @@ type Switch interface {
 	SwitchConfig() (SwitchConfig, error)
 }
 
+// LinkableSwitch represents a switch that contains an Insteon version 2
+// (or higher) engine.  A LinkableSwitch contains a remotely manageable
+// All-Link database
 type LinkableSwitch interface {
 	Switch
 	Linkable
@@ -151,6 +154,8 @@ type linkableSwitch struct {
 	timeout time.Duration
 }
 
+// NewSwitch is a factory function that will return the correctly
+// configured switch based on the underlying device
 func NewSwitch(device Device, timeout time.Duration) Switch {
 	sw := &switchedDevice{Device: device, timeout: timeout}
 	if linkable, ok := device.(LinkableDevice); ok {

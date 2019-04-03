@@ -117,6 +117,8 @@ type Dimmer interface {
 	DimmerConfig() (DimmerConfig, error)
 }
 
+// LinkableDimmer represents a Dimmer switch that supports remote
+// linking (Insteon Engine version 2 or higher)
 type LinkableDimmer interface {
 	Dimmer
 	Linkable
@@ -133,6 +135,9 @@ type linkableDimmer struct {
 	*dimmer
 }
 
+// NewDimmer is a factory function that will return a dimmer switch configured
+// appropriately for the given firmware version.  All dimmers are switches, so
+// the first argument is a Switch object used to compose the new dimmer
 func NewDimmer(sw Switch, timeout time.Duration, firmwareVersion FirmwareVersion) Dimmer {
 	dd := &dimmer{
 		Switch:          sw,
