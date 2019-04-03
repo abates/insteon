@@ -32,8 +32,9 @@ func (ma MemAddress) String() string {
 // There are two link request types, one used to read the link database and
 // one used to write links
 const (
-	readLink  linkRequestType = 0x00
-	writeLink linkRequestType = 0x02
+	readLink     linkRequestType = 0x00
+	linkResponse linkRequestType = 0x01
+	writeLink    linkRequestType = 0x02
 )
 
 // linkRequestType is used to indicate whether an ALDB request is for reading
@@ -103,13 +104,13 @@ func (lr *linkRequest) MarshalBinary() (buf []byte, err error) {
 	buf[2] = byte(lr.MemAddress >> 8)
 	buf[3] = byte(lr.MemAddress & 0xff)
 	switch lr.Type {
-	case 0x00:
+	case readLink:
 		buf[4] = byte(lr.NumRecords)
-	case 0x01:
+	case linkResponse:
 		buf[4] = 0x00
 		linkData, err = lr.Link.MarshalBinary()
 		copy(buf[5:], linkData)
-	case 0x02:
+	case writeLink:
 		buf[4] = 0x08
 		linkData, err = lr.Link.MarshalBinary()
 		copy(buf[5:], linkData)

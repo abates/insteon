@@ -17,6 +17,7 @@ package insteon
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -61,93 +62,72 @@ func TestLinkRequestType(t *testing.T) {
 	}
 }
 
-func TestLinkRequest(t *testing.T) {
+func TestLinkRequestUnmarshalBinary(t *testing.T) {
 	tests := []struct {
-		desc            string
-		input           []byte
-		marshal         []byte
-		expectedType    linkRequestType
-		expectedAddress MemAddress
-		expectedRecords int
-		expectedString  string
-		expectedError   error
+		desc    string
+		input   []byte
+		want    *linkRequest
+		wantErr error
 	}{
-		{
-			desc:          "error buffer too short",
-			input:         []byte{},
-			expectedError: ErrBufferTooShort,
+		{"Short Buffer", nil, nil, ErrBufferTooShort},
+		{"Read Link",
+			mkPayload(0x00, 0x00, 0x0f, 0xff, 0x01),
+			&linkRequest{0x00, 0x0fff, 1, nil},
+			nil,
 		},
-		{
-			desc:            "success",
-			input:           []byte{0xff, 0x00, 0x0f, 0xff, 0x08},
-			marshal:         []byte{0x0, 0x00, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-			expectedType:    linkRequestType(0x00),
-			expectedAddress: MemAddress(0x0fff),
-			expectedRecords: 8,
-			expectedString:  "Link Read 0f.ff 8",
+		{"Link Response",
+			mkPayload(0x00, 0x01, 0x0f, 0xff, 0x00, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
+			&linkRequest{0x01, 0x0fff, 0, &LinkRecord{memAddress: 0x0fff, Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			nil,
 		},
-		{
-			desc:            "error end of links 1",
-			input:           []byte{0xff, 0x01, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-			marshal:         []byte{0x00, 0x01, 0x0f, 0xff, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-			expectedType:    linkRequestType(0x01),
-			expectedAddress: MemAddress(0x0fff),
-			expectedRecords: 0,
-			expectedString:  "Link Resp 0f.ff 0",
-			expectedError:   ErrEndOfLinks,
-		},
-		{
-			desc:            "error end of links 2",
-			input:           []byte{0xff, 0x02, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-			marshal:         []byte{0x00, 0x02, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-			expectedType:    linkRequestType(0x02),
-			expectedAddress: MemAddress(0x0fff),
-			expectedRecords: 8,
-			expectedString:  "Link Write 0f.ff 8",
-			expectedError:   ErrEndOfLinks,
+		{"Write Link",
+			mkPayload(0x00, 0x02, 0x0f, 0xff, 1, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
+			&linkRequest{0x02, 0x0fff, 1, &LinkRecord{memAddress: 0x0fff, Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			nil,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			lr := &linkRequest{}
-			err := lr.UnmarshalBinary(test.input)
-			if !isError(err, test.expectedError) {
-				t.Errorf("got error %v, want %v", err, test.expectedError)
-				return
-			} else if err != nil {
-				return
-			}
-
-			if lr.Type != test.expectedType {
-				t.Errorf("got Type %v, want %v", lr.Type, test.expectedType)
-			}
-
-			if lr.MemAddress != test.expectedAddress {
-				t.Errorf("got MemAddress %v, want %v", lr.MemAddress, test.expectedAddress)
-			}
-
-			if lr.NumRecords != test.expectedRecords {
-				t.Errorf("got NumRecords %v, want %v", lr.NumRecords, test.expectedRecords)
-			}
-
-			if lr.String()[0:len(test.expectedString)] != test.expectedString {
-				t.Errorf("got String %q, want %q", lr.String()[0:len(test.expectedString)], test.expectedString)
-			}
-
-			buf, _ := lr.MarshalBinary()
-			if !bytes.Equal(test.marshal, buf) {
-				t.Errorf("got MarshalBinary %v, want %v", buf, test.marshal)
+			got := &linkRequest{}
+			gotErr := got.UnmarshalBinary(test.input)
+			if !isError(gotErr, test.wantErr) {
+				t.Errorf("want error %v got %v", test.wantErr, gotErr)
+			} else if gotErr == nil {
+				if !reflect.DeepEqual(got, test.want) {
+					t.Errorf("want link %#v got %#v", test.want, got)
+				}
 			}
 		})
 	}
 }
 
-func TestAddLink(t *testing.T) {
-}
+func TestLinkRequestMarshalBinary(t *testing.T) {
+	tests := []struct {
+		desc  string
+		input *linkRequest
+		want  []byte
+	}{
+		{"Read Link",
+			&linkRequest{0x00, 0x0fff, 1, nil},
+			mkPayload(0x00, 0x00, 0x0f, 0xff, 0x01),
+		},
+		{"Link Response",
+			&linkRequest{0x01, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			mkPayload(0x00, 0x01, 0x0f, 0xff, 0x00, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
+		},
+		{"Write Link",
+			&linkRequest{0x02, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			mkPayload(0x00, 0x02, 0x0f, 0xff, 0x08, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
+		},
+	}
 
-func TestRemoveLink(t *testing.T) {
-}
-
-func TestCleanup(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got, _ := test.input.MarshalBinary()
+			if !bytes.Equal(test.want, got) {
+				t.Errorf("want %v bytes got %v", test.want, got)
+			}
+		})
+	}
 }
