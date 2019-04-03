@@ -65,7 +65,7 @@ func (ll *LogLevel) Get() interface{} {
 
 const (
 	// LevelNone - log nothing to Stderr
-	LevelNone = iota
+	LevelNone = LogLevel(iota)
 
 	// LevelInfo - log normal information (warnings) to Stderr
 	LevelInfo
