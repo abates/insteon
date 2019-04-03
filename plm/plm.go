@@ -190,7 +190,7 @@ func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
 }
 
 func (plm *PLM) Connect(addr insteon.Address) insteon.Connection {
-	return insteon.NewConnection(plm.insteonTxCh, plm.insteonRxCh, addr, plm.timeout)
+	return insteon.NewConnection(plm.insteonTxCh, plm.insteonRxCh, addr, insteon.ConnectionTimeout(plm.timeout))
 }
 
 func (plm *PLM) Open(addr insteon.Address) (insteon.Device, error) {
