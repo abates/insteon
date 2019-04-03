@@ -55,7 +55,7 @@ func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
 
 	Log.Debugf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
-	buf, _ := (&LinkRequest{Type: ReadLink, NumRecords: 0}).MarshalBinary()
+	buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
 	_, err = i2.I1Device.sendCommand(CmdReadWriteALDB, buf)
 
 	timeout := time.Now().Add(i2.timeout)
@@ -63,7 +63,7 @@ func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
 		var msg *Message
 		msg, err = i2.I1Device.receive()
 		if err == nil && msg.Flags.Extended() && msg.Command[1] == CmdReadWriteALDB[1] {
-			lr := &LinkRequest{}
+			lr := &linkRequest{}
 			err = lr.UnmarshalBinary(msg.Payload)
 			// make sure there was no error unmarshalling, also make sure
 			// that it's a new memory address.  Since insteon messages
@@ -115,7 +115,7 @@ func (i2 *I2Device) WriteLink(link *LinkRecord) (err error) {
 	if link.memAddress == MemAddress(0x0000) {
 		err = ErrInvalidMemAddress
 	} else {
-		buf, _ := (&LinkRequest{MemAddress: link.memAddress, Type: WriteLink, Link: link}).MarshalBinary()
+		buf, _ := (&linkRequest{MemAddress: link.memAddress, Type: writeLink, Link: link}).MarshalBinary()
 		_, err = i2.SendCommand(CmdReadWriteALDB, buf)
 	}
 	return err

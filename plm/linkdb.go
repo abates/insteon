@@ -55,27 +55,27 @@ func (mrr *manageRecordRequest) UnmarshalBinary(buf []byte) error {
 	return mrr.link.UnmarshalBinary(buf[1:])
 }
 
-type LinkingMode byte
+type linkingMode byte
 
-type AllLinkReq struct {
-	Mode  LinkingMode
+type allLinkReq struct {
+	Mode  linkingMode
 	Group insteon.Group
 }
 
-func (alr *AllLinkReq) MarshalBinary() ([]byte, error) {
+func (alr *allLinkReq) MarshalBinary() ([]byte, error) {
 	return []byte{byte(alr.Mode), byte(alr.Group)}, nil
 }
 
-func (alr *AllLinkReq) UnmarshalBinary(buf []byte) error {
+func (alr *allLinkReq) UnmarshalBinary(buf []byte) error {
 	if len(buf) < 2 {
 		return fmt.Errorf("Needed 2 bytes to unmarshal all link request.  Got %d", len(buf))
 	}
-	alr.Mode = LinkingMode(buf[0])
+	alr.Mode = linkingMode(buf[0])
 	alr.Group = insteon.Group(buf[1])
 	return nil
 }
 
-func (alr *AllLinkReq) String() string {
+func (alr *allLinkReq) String() string {
 	return fmt.Sprintf("%02x %d", alr.Mode, alr.Group)
 }
 
@@ -203,7 +203,7 @@ func (plm *PLM) AddManualLink(group insteon.Group) error {
 }
 
 func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
-	lr := &AllLinkReq{Mode: LinkingMode(0x03), Group: group}
+	lr := &allLinkReq{Mode: linkingMode(0x03), Group: group}
 	payload, _ := lr.MarshalBinary()
 	ack, err := plm.Retry(&Packet{
 		Command: CmdStartAllLink,
@@ -228,7 +228,7 @@ func (plm *PLM) ExitLinkingMode() error {
 }
 
 func (plm *PLM) EnterUnlinkingMode(group insteon.Group) error {
-	lr := &AllLinkReq{Mode: LinkingMode(0xff), Group: group}
+	lr := &allLinkReq{Mode: linkingMode(0xff), Group: group}
 	payload, _ := lr.MarshalBinary()
 	ack, err := plm.Retry(&Packet{
 		Command: CmdStartAllLink,
@@ -241,5 +241,6 @@ func (plm *PLM) EnterUnlinkingMode(group insteon.Group) error {
 	return err
 }
 
-func (plm *PLM) AssignToAllLinkGroup(insteon.Group) error   { return ErrNotImplemented }
+func (plm *PLM) AssignToAllLinkGroup(insteon.Group) error { return ErrNotImplemented }
+
 func (plm *PLM) DeleteFromAllLinkGroup(insteon.Group) error { return ErrNotImplemented }

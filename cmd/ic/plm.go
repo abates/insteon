@@ -20,6 +20,7 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/link"
 )
 
 func init() {
@@ -78,9 +79,9 @@ func plmLink(args []string, crosslink bool) error {
 
 			if err == nil {
 				if linkable, ok := device.(insteon.LinkableDevice); ok {
-					err = insteon.ForceLink(group, modem, linkable)
+					err = link.ForceLink(group, modem, linkable)
 					if err == nil && crosslink {
-						err = insteon.ForceLink(group, linkable, modem)
+						err = link.ForceLink(group, linkable, modem)
 					}
 				} else {
 					err = fmt.Errorf("%v is not a linkable device", device)
@@ -121,11 +122,11 @@ func plmUnlinkCmd(args []string, next cli.NextFunc) (err error) {
 
 			if linkable, ok := device.(insteon.LinkableDevice); ok {
 				if err == nil {
-					err = insteon.Unlink(group, linkable, modem)
+					err = link.Unlink(group, linkable, modem)
 				}
 
 				if err == nil || err == insteon.ErrNotLinked {
-					err = insteon.Unlink(group, modem, linkable)
+					err = link.Unlink(group, modem, linkable)
 				}
 			} else {
 				err = fmt.Errorf("%v is not a linkable device", device)

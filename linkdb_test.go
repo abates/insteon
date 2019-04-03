@@ -53,7 +53,7 @@ func TestLinkRequestType(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%02x", test.input), func(t *testing.T) {
-			lrt := LinkRequestType(test.input)
+			lrt := linkRequestType(test.input)
 			if test.expected != lrt.String() {
 				t.Errorf("got %v, want %v", lrt.String(), test.expected)
 			}
@@ -66,7 +66,7 @@ func TestLinkRequest(t *testing.T) {
 		desc            string
 		input           []byte
 		marshal         []byte
-		expectedType    LinkRequestType
+		expectedType    linkRequestType
 		expectedAddress MemAddress
 		expectedRecords int
 		expectedString  string
@@ -81,7 +81,7 @@ func TestLinkRequest(t *testing.T) {
 			desc:            "success",
 			input:           []byte{0xff, 0x00, 0x0f, 0xff, 0x08},
 			marshal:         []byte{0x0, 0x00, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-			expectedType:    LinkRequestType(0x00),
+			expectedType:    linkRequestType(0x00),
 			expectedAddress: MemAddress(0x0fff),
 			expectedRecords: 8,
 			expectedString:  "Link Read 0f.ff 8",
@@ -90,7 +90,7 @@ func TestLinkRequest(t *testing.T) {
 			desc:            "error end of links 1",
 			input:           []byte{0xff, 0x01, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			marshal:         []byte{0x00, 0x01, 0x0f, 0xff, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-			expectedType:    LinkRequestType(0x01),
+			expectedType:    linkRequestType(0x01),
 			expectedAddress: MemAddress(0x0fff),
 			expectedRecords: 0,
 			expectedString:  "Link Resp 0f.ff 0",
@@ -100,7 +100,7 @@ func TestLinkRequest(t *testing.T) {
 			desc:            "error end of links 2",
 			input:           []byte{0xff, 0x02, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			marshal:         []byte{0x00, 0x02, 0x0f, 0xff, 0x08, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-			expectedType:    LinkRequestType(0x02),
+			expectedType:    linkRequestType(0x02),
 			expectedAddress: MemAddress(0x0fff),
 			expectedRecords: 8,
 			expectedString:  "Link Write 0f.ff 8",
@@ -110,8 +110,8 @@ func TestLinkRequest(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			linkRequest := &LinkRequest{}
-			err := linkRequest.UnmarshalBinary(test.input)
+			lr := &linkRequest{}
+			err := lr.UnmarshalBinary(test.input)
 			if !isError(err, test.expectedError) {
 				t.Errorf("got error %v, want %v", err, test.expectedError)
 				return
@@ -119,23 +119,23 @@ func TestLinkRequest(t *testing.T) {
 				return
 			}
 
-			if linkRequest.Type != test.expectedType {
-				t.Errorf("got Type %v, want %v", linkRequest.Type, test.expectedType)
+			if lr.Type != test.expectedType {
+				t.Errorf("got Type %v, want %v", lr.Type, test.expectedType)
 			}
 
-			if linkRequest.MemAddress != test.expectedAddress {
-				t.Errorf("got MemAddress %v, want %v", linkRequest.MemAddress, test.expectedAddress)
+			if lr.MemAddress != test.expectedAddress {
+				t.Errorf("got MemAddress %v, want %v", lr.MemAddress, test.expectedAddress)
 			}
 
-			if linkRequest.NumRecords != test.expectedRecords {
-				t.Errorf("got NumRecords %v, want %v", linkRequest.NumRecords, test.expectedRecords)
+			if lr.NumRecords != test.expectedRecords {
+				t.Errorf("got NumRecords %v, want %v", lr.NumRecords, test.expectedRecords)
 			}
 
-			if linkRequest.String()[0:len(test.expectedString)] != test.expectedString {
-				t.Errorf("got String %q, want %q", linkRequest.String()[0:len(test.expectedString)], test.expectedString)
+			if lr.String()[0:len(test.expectedString)] != test.expectedString {
+				t.Errorf("got String %q, want %q", lr.String()[0:len(test.expectedString)], test.expectedString)
 			}
 
-			buf, _ := linkRequest.MarshalBinary()
+			buf, _ := lr.MarshalBinary()
 			if !bytes.Equal(test.marshal, buf) {
 				t.Errorf("got MarshalBinary %v, want %v", buf, test.marshal)
 			}

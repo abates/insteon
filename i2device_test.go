@@ -41,8 +41,8 @@ func TestI2DeviceCommands(t *testing.T) {
 	testDeviceCommands(t, func(conn *testConnection) Device { return NewI2Device(conn, time.Millisecond) }, tests)
 }
 
-func i2DeviceLinks(conn *testConnection) []*LinkRequest {
-	linkRequests := []*LinkRequest{
+func i2DeviceLinks(conn *testConnection) []*linkRequest {
+	linkRequests := []*linkRequest{
 		{MemAddress: 0xffff, Type: 0x02, Link: &LinkRecord{Flags: 0x01}},
 		{MemAddress: 0, Type: 0x02, Link: &LinkRecord{}},
 	}

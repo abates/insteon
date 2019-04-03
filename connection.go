@@ -18,10 +18,6 @@ import (
 	"time"
 )
 
-type MessageSender interface {
-	Send(*Message) error
-}
-
 type Connection interface {
 	Address() Address
 	Send(*Message) (ack *Message, err error)
