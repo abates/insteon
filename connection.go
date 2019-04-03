@@ -94,7 +94,9 @@ func ConnectionFilter(match ...Command) ConnectionOption {
 // mutex to be used (as in the case of a PLM)
 func ConnectionMutex(mu *sync.Mutex) ConnectionOption {
 	return func(conn *connection) {
-		conn.Mutex = mu
+		if conn != nil {
+			conn.Mutex = mu
+		}
 	}
 }
 

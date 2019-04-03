@@ -24,6 +24,8 @@ func TestDeviceString(t *testing.T) {
 		{"LevelDebug", LevelDebug, "DEBUG"},
 		{"LevelTrace", LevelTrace, "TRACE"},
 		{"LevelUnkown", LogLevel(-1), ""},
+		{"StandardDirectFlag", StandardDirectMessage, "SD     2:2"},
+		{"ExtendedDirectFlag", ExtendedDirectMessage, "ED     2:2"},
 	}
 
 	for _, test := range tests {

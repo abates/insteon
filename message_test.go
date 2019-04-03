@@ -79,34 +79,37 @@ func TestMessageType(t *testing.T) {
 
 func TestFlags(t *testing.T) {
 	tests := []struct {
+		desc             string
 		input            Flags
 		expectedType     MessageType
 		expectedExtended bool
 		expectedStandard bool
 		expectedTTL      int
 		expectedMaxTTL   int
-		expectedString   string
 	}{
-		{0x0f, MsgTypeDirect, false, true, 3, 3, "SD     3:3"},
-		{0x2f, MsgTypeDirectAck, false, true, 3, 3, "SD Ack 3:3"},
-		{0x4f, MsgTypeAllLinkCleanup, false, true, 3, 3, "SC     3:3"},
-		{0x6f, MsgTypeAllLinkCleanupAck, false, true, 3, 3, "SC Ack 3:3"},
-		{0x8f, MsgTypeBroadcast, false, true, 3, 3, "SB     3:3"},
-		{0xaf, MsgTypeDirectNak, false, true, 3, 3, "SD NAK 3:3"},
-		{0xcf, MsgTypeAllLinkBroadcast, false, true, 3, 3, "SA     3:3"},
-		{0xef, MsgTypeAllLinkCleanupNak, false, true, 3, 3, "SC NAK 3:3"},
-		{0x1f, MsgTypeDirect, true, false, 3, 3, "ED     3:3"},
-		{0x3f, MsgTypeDirectAck, true, false, 3, 3, "ED Ack 3:3"},
-		{0x5f, MsgTypeAllLinkCleanup, true, false, 3, 3, "EC     3:3"},
-		{0x7f, MsgTypeAllLinkCleanupAck, true, false, 3, 3, "EC Ack 3:3"},
-		{0x9f, MsgTypeBroadcast, true, false, 3, 3, "EB     3:3"},
-		{0xbf, MsgTypeDirectNak, true, false, 3, 3, "ED NAK 3:3"},
-		{0xdf, MsgTypeAllLinkBroadcast, true, false, 3, 3, "EA     3:3"},
-		{0xff, MsgTypeAllLinkCleanupNak, true, false, 3, 3, "EC NAK 3:3"},
+		{"MsgTypeDirect", 0x0f, MsgTypeDirect, false, true, 3, 3},
+		{"MsgTypeDirectAck", 0x2f, MsgTypeDirectAck, false, true, 3, 3},
+		{"MsgTypeAllLinkCleanup", 0x4f, MsgTypeAllLinkCleanup, false, true, 3, 3},
+		{"MsgTypeAllLinkCleanupAck", 0x6f, MsgTypeAllLinkCleanupAck, false, true, 3, 3},
+		{"MsgTypeBroadcast", 0x8f, MsgTypeBroadcast, false, true, 3, 3},
+		{"MsgTypeDirectNak", 0xaf, MsgTypeDirectNak, false, true, 3, 3},
+		{"MsgTypeAllLinkBroadcast", 0xcf, MsgTypeAllLinkBroadcast, false, true, 3, 3},
+		{"MsgTypeAllLinkCleanupNak", 0xef, MsgTypeAllLinkCleanupNak, false, true, 3, 3},
+		{"MsgTypeDirect", 0x1f, MsgTypeDirect, true, false, 3, 3},
+		{"MsgTypeDirectAck", 0x3f, MsgTypeDirectAck, true, false, 3, 3},
+		{"MsgTypeAllLinkCleanup", 0x5f, MsgTypeAllLinkCleanup, true, false, 3, 3},
+		{"MsgTypeAllLinkCleanupAck", 0x7f, MsgTypeAllLinkCleanupAck, true, false, 3, 3},
+		{"MsgTypeBroadcast", 0x9f, MsgTypeBroadcast, true, false, 3, 3},
+		{"MsgTypeDirectNak", 0xbf, MsgTypeDirectNak, true, false, 3, 3},
+		{"MsgTypeAllLinkBroadcast", 0xdf, MsgTypeAllLinkBroadcast, true, false, 3, 3},
+		{"MsgTypeAllLinkCleanupNak", 0xff, MsgTypeAllLinkCleanupNak, true, false, 3, 3},
+		{"Flag 1", Flag(MsgTypeDirect, false, 2, 2), MsgTypeDirect, false, true, 2, 2},
+		{"Flag 2", Flag(MsgTypeDirect, true, 3, 3), MsgTypeDirect, true, false, 3, 3},
+		{"Flag 2", Flag(MsgTypeDirect, false, 4, 4), MsgTypeDirect, false, true, 0, 0},
 	}
 
 	for _, test := range tests {
-		t.Run(test.expectedString, func(t *testing.T) {
+		t.Run(test.desc, func(t *testing.T) {
 			if test.input.Type() != test.expectedType {
 				t.Errorf("got Type %v, want %v", test.input.Type(), test.expectedType)
 			}
@@ -125,10 +128,6 @@ func TestFlags(t *testing.T) {
 
 			if test.input.MaxTTL() != test.expectedMaxTTL {
 				t.Errorf("got MaxTTL %v, want %v", test.input.MaxTTL(), test.expectedMaxTTL)
-			}
-
-			if test.input.String() != test.expectedString {
-				t.Errorf("got String %q, want %q", test.input.String(), test.expectedString)
 			}
 		})
 	}

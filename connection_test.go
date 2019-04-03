@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"io"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -64,6 +65,29 @@ func (tc *testConnection) Receive() (*Message, error) {
 		return <-tc.recvCh, nil
 	}
 	return nil, tc.recvErr
+}
+
+func TestConnectionOptions(t *testing.T) {
+	mu := &sync.Mutex{}
+	tests := []struct {
+		desc  string
+		input ConnectionOption
+		want  *connection
+	}{
+		{"Timeout Option", ConnectionTimeout(time.Hour), &connection{timeout: time.Hour}},
+		{"Filter Option", ConnectionFilter(CmdReadWriteALDB), &connection{match: []Command{CmdReadWriteALDB}}},
+		{"Mutex Option", ConnectionMutex(mu), &connection{Mutex: mu}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got := &connection{}
+			test.input(got)
+			if !reflect.DeepEqual(test.want, got) {
+				t.Errorf("want connection %+v got %+v", test.want, got)
+			}
+		})
+	}
 }
 
 func TestConnectionSend(t *testing.T) {
