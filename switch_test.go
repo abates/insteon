@@ -13,8 +13,8 @@ func TestSwitchFactory(t *testing.T) {
 		input Device
 		want  reflect.Type
 	}{
-		{"Switch", &I1Device{}, reflect.TypeOf(&switchedDevice{})},
-		{"Linkable Switch", &I2Device{}, reflect.TypeOf(&linkableSwitch{})},
+		{"Switch", &i1Device{}, reflect.TypeOf(&switchedDevice{})},
+		{"Linkable Switch", &i2Device{}, reflect.TypeOf(&linkableSwitch{})},
 	}
 
 	for _, test := range tests {

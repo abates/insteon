@@ -18,37 +18,57 @@ import (
 	"time"
 )
 
-// I2CsDevice can communicate with Version 2 (checksum) Insteon Engines
-type I2CsDevice struct {
-	*I2Device
+// i2CsDevice can communicate with Version 2 (checksum) Insteon Engines
+type i2CsDevice struct {
+	*i2Device
 	connection Connection
 }
 
-// NewI2CsDevice will initialize a new I2CsDevice object and make
+// newI2CsDevice will initialize a new I2CsDevice object and make
 // it ready for use
-func NewI2CsDevice(connection Connection, timeout time.Duration) *I2CsDevice {
-	i2cs := &I2CsDevice{connection: connection}
+func newI2CsDevice(connection Connection, timeout time.Duration) *i2CsDevice {
+	i2cs := &i2CsDevice{connection: connection}
 	// pass i2cs in here so that the downstream devices (I2Device and its I1Device) will
 	// get checksums set for extended messages
-	i2cs.I2Device = NewI2Device(i2cs, timeout)
+	i2cs.i2Device = newI2Device(i2cs, timeout)
 	return i2cs
+}
+
+func (i2cs *i2CsDevice) AddListener(t MessageType, cmds ...Command) <-chan *Message {
+	return i2cs.connection.AddListener(t, cmds...)
+}
+
+func (i2cs *i2CsDevice) RemoveListener(ch <-chan *Message) {
+	i2cs.connection.RemoveListener(ch)
 }
 
 // EnterLinkingMode will put the device into linking mode. This is
 // equivalent to holding down the set button until the device
 // beeps and the indicator light starts flashing
-func (i2cs *I2CsDevice) EnterLinkingMode(group Group) (err error) {
+func (i2cs *i2CsDevice) EnterLinkingMode(group Group) (err error) {
 	return extractError(i2cs.SendCommand(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14)))
+	/*
+		setButton := i2cs.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
+		defer i2cs.RemoveListener(setButton)
+		_, err = i2cs.SendCommand(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14))
+		if err == nil {
+			select {
+			case <-setButton:
+			case <-time.After(i2cs.timeout):
+				err = ErrReadTimeout
+			}
+		}
+		return err*/
 }
 
 // Address returns the unique Insteon address of the device
-func (i2cs *I2CsDevice) Address() Address {
+func (i2cs *i2CsDevice) Address() Address {
 	return i2cs.connection.Address()
 }
 
 // String returns the string "I2CS Device (<address>)" where <address> is the destination
 // address of the device
-func (i2cs *I2CsDevice) String() string {
+func (i2cs *i2CsDevice) String() string {
 	return sprintf("I2CS Device (%s)", i2cs.Address())
 }
 
@@ -66,7 +86,7 @@ func checksum(cmd Command, buf []byte) byte {
 // In the case of the I2CsDevice, if an extended message is being
 // sent, then the checksum of the message is computed and set as
 // the last byte of the payload
-func (i2cs *I2CsDevice) Send(msg *Message) (ack *Message, err error) {
+func (i2cs *i2CsDevice) Send(msg *Message) (ack *Message, err error) {
 	// set checksum
 	if msg.Flags.Extended() {
 		l := len(msg.Payload)
@@ -101,7 +121,7 @@ func i2csErrLookup(msg *Message, err error) (*Message, error) {
 // returned.  A ReadTimeout may occur if the device doesn't respond
 // with the appropriate broadcast message, or if the local system
 // doesn't receive it
-func (i2cs *I2CsDevice) IDRequest() (FirmwareVersion, DevCat, error) {
+func (i2cs *i2CsDevice) IDRequest() (FirmwareVersion, DevCat, error) {
 	i2cs.Lock()
 	defer i2cs.Unlock()
 
@@ -110,7 +130,7 @@ func (i2cs *I2CsDevice) IDRequest() (FirmwareVersion, DevCat, error) {
 
 // Receive waits for the next message from the device.  Receive
 // always returns, but may return with an error (such as ErrReadTimeout)
-func (i2cs *I2CsDevice) Receive() (*Message, error) {
+func (i2cs *i2CsDevice) Receive() (*Message, error) {
 	i2cs.Lock()
 	defer i2cs.Unlock()
 
@@ -119,11 +139,11 @@ func (i2cs *I2CsDevice) Receive() (*Message, error) {
 
 // Lock the connection so that it not usable by other go routines.  This is
 // implemented by an underlying sync.Mutex object
-func (i2cs *I2CsDevice) Lock() {
+func (i2cs *i2CsDevice) Lock() {
 	i2cs.connection.Lock()
 }
 
 // Unlock is the complement to the Lock function effectively unlocking the Mutex
-func (i2cs *I2CsDevice) Unlock() {
+func (i2cs *i2CsDevice) Unlock() {
 	i2cs.connection.Unlock()
 }

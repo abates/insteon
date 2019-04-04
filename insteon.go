@@ -90,7 +90,7 @@ type FirmwareVersion int
 
 // String will return the hexadecimal string of the firmware version
 func (fv FirmwareVersion) String() string {
-	return fmt.Sprintf("0x%02x", int(fv))
+	return fmt.Sprintf("%d", int(fv))
 }
 
 // ProductKey is a 3 byte code assigned by Insteon

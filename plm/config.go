@@ -30,7 +30,7 @@ func (config *Config) AutomaticLinking() bool { return (*config)&0x80 == 0x80 }
 func (config *Config) setAutomaticLinking()   { config.setBit(7) }
 func (config *Config) clearAutomaticLinking() { config.clearBit(7) }
 func (config *Config) MonitorMode() bool      { return (*config)&0x40 == 0x40 }
-func (config *Config) setMonitorMode()        { config.setBit(6) }
+func (config *Config) SetMonitorMode()        { config.setBit(6) }
 func (config *Config) clearMonitorMode()      { config.clearBit(6) }
 func (config *Config) AutomaticLED() bool     { return (*config)&0x20 == 0x20 }
 func (config *Config) setAutomaticLED()       { config.setBit(5) }

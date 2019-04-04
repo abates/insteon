@@ -22,38 +22,32 @@ import (
 
 func TestRecordControlFlags(t *testing.T) {
 	tests := []struct {
-		input              byte
+		input              RecordControlFlags
 		expectedInUse      bool
 		expectedController bool
-		expectedString     string
 	}{
-		{0x40, false, true, "AC"},
-		{0x00, false, false, "AR"},
-		{0xc0, true, true, "UC"},
-		{0x80, true, false, "UR"},
+		{AvailableController, false, true},
+		{AvailableResponder, false, false},
+		{UnavailableController, true, true},
+		{UnavailableResponder, true, false},
 	}
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%02x", test.input), func(t *testing.T) {
-			flags := RecordControlFlags(test.input)
-			if flags.InUse() != test.expectedInUse {
-				t.Errorf("got InUse %v, want %v", flags.InUse(), test.expectedInUse)
+			if test.input.InUse() != test.expectedInUse {
+				t.Errorf("got InUse %v, want %v", test.input.InUse(), test.expectedInUse)
 			}
 
-			if flags.Available() == test.expectedInUse {
-				t.Errorf("got Available %v, want %v", flags.Available(), !test.expectedInUse)
+			if test.input.Available() == test.expectedInUse {
+				t.Errorf("got Available %v, want %v", test.input.Available(), !test.expectedInUse)
 			}
 
-			if flags.Controller() != test.expectedController {
-				t.Errorf("got Controller %v, want %v", flags.Controller(), !test.expectedController)
+			if test.input.Controller() != test.expectedController {
+				t.Errorf("got Controller %v, want %v", test.input.Controller(), !test.expectedController)
 			}
 
-			if flags.Responder() == test.expectedController {
-				t.Errorf("got Responder %v, want %v", flags.Responder(), !test.expectedController)
-			}
-
-			if flags.String() != test.expectedString {
-				t.Errorf("got String %q, want %q", flags.String(), test.expectedString)
+			if test.input.Responder() == test.expectedController {
+				t.Errorf("got Responder %v, want %v", test.input.Responder(), !test.expectedController)
 			}
 		})
 	}

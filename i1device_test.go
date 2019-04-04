@@ -8,7 +8,7 @@ import (
 
 func TestI1DeviceIsDevice(t *testing.T) {
 	var device interface{}
-	device = &I1Device{}
+	device = &i1Device{}
 
 	if _, ok := device.(Device); !ok {
 		t.Error("Expected I1Device to be Device")
@@ -54,7 +54,7 @@ func TestI1DeviceSendCommand(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
-			device := NewI1Device(conn, time.Millisecond)
+			device := newI1Device(conn, time.Millisecond)
 			ackFlags := StandardDirectAck
 			if len(test.payload) > 0 {
 				ackFlags = ExtendedDirectAck
@@ -116,15 +116,15 @@ func testDeviceCommands(t *testing.T, constructor func(*testConnection) Device, 
 
 func TestI1DeviceCommands(t *testing.T) {
 	tests := []*commandTest{
-		{"AssignToAllLinkGroup", func(d Device) error { return d.(*I1Device).AssignToAllLinkGroup(10) }, CmdAssignToAllLinkGroup.SubCommand(10), nil, nil},
-		{"DeleteFromAllLinkGroup", func(d Device) error { return d.(*I1Device).DeleteFromAllLinkGroup(10) }, CmdDeleteFromAllLinkGroup.SubCommand(10), nil, nil},
-		{"CmdPing", func(d Device) error { return d.(*I1Device).Ping() }, CmdPing, nil, nil},
-		{"SetAllLinkCommandAlias", func(d Device) error { return d.(*I1Device).SetAllLinkCommandAlias(Command{}, Command{}) }, Command{}, ErrNotImplemented, nil},
-		{"SetAllLinkCommandAliasData", func(d Device) error { return d.(*I1Device).SetAllLinkCommandAliasData(nil) }, Command{}, ErrNotImplemented, nil},
-		{"BlockDataTransfer", func(d Device) error { _, err := d.(*I1Device).BlockDataTransfer(0, 0, 0); return err }, Command{}, ErrNotImplemented, nil},
+		{"AssignToAllLinkGroup", func(d Device) error { return d.(*i1Device).AssignToAllLinkGroup(10) }, CmdAssignToAllLinkGroup.SubCommand(10), nil, nil},
+		{"DeleteFromAllLinkGroup", func(d Device) error { return d.(*i1Device).DeleteFromAllLinkGroup(10) }, CmdDeleteFromAllLinkGroup.SubCommand(10), nil, nil},
+		{"CmdPing", func(d Device) error { return d.(*i1Device).Ping() }, CmdPing, nil, nil},
+		{"SetAllLinkCommandAlias", func(d Device) error { return d.(*i1Device).SetAllLinkCommandAlias(Command{}, Command{}) }, Command{}, ErrNotImplemented, nil},
+		{"SetAllLinkCommandAliasData", func(d Device) error { return d.(*i1Device).SetAllLinkCommandAliasData(nil) }, Command{}, ErrNotImplemented, nil},
+		{"BlockDataTransfer", func(d Device) error { _, err := d.(*i1Device).BlockDataTransfer(0, 0, 0); return err }, Command{}, ErrNotImplemented, nil},
 	}
 
-	testDeviceCommands(t, func(conn *testConnection) Device { return NewI1Device(conn, time.Millisecond) }, tests)
+	testDeviceCommands(t, func(conn *testConnection) Device { return newI1Device(conn, time.Millisecond) }, tests)
 }
 
 func TestI1DeviceProductData(t *testing.T) {
@@ -155,7 +155,7 @@ func TestI1DeviceProductData(t *testing.T) {
 				}()
 			}
 
-			device := NewI1Device(conn, time.Nanosecond)
+			device := newI1Device(conn, time.Nanosecond)
 			pd, err := device.ProductData()
 			if err != test.wantErr {
 				t.Errorf("want error %v got %v", test.wantErr, err)
@@ -185,7 +185,7 @@ func TestI1DeviceReceive(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			conn := &testConnection{recvCh: make(chan *Message, 1)}
 			conn.recvCh <- test.input
-			device := NewI1Device(conn, time.Millisecond)
+			device := newI1Device(conn, time.Millisecond)
 			_, err := device.Receive()
 			if !isError(err, test.wantErr) {
 				t.Errorf("want error %v got %v", test.wantErr, err)

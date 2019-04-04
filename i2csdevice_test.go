@@ -88,7 +88,7 @@ func TestI2CsDeviceSendCommand(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
-			device := NewI2CsDevice(conn, time.Millisecond)
+			device := newI2CsDevice(conn, time.Millisecond)
 			ackFlags := StandardDirectAck
 			if len(test.payload) > 0 {
 				ackFlags = ExtendedDirectAck
@@ -108,10 +108,10 @@ func TestI2CsDeviceSendCommand(t *testing.T) {
 
 func TestI2CsDeviceCommands(t *testing.T) {
 	tests := []*commandTest{
-		{"EnterLinkingMode", func(d Device) error { return d.(*I2CsDevice).EnterLinkingMode(15) }, CmdEnterLinkingModeExt.SubCommand(15), nil, nil},
+		{"EnterLinkingMode", func(d Device) error { return d.(*i2CsDevice).EnterLinkingMode(15) }, CmdEnterLinkingModeExt.SubCommand(15), nil, nil},
 	}
 
-	testDeviceCommands(t, func(conn *testConnection) Device { return NewI2CsDevice(conn, time.Millisecond) }, tests)
+	testDeviceCommands(t, func(conn *testConnection) Device { return newI2CsDevice(conn, time.Millisecond) }, tests)
 }
 
 func TestI2CsDeviceReceive(t *testing.T) {
@@ -132,7 +132,7 @@ func TestI2CsDeviceReceive(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			conn := &testConnection{recvCh: make(chan *Message, 1)}
 			conn.recvCh <- test.input
-			device := NewI2CsDevice(conn, time.Millisecond)
+			device := newI2CsDevice(conn, time.Millisecond)
 			_, err := device.Receive()
 			if !isError(err, test.wantErr) {
 				t.Errorf("want error %v got %v", test.wantErr, err)
@@ -145,7 +145,7 @@ func TestI2CsDeviceIDRequest(t *testing.T) {
 	wantDevCat := DevCat{1, 2}
 	wantFirmwareVersion := FirmwareVersion(3)
 	conn := &testConnection{devCat: wantDevCat, firmwareVersion: wantFirmwareVersion}
-	device := NewI2CsDevice(conn, 0)
+	device := newI2CsDevice(conn, 0)
 	gotFirmwareVersion, gotDevCat, _ := device.IDRequest()
 	if wantFirmwareVersion != gotFirmwareVersion {
 		t.Errorf("want Firmware Version %v got %v", wantFirmwareVersion, gotFirmwareVersion)

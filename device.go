@@ -237,11 +237,11 @@ func Open(conn Connection, timeout time.Duration) (device Device, err error) {
 func New(version EngineVersion, conn Connection, timeout time.Duration) (device Device, err error) {
 	switch version {
 	case VerI1:
-		device = NewI1Device(conn, timeout)
+		device = newI1Device(conn, timeout)
 	case VerI2:
-		device = NewI2Device(conn, timeout)
+		device = newI2Device(conn, timeout)
 	case VerI2Cs:
-		device = NewI2CsDevice(conn, timeout)
+		device = newI2CsDevice(conn, timeout)
 	default:
 		err = ErrVersion
 	}

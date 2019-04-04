@@ -14,6 +14,11 @@
 
 package insteon
 
+import (
+	"fmt"
+	"strings"
+)
+
 const (
 	// StandardMsgLen is the length of an insteon standard message minus one byte (the crc byte)
 	StandardMsgLen = 9
@@ -194,19 +199,18 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	return err
 }
 
-/*
-func DumpMessage(m *Message) (str string) {
+func (m *Message) String() (str string) {
 	if m.Broadcast() {
 		if m.Flags.Type() == MsgTypeAllLinkBroadcast {
-			str = sprintf("%s -> ff.ff.ff %v Group(%d)", m.Src, m.Flags, m.Dst[2])
+			str = sprintf("%s %s -> ff.ff.ff Group(%d)", m.Flags, m.Src, m.Dst[2])
 		} else {
 			devCat := DevCat{m.Dst[0], m.Dst[1]}
 			firmware := FirmwareVersion(m.Dst[2])
 
-			str = sprintf("%s -> ff.ff.ff %v DevCat %v Firmware %v", m.Src, m.Flags, devCat, firmware)
+			str = sprintf("%s %s -> ff.ff.ff DevCat %v Firmware %v", m.Flags, m.Src, devCat, firmware)
 		}
 	} else {
-		str = sprintf("%s -> %s %v", m.Src, m.Dst, m.Flags)
+		str = sprintf("%s %s -> %s", m.Flags, m.Src, m.Dst)
 	}
 
 	// don't print the command in an ACK message because it doesn't
@@ -228,4 +232,4 @@ func DumpMessage(m *Message) (str string) {
 		str = sprintf("%s [%v]", str, strings.Join(payloadStr, " "))
 	}
 	return str
-}*/
+}

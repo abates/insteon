@@ -18,45 +18,45 @@ import (
 	"time"
 )
 
-// I2Device can communicate with Version 2 Insteon Engines
-type I2Device struct {
-	*I1Device
+// i2Device can communicate with Version 2 Insteon Engines
+type i2Device struct {
+	*i1Device
 }
 
-// NewI2Device will construct an device object that can communicate with version 2
+// newI2Device will construct an device object that can communicate with version 2
 // Insteon engines
-func NewI2Device(connection Connection, timeout time.Duration) *I2Device {
-	return &I2Device{I1Device: NewI1Device(connection, timeout)}
+func newI2Device(connection Connection, timeout time.Duration) *i2Device {
+	return &i2Device{i1Device: newI1Device(connection, timeout)}
 }
 
 // AddLink will either add the link to the All-Link database
 // or it will replace an existing link-record that has been marked
 // as deleted
-func (i2 *I2Device) AddLink(newLink *LinkRecord) error {
+func (i2 *i2Device) AddLink(newLink *LinkRecord) error {
 	return ErrNotImplemented
 }
 
 // RemoveLinks will either remove the link records from the device
 // All-Link database, or it will simply mark them as deleted
-func (i2 *I2Device) RemoveLinks(oldLinks ...*LinkRecord) error {
+func (i2 *i2Device) RemoveLinks(oldLinks ...*LinkRecord) error {
 	return ErrNotImplemented
 }
 
 // Links will retrieve the link-database from the device and
 // return a list of LinkRecords
-func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
+func (i2 *i2Device) Links() (links []*LinkRecord, err error) {
 	i2.Lock()
 	defer i2.Unlock()
 
 	Log.Debugf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
 	buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
-	_, err = i2.I1Device.sendCommand(CmdReadWriteALDB, buf)
+	_, err = i2.i1Device.sendCommand(CmdReadWriteALDB, buf)
 
 	timeout := time.Now().Add(i2.timeout)
 	for err == nil {
 		var msg *Message
-		msg, err = i2.I1Device.Receive()
+		msg, err = i2.i1Device.Receive()
 		if err == nil && msg.Flags.Extended() && msg.Command[1] == CmdReadWriteALDB[1] {
 			lr := &linkRequest{}
 			err = lr.UnmarshalBinary(msg.Payload)
@@ -85,8 +85,19 @@ func (i2 *I2Device) Links() (links []*LinkRecord, err error) {
 // to enter linking mode, then it is the controller. The next
 // device to enter linking mode is the responder.  LinkingMode
 // is usually indicated by a flashing GREEN LED on the device
-func (i2 *I2Device) EnterLinkingMode(group Group) error {
+func (i2 *i2Device) EnterLinkingMode(group Group) error {
 	return extractError(i2.SendCommand(CmdEnterLinkingMode.SubCommand(int(group)), nil))
+	/*setButton := i2.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
+	defer i2.RemoveListener(setButton)
+	_, err := i2.SendCommand(CmdEnterLinkingMode.SubCommand(int(group)), nil)
+	if err == nil {
+		select {
+		case <-setButton:
+		case <-time.After(i2.timeout):
+			err = ErrReadTimeout
+		}
+	}
+	return err*/
 }
 
 // EnterUnlinkingMode puts a controller device into unlinking mode
@@ -96,17 +107,17 @@ func (i2 *I2Device) EnterLinkingMode(group Group) error {
 // to pressing the set button until the device beeps, releasing, then
 // pressing the set button again until the device beeps again. UnlinkingMode
 // is usually indicated by a flashing RED LED on the device
-func (i2 *I2Device) EnterUnlinkingMode(group Group) error {
+func (i2 *i2Device) EnterUnlinkingMode(group Group) error {
 	return extractError(i2.SendCommand(CmdEnterUnlinkingMode.SubCommand(int(group)), nil))
 }
 
 // ExitLinkingMode takes a controller out of linking/unlinking mode.
-func (i2 *I2Device) ExitLinkingMode() error {
+func (i2 *i2Device) ExitLinkingMode() error {
 	return extractError(i2.SendCommand(CmdExitLinkingMode, nil))
 }
 
 // WriteLink will write the link record to the device's link database
-func (i2 *I2Device) WriteLink(link *LinkRecord) (err error) {
+func (i2 *i2Device) WriteLink(link *LinkRecord) (err error) {
 	if link.memAddress == MemAddress(0x0000) {
 		err = ErrInvalidMemAddress
 	} else {
@@ -117,7 +128,7 @@ func (i2 *I2Device) WriteLink(link *LinkRecord) (err error) {
 }
 
 // AppendLink will add a new link record to the end of the All-Link database
-func (i2 *I2Device) AppendLink(link *LinkRecord) (err error) {
+func (i2 *i2Device) AppendLink(link *LinkRecord) (err error) {
 	// determine address of last link record
 	links, err := i2.Links()
 	if err == nil {
@@ -132,6 +143,6 @@ func (i2 *I2Device) AppendLink(link *LinkRecord) (err error) {
 
 // String returns the string "I2 Device (<address>)" where <address> is the destination
 // address of the device
-func (i2 *I2Device) String() string {
+func (i2 *i2Device) String() string {
 	return sprintf("I2 Device (%s)", i2.Address())
 }

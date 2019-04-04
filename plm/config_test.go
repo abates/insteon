@@ -30,7 +30,7 @@ func TestSettingConfigFlags(t *testing.T) {
 		expected byte
 	}{
 		{"AutomaticLinking", config.AutomaticLinking, config.setAutomaticLinking, config.clearAutomaticLinking, 0x80},
-		{"MonitorMode", config.MonitorMode, config.setMonitorMode, config.clearMonitorMode, 0x40},
+		{"MonitorMode", config.MonitorMode, config.SetMonitorMode, config.clearMonitorMode, 0x40},
 		{"AutomaticLED", config.AutomaticLED, config.setAutomaticLED, config.clearAutomaticLED, 0x20},
 		{"DeadmanMode", config.DeadmanMode, config.setDeadmanMode, config.clearDeadmanMode, 0x10},
 	}

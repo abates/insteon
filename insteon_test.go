@@ -25,13 +25,6 @@ func init() {
 	Log.Level(LevelNone)
 }
 
-func TestFirmwareVersionString(t *testing.T) {
-	ver := FirmwareVersion(0x42)
-	if ver.String() != "0x42" {
-		t.Errorf("expected %q got %q", "0x42", ver.String())
-	}
-}
-
 func TestAddress(t *testing.T) {
 	tests := []struct {
 		input [3]byte

@@ -20,7 +20,7 @@ import (
 )
 
 func TestI2DeviceIsLinkable(t *testing.T) {
-	device := Device(&I2Device{})
+	device := Device(&i2Device{})
 	linkable := device.(Linkable)
 	if linkable == nil {
 		t.Error("linkable should not be nil")
@@ -29,16 +29,16 @@ func TestI2DeviceIsLinkable(t *testing.T) {
 
 func TestI2DeviceCommands(t *testing.T) {
 	tests := []*commandTest{
-		{"AddLink", func(d Device) error { return d.(*I2Device).AddLink(nil) }, Command{}, ErrNotImplemented, nil},
-		{"RemoveLinks", func(d Device) error { return d.(*I2Device).RemoveLinks(nil) }, Command{}, ErrNotImplemented, nil},
-		{"EnterUnlinkingMode", func(d Device) error { return d.(*I2Device).EnterLinkingMode(10) }, CmdEnterLinkingMode.SubCommand(10), nil, nil},
-		{"EnterUnlinkingMode", func(d Device) error { return d.(*I2Device).EnterUnlinkingMode(10) }, CmdEnterUnlinkingMode.SubCommand(10), nil, nil},
-		{"ExitLinkingMode", func(d Device) error { return d.(*I2Device).ExitLinkingMode() }, CmdExitLinkingMode, nil, nil},
-		{"WriteLink - error", func(d Device) error { return d.(*I2Device).WriteLink(&LinkRecord{}) }, CmdReadWriteALDB, ErrInvalidMemAddress, nil},
-		{"WriteLink", func(d Device) error { return d.(*I2Device).WriteLink(&LinkRecord{memAddress: 0x01}) }, CmdReadWriteALDB, nil, nil},
+		{"AddLink", func(d Device) error { return d.(*i2Device).AddLink(nil) }, Command{}, ErrNotImplemented, nil},
+		{"RemoveLinks", func(d Device) error { return d.(*i2Device).RemoveLinks(nil) }, Command{}, ErrNotImplemented, nil},
+		{"EnterUnlinkingMode", func(d Device) error { return d.(*i2Device).EnterLinkingMode(10) }, CmdEnterLinkingMode.SubCommand(10), nil, nil},
+		{"EnterUnlinkingMode", func(d Device) error { return d.(*i2Device).EnterUnlinkingMode(10) }, CmdEnterUnlinkingMode.SubCommand(10), nil, nil},
+		{"ExitLinkingMode", func(d Device) error { return d.(*i2Device).ExitLinkingMode() }, CmdExitLinkingMode, nil, nil},
+		{"WriteLink - error", func(d Device) error { return d.(*i2Device).WriteLink(&LinkRecord{}) }, CmdReadWriteALDB, ErrInvalidMemAddress, nil},
+		{"WriteLink", func(d Device) error { return d.(*i2Device).WriteLink(&LinkRecord{memAddress: 0x01}) }, CmdReadWriteALDB, nil, nil},
 	}
 
-	testDeviceCommands(t, func(conn *testConnection) Device { return NewI2Device(conn, time.Millisecond) }, tests)
+	testDeviceCommands(t, func(conn *testConnection) Device { return newI2Device(conn, time.Millisecond) }, tests)
 }
 
 func i2DeviceLinks(conn *testConnection) []*linkRequest {
@@ -65,7 +65,7 @@ func i2DeviceLinks(conn *testConnection) []*linkRequest {
 
 func TestI2DeviceLinks(t *testing.T) {
 	conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
-	device := NewI2Device(conn, time.Nanosecond)
+	device := newI2Device(conn, time.Nanosecond)
 
 	i2DeviceLinks(conn)
 	conn.ackCh <- TestAck
@@ -93,7 +93,7 @@ func TestI2DeviceLinks(t *testing.T) {
 
 func TestI2AppendLink(t *testing.T) {
 	conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 2)}
-	device := NewI2Device(conn, time.Nanosecond)
+	device := newI2Device(conn, time.Nanosecond)
 
 	go func() {
 		err := device.AppendLink(&LinkRecord{})

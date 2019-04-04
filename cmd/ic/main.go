@@ -92,6 +92,10 @@ func run(args []string, next cli.NextFunc) error {
 		modem = plm.New(plm.NewPort(s, timeoutFlag), timeoutFlag, plm.WriteDelay(writeDelayFlag))
 		defer modem.Close()
 		if logLevelFlag == insteon.LevelTrace {
+			var config *plm.Config
+			config, err = modem.Config()
+			config.SetMonitorMode()
+			err = modem.SetConfig(config)
 			//modem.StartMonitor()
 			//defer modem.StopMonitor()
 		}

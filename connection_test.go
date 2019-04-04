@@ -67,6 +67,9 @@ func (tc *testConnection) Receive() (*Message, error) {
 	return nil, tc.recvErr
 }
 
+func (tc *testConnection) AddListener(MessageType, ...Command) <-chan *Message { return nil }
+func (tc *testConnection) RemoveListener(<-chan *Message)                      {}
+
 func TestConnectionOptions(t *testing.T) {
 	mu := &sync.Mutex{}
 	tests := []struct {
@@ -229,5 +232,37 @@ func TestConnectionEngineVersion(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestMsgListeners(t *testing.T) {
+	ml := &msgListeners{listeners: make(map[<-chan *Message]*msgListener)}
+	ch1 := ml.AddListener(MsgTypeDirect, CmdPing)
+	ch2 := ml.AddListener(MsgTypeBroadcast, CmdPing)
+	ch3 := ml.AddListener(MsgTypeDirect, CmdReadWriteALDB)
+
+	if len(ml.listeners) != 3 {
+		t.Errorf("Expected 3 listeners to be set")
+	}
+
+	ml.deliver(TestMessagePing)
+	if len(ch1) != 1 {
+		t.Errorf("Expected Ping message to be delivered to first channel")
+	}
+
+	if len(ch2) != 0 {
+		t.Errorf("Expected Ping to not be delivered to second channel")
+	}
+
+	if len(ch3) != 0 {
+		t.Errorf("Expected Ping to not be delivered to third channel")
+	}
+
+	ml.RemoveListener(ch1)
+	ml.RemoveListener(ch2)
+	ml.RemoveListener(ch3)
+
+	if len(ml.listeners) != 0 {
+		t.Errorf("Expected listeners to be empty")
 	}
 }

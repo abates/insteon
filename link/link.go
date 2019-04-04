@@ -24,6 +24,9 @@ import (
 var (
 	// ErrAlreadyLinked is returned when creating a link and an existing matching link is found
 	ErrAlreadyLinked = errors.New("Responder already linked to controller")
+
+	// ErrLinkNotFound is returned by the Find function when no matching record was found
+	ErrLinkNotFound = errors.New("Link was not found in the database")
 )
 
 // FindDuplicateLinks will perform a linear search of the
@@ -35,7 +38,8 @@ func FindDuplicateLinks(linkable insteon.Linkable) ([]*insteon.LinkRecord, error
 	if err == nil {
 		for i, l1 := range links {
 			for _, l2 := range links[i+1:] {
-				if l1.Equal(l2) {
+				// Available links cannot be duplicates
+				if !l1.Flags.Available() && l1.Equal(l2) {
 					duplicates = append(duplicates, l2)
 				}
 			}
@@ -47,16 +51,19 @@ func FindDuplicateLinks(linkable insteon.Linkable) ([]*insteon.LinkRecord, error
 // FindLinkRecord will perform a linear search of the database and return
 // a LinkRecord that matches the group, address and controller/responder
 // indicator
-func FindLinkRecord(linkable insteon.Linkable, controller bool, address insteon.Address, group insteon.Group) (*insteon.LinkRecord, error) {
+func FindLinkRecord(linkable insteon.Linkable, controller bool, address insteon.Address, group insteon.Group) (found *insteon.LinkRecord, err error) {
 	links, err := linkable.Links()
 	if err == nil {
+		err = ErrLinkNotFound
 		for _, link := range links {
-			if link.Flags.Controller() == controller && link.Address == address && link.Group == group {
-				return link, nil
+			if !link.Flags.Available() && link.Flags.Controller() == controller && link.Address == address && link.Group == group {
+				found = link
+				err = nil
+				break
 			}
 		}
 	}
-	return nil, err
+	return
 }
 
 // CrossLinkAll will create bi-directional links among all the devices
@@ -95,19 +102,36 @@ func CrossLink(group insteon.Group, l1, l2 insteon.AddressableLinkable) error {
 // databases without first checking if the links exist. The links are
 // created by simulating set button presses (using EnterLinkingMode)
 func ForceLink(group insteon.Group, controller, responder insteon.Linkable) (err error) {
+	// The sequence to create a link between two devices follows:
+	// 1) Controller enters linking mode (same as holding down the set button for 10 seconds)
+	// 2) Controller sends a "Set-Button Pressed Controller" broadcast message
+	// 3) Responder enters linking mode (just like holding down the set button)
+	// 4) Responder sends a "Set-Button Pressed Responder" broadcast message
+	//
+	// At this point the two devices will exchange direct messages that won't necessarily
+	// be seen by the initiator (such as a PLM), so as soon as the responder broadcast
+	// is received, we assume the linking is complete
 	insteon.Log.Debugf("Putting controller %s into linking mode", controller)
+	//controllerCh := controller.AddSetButtonListener()
+	//defer controller.RemoveSetButtonListener(controllerCh)
+
 	// controller enters all-linking mode
 	err = controller.EnterLinkingMode(group)
-	defer controller.ExitLinkingMode()
-	time.Sleep(2 * time.Second)
 
-	// responder pushes the set button responder
 	if err == nil {
+		defer controller.ExitLinkingMode()
+		// wait for set-button message
+		//<-controllerCh
+		//responderCh := responder.AddSetButtonListener()
+		//defer responder.RemoveSetButtonListener(responderCh)
+
+		// responder pushes the set button responder
 		insteon.Log.Debugf("Assigning responder to group")
 		err = responder.EnterLinkingMode(group)
 		defer responder.ExitLinkingMode()
+		// wait for set-button message
+		//<-responderCh
 	}
-	time.Sleep(time.Second)
 	return
 }
 
@@ -157,31 +181,27 @@ func Unlink(group insteon.Group, controller, responder insteon.Linkable) (err er
 // check/cleanup has taken place the new links are created using ForceLink
 func Link(group insteon.Group, controller, responder insteon.AddressableLinkable) (err error) {
 	insteon.Log.Debugf("Looking for existing links")
-	var controllerLink *insteon.LinkRecord
+	var controllerLink, responderLink *insteon.LinkRecord
 	controllerLink, err = FindLinkRecord(controller, true, responder.Address(), group)
 
-	if err == nil {
-		var responderLink *insteon.LinkRecord
-		responderLink, err = FindLinkRecord(responder, false, controller.Address(), group)
-
+	if err == ErrLinkNotFound {
+		_, err := FindLinkRecord(responder, false, controller.Address(), group)
 		if err == nil {
-			if controllerLink != nil && responderLink != nil {
-				err = ErrAlreadyLinked
-			} else {
-				// correct a mismatch by deleting the one link found
-				// and recreating both
-				if controllerLink != nil {
-					insteon.Log.Debugf("Controller link already exists, deleting it")
-					err = controller.RemoveLinks(controllerLink)
-				}
+			// found a responder link, but not a controller link
+			insteon.Log.Debugf("Controller link already exists, deleting it")
+			err = controller.RemoveLinks(controllerLink)
+		}
 
-				if err == nil && responderLink != nil {
-					insteon.Log.Debugf("Responder link already exists, deleting it")
-					err = responder.RemoveLinks(controllerLink)
-				}
-
-				ForceLink(group, controller, responder)
-			}
+		if err == nil || err == ErrLinkNotFound {
+			ForceLink(group, controller, responder)
+		}
+	} else {
+		responderLink, err = FindLinkRecord(responder, false, controller.Address(), group)
+		if err == ErrLinkNotFound {
+			// found a controller link, but not a responder link
+			insteon.Log.Debugf("Responder link already exists, deleting it")
+			err = responder.RemoveLinks(responderLink)
+			ForceLink(group, controller, responder)
 		}
 	}
 	return err

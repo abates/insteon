@@ -59,9 +59,9 @@ func TestDeviceNew(t *testing.T) {
 		wantType reflect.Type
 		wantErr  error
 	}{
-		{"I1Device", VerI1, reflect.TypeOf(&I1Device{}), nil},
-		{"I2Device", VerI2, reflect.TypeOf(&I2Device{}), nil},
-		{"I2CsDevice", VerI2Cs, reflect.TypeOf(&I2CsDevice{}), nil},
+		{"I1Device", VerI1, reflect.TypeOf(&i1Device{}), nil},
+		{"I2Device", VerI2, reflect.TypeOf(&i2Device{}), nil},
+		{"I2CsDevice", VerI2Cs, reflect.TypeOf(&i2CsDevice{}), nil},
 		{"ErrVersion", 4, reflect.TypeOf(nil), ErrVersion},
 	}
 
@@ -88,15 +88,15 @@ func TestDeviceOpen(t *testing.T) {
 		wantType reflect.Type
 		wantErr  error
 	}{
-		{"I1Device", &testConnection{engineVersion: VerI1}, reflect.TypeOf(&I1Device{}), nil},
-		{"I2Device", &testConnection{engineVersion: VerI2}, reflect.TypeOf(&I2Device{}), nil},
-		{"I2CsDevice", &testConnection{engineVersion: VerI2Cs}, reflect.TypeOf(&I2CsDevice{}), nil},
+		{"I1Device", &testConnection{engineVersion: VerI1}, reflect.TypeOf(&i1Device{}), nil},
+		{"I2Device", &testConnection{engineVersion: VerI2}, reflect.TypeOf(&i2Device{}), nil},
+		{"I2CsDevice", &testConnection{engineVersion: VerI2Cs}, reflect.TypeOf(&i2CsDevice{}), nil},
 		{"Dimmer", &testConnection{engineVersion: VerI1, devCat: DevCat{1, 0}}, reflect.TypeOf(&dimmer{}), nil},
 		{"Linkable Dimmer", &testConnection{engineVersion: VerI2Cs, devCat: DevCat{1, 0}}, reflect.TypeOf(&linkableDimmer{}), nil},
 		{"Switch", &testConnection{engineVersion: VerI1, devCat: DevCat{2, 0}}, reflect.TypeOf(&switchedDevice{}), nil},
 		{"Linkable Switch", &testConnection{engineVersion: VerI2Cs, devCat: DevCat{2, 0}}, reflect.TypeOf(&linkableSwitch{}), nil},
 		{"ErrVersion", &testConnection{engineVersion: 4}, reflect.TypeOf(nil), ErrVersion},
-		{"Not Linked", &testConnection{engineVersionErr: ErrNotLinked}, reflect.TypeOf(&I2CsDevice{}), ErrNotLinked},
+		{"Not Linked", &testConnection{engineVersionErr: ErrNotLinked}, reflect.TypeOf(&i2CsDevice{}), ErrNotLinked},
 	}
 
 	for _, test := range tests {

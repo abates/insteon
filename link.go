@@ -27,6 +27,13 @@ import (
 // use
 type RecordControlFlags byte
 
+const (
+	AvailableController   = RecordControlFlags(0x40)
+	UnavailableController = RecordControlFlags(0xc0)
+	AvailableResponder    = RecordControlFlags(0x00)
+	UnavailableResponder  = RecordControlFlags(0x80)
+)
+
 func (rcf *RecordControlFlags) setBit(pos uint) {
 	*rcf |= (1 << pos)
 }

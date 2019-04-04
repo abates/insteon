@@ -50,6 +50,14 @@ type Connection interface {
 	// as well as ErrNotLinked
 	EngineVersion() (EngineVersion, error)
 
+	// AddListener will return a channel that receives any messages matching
+	// the flags an the cmd1 flag of a Command.
+	AddListener(t MessageType, cmds ...Command) <-chan *Message
+
+	// RemoveListener will remove a previously allocated listener channel to be
+	// closed and removed from the connection
+	RemoveListener(<-chan *Message)
+
 	// Lock the connection so that it not usable by other go routines.  This is
 	// implemented by an underlying sync.Mutex object
 	Lock()
@@ -60,6 +68,7 @@ type Connection interface {
 
 type connection struct {
 	*sync.Mutex
+	*msgListeners
 
 	addr    Address
 	match   []Command
@@ -100,12 +109,57 @@ func ConnectionMutex(mu *sync.Mutex) ConnectionOption {
 	}
 }
 
+type msgListener struct {
+	ch   chan<- *Message
+	t    MessageType
+	cmds []Command
+}
+
+type msgListeners struct {
+	mu        sync.Mutex
+	listeners map[<-chan *Message]*msgListener
+}
+
+func (ml *msgListeners) deliver(msg *Message) {
+	ml.mu.Lock()
+	defer ml.mu.Unlock()
+	for _, listener := range ml.listeners {
+		if msg.Flags.Type() == listener.t {
+			for _, cmd := range listener.cmds {
+				if msg.Command[1] != cmd[1] {
+					return
+				}
+			}
+			listener.ch <- msg
+		}
+	}
+}
+
+func (ml *msgListeners) RemoveListener(ch <-chan *Message) {
+	ml.mu.Lock()
+	if listener, found := ml.listeners[ch]; found {
+		close(listener.ch)
+		delete(ml.listeners, ch)
+	}
+	ml.mu.Unlock()
+}
+
+func (ml *msgListeners) AddListener(t MessageType, cmds ...Command) <-chan *Message {
+	ch := make(chan *Message, 1)
+	ml.mu.Lock()
+	ml.listeners[ch] = &msgListener{ch, t, cmds}
+	ml.mu.Unlock()
+	return ch
+}
+
 // NewConnection will return a connection that is setup and ready to be used.  The txCh and
 // rxCh will be used to send and receive insteon messages.  Any supplied options will be
 // used to customize the connection's config
 func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, options ...ConnectionOption) Connection {
 	conn := &connection{
-		Mutex:   &sync.Mutex{},
+		Mutex:        &sync.Mutex{},
+		msgListeners: &msgListeners{listeners: make(map[<-chan *Message]*msgListener)},
+
 		addr:    addr,
 		timeout: 3 * time.Second,
 
@@ -135,10 +189,14 @@ func (conn *connection) readLoop() {
 				if len(conn.match) > 0 {
 					for _, m := range conn.match {
 						if (msg.Command == m) || (msg.Command[1] == m[1] && m[2] == 0x00) {
+							Log.Tracef("Connection %v RX %v", conn.addr, msg)
+							conn.msgListeners.deliver(msg)
 							conn.msgCh <- msg
 						}
 					}
 				} else {
+					Log.Tracef("Connection %v RX %v", conn.addr, msg)
+					conn.msgListeners.deliver(msg)
 					conn.msgCh <- msg
 				}
 			}
@@ -152,6 +210,7 @@ func (conn *connection) readLoop() {
 
 func (conn *connection) Send(msg *Message) (ack *Message, err error) {
 	msg.Dst = conn.addr
+	Log.Tracef("Connection %v TX %v", conn.addr, msg)
 	conn.txCh <- msg
 
 	// wait for ack
