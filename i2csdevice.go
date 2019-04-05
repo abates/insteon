@@ -46,19 +46,17 @@ func (i2cs *i2CsDevice) RemoveListener(ch <-chan *Message) {
 // equivalent to holding down the set button until the device
 // beeps and the indicator light starts flashing
 func (i2cs *i2CsDevice) EnterLinkingMode(group Group) (err error) {
-	return extractError(i2cs.SendCommand(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14)))
-	/*
-		setButton := i2cs.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
-		defer i2cs.RemoveListener(setButton)
-		_, err = i2cs.SendCommand(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14))
-		if err == nil {
-			select {
-			case <-setButton:
-			case <-time.After(i2cs.timeout):
-				err = ErrReadTimeout
-			}
+	setButton := i2cs.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
+	defer i2cs.RemoveListener(setButton)
+	_, err = i2cs.SendCommand(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14))
+	if err == nil {
+		select {
+		case <-setButton:
+		case <-time.After(i2cs.timeout):
+			err = ErrReadTimeout
 		}
-		return err*/
+	}
+	return err
 }
 
 // Address returns the unique Insteon address of the device
@@ -131,9 +129,6 @@ func (i2cs *i2CsDevice) IDRequest() (FirmwareVersion, DevCat, error) {
 // Receive waits for the next message from the device.  Receive
 // always returns, but may return with an error (such as ErrReadTimeout)
 func (i2cs *i2CsDevice) Receive() (*Message, error) {
-	i2cs.Lock()
-	defer i2cs.Unlock()
-
 	return i2csErrLookup(i2cs.connection.Receive())
 }
 

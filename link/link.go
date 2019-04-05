@@ -112,8 +112,6 @@ func ForceLink(group insteon.Group, controller, responder insteon.Linkable) (err
 	// be seen by the initiator (such as a PLM), so as soon as the responder broadcast
 	// is received, we assume the linking is complete
 	insteon.Log.Debugf("Putting controller %s into linking mode", controller)
-	//controllerCh := controller.AddSetButtonListener()
-	//defer controller.RemoveSetButtonListener(controllerCh)
 
 	// controller enters all-linking mode
 	err = controller.EnterLinkingMode(group)
@@ -121,16 +119,11 @@ func ForceLink(group insteon.Group, controller, responder insteon.Linkable) (err
 	if err == nil {
 		defer controller.ExitLinkingMode()
 		// wait for set-button message
-		//<-controllerCh
-		//responderCh := responder.AddSetButtonListener()
-		//defer responder.RemoveSetButtonListener(responderCh)
 
 		// responder pushes the set button responder
 		insteon.Log.Debugf("Assigning responder to group")
 		err = responder.EnterLinkingMode(group)
 		defer responder.ExitLinkingMode()
-		// wait for set-button message
-		//<-responderCh
 	}
 	return
 }

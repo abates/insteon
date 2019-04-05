@@ -126,11 +126,11 @@ func (ml *msgListeners) deliver(msg *Message) {
 	for _, listener := range ml.listeners {
 		if msg.Flags.Type() == listener.t {
 			for _, cmd := range listener.cmds {
-				if msg.Command[1] != cmd[1] {
+				if msg.Command[1] == cmd[1] {
+					listener.ch <- msg
 					return
 				}
 			}
-			listener.ch <- msg
 		}
 	}
 }

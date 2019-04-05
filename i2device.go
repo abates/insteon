@@ -86,8 +86,7 @@ func (i2 *i2Device) Links() (links []*LinkRecord, err error) {
 // device to enter linking mode is the responder.  LinkingMode
 // is usually indicated by a flashing GREEN LED on the device
 func (i2 *i2Device) EnterLinkingMode(group Group) error {
-	return extractError(i2.SendCommand(CmdEnterLinkingMode.SubCommand(int(group)), nil))
-	/*setButton := i2.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
+	setButton := i2.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
 	defer i2.RemoveListener(setButton)
 	_, err := i2.SendCommand(CmdEnterLinkingMode.SubCommand(int(group)), nil)
 	if err == nil {
@@ -97,7 +96,7 @@ func (i2 *i2Device) EnterLinkingMode(group Group) error {
 			err = ErrReadTimeout
 		}
 	}
-	return err*/
+	return err
 }
 
 // EnterUnlinkingMode puts a controller device into unlinking mode
