@@ -105,6 +105,7 @@ func TestI2CsDeviceSendCommand(t *testing.T) {
 		})
 	}
 }
+
 func TestI2CsDeviceEnterLinkingMode(t *testing.T) {
 	constructor := func(conn *testConnection) Device { return newI2CsDevice(conn, time.Millisecond) }
 	callback := func(d Device) error { return d.(*i2CsDevice).EnterLinkingMode(10) }

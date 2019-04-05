@@ -52,11 +52,7 @@ func (i2cs *i2CsDevice) EnterLinkingMode(group Group) (err error) {
 	defer i2cs.RemoveListener(setButton)
 	_, err = i2cs.sendCommand(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14))
 	if err == nil {
-		select {
-		case <-setButton:
-		case <-time.After(i2cs.timeout):
-			err = ErrReadTimeout
-		}
+		_, err = readFromCh(setButton, i2cs.timeout)
 	}
 	return err
 }

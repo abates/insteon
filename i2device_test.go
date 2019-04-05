@@ -31,7 +31,6 @@ func TestI2DeviceCommands(t *testing.T) {
 	tests := []*commandTest{
 		{"AddLink", func(d Device) error { return d.(*i2Device).AddLink(nil) }, Command{}, ErrNotImplemented, nil},
 		{"RemoveLinks", func(d Device) error { return d.(*i2Device).RemoveLinks(nil) }, Command{}, ErrNotImplemented, nil},
-		{"EnterUnlinkingMode", func(d Device) error { return d.(*i2Device).EnterUnlinkingMode(10) }, CmdEnterUnlinkingMode.SubCommand(10), nil, nil},
 		{"ExitLinkingMode", func(d Device) error { return d.(*i2Device).ExitLinkingMode() }, CmdExitLinkingMode, nil, nil},
 		{"WriteLink - error", func(d Device) error { return d.(*i2Device).WriteLink(&LinkRecord{}) }, CmdReadWriteALDB, ErrInvalidMemAddress, nil},
 		{"WriteLink", func(d Device) error { return d.(*i2Device).WriteLink(&LinkRecord{memAddress: 0x01}) }, CmdReadWriteALDB, nil, nil},
@@ -48,6 +47,16 @@ func TestI2DeviceEnterLinkingMode(t *testing.T) {
 
 	// sad path
 	testDeviceCommand(t, constructor, callback, CmdEnterLinkingMode.SubCommand(10), nil, ErrReadTimeout)
+}
+
+func TestI2DeviceEnterUnlinkingMode(t *testing.T) {
+	constructor := func(conn *testConnection) Device { return newI2Device(conn, time.Millisecond) }
+	callback := func(d Device) error { return d.(*i2Device).EnterUnlinkingMode(10) }
+	// happy path
+	testDeviceCommand(t, constructor, callback, CmdEnterUnlinkingMode.SubCommand(10), nil, nil, &Message{Flags: StandardBroadcast, Command: CmdSetButtonPressedResponder})
+
+	// sad path
+	testDeviceCommand(t, constructor, callback, CmdEnterUnlinkingModeExt.SubCommand(10), nil, ErrReadTimeout)
 }
 
 func i2DeviceLinks(conn *testConnection) []*linkRequest {

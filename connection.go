@@ -228,12 +228,7 @@ func (conn *connection) Send(msg *Message) (ack *Message, err error) {
 }
 
 func (conn *connection) Receive() (msg *Message, err error) {
-	select {
-	case msg = <-conn.msgCh:
-	case <-time.After(conn.timeout):
-		err = ErrReadTimeout
-	}
-	return
+	return readFromCh(conn.msgCh, conn.timeout)
 }
 
 func (conn *connection) Close() error {
@@ -275,6 +270,17 @@ func (conn *connection) EngineVersion() (version EngineVersion, err error) {
 			}
 		} else {
 			version = EngineVersion(ack.Command[2])
+		}
+	}
+	return
+}
+
+func readFromCh(ch <-chan *Message, timeout time.Duration) (msg *Message, err error) {
+	if err == nil {
+		select {
+		case msg = <-ch:
+		case <-time.After(timeout):
+			err = ErrReadTimeout
 		}
 	}
 	return

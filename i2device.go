@@ -92,11 +92,7 @@ func (i2 *i2Device) EnterLinkingMode(group Group) error {
 	defer i2.RemoveListener(setButton)
 	_, err := i2.sendCommand(CmdEnterLinkingMode.SubCommand(int(group)), nil)
 	if err == nil {
-		select {
-		case <-setButton:
-		case <-time.After(i2.timeout):
-			err = ErrReadTimeout
-		}
+		_, err = readFromCh(setButton, i2.timeout)
 	}
 	return err
 }
@@ -109,7 +105,13 @@ func (i2 *i2Device) EnterLinkingMode(group Group) error {
 // pressing the set button again until the device beeps again. UnlinkingMode
 // is usually indicated by a flashing RED LED on the device
 func (i2 *i2Device) EnterUnlinkingMode(group Group) error {
-	return extractError(i2.SendCommand(CmdEnterUnlinkingMode.SubCommand(int(group)), nil))
+	setButton := i2.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
+	defer i2.RemoveListener(setButton)
+	_, err := i2.SendCommand(CmdEnterUnlinkingMode.SubCommand(int(group)), nil)
+	if err == nil {
+		_, err = readFromCh(setButton, i2.timeout)
+	}
+	return err
 }
 
 // ExitLinkingMode takes a controller out of linking/unlinking mode.
