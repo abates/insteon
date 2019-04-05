@@ -1,7 +1,6 @@
 package insteon
 
 import (
-	"bytes"
 	"testing"
 	"time"
 )
@@ -70,45 +69,6 @@ func TestI1DeviceSendCommand(t *testing.T) {
 
 			if msg.Flags != test.flags {
 				t.Errorf("want %v got %v", test.flags, msg.Flags)
-			}
-		})
-	}
-}
-
-type commandTest struct {
-	desc        string
-	callback    func(Device) error
-	wantCmd     Command
-	wantErr     error
-	wantPayload []byte
-}
-
-func testDeviceCommands(t *testing.T, constructor func(*testConnection) Device, tests []*commandTest) {
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
-			device := constructor(conn)
-
-			conn.ackCh <- TestAck
-			err := test.callback(device)
-
-			if err != test.wantErr {
-				t.Errorf("got error %v, want %v", err, test.wantErr)
-			}
-
-			if test.wantErr == nil {
-				msg := <-conn.sendCh
-				if msg.Command != test.wantCmd {
-					t.Errorf("want Command %v got %v", test.wantCmd, msg.Command)
-				}
-
-				if len(test.wantPayload) > 0 {
-					wantPayload := make([]byte, len(test.wantPayload))
-					copy(wantPayload, test.wantPayload)
-					if !bytes.Equal(wantPayload, msg.Payload) {
-						t.Errorf("want payload %x got %x", wantPayload, msg.Payload)
-					}
-				}
 			}
 		})
 	}

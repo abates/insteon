@@ -67,7 +67,7 @@ func (tc *testConnection) Receive() (*Message, error) {
 	return nil, tc.recvErr
 }
 
-func (tc *testConnection) AddListener(MessageType, ...Command) <-chan *Message { return nil }
+func (tc *testConnection) AddListener(MessageType, ...Command) <-chan *Message { return tc.recvCh }
 func (tc *testConnection) RemoveListener(<-chan *Message)                      {}
 
 func TestConnectionOptions(t *testing.T) {

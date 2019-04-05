@@ -105,13 +105,14 @@ func TestI2CsDeviceSendCommand(t *testing.T) {
 		})
 	}
 }
+func TestI2CsDeviceEnterLinkingMode(t *testing.T) {
+	constructor := func(conn *testConnection) Device { return newI2CsDevice(conn, time.Millisecond) }
+	callback := func(d Device) error { return d.(*i2CsDevice).EnterLinkingMode(10) }
+	// happy path
+	testDeviceCommand(t, constructor, callback, CmdEnterLinkingModeExt.SubCommand(10), nil, nil, &Message{Flags: StandardBroadcast, Command: CmdSetButtonPressedResponder})
 
-func TestI2CsDeviceCommands(t *testing.T) {
-	tests := []*commandTest{
-		{"EnterLinkingMode", func(d Device) error { return d.(*i2CsDevice).EnterLinkingMode(15) }, CmdEnterLinkingModeExt.SubCommand(15), nil, nil},
-	}
-
-	testDeviceCommands(t, func(conn *testConnection) Device { return newI2CsDevice(conn, time.Millisecond) }, tests)
+	// sad path
+	testDeviceCommand(t, constructor, callback, CmdEnterLinkingModeExt.SubCommand(10), nil, ErrReadTimeout)
 }
 
 func TestI2CsDeviceReceive(t *testing.T) {
