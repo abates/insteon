@@ -80,21 +80,25 @@ func (i2 *i2Device) Links() (links []*LinkRecord, err error) {
 	return links, err
 }
 
+func (i2 *i2Device) linkingMode(cmd Command, payload ...byte) error {
+	i2.Lock()
+	defer i2.Unlock()
+	setButton := i2.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
+	defer i2.RemoveListener(setButton)
+	_, err := i2.sendCommand(cmd, payload)
+	if err == nil {
+		_, err = readFromCh(setButton, i2.timeout)
+	}
+	return err
+}
+
 // EnterLinkingMode is the programmatic equivalent of holding down
 // the set button for two seconds. If the device is the first
 // to enter linking mode, then it is the controller. The next
 // device to enter linking mode is the responder.  LinkingMode
 // is usually indicated by a flashing GREEN LED on the device
 func (i2 *i2Device) EnterLinkingMode(group Group) error {
-	i2.Lock()
-	defer i2.Unlock()
-	setButton := i2.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
-	defer i2.RemoveListener(setButton)
-	_, err := i2.sendCommand(CmdEnterLinkingMode.SubCommand(int(group)), nil)
-	if err == nil {
-		_, err = readFromCh(setButton, i2.timeout)
-	}
-	return err
+	return i2.linkingMode(CmdEnterLinkingMode.SubCommand(int(group)))
 }
 
 // EnterUnlinkingMode puts a controller device into unlinking mode
@@ -105,13 +109,7 @@ func (i2 *i2Device) EnterLinkingMode(group Group) error {
 // pressing the set button again until the device beeps again. UnlinkingMode
 // is usually indicated by a flashing RED LED on the device
 func (i2 *i2Device) EnterUnlinkingMode(group Group) error {
-	setButton := i2.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
-	defer i2.RemoveListener(setButton)
-	_, err := i2.SendCommand(CmdEnterUnlinkingMode.SubCommand(int(group)), nil)
-	if err == nil {
-		_, err = readFromCh(setButton, i2.timeout)
-	}
-	return err
+	return i2.linkingMode(CmdEnterUnlinkingMode.SubCommand(int(group)))
 }
 
 // ExitLinkingMode takes a controller out of linking/unlinking mode.

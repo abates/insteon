@@ -46,7 +46,8 @@ func (i2cs *i2CsDevice) RemoveListener(ch <-chan *Message) {
 // equivalent to holding down the set button until the device
 // beeps and the indicator light starts flashing
 func (i2cs *i2CsDevice) EnterLinkingMode(group Group) (err error) {
-	i2cs.Lock()
+	return i2cs.linkingMode(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14)...)
+	/*i2cs.Lock()
 	defer i2cs.Unlock()
 	setButton := i2cs.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
 	defer i2cs.RemoveListener(setButton)
@@ -54,7 +55,7 @@ func (i2cs *i2CsDevice) EnterLinkingMode(group Group) (err error) {
 	if err == nil {
 		_, err = readFromCh(setButton, i2cs.timeout)
 	}
-	return err
+	return err*/
 }
 
 // Address returns the unique Insteon address of the device
