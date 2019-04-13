@@ -31,8 +31,8 @@ var (
 	serialPortFlag string
 	timeoutFlag    time.Duration
 	writeDelayFlag time.Duration
-
-	app = cli.New(os.Args[0], cli.CallbackOption(run))
+	ttlFlag        uint
+	app            = cli.New(os.Args[0], cli.CallbackOption(run))
 )
 
 func init() {
@@ -41,6 +41,7 @@ func init() {
 	app.Flags.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
 	app.Flags.DurationVar(&timeoutFlag, "timeout", 3*time.Second, "read/write timeout duration")
 	app.Flags.DurationVar(&writeDelayFlag, "writeDelay", 500*time.Millisecond, "writeDelay duration")
+	app.Flags.UintVar(&ttlFlag, "ttl", 3, "default ttl for sending Insteon messages")
 }
 
 func run() error {
@@ -56,10 +57,7 @@ func run() error {
 	s, err := serial.OpenPort(c)
 
 	if err == nil {
-		defer s.Close()
-
 		modem = plm.New(plm.NewPort(s, timeoutFlag), timeoutFlag, plm.WriteDelay(writeDelayFlag))
-		defer modem.Close()
 	}
 	return err
 }

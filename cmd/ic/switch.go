@@ -40,13 +40,13 @@ func init() {
 	cmd.Arguments.Bool(&sw.led, "<true|false>")
 }
 
-func (sw *swtch) init() (err error) {
-	device, err = devConnect(modem, addr)
+func (sw *swtch) init() error {
+	device, err := connect(modem, sw.addr)
 	if err == nil {
 		if s, ok := device.(insteon.Switch); ok {
 			sw.Switch = s
 		} else {
-			err = fmt.Errorf("Device at %s is a %T not a switch", addr, device)
+			err = fmt.Errorf("Device at %s is a %T not a switch", sw.addr, device)
 		}
 	}
 	return err
@@ -55,7 +55,7 @@ func (sw *swtch) init() (err error) {
 func (sw *swtch) switchConfigCmd() error {
 	config, err := sw.SwitchConfig()
 	if err == nil {
-		err = printDevInfo(device, fmt.Sprintf("  X10 Address: %02x.%02x", config.HouseCode, config.UnitCode))
+		err = printDevInfo(sw, fmt.Sprintf("  X10 Address: %02x.%02x", config.HouseCode, config.UnitCode))
 	}
 	return err
 }

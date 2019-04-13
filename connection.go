@@ -73,6 +73,7 @@ type connection struct {
 	addr    Address
 	match   []Command
 	timeout time.Duration
+	ttl     uint8
 
 	txCh    chan<- *Message
 	rxCh    <-chan *Message
@@ -82,6 +83,13 @@ type connection struct {
 
 // ConnectionOption provides a means to customize the connection config
 type ConnectionOption func(*connection)
+
+// ConnectionTTL will set the connection's time to live flag
+func ConnectionTTL(ttl uint8) ConnectionOption {
+	return func(conn *connection) {
+		conn.ttl = ttl
+	}
+}
 
 // ConnectionTimeout is a ConnectionOption that will set the connection's read
 // timeout
@@ -210,6 +218,7 @@ func (conn *connection) readLoop() {
 
 func (conn *connection) Send(msg *Message) (ack *Message, err error) {
 	msg.Dst = conn.addr
+	msg.Flags = Flag(MsgTypeDirect, len(msg.Payload) > 0, conn.ttl, conn.ttl)
 	Log.Tracef("Connection %v TX %v", conn.addr, msg)
 	conn.txCh <- msg
 

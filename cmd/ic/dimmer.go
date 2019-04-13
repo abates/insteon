@@ -71,12 +71,12 @@ func init() {
 }
 
 func (dim *dimmer) init() (err error) {
-	device, err := devConnect(modem, addr)
+	device, err := connect(modem, dim.addr)
 	if err == nil {
 		if d, ok := device.(insteon.Dimmer); ok {
 			dim.Dimmer = d
 		} else {
-			err = fmt.Errorf("Device %s is not a dimmer", addr)
+			err = fmt.Errorf("Device %s is not a dimmer", dim.addr)
 		}
 	}
 	return err

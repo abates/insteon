@@ -29,7 +29,7 @@ type addrList []insteon.Address
 
 func (al *addrList) Set(str string) error {
 	for _, v := range strings.Split(str, ",") {
-		addr = insteon.Address{}
+		addr := insteon.Address{}
 		err := addr.Set(v)
 		if err != nil {
 			return err

@@ -80,6 +80,7 @@ func TestConnectionOptions(t *testing.T) {
 		{"Timeout Option", ConnectionTimeout(time.Hour), &connection{timeout: time.Hour}},
 		{"Filter Option", ConnectionFilter(CmdReadWriteALDB), &connection{match: []Command{CmdReadWriteALDB}}},
 		{"Mutex Option", ConnectionMutex(mu), &connection{Mutex: mu}},
+		{"TTL Option", ConnectionTTL(3), &connection{ttl: 3}},
 	}
 
 	for _, test := range tests {
