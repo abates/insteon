@@ -34,11 +34,11 @@ func (a Address) String() string { return sprintf("%02x.%02x.%02x", a[0], a[1], 
 // Insteon address. If the address cannot be parsed then
 // UnmarshalText returns an ErrAddressFormat error
 func (a *Address) UnmarshalText(text []byte) error {
-
 	// Support non-period separated input too.
 	if len(text) == 6 {
 		text = bytes.Join([][]byte{text[0:2], text[2:4], text[4:6]}, []byte("."))
 	}
+
 	if len(text) != 8 {
 		return ErrAddrFormat
 	}
@@ -51,6 +51,11 @@ func (a *Address) UnmarshalText(text []byte) error {
 	a[1] = b2
 	a[2] = b3
 	return nil
+}
+
+// Set satisfies the flag.Value interface
+func (a *Address) Set(str string) error {
+	return a.UnmarshalText([]byte(str))
 }
 
 // MarshalJSON will convert the address to a JSON string

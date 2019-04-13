@@ -16,7 +16,9 @@ package link
 
 import (
 	"errors"
-	"time"
+	"fmt"
+	"io"
+	"sort"
 
 	"github.com/abates/insteon"
 )
@@ -114,13 +116,16 @@ func ForceLink(group insteon.Group, controller, responder insteon.Linkable) (err
 	insteon.Log.Debugf("Putting controller %s into linking mode", controller)
 
 	// controller enters all-linking mode
+	// and waits for set-button message.  If not
+	// set-button message is received, err will
+	// be ErrReadTimeout
 	err = controller.EnterLinkingMode(group)
 
 	if err == nil {
 		defer controller.ExitLinkingMode()
-		// wait for set-button message
 
-		// responder pushes the set button responder
+		// responder pushes the set button responder and
+		// waits for the set-button message
 		insteon.Log.Debugf("Assigning responder to group")
 		err = responder.EnterLinkingMode(group)
 		defer responder.ExitLinkingMode()
@@ -151,18 +156,12 @@ func Unlink(group insteon.Group, controller, responder insteon.Linkable) (err er
 	err = controller.EnterUnlinkingMode(group)
 	defer controller.ExitLinkingMode()
 
-	// wait a moment for messages to propagate
-	time.Sleep(2 * time.Second)
-
 	// responder pushes the set button responder
 	if err == nil {
 		insteon.Log.Debugf("Unlinking responder from group")
 		err = responder.EnterLinkingMode(group)
 		defer responder.ExitLinkingMode()
 	}
-
-	// wait a moment for messages to propagate
-	time.Sleep(time.Second)
 
 	return
 }
@@ -178,24 +177,52 @@ func Link(group insteon.Group, controller, responder insteon.AddressableLinkable
 	controllerLink, err = FindLinkRecord(controller, true, responder.Address(), group)
 
 	if err == ErrLinkNotFound {
-		_, err := FindLinkRecord(responder, false, controller.Address(), group)
+		responderLink, err = FindLinkRecord(responder, false, controller.Address(), group)
 		if err == nil {
 			// found a responder link, but not a controller link
 			insteon.Log.Debugf("Controller link already exists, deleting it")
-			err = controller.RemoveLinks(controllerLink)
+			err = responder.RemoveLinks(responderLink)
 		}
 
 		if err == nil || err == ErrLinkNotFound {
-			ForceLink(group, controller, responder)
+			err = ForceLink(group, controller, responder)
 		}
-	} else {
-		responderLink, err = FindLinkRecord(responder, false, controller.Address(), group)
+	} else if err == nil {
+		_, err = FindLinkRecord(responder, false, controller.Address(), group)
 		if err == ErrLinkNotFound {
 			// found a controller link, but not a responder link
 			insteon.Log.Debugf("Responder link already exists, deleting it")
-			err = responder.RemoveLinks(responderLink)
-			ForceLink(group, controller, responder)
+			err = controller.RemoveLinks(controllerLink)
+			err = ForceLink(group, controller, responder)
 		}
+	}
+	return err
+}
+
+func PrintLinks(out io.Writer, linkable insteon.Linkable) error {
+	dbLinks, err := linkable.Links()
+	fmt.Fprintf(out, "Link Database:\n")
+	if len(dbLinks) > 0 {
+		fmt.Fprintf(out, "    Flags Group Address    Data\n")
+
+		links := make(map[string][]*insteon.LinkRecord)
+		for _, link := range dbLinks {
+			links[link.Address.String()] = append(links[link.Address.String()], link)
+		}
+
+		linkAddresses := []string{}
+		for linkAddress := range links {
+			linkAddresses = append(linkAddresses, linkAddress)
+		}
+		sort.Strings(linkAddresses)
+
+		for _, linkAddress := range linkAddresses {
+			for _, link := range links[linkAddress] {
+				fmt.Fprintf(out, "    %-5s %5s %8s   %02x %02x %02x\n", link.Flags, link.Group, link.Address, link.Data[0], link.Data[1], link.Data[2])
+			}
+		}
+	} else {
+		fmt.Fprintf(out, "    No links defined\n")
 	}
 	return err
 }

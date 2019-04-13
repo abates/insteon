@@ -16,39 +16,35 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
 )
 
-var sw insteon.Switch
-
-func init() {
-	cmd := Commands.Register("switch", "<command> <device id>", "Interact with a specific switch", swCmd)
-	cmd.Register("config", "", "retrieve switch configuration information", switchConfigCmd)
-	cmd.Register("on", "", "turn the switch/light on", switchOnCmd)
-	cmd.Register("off", "", "turn the switch/light off", switchOffCmd)
-	cmd.Register("status", "", "get the switch status", switchStatusCmd)
-	cmd.Register("setled", "", "set operating flags", switchSetLedCmd)
+type swtch struct {
+	insteon.Switch
+	addr insteon.Address
+	led  bool
 }
 
-func swCmd(args []string, next cli.NextFunc) (err error) {
-	if len(args) < 1 {
-		return fmt.Errorf("device id and action must be specified")
-	}
+func init() {
+	sw := swtch{}
 
-	var addr insteon.Address
-	err = addr.UnmarshalText([]byte(args[0]))
-	if err != nil {
-		return fmt.Errorf("invalid device address: %v", err)
-	}
+	swCmd := app.SubCommand("switch", cli.UsageOption("<device id> <command>"), cli.DescOption("Interact with a specific switch"), cli.CallbackOption(sw.init))
+	swCmd.Arguments.Var(&sw.addr, "<device id>")
+	swCmd.SubCommand("config", cli.DescOption("retrieve switch configuration information"), cli.CallbackOption(sw.switchConfigCmd))
+	swCmd.SubCommand("on", cli.DescOption("turn the switch/light on"), cli.CallbackOption(sw.switchOnCmd))
+	swCmd.SubCommand("off", cli.DescOption("turn the switch/light off"), cli.CallbackOption(sw.switchOffCmd))
+	swCmd.SubCommand("status", cli.DescOption("get the switch status"), cli.CallbackOption(sw.switchStatusCmd))
+	cmd := swCmd.SubCommand("setled", cli.DescOption("set operating flags"), cli.UsageOption("<true|false>"), cli.CallbackOption(sw.switchSetLedCmd))
+	cmd.Arguments.Bool(&sw.led, "<true|false>")
+}
 
+func (sw *swtch) init() (err error) {
 	device, err = devConnect(modem, addr)
 	if err == nil {
-		var ok bool
-		if sw, ok = device.(insteon.Switch); ok {
-			err = next()
+		if s, ok := device.(insteon.Switch); ok {
+			sw.Switch = s
 		} else {
 			err = fmt.Errorf("Device at %s is a %T not a switch", addr, device)
 		}
@@ -56,7 +52,7 @@ func swCmd(args []string, next cli.NextFunc) (err error) {
 	return err
 }
 
-func switchConfigCmd([]string, cli.NextFunc) error {
+func (sw *swtch) switchConfigCmd() error {
 	config, err := sw.SwitchConfig()
 	if err == nil {
 		err = printDevInfo(device, fmt.Sprintf("  X10 Address: %02x.%02x", config.HouseCode, config.UnitCode))
@@ -64,39 +60,19 @@ func switchConfigCmd([]string, cli.NextFunc) error {
 	return err
 }
 
-func switchOnCmd([]string, cli.NextFunc) error {
-	return sw.On()
-}
+func (sw *swtch) switchOnCmd() error     { return sw.On() }
+func (sw *swtch) switchOffCmd() error    { return sw.Off() }
+func (sw *swtch) switchSetCmd() error    { return nil }
+func (sw *swtch) switchSetLedCmd() error { return sw.SetLED(sw.led) }
 
-func switchOffCmd([]string, cli.NextFunc) error {
-	return sw.Off()
-}
-
-func switchStatusCmd([]string, cli.NextFunc) error {
+func (sw *swtch) switchStatusCmd() error {
 	level, err := sw.Status()
 	if err == nil {
 		if level == 0 {
 			fmt.Printf("Switch is off\n")
-		} else if level == 255 {
-			fmt.Printf("Switch is on\n")
 		} else {
-			fmt.Printf("Switch is on at level %d\n", level)
+			fmt.Printf("Switch is on\n")
 		}
-	}
-	return err
-}
-
-func switchSetCmd(args []string, next cli.NextFunc) error {
-	return next()
-}
-
-func switchSetLedCmd(args []string, next cli.NextFunc) error {
-	if len(args) < 2 {
-		return fmt.Errorf("Expected device address and flag value")
-	}
-	b, err := strconv.ParseBool(args[1])
-	if err == nil {
-		err = sw.SetLED(b)
 	}
 	return err
 }

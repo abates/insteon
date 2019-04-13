@@ -18,11 +18,11 @@ package main
 
 import "os"
 
-var EDITOR = ""
+var editor = ""
 
 func init() {
-	EDITOR = os.Getenv("EDITOR")
-	if EDITOR == "" {
-		EDITOR = "vi"
+	editor = os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
 	}
 }

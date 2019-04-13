@@ -19,7 +19,7 @@ import (
 	"testing"
 )
 
-func TestAddressUnmarshalText(t *testing.T) {
+func TestAddressSetUnmarshalText(t *testing.T) {
 	tests := []struct {
 		input   string
 		want    Address
@@ -39,7 +39,7 @@ func TestAddressUnmarshalText(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
 			address := Address{}
-			err := address.UnmarshalText([]byte(test.input))
+			err := address.Set(test.input)
 			if test.wantErr && err == nil {
 				t.Errorf("expected failure for UnmarshalText(%q)", test.input)
 			} else if !test.wantErr && err != nil {

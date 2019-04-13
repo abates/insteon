@@ -23,38 +23,28 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/link"
 	"github.com/abates/insteon/plm"
 )
 
 var device insteon.Device
+var addr insteon.Address
 
 func init() {
-	cmd := Commands.Register("device", "<command> <device id>", "Interact with a specific device", devCmd)
-	cmd.Register("info", "", "retrieve device info", devInfoCmd)
-	cmd.Register("link", "", "enter linking mode", devLinkCmd)
-	cmd.Register("unlink", "", "enter unlinking mode", devUnlinkCmd)
-	cmd.Register("exitlink", "", "exit linking mode", devExitLinkCmd)
-	cmd.Register("cleanup", "", "remove duplicate links in the all-link database", devCleanupCmd)
-	cmd.Register("dump", "", "dump the device all-link database", devDumpCmd)
-	cmd.Register("edit", "", "edit the device all-link database", devEditCmd)
-	cmd.Register("version", "<device id>", "Retrieve the Insteon engine version", devVersionCmd)
+	cmd := app.SubCommand("device", cli.UsageOption("<device id> <command>"), cli.DescOption("Interact with a specific device"), cli.CallbackOption(devCmd))
+	cmd.Arguments.Var(&addr, "<device id>")
+	cmd.SubCommand("info", cli.DescOption("retrieve device info"), cli.CallbackOption(devInfoCmd))
+	cmd.SubCommand("link", cli.DescOption("enter linking mode"), cli.CallbackOption(devLinkCmd))
+	cmd.SubCommand("unlink", cli.DescOption("enter unlinking mode"), cli.CallbackOption(devUnlinkCmd))
+	cmd.SubCommand("exitlink", cli.DescOption("exit linking mode"), cli.CallbackOption(devExitLinkCmd))
+	cmd.SubCommand("cleanup", cli.DescOption("remove duplicate links in the all-link database"), cli.CallbackOption(devCleanupCmd))
+	cmd.SubCommand("dump", cli.DescOption("dump the device all-link database"), cli.CallbackOption(devDumpCmd))
+	cmd.SubCommand("edit", cli.DescOption("edit the device all-link database"), cli.CallbackOption(devEditCmd))
+	cmd.SubCommand("version", cli.UsageOption("<device id>"), cli.DescOption("Retrieve the Insteon engine version"), cli.CallbackOption(devVersionCmd))
 }
 
-func devCmd(args []string, next cli.NextFunc) (err error) {
-	if len(args) < 1 {
-		return fmt.Errorf("device id and action must be specified")
-	}
-
-	var addr insteon.Address
-	err = addr.UnmarshalText([]byte(args[0]))
-	if err != nil {
-		return fmt.Errorf("invalid device address: %v", err)
-	}
-
+func devCmd() (err error) {
 	device, err = devConnect(modem, addr)
-	if err == nil {
-		err = next()
-	}
 	return err
 }
 
@@ -62,8 +52,9 @@ func devConnect(plm *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 	device, err := plm.Open(addr)
 	if err == insteon.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
-		if getResponse(msg, "y", "n") == "y" {
-			err = plmLinkCmd([]string{addr.String()}, nil)
+		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
+			pc := &plmCmd{addresses: []insteon.Address{addr}}
+			err = pc.linkCmd()
 		}
 
 		if err == nil {
@@ -80,32 +71,32 @@ func devLink(cb func(linkable insteon.LinkableDevice) error) error {
 	return fmt.Errorf("%v is not a linkable device", device)
 }
 
-func devLinkCmd([]string, cli.NextFunc) error {
+func devLinkCmd() error {
 	return devLink(func(linkable insteon.LinkableDevice) error {
 		return linkable.EnterLinkingMode(insteon.Group(0x01))
 	})
 }
 
-func devUnlinkCmd([]string, cli.NextFunc) error {
+func devUnlinkCmd() error {
 	return devLink(func(linkable insteon.LinkableDevice) error {
 		return linkable.EnterUnlinkingMode(insteon.Group(0x01))
 	})
 }
 
-func devExitLinkCmd([]string, cli.NextFunc) error {
+func devExitLinkCmd() error {
 	return devLink(func(linkable insteon.LinkableDevice) error {
 		return linkable.ExitLinkingMode()
 	})
 }
 
-func devDumpCmd([]string, cli.NextFunc) error {
+func devDumpCmd() error {
 	return devLink(func(linkable insteon.LinkableDevice) error {
 		err := dumpLinkDatabase(linkable)
 		return err
 	})
 }
 
-func devInfoCmd([]string, cli.NextFunc) (err error) {
+func devInfoCmd() (err error) {
 	return printDevInfo(device, "")
 }
 
@@ -122,13 +113,13 @@ func printDevInfo(device insteon.Device, extra string) (err error) {
 		}
 
 		err = devLink(func(linkable insteon.LinkableDevice) error {
-			return printLinkDatabase(linkable)
+			return link.PrintLinks(os.Stdout, linkable)
 		})
 	}
 	return err
 }
 
-func devVersionCmd([]string, cli.NextFunc) error {
+func devVersionCmd() error {
 	firmware, _, err := device.IDRequest()
 	if err == nil {
 		fmt.Printf("Device version: %s\n", firmware)
@@ -136,7 +127,7 @@ func devVersionCmd([]string, cli.NextFunc) error {
 	return err
 }
 
-func devEditCmd([]string, cli.NextFunc) error {
+func devEditCmd() error {
 	return devLink(func(linkable insteon.LinkableDevice) error {
 		dbLinks, _ := linkable.Links()
 		if len(dbLinks) == 0 {
@@ -166,7 +157,7 @@ func devEditCmd([]string, cli.NextFunc) error {
 		tmpfile.Write(buf.Bytes())
 
 		if err = tmpfile.Close(); err == nil {
-			cmd := exec.Command(EDITOR, tmpfile.Name())
+			cmd := exec.Command(editor, tmpfile.Name())
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -216,6 +207,6 @@ func devEditCmd([]string, cli.NextFunc) error {
 	})
 }
 
-func devCleanupCmd([]string, cli.NextFunc) error {
+func devCleanupCmd() error {
 	return nil
 }

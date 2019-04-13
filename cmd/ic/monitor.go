@@ -21,10 +21,10 @@ import (
 )
 
 func init() {
-	Commands.Register("monitor", "", "Monitor the Insteon network", monCmd)
+	app.SubCommand("monitor", cli.DescOption("Monitor the Insteon network"), cli.CallbackOption(monCmd))
 }
 
-func monCmd([]string, cli.NextFunc) error {
+func monCmd() error {
 	log.Printf("Starting monitor...")
 	/*for msg := range modem.Monitor() {
 		log.Printf("%s", msg)
