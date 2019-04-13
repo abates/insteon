@@ -229,7 +229,7 @@ func (conn *connection) Send(msg *Message) (ack *Message, err error) {
 		if err == nil && (ack.Ack() || ack.Nak()) {
 			break
 		} else if timeout.Before(time.Now()) {
-			err = ErrReadTimeout
+			err = ErrAckTimeout
 		}
 	}
 

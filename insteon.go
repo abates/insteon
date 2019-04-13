@@ -28,6 +28,10 @@ var (
 	// a specific message
 	ErrReadTimeout = errors.New("Read Timeout")
 
+	// ErrAckTimeout indicates the timeout period expired while waiting for
+	// ack message for a previously sent Direct message
+	ErrAckTimeout = errors.New("Ack Timeout")
+
 	// ErrWriteTimeout indicates the timeout period expired while waiting to
 	// write a message
 	ErrWriteTimeout = errors.New("Write Timeout")
