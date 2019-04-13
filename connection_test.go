@@ -103,7 +103,7 @@ func TestConnectionSend(t *testing.T) {
 		{"I1 Send", TestProductDataResponse, nil},
 		{"I2 Send", TestProductDataResponse, nil},
 		{"I2Cs Send", TestProductDataResponse, nil},
-		{"I2Cs Send", TestProductDataResponse, ErrReadTimeout},
+		{"I2Cs Send", TestProductDataResponse, ErrAckTimeout},
 	}
 
 	for _, test := range tests {
