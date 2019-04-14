@@ -60,7 +60,7 @@ type PLM struct {
 type Option func(p *PLM) error
 
 // New creates a new PLM instance.
-func New(port *Port, timeout time.Duration, options ...Option) *PLM {
+func New(port *Port, timeout time.Duration, options ...Option) (*PLM, error) {
 	plm := &PLM{
 		timeout:     timeout,
 		writeDelay:  500 * time.Millisecond,
@@ -73,15 +73,14 @@ func New(port *Port, timeout time.Duration, options ...Option) *PLM {
 	for _, o := range options {
 		err := o(plm)
 		if err != nil {
-			insteon.Log.Infof("error setting option %v: %v", err, err)
-			return nil
-			// TODO: change New() to return an error if there's an error
+			insteon.Log.Infof("error setting plm option: %v", err)
+			return nil, err
 		}
 	}
 
 	go plm.readLoop()
 	go plm.writeLoop()
-	return plm
+	return plm, nil
 }
 
 // WriteDelay can be passed as a parameter to New to change the delay used after writing a command before reading the response.
@@ -189,12 +188,16 @@ func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
 	return plm.tx(txPacket)
 }
 
-func (plm *PLM) Connect(addr insteon.Address, options ...insteon.ConnectionOption) insteon.Connection {
+func (plm *PLM) Connect(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Connection, error) {
 	return insteon.NewConnection(plm.insteonTxCh, plm.insteonRxCh, addr, options...)
 }
 
 func (plm *PLM) Open(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Device, error) {
-	conn := plm.Connect(addr, options...)
+	conn, err := plm.Connect(addr, options...)
+	if err != nil {
+		return nil, err
+	}
+
 	return insteon.Open(conn, plm.timeout)
 }
 

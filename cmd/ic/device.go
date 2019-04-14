@@ -51,7 +51,8 @@ func (dev *device) init() (err error) {
 }
 
 func connect(plm *plm.PLM, addr insteon.Address) (insteon.Device, error) {
-	device, err := plm.Open(addr)
+	device, err := plm.Open(addr, insteon.ConnectionTimeout(timeoutFlag), insteon.ConnectionTTL(uint8(ttlFlag)))
+
 	if err == insteon.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {

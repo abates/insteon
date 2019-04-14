@@ -56,10 +56,16 @@ func run() error {
 
 	s, err := serial.OpenPort(c)
 
-	if err == nil {
-		modem = plm.New(plm.NewPort(s, timeoutFlag), timeoutFlag, plm.WriteDelay(writeDelayFlag))
+	if err != nil {
+		return fmt.Errorf("error opening serial port: %v", err)
 	}
-	return err
+
+	modem, err = plm.New(plm.NewPort(s, timeoutFlag), timeoutFlag, plm.WriteDelay(writeDelayFlag))
+	if err != nil {
+		return fmt.Errorf("error opening plm: %v", err)
+	}
+
+	return nil
 }
 
 func main() {
