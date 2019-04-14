@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"fmt"
 	"io"
 	"reflect"
 	"sync"
@@ -110,7 +111,11 @@ func TestConnectionSend(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			txCh := make(chan *Message, 1)
 			rxCh := make(chan *Message, 1)
-			conn := NewConnection(txCh, rxCh, Address{}, ConnectionTimeout(time.Millisecond))
+			conn, err := NewConnection(txCh, rxCh, Address{}, ConnectionTimeout(time.Millisecond))
+			if err != nil {
+				t.Errorf("Unexpected error from NewCOnnection(): %v", err)
+			}
+
 			go func() {
 				<-txCh
 				if test.expectedErr == nil {
@@ -126,12 +131,45 @@ func TestConnectionSend(t *testing.T) {
 				}
 			}()
 
-			_, err := conn.Send(test.input)
+			_, err = conn.Send(test.input)
 			if err != test.expectedErr {
 				t.Errorf("Want %v got %v", test.expectedErr, err)
 			}
 			if closer, ok := conn.(io.Closer); ok {
 				closer.Close()
+			}
+		})
+	}
+}
+
+func TestNewConnectionTTL(t *testing.T) {
+	tests := []struct {
+		ttl     uint8
+		wantErr string
+	}{
+		{0, ""},
+		{1, ""},
+		{2, ""},
+		{3, ""},
+		{4, "invalid ttl 4, must be in range 0-3"},
+		{254, "invalid ttl 254, must be in range 0-3"},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("ttl %d", tt.ttl), func(t *testing.T) {
+			_, err := NewConnection(
+				make(chan *Message, 1),
+				make(chan *Message, 1),
+				Address{},
+				ConnectionTTL(tt.ttl),
+			)
+
+			// TODO: consider switching to cmp package
+			var got string
+			if err != nil {
+				got = fmt.Sprintf("%v", err)
+			}
+			if got != tt.wantErr {
+				t.Errorf("got error %q, want %q", got, tt.wantErr)
 			}
 		})
 	}
@@ -155,8 +193,12 @@ func TestConnectionReceive(t *testing.T) {
 			txCh := make(chan *Message, 1)
 			rxCh := make(chan *Message, 1)
 			rxCh <- test.input
-			conn := NewConnection(txCh, rxCh, Address{}, ConnectionFilter(test.match), ConnectionTimeout(time.Millisecond))
-			_, err := conn.Receive()
+			conn, err := NewConnection(txCh, rxCh, Address{}, ConnectionFilter(test.match), ConnectionTimeout(time.Millisecond))
+			if err != nil {
+				t.Errorf("Unexpected error from NewCOnnection(): %v", err)
+			}
+
+			_, err = conn.Receive()
 
 			if test.expectedErr != err {
 				t.Errorf("want %v got %v", test.expectedErr, err)

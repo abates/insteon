@@ -171,7 +171,7 @@ func (ml *msgListeners) AddListener(t MessageType, cmds ...Command) <-chan *Mess
 // NewConnection will return a connection that is setup and ready to be used.  The txCh and
 // rxCh will be used to send and receive insteon messages.  Any supplied options will be
 // used to customize the connection's config
-func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, options ...ConnectionOption) Connection {
+func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, options ...ConnectionOption) (Connection, error) {
 	conn := &connection{
 		Mutex:        &sync.Mutex{},
 		msgListeners: &msgListeners{listeners: make(map[<-chan *Message]*msgListener)},
@@ -189,12 +189,12 @@ func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, opt
 		err := option(conn)
 		if err != nil {
 			Log.Infof("error setting connection option: %v", err)
-			// TODO: return an error if there's an error
+			return nil, err
 		}
 	}
 
 	go conn.readLoop()
-	return conn
+	return conn, nil
 }
 
 func (conn *connection) Address() Address {

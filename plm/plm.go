@@ -188,12 +188,16 @@ func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
 	return plm.tx(txPacket)
 }
 
-func (plm *PLM) Connect(addr insteon.Address, options ...insteon.ConnectionOption) insteon.Connection {
+func (plm *PLM) Connect(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Connection, error) {
 	return insteon.NewConnection(plm.insteonTxCh, plm.insteonRxCh, addr, options...)
 }
 
 func (plm *PLM) Open(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Device, error) {
-	conn := plm.Connect(addr, options...)
+	conn, err := plm.Connect(addr, options...)
+	if err != nil {
+		return nil, err
+	}
+
 	return insteon.Open(conn, plm.timeout)
 }
 
