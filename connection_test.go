@@ -211,17 +211,19 @@ func TestConnectionReceive(t *testing.T) {
 }
 
 func TestConnectionIDRequest(t *testing.T) {
-	txCh := make(chan *Message, 1)
-	conn := &connection{txCh: txCh, msgCh: make(chan *Message, 2), timeout: time.Nanosecond}
+	txCh := make(chan *Message)
+	conn := &connection{txCh: txCh, msgCh: make(chan *Message), timeout: time.Nanosecond}
 
 	wantVersion := FirmwareVersion(42)
 	wantDevCat := DevCat{07, 79}
 
-	conn.msgCh <- TestAck
-	conn.msgCh <- &Message{Dst: Address{07, 79, 42}, Command: Command{0, 1}, Flags: StandardBroadcast}
+	go func() {
+		<-txCh
+		conn.msgCh <- TestAck
+		conn.msgCh <- &Message{Dst: Address{07, 79, 42}, Command: Command{0, 1}, Flags: StandardBroadcast}
+	}()
 
 	gotVersion, gotDevCat, err := conn.IDRequest()
-	<-txCh
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	} else if gotVersion != wantVersion {
@@ -232,6 +234,7 @@ func TestConnectionIDRequest(t *testing.T) {
 
 	// sad path
 	go func() {
+		<-txCh
 		conn.msgCh <- TestAck
 		conn.msgCh <- TestMessagePing
 		conn.msgCh <- TestMessagePing
@@ -279,7 +282,7 @@ func TestConnectionEngineVersion(t *testing.T) {
 }
 
 func TestMsgListeners(t *testing.T) {
-	ml := &msgListeners{listeners: make(map[<-chan *Message]*msgListener)}
+	ml := &msgListeners{listeners: make(map[<-chan *Message]*msgListener), bufLen: 1}
 	ch1 := ml.AddListener(MsgTypeDirect, CmdPing)
 	ch2 := ml.AddListener(MsgTypeBroadcast, CmdPing)
 	ch3 := ml.AddListener(MsgTypeDirect, CmdReadWriteALDB)

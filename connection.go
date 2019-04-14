@@ -134,6 +134,7 @@ type msgListener struct {
 type msgListeners struct {
 	mu        sync.Mutex
 	listeners map[<-chan *Message]*msgListener
+	bufLen    int
 }
 
 func (ml *msgListeners) deliver(msg *Message) {
@@ -161,7 +162,7 @@ func (ml *msgListeners) RemoveListener(ch <-chan *Message) {
 }
 
 func (ml *msgListeners) AddListener(t MessageType, cmds ...Command) <-chan *Message {
-	ch := make(chan *Message, 1)
+	ch := make(chan *Message, ml.bufLen)
 	ml.mu.Lock()
 	ml.listeners[ch] = &msgListener{ch, t, cmds}
 	ml.mu.Unlock()
@@ -181,7 +182,7 @@ func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, opt
 
 		txCh:    txCh,
 		rxCh:    rxCh,
-		msgCh:   make(chan *Message, 10),
+		msgCh:   make(chan *Message),
 		closeCh: make(chan chan error),
 	}
 
@@ -297,12 +298,10 @@ func (conn *connection) EngineVersion() (version EngineVersion, err error) {
 }
 
 func readFromCh(ch <-chan *Message, timeout time.Duration) (msg *Message, err error) {
-	if err == nil {
-		select {
-		case msg = <-ch:
-		case <-time.After(timeout):
-			err = ErrReadTimeout
-		}
+	select {
+	case msg = <-ch:
+	case <-time.After(timeout):
+		err = ErrReadTimeout
 	}
 	return
 }
