@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -82,38 +83,45 @@ type connection struct {
 }
 
 // ConnectionOption provides a means to customize the connection config
-type ConnectionOption func(*connection)
+type ConnectionOption func(*connection) error
 
 // ConnectionTTL will set the connection's time to live flag
 func ConnectionTTL(ttl uint8) ConnectionOption {
-	return func(conn *connection) {
+	return func(conn *connection) error {
+		if ttl < 0 || ttl > 3 {
+			return fmt.Errorf("invalid ttl %d, must be in range 0-3", ttl)
+		}
 		conn.ttl = ttl
+		return nil
 	}
 }
 
 // ConnectionTimeout is a ConnectionOption that will set the connection's read
 // timeout
 func ConnectionTimeout(timeout time.Duration) ConnectionOption {
-	return func(conn *connection) {
+	return func(conn *connection) error {
 		conn.timeout = timeout
+		return nil
 	}
 }
 
 // ConnectionFilter will configure the connection to filter all traffic
 // except messages with matching commands
 func ConnectionFilter(match ...Command) ConnectionOption {
-	return func(conn *connection) {
+	return func(conn *connection) error {
 		conn.match = match
+		return nil
 	}
 }
 
 // ConnectionMutex provides a way to set the underlying Mutex.  This allows a global
 // mutex to be used (as in the case of a PLM)
 func ConnectionMutex(mu *sync.Mutex) ConnectionOption {
-	return func(conn *connection) {
+	return func(conn *connection) error {
 		if conn != nil {
 			conn.Mutex = mu
 		}
+		return nil
 	}
 }
 
@@ -178,7 +186,11 @@ func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, opt
 	}
 
 	for _, option := range options {
-		option(conn)
+		err := option(conn)
+		if err != nil {
+			Log.Infof("error setting connection option: %v", err)
+			// TODO: return an error if there's an error
+		}
 	}
 
 	go conn.readLoop()
