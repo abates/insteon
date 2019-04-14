@@ -129,7 +129,17 @@ func (plm *PLM) writeLoop() {
 		if err == nil {
 			// slice off the source address since the PLM doesn't want it
 			buf = buf[3:]
-			_, err = plm.send(&Packet{Command: 0x62, Payload: buf})
+
+			writeDelay := plm.writeDelay
+			if writeDelay == 0 {
+				// wait 2 * ttl * message length zero crossings
+				if msg.Flags.Extended() {
+					writeDelay = time.Second * time.Duration(26*msg.Flags.TTL()) / 60
+				} else {
+					writeDelay = time.Second * time.Duration(12*msg.Flags.TTL()) / 60
+				}
+			}
+			_, err = plm.send(&Packet{Command: 0x62, Payload: buf}, writeDelay)
 			if err != nil {
 				insteon.Log.Infof("Failed to send packet: %v", err)
 			}
@@ -142,7 +152,7 @@ func (plm *PLM) writeLoop() {
 // transmit a packet and wait for the PLM to ack that the packet was
 // sent.  This is a blocking function. Only callers that have acquired
 // the mutex shoud call this function
-func (plm *PLM) tx(txPacket *Packet) (ack *Packet, err error) {
+func (plm *PLM) tx(txPacket *Packet, writeDelay time.Duration) (ack *Packet, err error) {
 	buf, err := txPacket.MarshalBinary()
 	if err == nil {
 		if time.Now().Before(plm.nextWrite) {
@@ -150,11 +160,7 @@ func (plm *PLM) tx(txPacket *Packet) (ack *Packet, err error) {
 		}
 
 		plm.port.Write(buf)
-		if 0x61 <= txPacket.Command && txPacket.Command <= 0x63 {
-			plm.nextWrite = time.Now().Add(plm.writeDelay)
-		} else {
-			plm.nextWrite = time.Now()
-		}
+		plm.nextWrite = time.Now().Add(writeDelay)
 
 		// loop until either timeout or the appropriate ack is received
 		timeout := time.Now().Add(plm.timeout)
@@ -182,10 +188,10 @@ func (plm *PLM) tx(txPacket *Packet) (ack *Packet, err error) {
 
 // send a packet and wait for the PLM to ack that the packet was
 // sent.  This is a blocking function
-func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
+func (plm *PLM) send(txPacket *Packet, writeDelay time.Duration) (ack *Packet, err error) {
 	plm.Lock()
 	defer plm.Unlock()
-	return plm.tx(txPacket)
+	return plm.tx(txPacket, writeDelay)
 }
 
 func (plm *PLM) Connect(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Connection, error) {
@@ -201,15 +207,15 @@ func (plm *PLM) Open(addr insteon.Address, options ...insteon.ConnectionOption) 
 	return insteon.Open(conn, plm.timeout)
 }
 
-// Retry will deliver a packet to the Insteon network. If delivery fails (due
+// retry will deliver a packet to the Insteon network. If delivery fails (due
 // to a NAK from the PLM) then we will retry and decrement retries. This
 // continues until the packet is sent (as acknowledged by the PLM) or retries
 // reaches zero
-func (plm *PLM) Retry(packet *Packet, retries int) (ack *Packet, err error) {
+func (plm *PLM) retry(packet *Packet, retries int) (ack *Packet, err error) {
 	plm.Lock()
 	defer plm.Unlock()
 	for err == ErrNak && retries > 0 {
-		ack, err = plm.tx(packet)
+		ack, err = plm.tx(packet, 0)
 		retries--
 	}
 
@@ -221,7 +227,7 @@ func (plm *PLM) Retry(packet *Packet, retries int) (ack *Packet, err error) {
 }
 
 func (plm *PLM) Info() (*Info, error) {
-	ack, err := plm.send(&Packet{Command: CmdGetInfo})
+	ack, err := plm.send(&Packet{Command: CmdGetInfo}, 0)
 	if err == nil {
 		info := &Info{}
 		err := info.UnmarshalBinary(ack.Payload)
@@ -234,7 +240,7 @@ func (plm *PLM) Reset() error {
 	timeout := plm.timeout
 	plm.timeout = 20 * time.Second
 
-	ack, err := plm.send(&Packet{Command: CmdReset})
+	ack, err := plm.send(&Packet{Command: CmdReset}, 0)
 
 	if err == nil && ack.NAK() {
 		err = ErrNak
@@ -244,7 +250,7 @@ func (plm *PLM) Reset() error {
 }
 
 func (plm *PLM) Config() (*Config, error) {
-	ack, err := plm.send(&Packet{Command: CmdGetConfig})
+	ack, err := plm.send(&Packet{Command: CmdGetConfig}, 0)
 	if err == nil && ack.NAK() {
 		err = ErrNak
 	} else if err == nil {
@@ -257,7 +263,7 @@ func (plm *PLM) Config() (*Config, error) {
 
 func (plm *PLM) SetConfig(config *Config) error {
 	payload, _ := config.MarshalBinary()
-	ack, err := plm.send(&Packet{Command: CmdSetConfig, Payload: payload})
+	ack, err := plm.send(&Packet{Command: CmdSetConfig, Payload: payload}, 0)
 	if err == nil && ack.NAK() {
 		err = ErrNak
 	}

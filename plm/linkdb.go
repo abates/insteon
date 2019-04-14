@@ -84,7 +84,7 @@ func (plm *PLM) Links() ([]*insteon.LinkRecord, error) {
 	defer plm.Unlock()
 	links := make([]*insteon.LinkRecord, 0)
 	insteon.Log.Debugf("Retrieving PLM link database")
-	_, err := plm.tx(&Packet{Command: CmdGetFirstAllLink})
+	_, err := plm.tx(&Packet{Command: CmdGetFirstAllLink}, 0)
 	// TODO: does this loop need a timeout as well?  If, for
 	// some reason, we are receiving packets on the plmCh, but
 	// none of them are AllLinkRecordResponses, then this will
@@ -98,7 +98,7 @@ func (plm *PLM) Links() ([]*insteon.LinkRecord, error) {
 				if err == nil {
 					insteon.Log.Debugf("Received PLM record response %v", link)
 					links = append(links, link)
-					_, err = plm.tx(&Packet{Command: CmdGetNextAllLink})
+					_, err = plm.tx(&Packet{Command: CmdGetNextAllLink}, 0)
 				} else {
 					insteon.Log.Infof("Failed to unmarshal link record: %v", err)
 					break
@@ -134,7 +134,7 @@ func (plm *PLM) RemoveLinks(oldLinks ...*insteon.LinkRecord) (err error) {
 			for i := 0; i < numDelete; i++ {
 				rr := &manageRecordRequest{command: LinkCmdDeleteFirst, link: oldLink}
 				payload, _ := rr.MarshalBinary()
-				_, err = plm.send(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
+				_, err = plm.send(&Packet{Command: CmdManageAllLinkRecord, Payload: payload}, 0)
 				if err != nil {
 					insteon.Log.Infof("Failed to remove link: %v", err)
 					break
@@ -164,7 +164,7 @@ func (plm *PLM) AddLink(newLink *insteon.LinkRecord) error {
 	}
 	rr := &manageRecordRequest{command: command, link: newLink}
 	payload, _ := rr.MarshalBinary()
-	resp, err := plm.send(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
+	resp, err := plm.send(&Packet{Command: CmdManageAllLinkRecord, Payload: payload}, 0)
 
 	if resp.NAK() {
 		err = fmt.Errorf("Failed to add link back to ALDB")
@@ -205,7 +205,7 @@ func (plm *PLM) AddManualLink(group insteon.Group) error {
 func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0x03), Group: group}
 	payload, _ := lr.MarshalBinary()
-	ack, err := plm.Retry(&Packet{
+	ack, err := plm.retry(&Packet{
 		Command: CmdStartAllLink,
 		Payload: payload,
 	}, 3)
@@ -217,7 +217,7 @@ func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 }
 
 func (plm *PLM) ExitLinkingMode() error {
-	ack, err := plm.Retry(&Packet{
+	ack, err := plm.retry(&Packet{
 		Command: CmdCancelAllLink,
 	}, 3)
 
@@ -230,7 +230,7 @@ func (plm *PLM) ExitLinkingMode() error {
 func (plm *PLM) EnterUnlinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0xff), Group: group}
 	payload, _ := lr.MarshalBinary()
-	ack, err := plm.Retry(&Packet{
+	ack, err := plm.retry(&Packet{
 		Command: CmdStartAllLink,
 		Payload: payload,
 	}, 3)
