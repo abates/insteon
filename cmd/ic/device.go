@@ -75,25 +75,25 @@ func devLink(device insteon.Device, cb func(dev insteon.LinkableDevice) error) e
 }
 
 func (dev *device) linkCmd() error {
-	return devLink(dev, func(linkable insteon.LinkableDevice) error {
+	return devLink(dev.Device, func(linkable insteon.LinkableDevice) error {
 		return linkable.EnterLinkingMode(insteon.Group(0x01))
 	})
 }
 
 func (dev *device) unlinkCmd() error {
-	return devLink(dev, func(linkable insteon.LinkableDevice) error {
+	return devLink(dev.Device, func(linkable insteon.LinkableDevice) error {
 		return linkable.EnterUnlinkingMode(insteon.Group(0x01))
 	})
 }
 
 func (dev *device) exitLinkCmd() error {
-	return devLink(dev, func(linkable insteon.LinkableDevice) error {
+	return devLink(dev.Device, func(linkable insteon.LinkableDevice) error {
 		return linkable.ExitLinkingMode()
 	})
 }
 
 func (dev *device) dumpCmd() error {
-	return devLink(dev, func(linkable insteon.LinkableDevice) error {
+	return devLink(dev.Device, func(linkable insteon.LinkableDevice) error {
 		err := dumpLinkDatabase(linkable)
 		return err
 	})
@@ -131,7 +131,7 @@ func (dev *device) versionCmd() error {
 }
 
 func (dev *device) editCmd() error {
-	return devLink(dev, func(linkable insteon.LinkableDevice) error {
+	return devLink(dev.Device, func(linkable insteon.LinkableDevice) error {
 		dbLinks, _ := linkable.Links()
 		if len(dbLinks) == 0 {
 			return fmt.Errorf("No links to edit")
