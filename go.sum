@@ -1,0 +1,6 @@
+github.com/abates/cli v0.0.0-20190413144006-a1535049783a h1:rtd9lcTMcaypKhjXNjUFKmqiSVmf1HpWe5JmX9HjZbg=
+github.com/abates/cli v0.0.0-20190413144006-a1535049783a/go.mod h1:IbI6wKYxWh1jh6mn/SWJwXvsoYzIzW1aoddwzXKhZWo=
+github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07 h1:UyzmZLoiDWMRywV4DUYb9Fbt8uiOSooupjTq10vpvnU=
+github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07/go.mod h1:kDXzergiv9cbyO7IOYJZWg1U88JhDg3PB6klq9Hg2pA=
+golang.org/x/sys v0.0.0-20190412213103-97732733099d h1:+R4KGOnez64A81RvjARKc4UT5/tI9ujCIVX+P5KiHuI=
+golang.org/x/sys v0.0.0-20190412213103-97732733099d/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
