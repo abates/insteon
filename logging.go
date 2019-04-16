@@ -44,6 +44,8 @@ func (ll LogLevel) String() string {
 	return ""
 }
 
+// Set sets the LogLevel to the matching input string.  This function
+// satisfies the Set function for the flag.Value interface
 func (ll *LogLevel) Set(s string) (err error) {
 	switch s {
 	case "none":
@@ -59,6 +61,8 @@ func (ll *LogLevel) Set(s string) (err error) {
 	return err
 }
 
+// Get returns the underlying LogLevel value in order to satisfy the
+// flag.Value interface
 func (ll *LogLevel) Get() interface{} {
 	return LogLevel(*ll)
 }
