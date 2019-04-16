@@ -27,6 +27,8 @@ import (
 // use
 type RecordControlFlags byte
 
+// RecordControlFlags indicating the different availability/type of
+// link records
 const (
 	AvailableController   = RecordControlFlags(0x40)
 	UnavailableController = RecordControlFlags(0xc0)
