@@ -39,7 +39,7 @@ func (config *Config) DeadmanMode() bool      { return (*config)&0x10 == 0x10 }
 func (config *Config) setDeadmanMode()        { config.setBit(4) }
 func (config *Config) clearDeadmanMode()      { config.clearBit(4) }
 
-func (config *Config) String() string {
+func (config Config) String() string {
 	str := ""
 	if config.AutomaticLinking() {
 		str += "L"
