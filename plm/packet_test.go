@@ -95,25 +95,6 @@ func TestPacketMarshalBinary(t *testing.T) {
 	}
 }
 
-func TestPacketString(t *testing.T) {
-	tests := []struct {
-		input    *Packet
-		expected string
-	}{
-		{&Packet{Command: CmdGetInfo, Ack: 0x06}, fmt.Sprintf("%v ACK", CmdGetInfo)},
-		{&Packet{Command: CmdGetInfo, Ack: 0x15}, fmt.Sprintf("%v NAK", CmdGetInfo)},
-	}
-
-	for _, test := range tests {
-		t.Run(test.expected, func(t *testing.T) {
-			str := test.input.String()
-			if str != test.expected {
-				t.Errorf("got %q, want %q", str, test.expected)
-			}
-		})
-	}
-}
-
 func TestPacketFormat(t *testing.T) {
 	tests := []struct {
 		format   string
