@@ -127,7 +127,7 @@ func (p *plmCmd) link(crosslink bool) error {
 	return nil
 }
 
-func (p *plmCmd) allLinkCmd() error { return modem.AddManualLink(insteon.Group(0x01)) }
+func (p *plmCmd) allLinkCmd() error { return modem.EnterLinkingMode(insteon.Group(0x01)) }
 
 func (p *plmCmd) unlinkCmd() (err error) {
 	group := insteon.Group(0x01)
