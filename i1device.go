@@ -15,12 +15,14 @@
 package insteon
 
 import (
+	"sync"
 	"time"
 )
 
 // i1Device provides remote communication to version 1 engines
 type i1Device struct {
 	Connection
+	cmdMutex        sync.Mutex
 	devCat          DevCat
 	firmwareVersion FirmwareVersion
 	timeout         time.Duration
@@ -38,7 +40,13 @@ func newI1Device(connection Connection, timeout time.Duration) *i1Device {
 	return i1
 }
 
-func (i1 *i1Device) sendCommand(command Command, payload []byte) (response Command, err error) {
+// SendCommand will send the given command bytes to the device including
+// a payload (for extended messages). If payload length is zero then a standard
+// length message is used to deliver the commands. The command bytes from the
+// response ack are returned as well as any error
+func (i1 *i1Device) SendCommand(command Command, payload []byte) (response Command, err error) {
+	i1.cmdMutex.Lock()
+	defer i1.cmdMutex.Unlock()
 	flags := StandardDirectMessage
 	if len(payload) > 0 {
 		flags = ExtendedDirectMessage
@@ -78,17 +86,6 @@ func errLookup(msg *Message, err error) (*Message, error) {
 	return msg, err
 }
 
-// SendCommand will send the given command bytes to the device including
-// a payload (for extended messages). If payload length is zero then a standard
-// length message is used to deliver the commands. The command bytes from the
-// response ack are returned as well as any error
-func (i1 *i1Device) SendCommand(command Command, payload []byte) (response Command, err error) {
-	i1.Lock()
-	defer i1.Unlock()
-
-	return i1.sendCommand(command, payload)
-}
-
 func extractError(v interface{}, err error) error {
 	return err
 }
@@ -110,7 +107,7 @@ func (i1 *i1Device) ProductData() (data *ProductData, err error) {
 	i1.Lock()
 	defer i1.Unlock()
 
-	_, err = i1.sendCommand(CmdProductDataReq, nil)
+	_, err = i1.SendCommand(CmdProductDataReq, nil)
 	timeout := time.Now().Add(i1.timeout)
 	for err == nil {
 		var msg *Message
@@ -128,6 +125,8 @@ func (i1 *i1Device) ProductData() (data *ProductData, err error) {
 
 // Ping will send a Ping command to the device
 func (i1 *i1Device) Ping() (err error) {
+	i1.Lock()
+	defer i1.Unlock()
 	return extractError(i1.SendCommand(CmdPing, nil))
 }
 

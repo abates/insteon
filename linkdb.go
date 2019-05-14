@@ -14,6 +14,11 @@
 
 package insteon
 
+import (
+	"errors"
+	"time"
+)
+
 const (
 	// BaseLinkDBAddress is the base address of devices All-Link database
 	BaseLinkDBAddress = MemAddress(0x0fff)
@@ -21,6 +26,8 @@ const (
 	// LinkRecordSize is the size, in bytes, of a single All-Link record
 	LinkRecordSize = MemAddress(8)
 )
+
+var ErrLinkIndexOutOfRange = errors.New("Link index is beyond the bounds of the link database")
 
 // MemAddress is an integer representing a specific location in a device's memory
 type MemAddress int
@@ -90,7 +97,6 @@ func (lr *linkRequest) UnmarshalBinary(buf []byte) (err error) {
 
 	if lr.Link != nil {
 		err = lr.Link.UnmarshalBinary(buf[5:])
-		lr.Link.memAddress = lr.MemAddress
 	}
 	return err
 }
@@ -116,4 +122,178 @@ func (lr *linkRequest) MarshalBinary() (buf []byte, err error) {
 		copy(buf[5:], linkData)
 	}
 	return buf, err
+}
+
+const (
+	maxAge = time.Second * 10
+)
+
+type linkdb struct {
+	age     time.Time
+	links   []*LinkRecord
+	device  Device
+	timeout time.Duration
+}
+
+func (ldb *linkdb) old() bool {
+	return ldb.age.Add(ldb.timeout).Before(time.Now())
+}
+
+func (ldb *linkdb) refresh() error {
+	if !ldb.old() {
+		return nil
+	}
+	ldb.links = nil
+	Log.Debugf("Retrieving Device link database")
+	lastAddress := MemAddress(0)
+	buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
+	_, err := ldb.device.SendCommand(CmdReadWriteALDB, buf)
+
+	timeout := time.Now().Add(ldb.timeout)
+	for err == nil {
+		var msg *Message
+		msg, err = ldb.device.Receive()
+		if err == nil && msg.Flags.Extended() && msg.Command[1] == CmdReadWriteALDB[1] {
+			lr := &linkRequest{}
+			err = lr.UnmarshalBinary(msg.Payload)
+			// make sure there was no error unmarshalling, also make sure
+			// that it's a new memory address.  Since insteon messages
+			// are retransmitted, it is possible that the same ALDB response
+			// will be received more than once
+			if err == nil && lr.MemAddress != lastAddress {
+				lastAddress = lr.MemAddress
+				ldb.links = append(ldb.links, lr.Link)
+				if lr.Link.Flags.LastRecord() {
+					break
+				}
+			}
+			timeout = time.Now().Add(ldb.timeout)
+		} else if timeout.Before(time.Now()) {
+			err = ErrReadTimeout
+		}
+	}
+
+	if err == nil {
+		ldb.age = time.Now()
+	}
+	return err
+}
+
+// Links will retrieve the link-database from the device and
+// return a list of LinkRecords
+func (ldb *linkdb) Links() ([]*LinkRecord, error) {
+	ldb.device.Lock()
+	defer ldb.device.Unlock()
+	var err error
+	err = ldb.refresh()
+	return ldb.links, err
+}
+
+func (ldb *linkdb) writeLink(index int, link *LinkRecord) (err error) {
+	if index > len(ldb.links) {
+		return ErrLinkIndexOutOfRange
+	}
+	memAddress := BaseLinkDBAddress - (MemAddress(index) * LinkRecordSize)
+	buf, _ := (&linkRequest{MemAddress: memAddress, Type: writeLink, Link: link}).MarshalBinary()
+	_, err = ldb.device.SendCommand(CmdReadWriteALDB, buf)
+	if err == nil {
+		if link.Flags.LastRecord() {
+			// if the last record comes before the end of the cached links then
+			// slice the local list at the index
+			if index < len(ldb.links) {
+				ldb.links = ldb.links[0:index]
+			}
+		} else {
+			// copy the link so it can't be modified outside of the database
+			link = &LinkRecord{Flags: link.Flags, Group: link.Group, Address: link.Address, Data: link.Data}
+			if index == len(ldb.links) {
+				ldb.links = append(ldb.links, link)
+			} else {
+				ldb.links[index] = link
+			}
+		}
+	}
+	return err
+}
+
+func (ldb *linkdb) WriteLink(index int, link *LinkRecord) (err error) {
+	ldb.device.Lock()
+	defer ldb.device.Unlock()
+	return ldb.writeLink(index, link)
+}
+
+func (ldb *linkdb) WriteLinks(links ...*LinkRecord) (err error) {
+	ldb.device.Lock()
+	defer ldb.device.Unlock()
+	return ldb.writeLinks(links...)
+}
+
+func (ldb *linkdb) writeLinks(links ...*LinkRecord) (err error) {
+	for i := 0; i < len(links) && err == nil; i++ {
+		links[i].Flags.clearLastRecord()
+		err = ldb.writeLink(i, links[i])
+	}
+
+	if err == nil {
+		link := &LinkRecord{}
+		link.Flags.setLastRecord()
+		err = ldb.writeLink(len(ldb.links), link)
+		if err == nil {
+			ldb.age = time.Now()
+		}
+	}
+	return
+}
+
+// removeDups will remove any links from links1 that exist in links2 and return
+// the new set
+func removeDups(links1, links2 []*LinkRecord) (links []*LinkRecord) {
+	lh := make(map[[5]byte]*LinkRecord)
+	for _, link := range links2 {
+		lh[link.id()] = link
+	}
+
+	for _, link := range links1 {
+		if _, found := lh[link.id()]; !found {
+			links = append(links, link)
+		}
+	}
+	return links
+}
+
+func (ldb *linkdb) UpdateLinks(links ...*LinkRecord) (err error) {
+	ldb.device.Lock()
+	defer ldb.device.Unlock()
+	err = ldb.refresh()
+
+	if err == nil {
+		links = removeDups(links, ldb.links)
+
+		for i := 0; i < len(ldb.links) && err == nil; i++ {
+			if ldb.links[i].Flags.Available() && len(links) > 0 {
+				links[0].Flags.clearLastRecord()
+				err = ldb.writeLink(i, links[0])
+				if err == nil {
+					links = links[1:]
+				}
+			}
+		}
+
+		if err == nil && len(links) > 0 {
+			i := len(ldb.links)
+			for _, link := range links {
+				link.Flags.clearLastRecord()
+				err = ldb.writeLink(i, link)
+				i++
+			}
+
+			if err == nil {
+				link := &LinkRecord{}
+				link.Flags.setLastRecord()
+				err = ldb.writeLink(i, link)
+			}
+		}
+	}
+
+	return err
 }

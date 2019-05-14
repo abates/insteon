@@ -156,9 +156,6 @@ type AddressableLinkable interface {
 // Linkable is any device that can be put into
 // linking mode and the link database can be managed remotely
 type Linkable interface {
-	// AppendLink will add a new link record to the end of the All-Link database
-	AppendLink(link *LinkRecord) error
-
 	// EnterLinkingMode is the programmatic equivalent of holding down
 	// the set button for two seconds. If the device is the first
 	// to enter linking mode, then it is the controller. The next
@@ -182,17 +179,22 @@ type Linkable interface {
 	// the All-Link database
 	Links() ([]*LinkRecord, error)
 
-	// AddLink will either add the link to the All-Link database
-	// or it will replace an existing link-record that has been marked
-	// as deleted
-	AddLink(newLink *LinkRecord) error
+	// UpdateLinks will write the given links to the device's all-link
+	// database.  Links will be written to available records
+	// (link records marked with an Available flag).  If no more
+	// available records are found, then the links will be appended
+	// to the all-link database.  If a communication failure occurs then
+	// the appropriate error is returned (ErrReadTimeout, ErrAckTimeout, etc.)
+	UpdateLinks(...*LinkRecord) error
 
-	// RemoveLinks will either remove the link records from the device
-	// All-Link database, or it will simply mark them as deleted
-	RemoveLinks(oldLinks ...*LinkRecord) error
+	// WriteLink will write a link record to the given index in the database
+	WriteLink(index int, record *LinkRecord) error
 
-	// WriteLink will write the link record to the device's link database
-	WriteLink(*LinkRecord) error
+	// WriteLinks will overwrite the entire device all-link database
+	// with the list of links provided.  If a communication failure occurs
+	// then the appropriate error is returned (ErrReadTimeout, ErrAckTimeout,
+	// etc).
+	WriteLinks(...*LinkRecord) error
 }
 
 // DeviceInfo is a record of information about known

@@ -46,10 +46,11 @@ func hexDump(format string, buf []byte, sep string) string {
 
 type PLM struct {
 	sync.Mutex
-	timeout    time.Duration
-	writeDelay time.Duration
-	nextWrite  time.Time
-	port       *Port
+	timeout     time.Duration
+	writeDelay  time.Duration
+	nextWrite   time.Time
+	port        *Port
+	connections map[insteon.Address]insteon.Connection
 
 	insteonRxCh chan *insteon.Message
 	insteonTxCh chan *insteon.Message
@@ -65,6 +66,8 @@ func New(port *Port, timeout time.Duration, options ...Option) (*PLM, error) {
 		timeout:     timeout,
 		writeDelay:  500 * time.Millisecond,
 		port:        port,
+		connections: make(map[insteon.Address]insteon.Connection),
+
 		insteonTxCh: make(chan *insteon.Message),
 		insteonRxCh: make(chan *insteon.Message),
 		plmCh:       make(chan *Packet),
@@ -195,7 +198,14 @@ func (plm *PLM) send(txPacket *Packet, writeDelay time.Duration) (ack *Packet, e
 }
 
 func (plm *PLM) Connect(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Connection, error) {
-	return insteon.NewConnection(plm.insteonTxCh, plm.insteonRxCh, addr, options...)
+	if conn, found := plm.connections[addr]; found {
+		return conn, nil
+	}
+	conn, err := insteon.NewConnection(plm.insteonTxCh, plm.insteonRxCh, addr, options...)
+	if err == nil {
+		plm.connections[addr] = conn
+	}
+	return conn, err
 }
 
 func (plm *PLM) Open(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Device, error) {
@@ -214,8 +224,12 @@ func (plm *PLM) Open(addr insteon.Address, options ...insteon.ConnectionOption) 
 func (plm *PLM) retry(packet *Packet, retries int) (ack *Packet, err error) {
 	plm.Lock()
 	defer plm.Unlock()
-	for err == ErrNak && retries > 0 {
-		ack, err = plm.tx(packet, 0)
+
+	for err == ErrNak || retries > 0 {
+		ack, err = plm.tx(packet, time.Second)
+		if err == nil {
+			break
+		}
 		retries--
 	}
 

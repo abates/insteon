@@ -21,8 +21,8 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
-	"github.com/abates/insteon/link"
 	"github.com/abates/insteon/plm"
+	"github.com/abates/insteon/util"
 )
 
 type addrList []insteon.Address
@@ -87,7 +87,7 @@ func (p *plmCmd) infoCmd() (err error) {
 		fmt.Printf("   Address: %s\n", info.Address)
 		fmt.Printf("  Category: %02x Sub-Category: %02x\n", info.DevCat.Category(), info.DevCat.SubCategory())
 		fmt.Printf("  Firmware: %d\n", info.Firmware)
-		err = link.PrintLinks(os.Stdout, modem)
+		err = util.PrintLinks(os.Stdout, modem)
 	}
 	return err
 }
@@ -106,9 +106,9 @@ func (p *plmCmd) link(crosslink bool) error {
 
 		if err == nil {
 			if linkable, ok := device.(insteon.LinkableDevice); ok {
-				err = link.ForceLink(group, modem, linkable)
+				err = util.ForceLink(group, modem, linkable)
 				if err == nil && crosslink {
-					err = link.ForceLink(group, linkable, modem)
+					err = util.ForceLink(group, linkable, modem)
 				}
 			} else {
 				err = fmt.Errorf("%v is not a linkable device", device)
@@ -139,11 +139,11 @@ func (p *plmCmd) unlinkCmd() (err error) {
 
 		if linkable, ok := device.(insteon.LinkableDevice); ok {
 			if err == nil {
-				err = link.Unlink(group, linkable, modem)
+				err = util.Unlink(group, linkable, modem)
 			}
 
 			if err == nil || err == insteon.ErrNotLinked {
-				err = link.Unlink(group, modem, linkable)
+				err = util.Unlink(group, modem, linkable)
 			}
 		} else {
 			err = fmt.Errorf("%v is not a linkable device", device)

@@ -40,7 +40,7 @@ func init() {
 	app.Flags.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
 	app.Flags.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
 	app.Flags.DurationVar(&timeoutFlag, "timeout", 3*time.Second, "read/write timeout duration")
-	app.Flags.DurationVar(&writeDelayFlag, "writeDelay", 500*time.Millisecond, "writeDelay duration")
+	app.Flags.DurationVar(&writeDelayFlag, "writeDelay", 0, "writeDelay duration (default of 0 indicates to compute wait time based on message length and ttl)")
 	app.Flags.UintVar(&ttlFlag, "ttl", 3, "default ttl for sending Insteon messages")
 }
 

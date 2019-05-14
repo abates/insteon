@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package link
+package util
 
 import (
 	"errors"
@@ -166,6 +166,26 @@ func Unlink(group insteon.Group, controller, responder insteon.Linkable) (err er
 	return
 }
 
+func RemoveLinks(linkable insteon.Linkable, remove ...*insteon.LinkRecord) error {
+	links, err := linkable.Links()
+	if err == nil {
+		for i, link := range links {
+			for j, r := range remove {
+				if link.Equal(r) {
+					link.Flags.SetAvailable()
+					err = linkable.WriteLink(i, link)
+					remove = append(remove[0:j], remove[j+1:]...)
+					break
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+	}
+	return err
+}
+
 // Link will add appropriate entries to the controller's and responder's All-Link
 // database. Each devices' ALDB will be searched for existing links, if both entries
 // exist (a controller link and a responder link) then nothing is done. If only one
@@ -181,7 +201,7 @@ func Link(group insteon.Group, controller, responder insteon.AddressableLinkable
 		if err == nil {
 			// found a responder link, but not a controller link
 			insteon.Log.Debugf("Controller link already exists, deleting it")
-			err = responder.RemoveLinks(responderLink)
+			err = RemoveLinks(responder, responderLink)
 		}
 
 		if err == nil || err == ErrLinkNotFound {
@@ -192,7 +212,7 @@ func Link(group insteon.Group, controller, responder insteon.AddressableLinkable
 		if err == ErrLinkNotFound {
 			// found a controller link, but not a responder link
 			insteon.Log.Debugf("Responder link already exists, deleting it")
-			err = controller.RemoveLinks(controllerLink)
+			err = RemoveLinks(controller, controllerLink)
 			err = ForceLink(group, controller, responder)
 		}
 	}

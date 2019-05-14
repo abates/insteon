@@ -25,11 +25,13 @@ func TestRecordControlFlags(t *testing.T) {
 		input              RecordControlFlags
 		expectedInUse      bool
 		expectedController bool
+		expectedLastRecord bool
 	}{
-		{AvailableController, false, true},
-		{AvailableResponder, false, false},
-		{UnavailableController, true, true},
-		{UnavailableResponder, true, false},
+		{AvailableController, false, true, true},
+		{AvailableResponder, false, false, true},
+		{UnavailableController, true, true, true},
+		{UnavailableResponder, true, false, true},
+		{AvailableController | 0x02, false, true, false},
 	}
 
 	for _, test := range tests {
@@ -49,6 +51,10 @@ func TestRecordControlFlags(t *testing.T) {
 			if test.input.Responder() == test.expectedController {
 				t.Errorf("got Responder %v, want %v", test.input.Responder(), !test.expectedController)
 			}
+
+			if test.input.LastRecord() != test.expectedLastRecord {
+				t.Errorf("got LastRecord %v, want %v", test.input.LastRecord(), test.expectedLastRecord)
+			}
 		})
 	}
 }
@@ -60,10 +66,10 @@ func TestRecordControlFlagsUnmarshalText(t *testing.T) {
 		expected    RecordControlFlags
 	}{
 		{"A", "Expected 2 characters got 1", RecordControlFlags(0x00)},
-		{"AR", "", RecordControlFlags(0x00)},
-		{"UR", "", RecordControlFlags(0x80)},
-		{"AC", "", RecordControlFlags(0x40)},
-		{"UC", "", RecordControlFlags(0xc0)},
+		{"AR", "", AvailableResponder},
+		{"UR", "", UnavailableResponder},
+		{"AC", "", AvailableController},
+		{"UC", "", UnavailableController},
 		{"FR", "Invalid value for Available flag", RecordControlFlags(0x00)},
 		{"AZ", "Invalid value for Controller flag", RecordControlFlags(0x00)},
 	}
@@ -76,7 +82,7 @@ func TestRecordControlFlagsUnmarshalText(t *testing.T) {
 				if test.expectedErr != "" {
 					t.Errorf("got nil error, want %q", test.expectedErr)
 				} else if flags != test.expected {
-					t.Errorf("got flags 0x%02x, want 0x%02x", flags, test.expected)
+					t.Errorf("got flags 0x%02x, want 0x%02x", byte(flags), byte(test.expected))
 				}
 			} else if err.Error() != test.expectedErr {
 				t.Errorf("got error %q, want %q", err, test.expectedErr)
@@ -92,10 +98,12 @@ func TestSettingRecordControlFlags(t *testing.T) {
 		set      func()
 		expected byte
 	}{
-		{"setAvailable", flags.setAvailable, 0x7f},
-		{"setInUse", flags.setInUse, 0xff},
+		{"SetAvailable", flags.SetAvailable, 0x7f},
+		{"SetInUse", flags.SetInUse, 0xff},
 		{"setResponder", flags.setResponder, 0xbf},
 		{"setController", flags.setController, 0xff},
+		{"setLastRecord", flags.setLastRecord, 0xfd},
+		{"clearLastRecord", flags.clearLastRecord, 0xff},
 	}
 
 	for _, test := range tests {
@@ -109,19 +117,12 @@ func TestSettingRecordControlFlags(t *testing.T) {
 }
 
 func TestLinkEqual(t *testing.T) {
-	availableController := RecordControlFlags(0x40)
-	availableResponder := RecordControlFlags(0x00)
-	usedController := RecordControlFlags(0xc0)
-	usedResponder := RecordControlFlags(0x80)
-
 	newLink := func(flags RecordControlFlags, group Group, address Address) *LinkRecord {
-		buffer := []byte{byte(flags), byte(group), address[0], address[1], address[2], 0x00, 0x00, 0x00}
-		link := &LinkRecord{}
-		link.UnmarshalBinary(buffer)
+		link := &LinkRecord{flags, group, address, [3]byte{}}
 		return link
 	}
 
-	l1 := newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03})
+	l1 := newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03})
 	l2 := l1
 
 	tests := []struct {
@@ -130,12 +131,12 @@ func TestLinkEqual(t *testing.T) {
 		link2    *LinkRecord
 		expected bool
 	}{
-		{"not equal 1", newLink(usedController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
-		{"not equal 2", newLink(usedResponder, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
-		{"not equal 3", newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), true},
-		{"not equal 4", newLink(availableResponder, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
-		{"not equal 5", newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x04}), false},
-		{"not equal 6", newLink(availableController, Group(0x01), Address{0x01, 0x02, 0x03}), nil, false},
+		{"not equal 1", newLink(UnavailableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
+		{"not equal 2", newLink(UnavailableResponder, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
+		{"not equal 3", newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), true},
+		{"not equal 4", newLink(AvailableResponder, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
+		{"not equal 5", newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x04}), false},
+		{"not equal 6", newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), nil, false},
 		{"equal", l1, l2, true},
 	}
 
@@ -221,7 +222,7 @@ func TestLinkRecordMarshalText(t *testing.T) {
 		expected       LinkRecord
 		expectedErr    string
 	}{
-		{"UC        1 01.01.01   00 00 00", LinkRecord{0, RecordControlFlags(0xc0), Group(1), Address{1, 1, 1}, [3]byte{0, 0, 0}}, ""},
+		{"UC        1 01.01.01   00 00 00", LinkRecord{RecordControlFlags(0xc0), Group(1), Address{1, 1, 1}, [3]byte{0, 0, 0}}, ""},
 		{"UC        1 01.01.01   00 00", LinkRecord{}, "Expected 6 fields got 5"},
 	}
 

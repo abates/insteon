@@ -173,11 +173,15 @@ func (plm *PLM) AddLink(newLink *insteon.LinkRecord) error {
 	return err
 }
 
-func (plm *PLM) WriteLink(*insteon.LinkRecord) error {
+func (plm *PLM) WriteLink(int, *insteon.LinkRecord) error {
 	return insteon.ErrNotImplemented
 }
 
-func (plm *PLM) AppendLink(*insteon.LinkRecord) error {
+func (plm *PLM) WriteLinks(...*insteon.LinkRecord) error {
+	return insteon.ErrNotImplemented
+}
+
+func (plm *PLM) UpdateLinks(...*insteon.LinkRecord) error {
 	return insteon.ErrNotImplemented
 }
 

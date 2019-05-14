@@ -212,7 +212,7 @@ func TestConnectionReceive(t *testing.T) {
 
 func TestConnectionIDRequest(t *testing.T) {
 	txCh := make(chan *Message)
-	conn := &connection{txCh: txCh, msgCh: make(chan *Message), timeout: time.Nanosecond}
+	conn := &connection{txCh: txCh, msgCh: make(chan *Message), timeout: time.Millisecond}
 
 	wantVersion := FirmwareVersion(42)
 	wantDevCat := DevCat{07, 79}

@@ -46,22 +46,46 @@ func (rcf *RecordControlFlags) clearBit(pos uint) {
 
 // InUse indicates if a link record is currently in use by the device
 func (rcf RecordControlFlags) InUse() bool { return rcf&0x80 == 0x80 }
-func (rcf *RecordControlFlags) setInUse()  { rcf.setBit(7) }
+
+// SetInUse indicates the the record is active/in use and cannot be overwritten
+func (rcf *RecordControlFlags) SetInUse() {
+	rcf.setBit(7)
+}
 
 // Available indicates if a link record is available and can be
 // overwritten by a new record. Available is synonmous with "deleted"
 func (rcf RecordControlFlags) Available() bool { return rcf&0x80 == 0x00 }
-func (rcf *RecordControlFlags) setAvailable()  { rcf.clearBit(7) }
+
+// SetAvailable indicates that the record is no longer in use and can
+// be overwritten
+func (rcf *RecordControlFlags) SetAvailable() {
+	rcf.clearBit(7)
+}
 
 // Controller indicates that the device is a controller for the device in the
 // link record
 func (rcf RecordControlFlags) Controller() bool { return rcf&0x40 == 0x40 }
-func (rcf *RecordControlFlags) setController()  { rcf.setBit(6) }
+func (rcf *RecordControlFlags) setController() {
+	rcf.setBit(6)
+}
 
 // Responder indicates that the device is a reponder to the device listed in
 // the link record
 func (rcf RecordControlFlags) Responder() bool { return rcf&0x40 == 0x00 }
-func (rcf *RecordControlFlags) setResponder()  { rcf.clearBit(6) }
+func (rcf *RecordControlFlags) setResponder() {
+	rcf.clearBit(6)
+}
+
+// LastRecord indicates if this link record is the last record (also known
+// as the high water mark) in the database.
+func (rcf RecordControlFlags) LastRecord() bool { return rcf&0x02 == 0x00 }
+func (rcf *RecordControlFlags) clearLastRecord() {
+	rcf.setBit(1)
+}
+
+func (rcf *RecordControlFlags) setLastRecord() {
+	rcf.clearBit(1)
+}
 
 // String will be "A" or "U" (available or in use) followed by "C" or
 // "R" (controller or responder). This string will always be two
@@ -91,9 +115,9 @@ func (rcf *RecordControlFlags) UnmarshalText(text []byte) (err error) {
 	}
 
 	if str[0] == "A" {
-		rcf.setAvailable()
+		rcf.SetAvailable()
 	} else if str[0] == "U" {
-		rcf.setInUse()
+		rcf.SetInUse()
 	} else {
 		err = errors.New("Invalid value for Available flag")
 	}
@@ -133,11 +157,22 @@ func (g *Group) UnmarshalText(text []byte) error {
 
 // LinkRecord is a single All-Link record in an All-Link database
 type LinkRecord struct {
-	memAddress MemAddress
-	Flags      RecordControlFlags
-	Group      Group
-	Address    Address
-	Data       [3]byte
+	Flags   RecordControlFlags
+	Group   Group
+	Address Address
+	Data    [3]byte
+}
+
+// ControllerLink creates a LinkRecord that is set as a controller record with the
+// group and responder address set to the given arguments
+func ControllerLink(group Group, address Address) *LinkRecord {
+	return &LinkRecord{Flags: UnavailableController | 0x02, Group: group, Address: address}
+}
+
+// ResponderLink creates a LinkRecord that is set as a responder record with the
+// group and controller address set to the given arguments
+func ResponderLink(group Group, address Address) *LinkRecord {
+	return &LinkRecord{Flags: UnavailableResponder | 0x02, Group: group, Address: address}
 }
 
 // String converts the LinkRecord to a human readable string that looks similar to:
@@ -150,15 +185,14 @@ func (l *LinkRecord) String() string {
 // equivalent if they both have the same availability, type (controller/responder)
 // and address
 func (l *LinkRecord) Equal(other *LinkRecord) bool {
-	if l == other {
-		return true
-	}
+	return l.id() == other.id()
+}
 
-	if l == nil || other == nil {
-		return false
+func (l *LinkRecord) id() [5]byte {
+	if l == nil {
+		return [5]byte{}
 	}
-
-	return l.Flags.InUse() == other.Flags.InUse() && l.Flags.Controller() == other.Flags.Controller() && l.Group == other.Group && l.Address == other.Address
+	return [5]byte{byte(l.Flags & 0xfc), byte(l.Group), l.Address[0], l.Address[1], l.Address[2]}
 }
 
 // MarshalBinary converts the link-record to a byte string that can be

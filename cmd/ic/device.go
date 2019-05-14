@@ -23,8 +23,8 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
-	"github.com/abates/insteon/link"
 	"github.com/abates/insteon/plm"
+	"github.com/abates/insteon/util"
 )
 
 type device struct {
@@ -116,7 +116,7 @@ func printDevInfo(device insteon.Device, extra string) (err error) {
 		}
 
 		err = devLink(device, func(linkable insteon.LinkableDevice) error {
-			return link.PrintLinks(os.Stdout, linkable)
+			return util.PrintLinks(os.Stdout, linkable)
 		})
 	}
 	return err
@@ -167,42 +167,23 @@ func (dev *device) editCmd() error {
 			cmd.Start()
 			err = cmd.Wait()
 			if err == nil {
+				dbLinks = nil
 				input, err := ioutil.ReadFile(tmpfile.Name())
 				if err == nil && !bytes.Equal(buf.Bytes(), input) {
-					i := 0
 					for _, line := range bytes.Split(input, []byte("\n")) {
 						line = bytes.TrimSpace(line)
 						if len(line) == 0 || bytes.Index(line, []byte("#")) == 0 {
 							continue
 						}
-						if i < len(dbLinks) {
-							err = dbLinks[i].UnmarshalText(line)
-							if err == nil {
-								fmt.Printf("Writing %s...", dbLinks[i])
-								err = linkable.WriteLink(dbLinks[i])
-								if err == nil {
-									fmt.Printf("done\n")
-								} else {
-									fmt.Printf("%v\n", err)
-								}
-							} else {
-								fmt.Printf("Skipping invalid line %q: %v\n", string(line), err)
-							}
+						link := &insteon.LinkRecord{}
+						err = link.UnmarshalText(line)
+						if err == nil {
+							dbLinks = append(dbLinks, link)
 						} else {
-							link := &insteon.LinkRecord{}
-							err = link.UnmarshalText(line)
-							if err == nil {
-								fmt.Printf("Adding line %q...", string(line))
-								err = linkable.AppendLink(link)
-								if err == nil {
-									fmt.Printf("done\n")
-								} else {
-									fmt.Printf("%v\n", err)
-								}
-							}
+							fmt.Printf("Skipping invalid line %q: %v\n", string(line), err)
 						}
-						i++
 					}
+					linkable.WriteLinks(dbLinks...)
 				}
 			}
 		}
