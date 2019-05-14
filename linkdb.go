@@ -182,8 +182,7 @@ func (ldb *linkdb) refresh() error {
 func (ldb *linkdb) Links() ([]*LinkRecord, error) {
 	ldb.device.Lock()
 	defer ldb.device.Unlock()
-	var err error
-	err = ldb.refresh()
+	err := ldb.refresh()
 	return ldb.links, err
 }
 
