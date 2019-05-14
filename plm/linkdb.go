@@ -115,7 +115,7 @@ func (plm *PLM) Links() ([]*insteon.LinkRecord, error) {
 	return links, err
 }
 
-func (plm *PLM) RemoveLinks(oldLinks ...*insteon.LinkRecord) (err error) {
+/*func (plm *PLM) RemoveLinks(oldLinks ...*insteon.LinkRecord) (err error) {
 	deletedLinks := make([]*insteon.LinkRecord, 0)
 	for _, oldLink := range oldLinks {
 		numDelete := 0
@@ -171,7 +171,7 @@ func (plm *PLM) AddLink(newLink *insteon.LinkRecord) error {
 	}
 
 	return err
-}
+}*/
 
 func (plm *PLM) WriteLink(int, *insteon.LinkRecord) error {
 	return insteon.ErrNotImplemented
@@ -185,66 +185,21 @@ func (plm *PLM) UpdateLinks(...*insteon.LinkRecord) error {
 	return insteon.ErrNotImplemented
 }
 
-func (plm *PLM) Cleanup() (err error) {
-	removeable := make([]*insteon.LinkRecord, 0)
-	links, err := plm.Links()
-	if err == nil {
-		for i, l1 := range links {
-			for _, l2 := range links[i+1:] {
-				if l1.Equal(l2) {
-					removeable = append(removeable, l2)
-				}
-			}
-		}
-
-		err = plm.RemoveLinks(removeable...)
-	}
-	return err
-}
-
-func (plm *PLM) AddManualLink(group insteon.Group) error {
-	return plm.EnterLinkingMode(group)
-}
-
 func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0x03), Group: group}
 	payload, _ := lr.MarshalBinary()
-	ack, err := plm.retry(&Packet{
-		Command: CmdStartAllLink,
-		Payload: payload,
-	}, 3)
-
-	if err == nil && ack.NAK() {
-		err = ErrNak
-	}
+	_, err := plm.retry(&Packet{Command: CmdStartAllLink, Payload: payload}, 3)
 	return err
 }
 
 func (plm *PLM) ExitLinkingMode() error {
-	ack, err := plm.retry(&Packet{
-		Command: CmdCancelAllLink,
-	}, 3)
-
-	if err == nil && ack.NAK() {
-		err = ErrNak
-	}
+	_, err := plm.retry(&Packet{Command: CmdCancelAllLink}, 3)
 	return err
 }
 
 func (plm *PLM) EnterUnlinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0xff), Group: group}
 	payload, _ := lr.MarshalBinary()
-	ack, err := plm.retry(&Packet{
-		Command: CmdStartAllLink,
-		Payload: payload,
-	}, 3)
-
-	if err == nil && ack.NAK() {
-		err = ErrNak
-	}
+	_, err := plm.retry(&Packet{Command: CmdStartAllLink, Payload: payload}, 3)
 	return err
 }
-
-func (plm *PLM) AssignToAllLinkGroup(insteon.Group) error { return ErrNotImplemented }
-
-func (plm *PLM) DeleteFromAllLinkGroup(insteon.Group) error { return ErrNotImplemented }
