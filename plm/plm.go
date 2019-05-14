@@ -240,47 +240,35 @@ func (plm *PLM) retry(packet *Packet, retries int) (ack *Packet, err error) {
 	return ack, err
 }
 
-func (plm *PLM) Info() (*Info, error) {
+func (plm *PLM) Info() (info *Info, err error) {
 	ack, err := plm.send(&Packet{Command: CmdGetInfo}, 0)
 	if err == nil {
-		info := &Info{}
-		err := info.UnmarshalBinary(ack.Payload)
-		return info, err
+		info = &Info{}
+		err = info.UnmarshalBinary(ack.Payload)
 	}
-	return nil, err
+	return info, err
 }
 
 func (plm *PLM) Reset() error {
 	timeout := plm.timeout
 	plm.timeout = 20 * time.Second
 
-	ack, err := plm.send(&Packet{Command: CmdReset}, 0)
-
-	if err == nil && ack.NAK() {
-		err = ErrNak
-	}
+	_, err := plm.send(&Packet{Command: CmdReset}, 0)
 	plm.timeout = timeout
 	return err
 }
 
-func (plm *PLM) Config() (*Config, error) {
+func (plm *PLM) Config() (config *Config, err error) {
 	ack, err := plm.send(&Packet{Command: CmdGetConfig}, 0)
-	if err == nil && ack.NAK() {
-		err = ErrNak
-	} else if err == nil {
-		var config Config
-		err := config.UnmarshalBinary(ack.Payload)
-		return &config, err
+	if err == nil {
+		err = config.UnmarshalBinary(ack.Payload)
 	}
-	return nil, err
+	return config, err
 }
 
 func (plm *PLM) SetConfig(config *Config) error {
 	payload, _ := config.MarshalBinary()
-	ack, err := plm.send(&Packet{Command: CmdSetConfig, Payload: payload}, 0)
-	if err == nil && ack.NAK() {
-		err = ErrNak
-	}
+	_, err := plm.send(&Packet{Command: CmdSetConfig, Payload: payload}, 0)
 	return err
 }
 
