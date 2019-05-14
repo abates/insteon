@@ -293,7 +293,7 @@ func (conn *connection) EngineVersion() (version EngineVersion, err error) {
 
 // Receive is a utility function that wraps up receiving with timeout functionality allowing
 // callers to only deal with the received messages and not dealing with timeout circumstances.
-// When the callback is done receving an ErrReceiveComplete should be returned causing Receive
+// When the callback is done receiving an ErrReceiveComplete should be returned causing Receive
 // to return with no error.  If the callback returns ErrReadContinue then the timeout is updated
 // for an additional read.  If the callback returns any other error then that error will
 // be returned
