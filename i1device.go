@@ -108,17 +108,17 @@ func (i1 *i1Device) ProductData() (data *ProductData, err error) {
 	defer i1.Unlock()
 
 	_, err = i1.SendCommand(CmdProductDataReq, nil)
-	timeout := time.Now().Add(i1.timeout)
-	for err == nil {
-		var msg *Message
-		msg, err = i1.Connection.Receive()
-		if msg.Command[1] == CmdProductDataResp[1] {
-			data = &ProductData{}
-			err = data.UnmarshalBinary(msg.Payload)
-			break
-		} else if timeout.Before(time.Now()) {
-			err = ErrReadTimeout
-		}
+	if err == nil {
+		err = Receive(i1.Connection, i1.timeout, func(msg *Message) error {
+			if msg.Command[1] == CmdProductDataResp[1] {
+				data = &ProductData{}
+				err = data.UnmarshalBinary(msg.Payload)
+				if err == nil {
+					err = ErrReceiveComplete
+				}
+			}
+			return err
+		})
 	}
 	return data, err
 }

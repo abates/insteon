@@ -261,20 +261,14 @@ func (conn *connection) Close() error {
 
 func (conn *connection) IDRequest() (version FirmwareVersion, devCat DevCat, err error) {
 	_, err = conn.Send(&Message{Command: CmdIDRequest, Flags: StandardDirectMessage})
-	timeout := time.Now().Add(conn.timeout)
-	for err == nil {
-		var msg *Message
-		msg, err = conn.Receive()
-		if err == nil {
-			if msg.Broadcast() && (msg.Command[1] == 0x01 || msg.Command[1] == 0x02) {
-				version = FirmwareVersion(msg.Dst[2])
-				devCat = DevCat{msg.Dst[0], msg.Dst[1]}
-				break
-			} else if timeout.Before(time.Now()) {
-				err = ErrReadTimeout
-			}
+	err = Receive(conn, conn.timeout, func(msg *Message) error {
+		if msg.Broadcast() && (msg.Command[1] == 0x01 || msg.Command[1] == 0x02) {
+			version = FirmwareVersion(msg.Dst[2])
+			devCat = DevCat{msg.Dst[0], msg.Dst[1]}
+			err = ErrReceiveComplete
 		}
-	}
+		return err
+	})
 	return
 }
 
@@ -295,6 +289,35 @@ func (conn *connection) EngineVersion() (version EngineVersion, err error) {
 		}
 	}
 	return
+}
+
+// Receive is a utility function that wraps up receiving with timeout functionality allowing
+// callers to only deal with the received messages and not dealing with timeout circumstances.
+// When the callback is done receving an ErrReceiveComplete should be returned causing Receive
+// to return with no error.  If the callback returns ErrReadContinue then the timeout is updated
+// for an additional read.  If the callback returns any other error then that error will
+// be returned
+func Receive(conn Connection, timeout time.Duration, cb func(*Message) error) (err error) {
+	readTimeout := time.Now().Add(timeout)
+	for err == nil {
+		var msg *Message
+		msg, err = conn.Receive()
+		if err == nil {
+			if readTimeout.Before(time.Now()) {
+				err = ErrReadTimeout
+			} else {
+				err = cb(msg)
+				if err == ErrReceiveContinue {
+					readTimeout = time.Now().Add(timeout)
+					err = nil
+				}
+			}
+		}
+	}
+	if err == ErrReceiveComplete {
+		err = nil
+	}
+	return err
 }
 
 func readFromCh(ch <-chan *Message, timeout time.Duration) (msg *Message, err error) {

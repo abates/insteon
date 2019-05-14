@@ -238,18 +238,16 @@ func (dd *dimmer) DimmerConfig() (config DimmerConfig, err error) {
 	//
 	// D2 is 0x00 for requests
 	_, err = dd.Switch.SendCommand(CmdExtendedGetSet, []byte{0x01, 0x00})
-	timeout := time.Now().Add(dd.timeout)
-	for err == nil {
-		var msg *Message
-		msg, err = dd.Switch.Receive()
-		if err == nil {
+	if err == nil {
+		err = Receive(dd.Switch, dd.timeout, func(msg *Message) error {
 			if msg.Command == CmdExtendedGetSet {
 				err = config.UnmarshalBinary(msg.Payload)
-				break
-			} else if timeout.Before(time.Now()) {
-				err = ErrReadTimeout
+				if err == nil {
+					err = ErrReceiveComplete
+				}
 			}
-		}
+			return err
+		})
 	}
 	return config, err
 }

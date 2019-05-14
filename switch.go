@@ -189,18 +189,16 @@ func (sd *switchedDevice) SetX10Address(button int, houseCode, unitCode byte) er
 func (sd *switchedDevice) SwitchConfig() (config SwitchConfig, err error) {
 	// SEE DimmerConfig() notes for explanation of D1 and D2 (payload[0] and payload[1])
 	_, err = sd.Device.SendCommand(CmdExtendedGetSet, []byte{0x00, 0x00})
-	timeout := time.Now().Add(sd.timeout)
-	for err == nil {
-		var msg *Message
-		msg, err = sd.Device.Receive()
-		if err == nil {
+	if err == nil {
+		err = Receive(sd, sd.timeout, func(msg *Message) error {
 			if msg.Command == CmdExtendedGetSet {
 				err = config.UnmarshalBinary(msg.Payload)
-				break
-			} else if timeout.Before(time.Now()) {
-				err = ErrReadTimeout
+				if err == nil {
+					err = ErrReceiveComplete
+				}
 			}
-		}
+			return err
+		})
 	}
 	return config, err
 }

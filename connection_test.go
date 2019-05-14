@@ -231,22 +231,6 @@ func TestConnectionIDRequest(t *testing.T) {
 	} else if gotDevCat != wantDevCat {
 		t.Errorf("Want DevCat %v got %v", wantDevCat, gotDevCat)
 	}
-
-	// sad path
-	go func() {
-		<-txCh
-		conn.msgCh <- TestAck
-		conn.msgCh <- TestMessagePing
-		conn.msgCh <- TestMessagePing
-		conn.msgCh <- TestMessagePing
-		conn.msgCh <- TestMessagePing
-		conn.msgCh <- TestMessagePing
-	}()
-
-	_, _, err = conn.IDRequest()
-	if err != ErrReadTimeout {
-		t.Errorf("Want ErrReadTimeout got %v", err)
-	}
 }
 
 func TestConnectionEngineVersion(t *testing.T) {
@@ -310,5 +294,22 @@ func TestMsgListeners(t *testing.T) {
 
 	if len(ml.listeners) != 0 {
 		t.Errorf("Expected listeners to be empty")
+	}
+}
+
+func TestReceive(t *testing.T) {
+	// happy path
+	conn := &testConnection{recvCh: make(chan *Message, 1)}
+	conn.recvCh <- TestAck
+	err := Receive(conn, time.Millisecond, func(*Message) error { return ErrReceiveComplete })
+	if err != nil {
+		t.Errorf("Expected no error got %v", err)
+	}
+
+	// sad path
+	go func() { time.Sleep(time.Second); conn.recvCh <- TestAck }()
+	err = Receive(conn, time.Millisecond, func(*Message) error { return nil })
+	if err != ErrReadTimeout {
+		t.Errorf("Expected ErrReadTimeout got %v", err)
 	}
 }

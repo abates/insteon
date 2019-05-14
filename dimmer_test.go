@@ -108,7 +108,7 @@ func TestDimmerCommands(t *testing.T) {
 
 func TestDimmableDeviceConfig(t *testing.T) {
 	conn := &testConnection{recvCh: make(chan *Message, 1), sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
-	dd := NewDimmer(NewSwitch(conn, time.Nanosecond), time.Nanosecond, 67)
+	dd := NewDimmer(NewSwitch(conn, time.Millisecond), time.Millisecond, 67)
 	want := DimmerConfig{31, 42, 15, 27, 4}
 	payload, _ := want.MarshalBinary()
 	msg := &Message{Command: CmdExtendedGetSet, Payload: make([]byte, 14)}
@@ -122,17 +122,5 @@ func TestDimmableDeviceConfig(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	} else if got != want {
 		t.Errorf("Want config %v got %v", want, got)
-	}
-
-	// sad path
-	go func() {
-		conn.ackCh <- TestAck
-		time.Sleep(time.Millisecond)
-		conn.recvCh <- TestMessagePing
-	}()
-
-	_, err = dd.DimmerConfig()
-	if err != ErrReadTimeout {
-		t.Errorf("Want ErrReadTimeout got %v", err)
 	}
 }

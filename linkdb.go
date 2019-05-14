@@ -15,7 +15,6 @@
 package insteon
 
 import (
-	"errors"
 	"time"
 )
 
@@ -26,8 +25,6 @@ const (
 	// LinkRecordSize is the size, in bytes, of a single All-Link record
 	LinkRecordSize = MemAddress(8)
 )
-
-var ErrLinkIndexOutOfRange = errors.New("Link index is beyond the bounds of the link database")
 
 // MemAddress is an integer representing a specific location in a device's memory
 type MemAddress int
@@ -149,32 +146,33 @@ func (ldb *linkdb) refresh() error {
 	buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
 	_, err := ldb.device.SendCommand(CmdReadWriteALDB, buf)
 
-	timeout := time.Now().Add(ldb.timeout)
-	for err == nil {
-		var msg *Message
-		msg, err = ldb.device.Receive()
-		if err == nil && msg.Flags.Extended() && msg.Command[1] == CmdReadWriteALDB[1] {
-			lr := &linkRequest{}
-			err = lr.UnmarshalBinary(msg.Payload)
-			// make sure there was no error unmarshalling, also make sure
-			// that it's a new memory address.  Since insteon messages
-			// are retransmitted, it is possible that the same ALDB response
-			// will be received more than once
-			if err == nil && lr.MemAddress != lastAddress {
-				lastAddress = lr.MemAddress
-				ldb.links = append(ldb.links, lr.Link)
-				if lr.Link.Flags.LastRecord() {
-					break
+	if err == nil {
+		err = Receive(ldb.device, ldb.timeout, func(msg *Message) error {
+			if msg.Flags.Extended() && msg.Command[1] == CmdReadWriteALDB[1] {
+				lr := &linkRequest{}
+				err = lr.UnmarshalBinary(msg.Payload)
+				// make sure there was no error unmarshalling, also make sure
+				// that it's a new memory address.  Since insteon messages
+				// are retransmitted, it is possible that the same ALDB response
+				// will be received more than once
+				if err == nil {
+					if lr.MemAddress != lastAddress {
+						lastAddress = lr.MemAddress
+						if lr.Link.Flags.LastRecord() {
+							err = ErrReceiveComplete
+						} else {
+							ldb.links = append(ldb.links, lr.Link)
+							err = ErrReceiveContinue
+						}
+					}
 				}
 			}
-			timeout = time.Now().Add(ldb.timeout)
-		} else if timeout.Before(time.Now()) {
-			err = ErrReadTimeout
-		}
-	}
+			return err
+		})
 
-	if err == nil {
-		ldb.age = time.Now()
+		if err == nil {
+			ldb.age = time.Now()
+		}
 	}
 	return err
 }

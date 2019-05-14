@@ -76,15 +76,23 @@ var (
 	// text is in an unsupported format
 	ErrAddrFormat = errors.New("address format is xx.xx.xx (digits in hex)")
 
-	// ErrEndOfLinks occurs when unmarshalling a link database record and that record
-	// appears to be the last record in the database
-	ErrEndOfLinks = errors.New("reached end of ALDB links")
-
 	// ErrInvalidMemAddress indicates a link record memory address is invalid
 	ErrInvalidMemAddress = errors.New("Invalid memory address")
 
 	// ErrVersion is returned when an engine version value is not known
 	ErrVersion = errors.New("Unknown Insteon Engine Version")
+
+	// ErrLinkIndexOutOfRange indicates that the index exceeds the length of the all-link database
+	ErrLinkIndexOutOfRange = errors.New("Link index is beyond the bounds of the link database")
+
+	// ErrReceiveComplete is used when calling the Receive() utility function.  If the callback is finished
+	// receiving then it returns ErrReceiveComplete to indicate the Receive() function can return
+	ErrReceiveComplete = errors.New("Completed receiving")
+
+	// ErrReceiveContinue is used when calling the Receive() utility function.  If the callback
+	// wants to continue receiving it will return this error.  This causes the Receive() function
+	// to update the timeout and wait for a new message
+	ErrReceiveContinue = errors.New("Continue receiving")
 )
 
 var sprintf = fmt.Sprintf

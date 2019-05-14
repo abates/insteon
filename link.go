@@ -221,10 +221,6 @@ func (l *LinkRecord) UnmarshalBinary(buf []byte) (err error) {
 		return newBufError(ErrBufferTooShort, 8, len(buf))
 	}
 	l.Flags = RecordControlFlags(buf[0])
-	if buf[0] == 0x00 {
-		err = ErrEndOfLinks
-	}
-
 	l.Group = Group(buf[1])
 	copy(l.Address[:], buf[2:5])
 	copy(l.Data[:], buf[5:8])

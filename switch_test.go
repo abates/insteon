@@ -117,7 +117,7 @@ func TestSwitchCommands(t *testing.T) {
 
 func TestSwitchedDeviceConfig(t *testing.T) {
 	conn := &testConnection{recvCh: make(chan *Message, 1), sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
-	sd := NewSwitch(conn, time.Nanosecond)
+	sd := NewSwitch(conn, time.Millisecond)
 	want := SwitchConfig{31, 42}
 	payload, _ := want.MarshalBinary()
 	msg := &Message{Command: CmdExtendedGetSet, Payload: make([]byte, 14)}
@@ -131,18 +131,6 @@ func TestSwitchedDeviceConfig(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	} else if got != want {
 		t.Errorf("Want config %v got %v", want, got)
-	}
-
-	// sad path
-	go func() {
-		conn.ackCh <- TestAck
-		time.Sleep(time.Millisecond)
-		conn.recvCh <- TestMessagePing
-	}()
-
-	_, err = sd.SwitchConfig()
-	if err != ErrReadTimeout {
-		t.Errorf("Want ErrReadTimeout got %v", err)
 	}
 }
 

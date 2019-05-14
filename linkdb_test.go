@@ -200,16 +200,18 @@ func TestLinkdbLinks(t *testing.T) {
 		want []*LinkRecord
 	}{
 		{"not old", time.Now().Add(time.Hour), nil},
-		{"old", time.Now().Add(-1 * time.Hour), []*LinkRecord{{UnavailableController, 1, Address{1, 2, 3}, [3]byte{}}}},
-		{"old", time.Now().Add(-1 * time.Hour), []*LinkRecord{{UnavailableController | 0x02, 1, Address{4, 5, 6}, [3]byte{}}, {UnavailableController, 1, Address{1, 2, 3}, [3]byte{}}}},
+		{"old 1", time.Now().Add(-1 * time.Hour), []*LinkRecord{ControllerLink(1, Address{1, 2, 3})}},
+		{"old 2", time.Now().Add(-1 * time.Hour), []*LinkRecord{ControllerLink(1, Address{4, 5, 6}), ControllerLink(1, Address{1, 2, 3})}},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1), recvCh: make(chan *Message, len(test.want))}
+			// Add high water mark
+			links := append(test.want, &LinkRecord{})
+			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1), recvCh: make(chan *Message, len(links))}
 			conn.ackCh <- TestAck
 			memAddress := BaseLinkDBAddress
-			for _, link := range test.want {
+			for _, link := range links {
 				lr := &linkRequest{Type: linkResponse, MemAddress: memAddress, Link: link}
 				msg := &Message{Command: CmdReadWriteALDB, Flags: ExtendedDirectMessage, Payload: make([]byte, 14)}
 				buf, _ := lr.MarshalBinary()
@@ -218,13 +220,16 @@ func TestLinkdbLinks(t *testing.T) {
 				memAddress -= LinkRecordSize
 			}
 
-			linkdb := linkdb{age: test.age, device: conn}
-			got, _ := linkdb.Links()
-			if len(got) == len(test.want) {
+			linkdb := linkdb{age: test.age, device: conn, timeout: time.Millisecond}
+			got, err := linkdb.Links()
+			if err == nil {
+				if len(got) == len(test.want) {
+				} else {
+					t.Errorf("wanted %d links got %d", len(test.want), len(got))
+				}
 			} else {
-				t.Errorf("wanted %d links got %d", len(test.want), len(got))
+				t.Errorf("Unexpected error %v", err)
 			}
-
 		})
 	}
 }

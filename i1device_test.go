@@ -94,7 +94,6 @@ func TestI1DeviceProductData(t *testing.T) {
 		wantErr error
 	}{
 		{"Happy Path", &ProductData{ProductKey{1, 2, 3}, DevCat{4, 5}}, nil},
-		{"Sad Path", nil, ErrReadTimeout},
 	}
 
 	for _, test := range tests {
@@ -115,7 +114,7 @@ func TestI1DeviceProductData(t *testing.T) {
 				}()
 			}
 
-			device := newI1Device(conn, time.Nanosecond)
+			device := newI1Device(conn, time.Millisecond)
 			pd, err := device.ProductData()
 			if err != test.wantErr {
 				t.Errorf("want error %v got %v", test.wantErr, err)
