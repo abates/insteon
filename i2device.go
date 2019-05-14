@@ -30,6 +30,7 @@ type i2Device struct {
 func newI2Device(connection Connection, timeout time.Duration) *i2Device {
 	i2 := &i2Device{i1Device: newI1Device(connection, timeout), timeout: timeout}
 	i2.linkdb.device = i2
+	i2.linkdb.timeout = timeout
 	return i2
 }
 
