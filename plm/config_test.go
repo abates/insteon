@@ -58,28 +58,6 @@ func TestSettingConfigFlags(t *testing.T) {
 	}
 }
 
-func TestConfigString(t *testing.T) {
-	tests := []struct {
-		input    byte
-		expected string
-	}{
-		{0x80, "L..."},
-		{0x40, ".M.."},
-		{0x20, "..A."},
-		{0x10, "...D"},
-		{0xf0, "LMAD"},
-	}
-
-	for _, test := range tests {
-		t.Run(test.expected, func(t *testing.T) {
-			config := Config(test.input)
-			if config.String() != test.expected {
-				t.Errorf("got %q, expected %q", config.String(), test.expected)
-			}
-		})
-	}
-}
-
 func TestConfigMarshalUnmarshal(t *testing.T) {
 	tests := []struct {
 		input byte
