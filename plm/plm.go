@@ -46,6 +46,7 @@ func hexDump(format string, buf []byte, sep string) string {
 
 type PLM struct {
 	sync.Mutex
+	linkdb
 	timeout     time.Duration
 	writeDelay  time.Duration
 	nextWrite   time.Time
@@ -72,6 +73,8 @@ func New(port *Port, timeout time.Duration, options ...Option) (*PLM, error) {
 		insteonRxCh: make(chan *insteon.Message),
 		plmCh:       make(chan *Packet),
 	}
+	plm.linkdb.plm = plm
+	plm.linkdb.timeout = timeout
 
 	for _, o := range options {
 		err := o(plm)

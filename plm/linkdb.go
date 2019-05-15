@@ -79,32 +79,37 @@ func (alr *allLinkReq) String() string {
 	return fmt.Sprintf("%02x %d", alr.Mode, alr.Group)
 }
 
-func (plm *PLM) Links() ([]*insteon.LinkRecord, error) {
-	plm.Lock()
-	defer plm.Unlock()
+type linkdb struct {
+	plm     *PLM
+	timeout time.Duration
+}
+
+func (ldb *linkdb) Links() ([]*insteon.LinkRecord, error) {
+	ldb.plm.Lock()
+	defer ldb.plm.Unlock()
 	links := make([]*insteon.LinkRecord, 0)
 	insteon.Log.Debugf("Retrieving PLM link database")
-	_, err := plm.tx(&Packet{Command: CmdGetFirstAllLink}, 0)
+	_, err := ldb.plm.tx(&Packet{Command: CmdGetFirstAllLink}, 0)
 	// TODO: does this loop need a timeout as well?  If, for
 	// some reason, we are receiving packets on the plmCh, but
 	// none of them are AllLinkRecordResponses, then this will
 	// loop forever until a read timeout occurs...
 	for err == nil {
 		select {
-		case pkt := <-plm.plmCh:
+		case pkt := <-ldb.plm.plmCh:
 			if pkt.Command == CmdAllLinkRecordResp {
 				link := &insteon.LinkRecord{}
 				err = link.UnmarshalBinary(pkt.Payload)
 				if err == nil {
 					insteon.Log.Debugf("Received PLM record response %v", link)
 					links = append(links, link)
-					_, err = plm.tx(&Packet{Command: CmdGetNextAllLink}, 0)
+					_, err = ldb.plm.tx(&Packet{Command: CmdGetNextAllLink}, 0)
 				} else {
 					insteon.Log.Infof("Failed to unmarshal link record: %v", err)
 					break
 				}
 			}
-		case <-time.After(plm.timeout):
+		case <-time.After(ldb.plm.timeout):
 			err = ErrReadTimeout
 		}
 	}
@@ -173,33 +178,33 @@ func (plm *PLM) AddLink(newLink *insteon.LinkRecord) error {
 	return err
 }*/
 
-func (plm *PLM) WriteLink(int, *insteon.LinkRecord) error {
+func (ldb *linkdb) WriteLink(int, *insteon.LinkRecord) error {
 	return insteon.ErrNotImplemented
 }
 
-func (plm *PLM) WriteLinks(...*insteon.LinkRecord) error {
+func (ldb *linkdb) WriteLinks(...*insteon.LinkRecord) error {
 	return insteon.ErrNotImplemented
 }
 
-func (plm *PLM) UpdateLinks(...*insteon.LinkRecord) error {
+func (ldb *linkdb) UpdateLinks(...*insteon.LinkRecord) error {
 	return insteon.ErrNotImplemented
 }
 
-func (plm *PLM) EnterLinkingMode(group insteon.Group) error {
+func (ldb *linkdb) EnterLinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0x03), Group: group}
 	payload, _ := lr.MarshalBinary()
-	_, err := plm.retry(&Packet{Command: CmdStartAllLink, Payload: payload}, 3)
+	_, err := ldb.plm.retry(&Packet{Command: CmdStartAllLink, Payload: payload}, 3)
 	return err
 }
 
-func (plm *PLM) ExitLinkingMode() error {
-	_, err := plm.retry(&Packet{Command: CmdCancelAllLink}, 3)
+func (ldb *linkdb) ExitLinkingMode() error {
+	_, err := ldb.plm.retry(&Packet{Command: CmdCancelAllLink}, 3)
 	return err
 }
 
-func (plm *PLM) EnterUnlinkingMode(group insteon.Group) error {
+func (ldb *linkdb) EnterUnlinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0xff), Group: group}
 	payload, _ := lr.MarshalBinary()
-	_, err := plm.retry(&Packet{Command: CmdStartAllLink, Payload: payload}, 3)
+	_, err := ldb.plm.retry(&Packet{Command: CmdStartAllLink, Payload: payload}, 3)
 	return err
 }
