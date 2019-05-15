@@ -128,6 +128,7 @@ const (
 type linkdb struct {
 	age     time.Time
 	links   []*LinkRecord
+	index   map[LinkID]int
 	device  Device
 	timeout time.Duration
 }
@@ -140,6 +141,8 @@ func (ldb *linkdb) refresh() error {
 	if !ldb.old() {
 		return nil
 	}
+	ldb.index = make(map[LinkID]int)
+
 	ldb.links = nil
 	Log.Debugf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
@@ -162,6 +165,7 @@ func (ldb *linkdb) refresh() error {
 							err = ErrReceiveComplete
 						} else {
 							ldb.links = append(ldb.links, lr.Link)
+							ldb.index[lr.Link.id()] = len(ldb.links) - 1
 							err = ErrReceiveContinue
 						}
 					}
@@ -213,12 +217,6 @@ func (ldb *linkdb) writeLink(index int, link *LinkRecord) (err error) {
 	return err
 }
 
-func (ldb *linkdb) WriteLink(index int, link *LinkRecord) (err error) {
-	ldb.device.Lock()
-	defer ldb.device.Unlock()
-	return ldb.writeLink(index, link)
-}
-
 func (ldb *linkdb) WriteLinks(links ...*LinkRecord) (err error) {
 	ldb.device.Lock()
 	defer ldb.device.Unlock()
@@ -242,31 +240,23 @@ func (ldb *linkdb) writeLinks(links ...*LinkRecord) (err error) {
 	return
 }
 
-// RemoveDupLinks will return a copy of the first slice of link records (links1) with any matching
-// records from the second (links2) removed
-func RemoveDupLinks(links1, links2 []*LinkRecord) (links []*LinkRecord) {
-	lh := make(map[[5]byte]*LinkRecord)
-	for _, link := range links2 {
-		lh[link.id()] = link
-	}
-
-	for _, link := range links1 {
-		if _, found := lh[link.id()]; !found {
-			links = append(links, link)
-		}
-	}
-	return links
-}
-
 func (ldb *linkdb) UpdateLinks(links ...*LinkRecord) (err error) {
 	ldb.device.Lock()
 	defer ldb.device.Unlock()
 	err = ldb.refresh()
 
 	if err == nil {
-		links = RemoveDupLinks(links, ldb.links)
+		for i := 0; err == nil && i < len(links); i++ {
+			if j, found := ldb.index[links[i].id()]; found {
+				if ldb.links[j].Flags != links[i].Flags {
+					err = ldb.writeLink(i, links[i])
+				}
+				links = append(links[0:i], links[i+1:]...)
+				i--
+			}
+		}
 
-		for i := 0; i < len(ldb.links) && err == nil; i++ {
+		for i := 0; err == nil && i < len(ldb.links); i++ {
 			if ldb.links[i].Flags.Available() && len(links) > 0 {
 				links[0].Flags.clearLastRecord()
 				err = ldb.writeLink(i, links[0])

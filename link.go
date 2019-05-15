@@ -188,11 +188,15 @@ func (l *LinkRecord) Equal(other *LinkRecord) bool {
 	return l.id() == other.id()
 }
 
-func (l *LinkRecord) id() [5]byte {
+// LinkID is the combination of bit 6 of the record control flags (controller/responder), the
+// group ID and the 3 byte address
+type LinkID [5]byte
+
+func (l *LinkRecord) id() LinkID {
 	if l == nil {
-		return [5]byte{}
+		return LinkID{}
 	}
-	return [5]byte{byte(l.Flags & 0xfc), byte(l.Group), l.Address[0], l.Address[1], l.Address[2]}
+	return LinkID{byte(l.Flags & 0x40), byte(l.Group), l.Address[0], l.Address[1], l.Address[2]}
 }
 
 // MarshalBinary converts the link-record to a byte string that can be

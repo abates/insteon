@@ -145,54 +145,6 @@ func TestLinkDbOld(t *testing.T) {
 	}
 }
 
-func TestLinkdbRemoveLinks(t *testing.T) {
-	tests := []struct {
-		desc string
-		l1   []*LinkRecord
-		l2   []*LinkRecord
-		want []*LinkRecord
-	}{
-		{
-			"same",
-			[]*LinkRecord{{UnavailableController, 1, Address{1, 2, 3}, [3]byte{}}, {UnavailableController, 1, Address{4, 5, 6}, [3]byte{}}},
-			[]*LinkRecord{{UnavailableController, 1, Address{1, 2, 3}, [3]byte{}}, {UnavailableController, 1, Address{4, 5, 6}, [3]byte{}}},
-			[]*LinkRecord{},
-		},
-		{
-			"diff 1",
-			[]*LinkRecord{{UnavailableController, 1, Address{1, 2, 3}, [3]byte{}}},
-			[]*LinkRecord{{UnavailableController, 1, Address{4, 5, 6}, [3]byte{}}},
-			[]*LinkRecord{{UnavailableController, 1, Address{1, 2, 3}, [3]byte{}}},
-		},
-		{
-			"dup 1",
-			[]*LinkRecord{{UnavailableController, 1, Address{1, 2, 3}, [3]byte{}}, {UnavailableController, 1, Address{4, 5, 6}, [3]byte{}}},
-			[]*LinkRecord{{UnavailableController, 1, Address{4, 5, 6}, [3]byte{}}},
-			[]*LinkRecord{{UnavailableController, 1, Address{1, 2, 3}, [3]byte{}}},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			got := RemoveDupLinks(test.l1, test.l2)
-			if len(got) == len(test.want) {
-				match := make(map[[5]byte]*LinkRecord)
-				for _, link := range test.want {
-					match[link.id()] = link
-				}
-
-				for _, link := range got {
-					if _, found := match[link.id()]; !found {
-						t.Errorf("Did not find link %v", link)
-					}
-				}
-			} else {
-				t.Errorf("want len %d got %d", len(test.want), len(got))
-			}
-		})
-	}
-}
-
 func TestLinkdbLinks(t *testing.T) {
 	tests := []struct {
 		desc string
@@ -255,7 +207,7 @@ func TestLinkdbWriteLink(t *testing.T) {
 			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
 			conn.ackCh <- TestAck
 			linkdb := linkdb{device: conn, links: test.links}
-			gotErr := linkdb.WriteLink(test.inputIndex, test.inputRecord)
+			gotErr := linkdb.writeLink(test.inputIndex, test.inputRecord)
 			if test.wantErr != gotErr {
 				t.Errorf("Want err %v got %v", test.wantErr, gotErr)
 			} else if gotErr == nil {
@@ -359,7 +311,7 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 			nil,
 		},
 		{
-			"available links",
+			"duplicate link (update flags)",
 			[]*LinkRecord{{AvailableController, 1, Address{1, 2, 3}, [3]byte{}}},
 			[]*LinkRecord{ControllerLink(1, Address{1, 2, 3})},
 			[]MemAddress{BaseLinkDBAddress},
@@ -367,7 +319,7 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 		{
 			"available and append links",
 			[]*LinkRecord{{AvailableController, 1, Address{1, 2, 3}, [3]byte{}}, ControllerLink(1, Address{4, 5, 6})},
-			[]*LinkRecord{ControllerLink(1, Address{1, 2, 3}), ResponderLink(1, Address{4, 5, 6})},
+			[]*LinkRecord{ControllerLink(1, Address{6, 7, 8}), ResponderLink(1, Address{5, 6, 7})},
 			[]MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - 2*LinkRecordSize, BaseLinkDBAddress - 3*LinkRecordSize},
 		},
 	}
@@ -378,7 +330,11 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 			for i := 0; i < len(test.want); i++ {
 				conn.ackCh <- TestAck
 			}
-			ldb := &linkdb{age: time.Now().Add(time.Hour), links: test.existingLinks, device: conn, timeout: time.Second}
+			index := make(map[LinkID]int)
+			for i, link := range test.existingLinks {
+				index[link.id()] = i
+			}
+			ldb := &linkdb{age: time.Now().Add(time.Hour), links: test.existingLinks, index: index, device: conn, timeout: time.Second}
 			ldb.UpdateLinks(test.input...)
 
 			close(conn.sendCh)

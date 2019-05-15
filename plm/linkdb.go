@@ -135,19 +135,21 @@ func (ldb *linkdb) Links() ([]*insteon.LinkRecord, error) {
 	return ldb.links, err
 }
 
-func (ldb *linkdb) WriteLink(int, *insteon.LinkRecord) error {
-	return insteon.ErrNotImplemented
-}
-
 func (ldb *linkdb) WriteLinks(...*insteon.LinkRecord) error {
+	ldb.plm.Lock()
+	defer ldb.plm.Unlock()
 	return insteon.ErrNotImplemented
 }
 
 func (ldb *linkdb) UpdateLinks(...*insteon.LinkRecord) error {
+	ldb.plm.Lock()
+	defer ldb.plm.Unlock()
 	return insteon.ErrNotImplemented
 }
 
 func (ldb *linkdb) EnterLinkingMode(group insteon.Group) error {
+	ldb.plm.Lock()
+	defer ldb.plm.Unlock()
 	lr := &allLinkReq{Mode: linkingMode(0x03), Group: group}
 	payload, _ := lr.MarshalBinary()
 	_, err := ldb.plm.retry(&Packet{Command: CmdStartAllLink, Payload: payload}, 3)

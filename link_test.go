@@ -131,9 +131,9 @@ func TestLinkEqual(t *testing.T) {
 		link2    *LinkRecord
 		expected bool
 	}{
-		{"not equal 1", newLink(UnavailableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
+		{"equal 1", newLink(UnavailableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), true},
 		{"not equal 2", newLink(UnavailableResponder, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
-		{"not equal 3", newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), true},
+		{"equal 3", newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), true},
 		{"not equal 4", newLink(AvailableResponder, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
 		{"not equal 5", newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x04}), false},
 		{"not equal 6", newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), nil, false},

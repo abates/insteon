@@ -185,10 +185,9 @@ type Linkable interface {
 	// available records are found, then the links will be appended
 	// to the all-link database.  If a communication failure occurs then
 	// the appropriate error is returned (ErrReadTimeout, ErrAckTimeout, etc.)
+	// If an existing link is found that has different flags then the existing
+	// record is updated to reflect the new flags
 	UpdateLinks(...*LinkRecord) error
-
-	// WriteLink will write a link record to the given index in the database
-	WriteLink(index int, record *LinkRecord) error
 
 	// WriteLinks will overwrite the entire device all-link database
 	// with the list of links provided.  If a communication failure occurs

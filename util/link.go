@@ -169,19 +169,17 @@ func Unlink(group insteon.Group, controller, responder insteon.Linkable) (err er
 func RemoveLinks(linkable insteon.Linkable, remove ...*insteon.LinkRecord) error {
 	links, err := linkable.Links()
 	if err == nil {
-		for i, link := range links {
-			for j, r := range remove {
+		removeLinks := []*insteon.LinkRecord{}
+		for _, link := range links {
+			for _, r := range remove {
 				if link.Equal(r) {
 					link.Flags.SetAvailable()
-					err = linkable.WriteLink(i, link)
-					remove = append(remove[0:j], remove[j+1:]...)
+					removeLinks = append(removeLinks, link)
 					break
 				}
 			}
-			if err != nil {
-				break
-			}
 		}
+		err = linkable.UpdateLinks(removeLinks...)
 	}
 	return err
 }
