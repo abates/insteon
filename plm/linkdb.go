@@ -80,13 +80,20 @@ func (alr *allLinkReq) String() string {
 }
 
 type linkdb struct {
+	age     time.Time
+	links   []*insteon.LinkRecord
 	plm     *PLM
 	timeout time.Duration
 }
 
-func (ldb *linkdb) Links() ([]*insteon.LinkRecord, error) {
-	ldb.plm.Lock()
-	defer ldb.plm.Unlock()
+func (ldb *linkdb) old() bool {
+	return ldb.age.Add(ldb.timeout).Before(time.Now())
+}
+
+func (ldb *linkdb) refresh() error {
+	if !ldb.old() {
+		return nil
+	}
 	links := make([]*insteon.LinkRecord, 0)
 	insteon.Log.Debugf("Retrieving PLM link database")
 	_, err := ldb.plm.tx(&Packet{Command: CmdGetFirstAllLink}, 0)
@@ -116,67 +123,17 @@ func (ldb *linkdb) Links() ([]*insteon.LinkRecord, error) {
 
 	if err == ErrNak {
 		err = nil
-	}
-	return links, err
-}
-
-/*func (plm *PLM) RemoveLinks(oldLinks ...*insteon.LinkRecord) (err error) {
-	deletedLinks := make([]*insteon.LinkRecord, 0)
-	for _, oldLink := range oldLinks {
-		numDelete := 0
-		var links []*insteon.LinkRecord
-		links, err = plm.Links()
-		if err == nil {
-			for _, link := range links {
-				if link.Group == oldLink.Group && link.Address == oldLink.Address {
-					numDelete++
-					if !oldLink.Equal(link) {
-						deletedLinks = append(deletedLinks, link)
-					}
-				}
-			}
-
-			for i := 0; i < numDelete; i++ {
-				rr := &manageRecordRequest{command: LinkCmdDeleteFirst, link: oldLink}
-				payload, _ := rr.MarshalBinary()
-				_, err = plm.send(&Packet{Command: CmdManageAllLinkRecord, Payload: payload}, 0)
-				if err != nil {
-					insteon.Log.Infof("Failed to remove link: %v", err)
-					break
-				}
-			}
-		} else {
-			insteon.Log.Infof("Failed to retrieve links: %v", err)
-			break
-		}
-	}
-
-	if err == nil {
-		// add back links that we didn't want deleted
-		for _, link := range deletedLinks {
-			plm.AddLink(link)
-		}
+		ldb.links = links
 	}
 	return err
 }
 
-func (plm *PLM) AddLink(newLink *insteon.LinkRecord) error {
-	var command recordRequestCommand
-	if newLink.Flags.Controller() {
-		command = LinkCmdModFirstCtrl
-	} else {
-		command = LinkCmdModFirstResp
-	}
-	rr := &manageRecordRequest{command: command, link: newLink}
-	payload, _ := rr.MarshalBinary()
-	resp, err := plm.send(&Packet{Command: CmdManageAllLinkRecord, Payload: payload}, 0)
-
-	if resp.NAK() {
-		err = fmt.Errorf("Failed to add link back to ALDB")
-	}
-
-	return err
-}*/
+func (ldb *linkdb) Links() ([]*insteon.LinkRecord, error) {
+	ldb.plm.Lock()
+	defer ldb.plm.Unlock()
+	err := ldb.refresh()
+	return ldb.links, err
+}
 
 func (ldb *linkdb) WriteLink(int, *insteon.LinkRecord) error {
 	return insteon.ErrNotImplemented

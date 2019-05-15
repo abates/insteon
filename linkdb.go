@@ -242,9 +242,9 @@ func (ldb *linkdb) writeLinks(links ...*LinkRecord) (err error) {
 	return
 }
 
-// removeDups will remove any links from links1 that exist in links2 and return
-// the new set
-func removeDups(links1, links2 []*LinkRecord) (links []*LinkRecord) {
+// RemoveDupLinks will return a copy of the first slice of link records (links1) with any matching
+// records from the second (links2) removed
+func RemoveDupLinks(links1, links2 []*LinkRecord) (links []*LinkRecord) {
 	lh := make(map[[5]byte]*LinkRecord)
 	for _, link := range links2 {
 		lh[link.id()] = link
@@ -264,7 +264,7 @@ func (ldb *linkdb) UpdateLinks(links ...*LinkRecord) (err error) {
 	err = ldb.refresh()
 
 	if err == nil {
-		links = removeDups(links, ldb.links)
+		links = RemoveDupLinks(links, ldb.links)
 
 		for i := 0; i < len(ldb.links) && err == nil; i++ {
 			if ldb.links[i].Flags.Available() && len(links) > 0 {

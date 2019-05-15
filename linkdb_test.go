@@ -174,7 +174,7 @@ func TestLinkdbRemoveLinks(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			got := removeDups(test.l1, test.l2)
+			got := RemoveDupLinks(test.l1, test.l2)
 			if len(got) == len(test.want) {
 				match := make(map[[5]byte]*LinkRecord)
 				for _, link := range test.want {
