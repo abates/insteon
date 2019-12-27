@@ -20,6 +20,53 @@ import (
 	"time"
 )
 
+// Sender will deliver an Insteon message to the network
+type Sender interface {
+	// Send will send a message to the device
+	Send(*Message) error
+}
+
+type Demux interface {
+	Dispatch(*Message)
+	New(addr Address, options ...ConnectionOption) (Connection, error)
+}
+
+func NewDemux(sender Sender) Demux {
+	return &demux{
+		Sender:      sender,
+		connections: make(map[Address]*connection),
+	}
+}
+
+type demux struct {
+	Sender
+	mu          sync.Mutex
+	connections map[Address]*connection
+}
+
+func (d *demux) Dispatch(msg *Message) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for addr, conn := range d.connections {
+		if addr == Wildcard || addr == msg.Src {
+			conn.dispatch(msg)
+			break
+		}
+	}
+}
+
+func (d *demux) New(addr Address, options ...ConnectionOption) (Connection, error) {
+	var err error
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	conn, found := d.connections[addr]
+	if !found {
+		conn, err = newConnection(d, addr, options...)
+		d.connections[addr] = conn
+	}
+	return conn, err
+}
+
 // Connection is a very basic communication mechanism to send
 // and receive messages with individual Insteon devices.
 type Connection interface {
@@ -51,14 +98,6 @@ type Connection interface {
 	// as well as ErrNotLinked
 	EngineVersion() (EngineVersion, error)
 
-	// AddListener will return a channel that receives any messages matching
-	// the flags an the cmd1 flag of a Command.
-	AddListener(t MessageType, cmds ...Command) <-chan *Message
-
-	// RemoveListener will remove a previously allocated listener channel to be
-	// closed and removed from the connection
-	RemoveListener(<-chan *Message)
-
 	// Lock the connection so that it not usable by other go routines.  This is
 	// implemented by an underlying sync.Mutex object
 	Lock()
@@ -69,15 +108,13 @@ type Connection interface {
 
 type connection struct {
 	*sync.Mutex
-	*msgListeners
 
-	addr    Address
-	match   []Command
-	timeout time.Duration
-	ttl     uint8
+	addr     Address
+	match    []Command
+	timeout  time.Duration
+	ttl      uint8
+	upstream Sender
 
-	txCh    chan<- *Message
-	rxCh    <-chan *Message
 	msgCh   chan *Message
 	closeCh chan chan error
 }
@@ -125,65 +162,23 @@ func ConnectionMutex(mu *sync.Mutex) ConnectionOption {
 	}
 }
 
-type msgListener struct {
-	ch   chan<- *Message
-	t    MessageType
-	cmds []Command
-}
-
-type msgListeners struct {
-	mu        sync.Mutex
-	listeners map[<-chan *Message]*msgListener
-	bufLen    int
-}
-
-func (ml *msgListeners) deliver(msg *Message) {
-	ml.mu.Lock()
-	defer ml.mu.Unlock()
-	for _, listener := range ml.listeners {
-		if msg.Flags.Type() == listener.t {
-			for _, cmd := range listener.cmds {
-				if msg.Command[1] == cmd[1] {
-					listener.ch <- msg
-					return
-				}
-			}
-		}
-	}
-}
-
-func (ml *msgListeners) RemoveListener(ch <-chan *Message) {
-	ml.mu.Lock()
-	if listener, found := ml.listeners[ch]; found {
-		close(listener.ch)
-		delete(ml.listeners, ch)
-	}
-	ml.mu.Unlock()
-}
-
-func (ml *msgListeners) AddListener(t MessageType, cmds ...Command) <-chan *Message {
-	ch := make(chan *Message, ml.bufLen)
-	ml.mu.Lock()
-	ml.listeners[ch] = &msgListener{ch, t, cmds}
-	ml.mu.Unlock()
-	return ch
-}
-
 // NewConnection will return a connection that is setup and ready to be used.  The txCh and
 // rxCh will be used to send and receive insteon messages.  Any supplied options will be
 // used to customize the connection's config
-func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, options ...ConnectionOption) (Connection, error) {
+func NewConnection(upstream Sender, addr Address, options ...ConnectionOption) (Connection, error) {
+	return newConnection(upstream, addr, options...)
+}
+
+func newConnection(upstream Sender, addr Address, options ...ConnectionOption) (*connection, error) {
 	conn := &connection{
-		Mutex:        &sync.Mutex{},
-		msgListeners: &msgListeners{listeners: make(map[<-chan *Message]*msgListener)},
+		Mutex: &sync.Mutex{},
 
 		addr:    addr,
 		timeout: 3 * time.Second,
 
-		txCh:    txCh,
-		rxCh:    rxCh,
-		msgCh:   make(chan *Message),
-		closeCh: make(chan chan error),
+		upstream: upstream,
+		msgCh:    make(chan *Message, 1),
+		closeCh:  make(chan chan error),
 	}
 
 	for _, option := range options {
@@ -194,7 +189,6 @@ func NewConnection(txCh chan<- *Message, rxCh <-chan *Message, addr Address, opt
 		}
 	}
 
-	go conn.readLoop()
 	return conn, nil
 }
 
@@ -202,30 +196,17 @@ func (conn *connection) Address() Address {
 	return conn.addr
 }
 
-func (conn *connection) readLoop() {
-	for {
-		select {
-		case msg := <-conn.rxCh:
-			if msg.Src == conn.addr {
-				if len(conn.match) > 0 {
-					for _, m := range conn.match {
-						if (msg.Command == m) || (msg.Command[1] == m[1] && m[2] == 0x00) {
-							Log.Tracef("Connection %v RX %v", conn.addr, msg)
-							conn.msgListeners.deliver(msg)
-							conn.msgCh <- msg
-						}
-					}
-				} else {
-					Log.Tracef("Connection %v RX %v", conn.addr, msg)
-					conn.msgListeners.deliver(msg)
-					conn.msgCh <- msg
-				}
+func (conn *connection) dispatch(msg *Message) {
+	if len(conn.match) > 0 {
+		for _, m := range conn.match {
+			if (msg.Command == m) || (msg.Command[1] == m[1] && m[2] == 0x00) {
+				Log.Tracef("Connection %v RX %v", conn.addr, msg)
+				conn.msgCh <- msg
 			}
-		case ch := <-conn.closeCh:
-			close(conn.msgCh)
-			ch <- nil
-			return
 		}
+	} else {
+		Log.Tracef("Connection %v RX %v", conn.addr, msg)
+		conn.msgCh <- msg
 	}
 }
 
@@ -233,30 +214,23 @@ func (conn *connection) Send(msg *Message) (ack *Message, err error) {
 	msg.Dst = conn.addr
 	msg.Flags = Flag(MsgTypeDirect, len(msg.Payload) > 0, conn.ttl, conn.ttl)
 	Log.Tracef("Connection %v TX %v", conn.addr, msg)
-	conn.txCh <- msg
+	err = conn.upstream.Send(msg)
 
-	// wait for ack
-	timeout := time.Now().Add(conn.timeout)
-	for err == nil {
-		ack, err = conn.Receive()
-		if err == nil && (ack.Ack() || ack.Nak()) {
-			break
-		} else if timeout.Before(time.Now()) {
-			err = ErrAckTimeout
-		}
+	if err == nil {
+		// wait for ack
+		err = Receive(conn, conn.timeout, func(msg *Message) (err error) {
+			if msg.Ack() || msg.Nak() {
+				ack = msg
+				err = ErrReceiveComplete
+			}
+			return err
+		})
 	}
-
 	return ack, err
 }
 
 func (conn *connection) Receive() (msg *Message, err error) {
 	return readFromCh(conn.msgCh, conn.timeout)
-}
-
-func (conn *connection) Close() error {
-	ch := make(chan error)
-	conn.closeCh <- ch
-	return <-ch
 }
 
 func (conn *connection) IDRequest() (version FirmwareVersion, devCat DevCat, err error) {

@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	modem          *plm.PLM
+	modem          plm.PLM
 	logLevelFlag   insteon.LogLevel
 	serialPortFlag string
 	timeoutFlag    time.Duration

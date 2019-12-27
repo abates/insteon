@@ -137,7 +137,7 @@ func TestProductDataMarshaling(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			pd := &ProductData{}
 			err := pd.UnmarshalBinary(test.input)
-			if !isError(err, test.expectedError) {
+			if !IsError(err, test.expectedError) {
 				t.Errorf("got error %v, want %v", err, test.expectedError)
 			}
 

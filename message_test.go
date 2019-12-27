@@ -19,6 +19,10 @@ import (
 	"testing"
 )
 
+func testMsg(typ MessageType, cmd Command, payload ...byte) *Message {
+	return &Message{Address{6, 7, 8}, Address{9, 10, 11}, Flag(typ, len(payload) > 0, 2, 2), cmd, payload}
+}
+
 var (
 	testSrcAddr = Address{1, 2, 3}
 	testDstAddr = Address{3, 4, 5}
@@ -226,7 +230,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			message := &Message{}
 			err := message.UnmarshalBinary(test.input)
-			if !isError(err, test.expectedError) {
+			if !IsError(err, test.expectedError) {
 				t.Errorf("expected %v got %v", test.expectedError, err)
 				return
 			} else if err != nil {

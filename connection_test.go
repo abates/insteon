@@ -16,12 +16,21 @@ package insteon
 
 import (
 	"fmt"
-	"io"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
 )
+
+type testSender struct {
+	sndMsg []*Message
+	sndErr error
+}
+
+func (tsr *testSender) Send(msg *Message) error {
+	tsr.sndMsg = append(tsr.sndMsg, msg)
+	return tsr.sndErr
+}
 
 type testConnection struct {
 	sync.Mutex
@@ -41,6 +50,7 @@ type testConnection struct {
 }
 
 func (tc *testConnection) Address() Address { return tc.addr }
+
 func (tc *testConnection) EngineVersion() (EngineVersion, error) {
 	return tc.engineVersion, tc.engineVersionErr
 }
@@ -101,42 +111,22 @@ func TestConnectionSend(t *testing.T) {
 		input       *Message
 		expectedErr error
 	}{
-		{"I1 Send", TestProductDataResponse, nil},
-		{"I2 Send", TestProductDataResponse, nil},
-		{"I2Cs Send", TestProductDataResponse, nil},
-		{"I2Cs Send", TestProductDataResponse, ErrAckTimeout},
+		{"Send Ack", testMsg(MsgTypeDirectAck, Command{}), nil},
+		{"Send Nak", TestProductDataResponse, ErrAckTimeout},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			txCh := make(chan *Message, 1)
-			rxCh := make(chan *Message, 1)
-			conn, err := NewConnection(txCh, rxCh, Address{}, ConnectionTimeout(time.Millisecond))
+			sender := &testSender{sndErr: test.expectedErr}
+			conn, err := newConnection(sender, Address{}, ConnectionTimeout(time.Millisecond))
+			conn.dispatch(test.input)
 			if err != nil {
 				t.Errorf("Unexpected error from NewCOnnection(): %v", err)
 			}
 
-			go func() {
-				<-txCh
-				if test.expectedErr == nil {
-					ack := *test.input
-					src := ack.Src
-					ack.Src = ack.Dst
-					ack.Dst = src
-					ack.Flags = StandardDirectAck
-					if test.input.Flags.Extended() {
-						ack.Flags = ExtendedDirectAck
-					}
-					rxCh <- &ack
-				}
-			}()
-
-			_, err = conn.Send(test.input)
+			_, err = conn.Send(&Message{})
 			if err != test.expectedErr {
 				t.Errorf("Want %v got %v", test.expectedErr, err)
-			}
-			if closer, ok := conn.(io.Closer); ok {
-				closer.Close()
 			}
 		})
 	}
@@ -156,12 +146,8 @@ func TestNewConnectionTTL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("ttl %d", tt.ttl), func(t *testing.T) {
-			_, err := NewConnection(
-				make(chan *Message, 1),
-				make(chan *Message, 1),
-				Address{},
-				ConnectionTTL(tt.ttl),
-			)
+			sender := &testSender{}
+			_, err := NewConnection(sender, Address{}, ConnectionTTL(tt.ttl))
 
 			// TODO: consider switching to cmp package
 			var got string
@@ -190,12 +176,11 @@ func TestConnectionReceive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			txCh := make(chan *Message, 1)
-			rxCh := make(chan *Message, 1)
-			rxCh <- test.input
-			conn, err := NewConnection(txCh, rxCh, Address{}, ConnectionFilter(test.match), ConnectionTimeout(time.Millisecond))
+			sender := &testSender{}
+			conn, err := newConnection(sender, Address{}, ConnectionFilter(test.match), ConnectionTimeout(time.Millisecond))
+			conn.dispatch(test.input)
 			if err != nil {
-				t.Errorf("Unexpected error from NewCOnnection(): %v", err)
+				t.Errorf("Unexpected error from NewConnection(): %v", err)
 			}
 
 			_, err = conn.Receive()
@@ -203,25 +188,19 @@ func TestConnectionReceive(t *testing.T) {
 			if test.expectedErr != err {
 				t.Errorf("want %v got %v", test.expectedErr, err)
 			}
-			if closer, ok := conn.(io.Closer); ok {
-				closer.Close()
-			}
 		})
 	}
 }
 
 func TestConnectionIDRequest(t *testing.T) {
-	txCh := make(chan *Message)
-	conn := &connection{txCh: txCh, msgCh: make(chan *Message), timeout: time.Millisecond}
+	sender := &testSender{}
+	conn, _ := newConnection(sender, Address{}, ConnectionTimeout(time.Millisecond))
+	conn.msgCh = make(chan *Message, 2)
+	conn.dispatch(TestAck)
+	conn.dispatch(&Message{Dst: Address{07, 79, 42}, Command: Command{0, 1}, Flags: StandardBroadcast})
 
 	wantVersion := FirmwareVersion(42)
 	wantDevCat := DevCat{07, 79}
-
-	go func() {
-		<-txCh
-		conn.msgCh <- TestAck
-		conn.msgCh <- &Message{Dst: Address{07, 79, 42}, Command: Command{0, 1}, Flags: StandardBroadcast}
-	}()
 
 	gotVersion, gotDevCat, err := conn.IDRequest()
 	if err != nil {
@@ -247,13 +226,11 @@ func TestConnectionEngineVersion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			txCh := make(chan *Message, 1)
-			conn := &connection{txCh: txCh, msgCh: make(chan *Message, 1), timeout: time.Nanosecond}
-
-			conn.msgCh <- test.input
+			sender := &testSender{}
+			conn, _ := newConnection(sender, Address{}, ConnectionTimeout(time.Millisecond))
+			conn.dispatch(test.input)
 
 			gotVersion, err := conn.EngineVersion()
-			<-txCh
 			if err != test.wantErr {
 				t.Errorf("want error %v got %v", test.wantErr, err)
 			} else if err == nil {
@@ -262,38 +239,6 @@ func TestConnectionEngineVersion(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestMsgListeners(t *testing.T) {
-	ml := &msgListeners{listeners: make(map[<-chan *Message]*msgListener), bufLen: 1}
-	ch1 := ml.AddListener(MsgTypeDirect, CmdPing)
-	ch2 := ml.AddListener(MsgTypeBroadcast, CmdPing)
-	ch3 := ml.AddListener(MsgTypeDirect, CmdReadWriteALDB)
-
-	if len(ml.listeners) != 3 {
-		t.Errorf("Expected 3 listeners to be set")
-	}
-
-	ml.deliver(TestMessagePing)
-	if len(ch1) != 1 {
-		t.Errorf("Expected Ping message to be delivered to first channel")
-	}
-
-	if len(ch2) != 0 {
-		t.Errorf("Expected Ping to not be delivered to second channel")
-	}
-
-	if len(ch3) != 0 {
-		t.Errorf("Expected Ping to not be delivered to third channel")
-	}
-
-	ml.RemoveListener(ch1)
-	ml.RemoveListener(ch2)
-	ml.RemoveListener(ch3)
-
-	if len(ml.listeners) != 0 {
-		t.Errorf("Expected listeners to be empty")
 	}
 }
 

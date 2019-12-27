@@ -48,7 +48,7 @@ func (al *addrList) String() string {
 }
 
 type plmCmd struct {
-	*plm.PLM
+	plm.PLM
 	addresses []insteon.Address
 }
 
@@ -73,9 +73,13 @@ func init() {
 }
 
 func (p *plmCmd) resetCmd() (err error) {
-	msg := "WARNING: This will erase the modem All-Link database and reset the modem to factory defaults\nProceed? (y/n) "
-	if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
-		err = modem.Reset()
+	if resetable, ok := modem.(plm.Resetable); ok {
+		msg := "WARNING: This will erase the modem All-Link database and reset the modem to factory defaults\nProceed? (y/n) "
+		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
+			err = resetable.Reset()
+		}
+	} else {
+		err = fmt.Errorf("%v is not resetable", modem)
 	}
 	return err
 }
@@ -87,7 +91,9 @@ func (p *plmCmd) infoCmd() (err error) {
 		fmt.Printf("   Address: %s\n", info.Address)
 		fmt.Printf("  Category: %02x Sub-Category: %02x\n", info.DevCat.Category(), info.DevCat.SubCategory())
 		fmt.Printf("  Firmware: %d\n", info.Firmware)
-		err = util.PrintLinks(os.Stdout, modem)
+		err = isLinkable(modem, func(linkable insteon.Linkable) error {
+			return util.PrintLinks(os.Stdout, linkable)
+		})
 	}
 	return err
 }
@@ -96,69 +102,75 @@ func (p *plmCmd) linkCmd() error      { return p.link(false) }
 func (p *plmCmd) crossLinkCmd() error { return p.link(true) }
 
 func (p *plmCmd) link(crosslink bool) error {
-	for _, addr := range p.addresses {
-		group := insteon.Group(0x01)
-		fmt.Printf("Linking to %s...", addr)
-		device, err := modem.Open(addr)
-		if err == insteon.ErrNotLinked {
-			err = nil
-		}
-
-		if err == nil {
-			if linkable, ok := device.(insteon.LinkableDevice); ok {
-				err = util.ForceLink(group, modem, linkable)
-				if err == nil && crosslink {
-					err = util.ForceLink(group, linkable, modem)
-				}
-			} else {
-				err = fmt.Errorf("%v is not a linkable device", device)
+	return isLinkable(modem, func(lmodem insteon.Linkable) (err error) {
+		for _, addr := range p.addresses {
+			group := insteon.Group(0x01)
+			fmt.Printf("Linking to %s...", addr)
+			device, err := modem.Open(addr, insteon.ConnectionTimeout(timeoutFlag), insteon.ConnectionTTL(uint8(ttlFlag)))
+			if err == insteon.ErrNotLinked {
+				err = nil
 			}
 
 			if err == nil {
-				fmt.Printf("done\n")
+				err = isLinkable(device, func(ldevice insteon.Linkable) (err error) {
+					err = util.ForceLink(group, lmodem, ldevice)
+					if err == nil && crosslink {
+						err = util.ForceLink(group, ldevice, lmodem)
+					}
+					return err
+				})
+
+				if err == nil {
+					fmt.Printf("done\n")
+				} else {
+					fmt.Printf("failed: %v\n", err)
+				}
 			} else {
-				fmt.Printf("failed: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Failed to connect to %s: %v\n", addr, err)
+				break
 			}
-		} else {
-			fmt.Fprintf(os.Stderr, "Failed to connect to %s: %v\n", addr, err)
 		}
-	}
-	// TODO make this return a generic error if one or more of the links failed
-	return nil
+		return err
+	})
 }
 
-func (p *plmCmd) allLinkCmd() error { return modem.EnterLinkingMode(insteon.Group(0x01)) }
+func (p *plmCmd) allLinkCmd() error {
+	return isLinkable(modem, func(linkable insteon.Linkable) error {
+		return linkable.EnterLinkingMode(insteon.Group(0x01))
+	})
+}
 
 func (p *plmCmd) unlinkCmd() (err error) {
 	group := insteon.Group(0x01)
 
-	for _, addr := range p.addresses {
-		var device insteon.Device
-		fmt.Printf("Unlinking from %s...", addr)
-		device, err = modem.Open(addr)
+	return isLinkable(modem, func(lmodem insteon.Linkable) (err error) {
+		for _, addr := range p.addresses {
+			var device insteon.Device
+			fmt.Printf("Unlinking from %s...", addr)
+			device, err = modem.Open(addr, insteon.ConnectionTimeout(timeoutFlag), insteon.ConnectionTTL(uint8(ttlFlag)))
 
-		if linkable, ok := device.(insteon.LinkableDevice); ok {
 			if err == nil {
-				err = util.Unlink(group, linkable, modem)
+				err = isLinkable(device, func(ldevice insteon.Linkable) (err error) {
+					if err == nil {
+						err = util.Unlink(group, ldevice, lmodem)
+					}
+
+					if err == nil || err == insteon.ErrNotLinked {
+						err = util.Unlink(group, lmodem, ldevice)
+					}
+					return err
+				})
+			} else if err == insteon.ErrNotLinked {
+				err = nil
 			}
 
-			if err == nil || err == insteon.ErrNotLinked {
-				err = util.Unlink(group, modem, linkable)
+			if err == nil {
+				fmt.Printf("successful\n")
+			} else {
+				fmt.Printf("failed: %v\n", err)
+				break
 			}
-		} else {
-			err = fmt.Errorf("%v is not a linkable device", device)
 		}
-
-		if err == insteon.ErrNotLinked {
-			err = nil
-		}
-
-		if err == nil {
-			fmt.Printf("successful\n")
-		} else {
-			fmt.Printf("failed: %v\n", err)
-		}
-	}
-	// TODO make this return a generic error if one or more of the links failed
-	return err
+		return err
+	})
 }

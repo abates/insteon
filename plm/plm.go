@@ -44,18 +44,38 @@ func hexDump(format string, buf []byte, sep string) string {
 	return strings.Join(str, sep)
 }
 
+type Resetable interface {
+	Reset() error
+}
+
+type Configurable interface {
+	Config() (config *Config, err error)
+	SetConfig(config *Config) error
+}
+
+type Categorical interface {
+	SetDeviceCategory(insteon.Category) error
+}
+
+type Sleepable interface {
+	RFSleep() error
+}
+
+type Monitorable interface {
+	Monitor() (<-chan *insteon.Message, error)
+}
+
 type PLM struct {
 	sync.Mutex
 	linkdb
-	timeout     time.Duration
-	writeDelay  time.Duration
-	nextWrite   time.Time
-	port        *Port
-	connections map[insteon.Address]insteon.Connection
+	portMutex  sync.Mutex
+	timeout    time.Duration
+	writeDelay time.Duration
+	nextWrite  time.Time
+	port       *Port
+	demux      insteon.Demux
 
-	insteonRxCh chan *insteon.Message
-	insteonTxCh chan *insteon.Message
-	plmCh       chan *Packet
+	plmCh chan *Packet
 }
 
 // The Option mechanism is based on the method described at https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
@@ -64,15 +84,13 @@ type Option func(p *PLM) error
 // New creates a new PLM instance.
 func New(port *Port, timeout time.Duration, options ...Option) (*PLM, error) {
 	plm := &PLM{
-		timeout:     timeout,
-		writeDelay:  500 * time.Millisecond,
-		port:        port,
-		connections: make(map[insteon.Address]insteon.Connection),
+		timeout:    timeout,
+		writeDelay: 500 * time.Millisecond,
+		port:       port,
 
-		insteonTxCh: make(chan *insteon.Message),
-		insteonRxCh: make(chan *insteon.Message),
-		plmCh:       make(chan *Packet),
+		plmCh: make(chan *Packet),
 	}
+	plm.demux = insteon.NewDemux(plm)
 	plm.linkdb.plm = plm
 	plm.linkdb.timeout = timeout
 
@@ -85,7 +103,6 @@ func New(port *Port, timeout time.Duration, options ...Option) (*PLM, error) {
 	}
 
 	go plm.readLoop()
-	go plm.writeLoop()
 	return plm, nil
 }
 
@@ -110,7 +127,7 @@ func (plm *PLM) readLoop() {
 					msg := &insteon.Message{}
 					err := msg.UnmarshalBinary(packet.Payload)
 					if err == nil {
-						plm.insteonRxCh <- msg
+						plm.demux.Dispatch(msg)
 					} else {
 						insteon.Log.Infof("Failed to unmarshal Insteon Message: %v", err)
 					}
@@ -129,42 +146,43 @@ func (plm *PLM) readLoop() {
 	}
 }
 
-func (plm *PLM) writeLoop() {
-	for msg := range plm.insteonTxCh {
-		buf, err := msg.MarshalBinary()
-		if err == nil {
-			// slice off the source address since the PLM doesn't want it
-			buf = buf[3:]
-
-			writeDelay := plm.writeDelay
-			if writeDelay == 0 {
-				// wait 2 * ttl * message length zero crossings
-				if msg.Flags.Extended() {
-					writeDelay = time.Second * time.Duration(26*msg.Flags.TTL()) / 60
-				} else {
-					writeDelay = time.Second * time.Duration(12*msg.Flags.TTL()) / 60
-				}
-			}
-			_, err = plm.send(&Packet{Command: 0x62, Payload: buf}, writeDelay)
-			if err != nil {
-				insteon.Log.Infof("Failed to send packet: %v", err)
-			}
-		} else {
-			insteon.Log.Infof("Failed to marshal insteon message: %v", err)
-		}
+func (plm *PLM) Send(msg *insteon.Message) error {
+	buf, err := msg.MarshalBinary()
+	if err == nil {
+		// slice off the source address since the PLM doesn't want it
+		buf = buf[3:]
+		_, err = plm.send(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
 	}
+	return err
 }
 
-// transmit a packet and wait for the PLM to ack that the packet was
+// send a packet and wait for the PLM to ack that the packet was
 // sent.  This is a blocking function. Only callers that have acquired
-// the mutex shoud call this function
-func (plm *PLM) tx(txPacket *Packet, writeDelay time.Duration) (ack *Packet, err error) {
+// the mutex should call this function
+func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
+	plm.portMutex.Lock()
+	defer plm.portMutex.Unlock()
+
+	writeDelay := time.Duration(0)
+	if txPacket.Command == CmdSendInsteonMsg {
+		writeDelay = plm.writeDelay
+		if writeDelay == 0 {
+			// flags is the 4th byte in an insteon message and max ttl/hops is the
+			// least significant 2 bits
+			flags := insteon.Flags(txPacket.Payload[3])
+			writeDelay = insteon.PropagationDelay(flags.TTL(), flags.Extended())
+		}
+	}
+
 	buf, err := txPacket.MarshalBinary()
 	if err == nil {
 		if time.Now().Before(plm.nextWrite) {
-			<-time.After(plm.nextWrite.Sub(time.Now()))
+			delay := plm.nextWrite.Sub(time.Now())
+			insteon.Log.Tracef("Delaying write for %s", delay)
+			<-time.After(delay)
 		}
 
+		insteon.Log.Tracef("Sending packet %v (write delay %v)", txPacket, writeDelay)
 		plm.port.Write(buf)
 		plm.nextWrite = time.Now().Add(writeDelay)
 
@@ -192,23 +210,19 @@ func (plm *PLM) tx(txPacket *Packet, writeDelay time.Duration) (ack *Packet, err
 	return
 }
 
-// send a packet and wait for the PLM to ack that the packet was
-// sent.  This is a blocking function
-func (plm *PLM) send(txPacket *Packet, writeDelay time.Duration) (ack *Packet, err error) {
-	plm.Lock()
-	defer plm.Unlock()
-	return plm.tx(txPacket, writeDelay)
+func (plm *PLM) receive(timeout time.Duration) (pkt *Packet, err error) {
+	plm.portMutex.Lock()
+	defer plm.portMutex.Unlock()
+	select {
+	case pkt = <-plm.plmCh:
+	case <-time.After(timeout):
+		err = ErrReadTimeout
+	}
+	return
 }
 
 func (plm *PLM) Connect(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Connection, error) {
-	if conn, found := plm.connections[addr]; found {
-		return conn, nil
-	}
-	conn, err := insteon.NewConnection(plm.insteonTxCh, plm.insteonRxCh, addr, options...)
-	if err == nil {
-		plm.connections[addr] = conn
-	}
-	return conn, err
+	return plm.demux.New(addr, options...)
 }
 
 func (plm *PLM) Open(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Device, error) {
@@ -220,16 +234,24 @@ func (plm *PLM) Open(addr insteon.Address, options ...insteon.ConnectionOption) 
 	return insteon.Open(conn, plm.timeout)
 }
 
+/*func (plm *plm) Monitor() (<-chan *insteon.Message, error) {
+	var err error
+	addr := insteon.Address{0, 0, 0}
+	if conn, found := plm.connections[addr]; found {
+		return conn.rxCh, nil
+	}
+	conn := &connection{plm: plm, rxCh: make(chan *insteon.Message, 0)}
+	plm.connections[addr] = conn
+	return conn.rxCh, err
+}*/
+
 // retry will deliver a packet to the Insteon network. If delivery fails (due
 // to a NAK from the PLM) then we will retry and decrement retries. This
 // continues until the packet is sent (as acknowledged by the PLM) or retries
 // reaches zero
-func (plm *PLM) retry(packet *Packet, retries int) (ack *Packet, err error) {
-	plm.Lock()
-	defer plm.Unlock()
-
+func retry(plm *PLM, packet *Packet, retries int) (ack *Packet, err error) {
 	for err == ErrNak || retries > 0 {
-		ack, err = plm.tx(packet, time.Second)
+		ack, err = plm.send(packet)
 		if err == nil {
 			break
 		}
@@ -244,7 +266,7 @@ func (plm *PLM) retry(packet *Packet, retries int) (ack *Packet, err error) {
 }
 
 func (plm *PLM) Info() (info *Info, err error) {
-	ack, err := plm.send(&Packet{Command: CmdGetInfo}, 0)
+	ack, err := plm.send(&Packet{Command: CmdGetInfo})
 	if err == nil {
 		info = &Info{}
 		err = info.UnmarshalBinary(ack.Payload)
@@ -256,22 +278,22 @@ func (plm *PLM) Reset() error {
 	timeout := plm.timeout
 	plm.timeout = 20 * time.Second
 
-	_, err := plm.send(&Packet{Command: CmdReset}, 0)
+	_, err := plm.send(&Packet{Command: CmdReset})
 	plm.timeout = timeout
 	return err
 }
 
-func (plm *PLM) Config() (config *Config, err error) {
-	ack, err := plm.send(&Packet{Command: CmdGetConfig}, 0)
+func (plm *PLM) Config() (config Config, err error) {
+	ack, err := plm.send(&Packet{Command: CmdGetConfig})
 	if err == nil {
 		err = config.UnmarshalBinary(ack.Payload)
 	}
 	return config, err
 }
 
-func (plm *PLM) SetConfig(config *Config) error {
+func (plm *PLM) SetConfig(config Config) error {
 	payload, _ := config.MarshalBinary()
-	_, err := plm.send(&Packet{Command: CmdSetConfig, Payload: payload}, 0)
+	_, err := plm.send(&Packet{Command: CmdSetConfig, Payload: payload})
 	return err
 }
 
@@ -298,6 +320,6 @@ func (plm *PLM) String() string {
 }
 
 func (plm *PLM) Close() {
-	close(plm.insteonTxCh)
+	//close(plm.insteonTxCh)
 	plm.port.Close()
 }

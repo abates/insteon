@@ -37,11 +37,10 @@ func newI2Device(connection Connection, timeout time.Duration) *i2Device {
 func (i2 *i2Device) linkingMode(cmd Command, payload ...byte) error {
 	i2.Lock()
 	defer i2.Unlock()
-	setButton := i2.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
-	defer i2.RemoveListener(setButton)
 	_, err := i2.SendCommand(cmd, payload)
 	if err == nil {
-		_, err = readFromCh(setButton, i2.timeout)
+		Log.Tracef("Waiting %s for response (Set-Button Pressed Controller/Responder)", i2.timeout)
+		<-time.After(PropagationDelay(3, len(payload) > 0))
 	}
 	return err
 }

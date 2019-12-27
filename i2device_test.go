@@ -39,18 +39,12 @@ func TestI2DeviceEnterLinkingMode(t *testing.T) {
 	constructor := func(conn *testConnection) Device { return newI2Device(conn, time.Millisecond) }
 	callback := func(d Device) error { return d.(*i2Device).EnterLinkingMode(10) }
 	// happy path
-	testDeviceCommand(t, constructor, callback, CmdEnterLinkingMode.SubCommand(10), nil, nil, &Message{Flags: StandardBroadcast, Command: CmdSetButtonPressedResponder})
-
-	// sad path
-	testDeviceCommand(t, constructor, callback, CmdEnterLinkingMode.SubCommand(10), nil, ErrReadTimeout)
+	testDeviceCommand(t, constructor, callback, CmdEnterLinkingMode.SubCommand(10), nil, nil)
 }
 
 func TestI2DeviceEnterUnlinkingMode(t *testing.T) {
 	constructor := func(conn *testConnection) Device { return newI2Device(conn, time.Millisecond) }
 	callback := func(d Device) error { return d.(*i2Device).EnterUnlinkingMode(10) }
 	// happy path
-	testDeviceCommand(t, constructor, callback, CmdEnterUnlinkingMode.SubCommand(10), nil, nil, &Message{Flags: StandardBroadcast, Command: CmdSetButtonPressedResponder})
-
-	// sad path
-	testDeviceCommand(t, constructor, callback, CmdEnterUnlinkingModeExt.SubCommand(10), nil, ErrReadTimeout)
+	testDeviceCommand(t, constructor, callback, CmdEnterUnlinkingMode.SubCommand(10), nil, nil)
 }

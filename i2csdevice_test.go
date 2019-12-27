@@ -67,7 +67,7 @@ func TestI2CsErrLookup(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			_, got := i2csErrLookup(test.input, test.err)
-			if !isError(got, test.want) {
+			if !IsError(got, test.want) {
 				t.Errorf("want %v got %v", test.want, got)
 			}
 		})
@@ -110,10 +110,7 @@ func TestI2CsDeviceEnterLinkingMode(t *testing.T) {
 	constructor := func(conn *testConnection) Device { return newI2CsDevice(conn, time.Millisecond) }
 	callback := func(d Device) error { return d.(*i2CsDevice).EnterLinkingMode(10) }
 	// happy path
-	testDeviceCommand(t, constructor, callback, CmdEnterLinkingModeExt.SubCommand(10), nil, nil, &Message{Flags: StandardBroadcast, Command: CmdSetButtonPressedResponder})
-
-	// sad path
-	testDeviceCommand(t, constructor, callback, CmdEnterLinkingModeExt.SubCommand(10), nil, ErrReadTimeout)
+	testDeviceCommand(t, constructor, callback, CmdEnterLinkingModeExt.SubCommand(10), nil, nil)
 }
 
 func TestI2CsDeviceReceive(t *testing.T) {
@@ -136,7 +133,7 @@ func TestI2CsDeviceReceive(t *testing.T) {
 			conn.recvCh <- test.input
 			device := newI2CsDevice(conn, time.Millisecond)
 			_, err := device.Receive()
-			if !isError(err, test.wantErr) {
+			if !IsError(err, test.wantErr) {
 				t.Errorf("want error %v got %v", test.wantErr, err)
 			}
 		})

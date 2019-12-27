@@ -34,14 +34,6 @@ func newI2CsDevice(connection Connection, timeout time.Duration) *i2CsDevice {
 	return i2cs
 }
 
-func (i2cs *i2CsDevice) AddListener(t MessageType, cmds ...Command) <-chan *Message {
-	return i2cs.connection.AddListener(t, cmds...)
-}
-
-func (i2cs *i2CsDevice) RemoveListener(ch <-chan *Message) {
-	i2cs.connection.RemoveListener(ch)
-}
-
 // EnterLinkingMode will put the device into linking mode. This is
 // equivalent to holding down the set button until the device
 // beeps and the indicator light starts flashing

@@ -141,7 +141,7 @@ type Message struct {
 // Ack indicates if the message is an acknowledgement of a previously sent
 // message
 func (m *Message) Ack() bool {
-	return m.Flags&0xf0 == 0x20 || m.Flags&m.Flags&0xf0 == 0x30
+	return m.Flags&0xf0 == 0x20 || m.Flags&0xf0 == 0x30
 }
 
 // Nak indicates a negative acknowledgement.  This indicates the device

@@ -18,16 +18,26 @@ import (
 	"log"
 
 	"github.com/abates/cli"
+	"github.com/abates/insteon"
+	"github.com/abates/insteon/plm"
 )
 
 func init() {
 	app.SubCommand("monitor", cli.DescOption("Monitor the Insteon network"), cli.CallbackOption(monCmd))
 }
 
-func monCmd() error {
-	log.Printf("Starting monitor...")
-	/*for msg := range modem.Monitor() {
-		log.Printf("%s", msg)
-	}*/
-	return nil
+func monCmd() (err error) {
+	if monitor, ok := modem.(plm.Monitorable); ok {
+		log.Printf("Starting monitor...")
+		var ch <-chan *insteon.Message
+		ch, err = monitor.Monitor()
+		if err == nil {
+			for msg := range ch {
+				log.Printf("%s", msg)
+			}
+		}
+	} else {
+		log.Printf("PLM is not monitorable")
+	}
+	return err
 }

@@ -66,23 +66,31 @@ func (alr *allLinkReq) MarshalBinary() ([]byte, error) {
 	return []byte{byte(alr.Mode), byte(alr.Group)}, nil
 }
 
-func (alr *allLinkReq) UnmarshalBinary(buf []byte) error {
+func (alr *allLinkReq) UnmarshalBinary(buf []byte) (err error) {
 	if len(buf) < 2 {
-		return fmt.Errorf("Needed 2 bytes to unmarshal all link request.  Got %d", len(buf))
+		err = &insteon.BufError{insteon.ErrBufferTooShort, 2, len(buf)}
+	} else {
+		alr.Mode = linkingMode(buf[0])
+		alr.Group = insteon.Group(buf[1])
 	}
-	alr.Mode = linkingMode(buf[0])
-	alr.Group = insteon.Group(buf[1])
-	return nil
+	return err
 }
 
 func (alr *allLinkReq) String() string {
 	return fmt.Sprintf("%02x %d", alr.Mode, alr.Group)
 }
 
+type linkdbPLM interface {
+	Lock()
+	Unlock()
+	receive(timeout time.Duration) (*Packet, error)
+	send(packet *Packet) (ack *Packet, err error)
+}
+
 type linkdb struct {
 	age     time.Time
 	links   []*insteon.LinkRecord
-	plm     *PLM
+	plm     linkdbPLM
 	timeout time.Duration
 }
 
@@ -95,28 +103,21 @@ func (ldb *linkdb) refresh() error {
 		return nil
 	}
 	links := make([]*insteon.LinkRecord, 0)
-	insteon.Log.Debugf("Retrieving PLM link database")
-	_, err := ldb.plm.tx(&Packet{Command: CmdGetFirstAllLink}, 0)
-	// TODO: does this loop need a timeout as well?  If, for
-	// some reason, we are receiving packets on the plmCh, but
-	// none of them are AllLinkRecordResponses, then this will
-	// loop forever until a read timeout occurs...
+	_, err := ldb.plm.send(&Packet{Command: CmdGetFirstAllLink})
+	timeout := time.Now().Add(ldb.timeout)
 	for err == nil {
-		select {
-		case pkt := <-ldb.plm.plmCh:
+		var pkt *Packet
+		pkt, err = ldb.plm.receive(ldb.timeout)
+		if err == nil {
 			if pkt.Command == CmdAllLinkRecordResp {
 				link := &insteon.LinkRecord{}
 				err = link.UnmarshalBinary(pkt.Payload)
 				if err == nil {
-					insteon.Log.Debugf("Received PLM record response %v", link)
 					links = append(links, link)
-					_, err = ldb.plm.tx(&Packet{Command: CmdGetNextAllLink}, 0)
-				} else {
-					insteon.Log.Infof("Failed to unmarshal link record: %v", err)
-					break
+					_, err = ldb.plm.send(&Packet{Command: CmdGetNextAllLink})
 				}
 			}
-		case <-time.After(ldb.plm.timeout):
+		} else if timeout.Before(time.Now()) {
 			err = ErrReadTimeout
 		}
 	}
@@ -152,18 +153,22 @@ func (ldb *linkdb) EnterLinkingMode(group insteon.Group) error {
 	defer ldb.plm.Unlock()
 	lr := &allLinkReq{Mode: linkingMode(0x03), Group: group}
 	payload, _ := lr.MarshalBinary()
-	_, err := ldb.plm.retry(&Packet{Command: CmdStartAllLink, Payload: payload}, 3)
+	_, err := ldb.plm.send(&Packet{Command: CmdStartAllLink, Payload: payload})
+	if err == nil {
+		// arbitrary wait to allow plm's set-button message to be propogated
+		<-time.After(600 * time.Millisecond)
+	}
 	return err
 }
 
 func (ldb *linkdb) ExitLinkingMode() error {
-	_, err := ldb.plm.retry(&Packet{Command: CmdCancelAllLink}, 3)
+	_, err := ldb.plm.send(&Packet{Command: CmdCancelAllLink})
 	return err
 }
 
 func (ldb *linkdb) EnterUnlinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0xff), Group: group}
 	payload, _ := lr.MarshalBinary()
-	_, err := ldb.plm.retry(&Packet{Command: CmdStartAllLink, Payload: payload}, 3)
+	_, err := ldb.plm.send(&Packet{Command: CmdStartAllLink, Payload: payload})
 	return err
 }

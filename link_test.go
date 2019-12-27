@@ -180,7 +180,7 @@ func TestLinkMarshalUnmarshal(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			link := &LinkRecord{}
 			err := link.UnmarshalBinary(test.input)
-			if !isError(err, test.expectedError) {
+			if !IsError(err, test.expectedError) {
 				t.Errorf("got error %v, want %v", err, test.expectedError)
 				return
 			} else if err != nil {

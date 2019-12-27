@@ -23,6 +23,8 @@ import (
 // Address is a 3 byte insteon address
 type Address [3]byte
 
+var Wildcard = Address{0, 0, 0}
+
 // String will format the Address object into a form
 // common to Insteon devices: 00.00.00 where each byte
 // is represented in hexadecimal form (e.g. 01.b4.a5) the

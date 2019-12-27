@@ -50,7 +50,7 @@ func (dev *device) init() (err error) {
 	return err
 }
 
-func connect(plm *plm.PLM, addr insteon.Address) (insteon.Device, error) {
+func connect(plm plm.PLM, addr insteon.Address) (insteon.Device, error) {
 	device, err := plm.Open(addr, insteon.ConnectionTimeout(timeoutFlag), insteon.ConnectionTTL(uint8(ttlFlag)))
 
 	if err == insteon.ErrNotLinked {
@@ -67,33 +67,33 @@ func connect(plm *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 	return device, err
 }
 
-func devLink(device insteon.Device, cb func(dev insteon.LinkableDevice) error) error {
-	if linkable, ok := device.(insteon.LinkableDevice); ok {
+func isLinkable(thing interface{}, cb func(linkable insteon.Linkable) error) error {
+	if linkable, ok := thing.(insteon.Linkable); ok {
 		return cb(linkable)
 	}
-	return fmt.Errorf("%v is not a linkable device", device)
+	return fmt.Errorf("%v is not linkable", thing)
 }
 
 func (dev *device) linkCmd() error {
-	return devLink(dev.Device, func(linkable insteon.LinkableDevice) error {
+	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		return linkable.EnterLinkingMode(insteon.Group(0x01))
 	})
 }
 
 func (dev *device) unlinkCmd() error {
-	return devLink(dev.Device, func(linkable insteon.LinkableDevice) error {
+	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		return linkable.EnterUnlinkingMode(insteon.Group(0x01))
 	})
 }
 
 func (dev *device) exitLinkCmd() error {
-	return devLink(dev.Device, func(linkable insteon.LinkableDevice) error {
+	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		return linkable.ExitLinkingMode()
 	})
 }
 
 func (dev *device) dumpCmd() error {
-	return devLink(dev.Device, func(linkable insteon.LinkableDevice) error {
+	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		err := dumpLinkDatabase(linkable)
 		return err
 	})
@@ -115,7 +115,7 @@ func printDevInfo(device insteon.Device, extra string) (err error) {
 			fmt.Printf("%s\n", extra)
 		}
 
-		err = devLink(device, func(linkable insteon.LinkableDevice) error {
+		err = isLinkable(device, func(linkable insteon.Linkable) error {
 			return util.PrintLinks(os.Stdout, linkable)
 		})
 	}
@@ -131,7 +131,7 @@ func (dev *device) versionCmd() error {
 }
 
 func (dev *device) editCmd() error {
-	return devLink(dev.Device, func(linkable insteon.LinkableDevice) error {
+	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		dbLinks, _ := linkable.Links()
 		if len(dbLinks) == 0 {
 			return fmt.Errorf("No links to edit")

@@ -32,7 +32,7 @@ func TestI1DeviceErrLookup(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			_, got := errLookup(test.input, test.err)
-			if !isError(got, test.want) {
+			if !IsError(got, test.want) {
 				t.Errorf("want %v got %v", test.want, got)
 			}
 		})
@@ -146,7 +146,7 @@ func TestI1DeviceReceive(t *testing.T) {
 			conn.recvCh <- test.input
 			device := newI1Device(conn, time.Millisecond)
 			_, err := device.Receive()
-			if !isError(err, test.wantErr) {
+			if !IsError(err, test.wantErr) {
 				t.Errorf("want error %v got %v", test.wantErr, err)
 			}
 		})

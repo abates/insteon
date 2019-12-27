@@ -46,9 +46,9 @@ type traceError struct {
 	Frame runtime.Frame // the runtime frame of the occurrence
 }
 
-// isError will determine if `check` is wrapping an underlying error.
+// IsError will determine if `check` is wrapping an underlying error.
 // If so, the underlying error is compared to `err`.
-func isError(check, err error) bool {
+func IsError(check, err error) bool {
 	switch e := check.(type) {
 	case *traceError:
 		check = e.Cause

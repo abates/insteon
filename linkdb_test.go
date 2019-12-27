@@ -92,7 +92,7 @@ func TestLinkRequestUnmarshalBinary(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			got := &linkRequest{}
 			gotErr := got.UnmarshalBinary(test.input)
-			if !isError(gotErr, test.wantErr) {
+			if !IsError(gotErr, test.wantErr) {
 				t.Errorf("want error %v got %v", test.wantErr, gotErr)
 			} else if gotErr == nil {
 				if !reflect.DeepEqual(got, test.want) {

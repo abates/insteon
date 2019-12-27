@@ -67,14 +67,14 @@ func TestIsError(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			if isError(test.cause, test.check) != test.expected {
+			if IsError(test.cause, test.check) != test.expected {
 				switch e := test.cause.(type) {
 				case *traceError:
-					t.Logf("%v == %v ? %v -- %v", e.Cause, test.check, e.Cause == test.check, isError(test.cause, test.check))
+					t.Logf("%v == %v ? %v -- %v", e.Cause, test.check, e.Cause == test.check, IsError(test.cause, test.check))
 				case *BufError:
-					t.Logf("%v == %v ? %v -- %v", e.Cause, test.check, e.Cause == test.check, isError(test.cause, test.check))
+					t.Logf("%v == %v ? %v -- %v", e.Cause, test.check, e.Cause == test.check, IsError(test.cause, test.check))
 				}
-				t.Errorf("got %v, expected %v ", isError(test.cause, test.check), test.expected)
+				t.Errorf("got %v, expected %v ", IsError(test.cause, test.check), test.expected)
 			}
 		})
 	}
