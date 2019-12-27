@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"fmt"
+	"io"
 	"sync"
 	"time"
 )
@@ -295,8 +296,12 @@ func Receive(conn Connection, timeout time.Duration, cb func(*Message) error) (e
 }
 
 func readFromCh(ch <-chan *Message, timeout time.Duration) (msg *Message, err error) {
+	var open bool
 	select {
-	case msg = <-ch:
+	case msg, open = <-ch:
+		if !open {
+			err = io.EOF
+		}
 	case <-time.After(timeout):
 		err = ErrReadTimeout
 	}
