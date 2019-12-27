@@ -44,27 +44,6 @@ func hexDump(format string, buf []byte, sep string) string {
 	return strings.Join(str, sep)
 }
 
-type Resetable interface {
-	Reset() error
-}
-
-type Configurable interface {
-	Config() (config *Config, err error)
-	SetConfig(config *Config) error
-}
-
-type Categorical interface {
-	SetDeviceCategory(insteon.Category) error
-}
-
-type Sleepable interface {
-	RFSleep() error
-}
-
-type Monitorable interface {
-	Monitor() (<-chan *insteon.Message, error)
-}
-
 type PLM struct {
 	sync.Mutex
 	linkdb
@@ -234,16 +213,9 @@ func (plm *PLM) Open(addr insteon.Address, options ...insteon.ConnectionOption) 
 	return insteon.Open(conn, plm.timeout)
 }
 
-/*func (plm *plm) Monitor() (<-chan *insteon.Message, error) {
-	var err error
-	addr := insteon.Address{0, 0, 0}
-	if conn, found := plm.connections[addr]; found {
-		return conn.rxCh, nil
-	}
-	conn := &connection{plm: plm, rxCh: make(chan *insteon.Message, 0)}
-	plm.connections[addr] = conn
-	return conn.rxCh, err
-}*/
+func (plm *PLM) Monitor() (insteon.Connection, error) {
+	return plm.demux.New(insteon.Wildcard)
+}
 
 // retry will deliver a packet to the Insteon network. If delivery fails (due
 // to a NAK from the PLM) then we will retry and decrement retries. This
