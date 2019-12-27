@@ -48,7 +48,7 @@ func (al *addrList) String() string {
 }
 
 type plmCmd struct {
-	plm.PLM
+	*plm.PLM
 	addresses []insteon.Address
 }
 
@@ -73,13 +73,9 @@ func init() {
 }
 
 func (p *plmCmd) resetCmd() (err error) {
-	if resetable, ok := modem.(plm.Resetable); ok {
-		msg := "WARNING: This will erase the modem All-Link database and reset the modem to factory defaults\nProceed? (y/n) "
-		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
-			err = resetable.Reset()
-		}
-	} else {
-		err = fmt.Errorf("%v is not resetable", modem)
+	msg := "WARNING: This will erase the modem All-Link database and reset the modem to factory defaults\nProceed? (y/n) "
+	if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
+		err = modem.Reset()
 	}
 	return err
 }

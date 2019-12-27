@@ -50,7 +50,7 @@ func (dev *device) init() (err error) {
 	return err
 }
 
-func connect(plm plm.PLM, addr insteon.Address) (insteon.Device, error) {
+func connect(plm *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 	device, err := plm.Open(addr, insteon.ConnectionTimeout(timeoutFlag), insteon.ConnectionTTL(uint8(ttlFlag)))
 
 	if err == insteon.ErrNotLinked {
