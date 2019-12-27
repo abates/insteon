@@ -246,6 +246,7 @@ func (plm *PLM) Info() (info *Info, err error) {
 	return info, err
 }
 
+// Reset will factory reset and erase all data from the PLM. ⚠️ Use with care.
 func (plm *PLM) Reset() error {
 	timeout := plm.timeout
 	plm.timeout = 20 * time.Second
