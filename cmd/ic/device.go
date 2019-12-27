@@ -20,17 +20,13 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/plm"
 	"github.com/abates/insteon/util"
 )
-
-type device struct {
-	insteon.Device
-	addr insteon.Address
-}
 
 func init() {
 	d := &device{}
@@ -43,6 +39,55 @@ func init() {
 	cmd.SubCommand("dump", cli.DescOption("dump the device all-link database"), cli.CallbackOption(d.dumpCmd))
 	cmd.SubCommand("edit", cli.DescOption("edit the device all-link database"), cli.CallbackOption(d.editCmd))
 	cmd.SubCommand("version", cli.UsageOption("<device id>"), cli.DescOption("Retrieve the Insteon engine version"), cli.CallbackOption(d.versionCmd))
+	snd := cmd.SubCommand("send", cli.UsageOption("<cmd1>.<cmd2>"), cli.DescOption("send a standard-direct command"), cli.CallbackOption(d.sendCmd))
+	snd.Arguments.Var(&d.cmd, "<cmd1>.<cmd2>")
+	esnd := cmd.SubCommand("esend", cli.UsageOption("<cmd1>.<cmd2> <d1> <d2> ..."), cli.DescOption("send a extended-direct command"), cli.CallbackOption(d.sendCmd))
+	esnd.Arguments.Var(&d.cmd, "<cmd1>.<cmd2>")
+	esnd.Arguments.VarSlice(&d.data, "<d1> <d2> ...")
+}
+
+type cmd struct {
+	insteon.Command
+}
+
+// Set satisfies the flag.Value interface
+func (cmd *cmd) Set(str string) error {
+	// Support non-period separated input too.
+	if len(str) == 4 {
+		str = strings.Join([]string{str[0:2], str[2:4]}, ".")
+	}
+
+	if len(str) != 5 {
+		return fmt.Errorf("Bad command format need xx.xx or xxxx where xx represents a valid hex value.  Got: %v", str)
+	}
+	var c1, c2 byte
+	_, err := fmt.Sscanf(str, "%2x.%2x", &c1, &c2)
+	if err != nil {
+		return fmt.Errorf("Bad command format need xx.xx or xxxx where xx represents a valid hex value.  Got: %v", str)
+	}
+	cmd.Command[1] = c1
+	cmd.Command[2] = c2
+	return nil
+}
+
+type data []byte
+
+func (d *data) Set(str string) error {
+	var b byte
+	_, err := fmt.Sscanf(str, "%x", &b)
+	if err == nil {
+		*d = append(*d, b)
+	}
+	return err
+}
+
+func (d *data) String() string { return fmt.Sprintf("%v", *d) }
+
+type device struct {
+	insteon.Device
+	addr insteon.Address
+	cmd  cmd
+	data data
 }
 
 func (dev *device) init() (err error) {
@@ -189,4 +234,9 @@ func (dev *device) editCmd() error {
 		}
 		return err
 	})
+}
+
+func (dev *device) sendCmd() error {
+	_, err := dev.SendCommand(dev.cmd.Command, dev.data)
+	return err
 }

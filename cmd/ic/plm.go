@@ -47,9 +47,20 @@ func (al *addrList) String() string {
 	return strings.Join(list, ",")
 }
 
+type addresses []insteon.Address
+
+func (a *addresses) Set(str string) error {
+	addr := insteon.Address{}
+	err := addr.Set(str)
+	if err == nil {
+		*a = append(*a, addr)
+	}
+	return err
+}
+
 type plmCmd struct {
 	*plm.PLM
-	addresses []insteon.Address
+	addresses addresses
 }
 
 func init() {
@@ -60,16 +71,16 @@ func init() {
 	pc.SubCommand("reset", cli.DescOption("Factory reset the IM"), cli.CallbackOption(p.resetCmd))
 
 	cmd := pc.SubCommand("link", cli.UsageOption("<device id>,..."), cli.DescOption("Link (as a controller) the PLM to one or more devices. Device IDs must be comma separated"), cli.CallbackOption(p.linkCmd))
-	cmd.Arguments.Var((*addrList)(&p.addresses), "<device id>,...")
+	cmd.Arguments.VarSlice((*addrList)(&p.addresses), "<device id>,...")
 
 	cmd = pc.SubCommand("unlink", cli.UsageOption("<device id>,..."), cli.DescOption("Unlink the PLM from one or more devices. Device IDs must be comma separated"), cli.CallbackOption(p.unlinkCmd))
-	cmd.Arguments.Var((*addrList)(&p.addresses), "<device id>,...")
+	cmd.Arguments.VarSlice((*addrList)(&p.addresses), "<device id>,...")
 
 	cmd = pc.SubCommand("crosslink", cli.UsageOption("<device id>,..."), cli.DescOption("Crosslink the PLM to one or more devices. Device IDs must be comma separated"), cli.CallbackOption(p.crossLinkCmd))
-	cmd.Arguments.Var((*addrList)(&p.addresses), "<device id>,...")
+	cmd.Arguments.VarSlice((*addrList)(&p.addresses), "<device id>,...")
 
 	cmd = pc.SubCommand("alllink", cli.UsageOption("<device id>,..."), cli.DescOption("Put the PLM into linking mode for manual linking. Device IDs must be comma separated"), cli.CallbackOption(p.allLinkCmd))
-	cmd.Arguments.Var((*addrList)(&p.addresses), "<device id>,...")
+	cmd.Arguments.VarSlice((*addrList)(&p.addresses), "<device id>,...")
 }
 
 func (p *plmCmd) resetCmd() (err error) {
