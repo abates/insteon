@@ -39,15 +39,6 @@ func newI2CsDevice(connection Connection, timeout time.Duration) *i2CsDevice {
 // beeps and the indicator light starts flashing
 func (i2cs *i2CsDevice) EnterLinkingMode(group Group) (err error) {
 	return i2cs.linkingMode(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14)...)
-	/*i2cs.Lock()
-	defer i2cs.Unlock()
-	setButton := i2cs.AddListener(MsgTypeBroadcast, CmdSetButtonPressedController, CmdSetButtonPressedResponder)
-	defer i2cs.RemoveListener(setButton)
-	_, err = i2cs.sendCommand(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14))
-	if err == nil {
-		_, err = readFromCh(setButton, i2cs.timeout)
-	}
-	return err*/
 }
 
 // Address returns the unique Insteon address of the device
