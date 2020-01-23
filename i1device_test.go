@@ -41,10 +41,10 @@ func TestI1DeviceErrLookup(t *testing.T) {
 
 func TestI1DeviceSendCommand(t *testing.T) {
 	tests := []struct {
-		desc    string
-		command Command
-		payload []byte
-		flags   Flags
+		desc      string
+		wantCmd   Command
+		payload   []byte
+		wantFlags Flags
 	}{
 		{"SD", Command{byte(StandardDirectMessage), 1, 2}, nil, StandardDirectMessage},
 		{"ED", Command{byte(ExtendedDirectMessage), 2, 3}, []byte{1, 2, 3, 4}, ExtendedDirectMessage},
@@ -52,23 +52,23 @@ func TestI1DeviceSendCommand(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
-			device := newI1Device(conn, time.Millisecond)
 			ackFlags := StandardDirectAck
 			if len(test.payload) > 0 {
 				ackFlags = ExtendedDirectAck
 			}
-			conn.ackCh <- &Message{Flags: ackFlags}
+			conn := &testConnection{acks: []*Message{{Flags: ackFlags}}}
+			device := newI1Device(conn, time.Millisecond)
+			device.SendCommand(test.wantCmd, test.payload)
 
-			device.SendCommand(test.command, test.payload)
+			gotCmd := conn.sent[0].Command
+			gotFlags := conn.sent[0].Flags
 
-			msg := <-conn.sendCh
-			if msg.Command != test.command {
-				t.Errorf("want %v got %v", test.command, msg.Command)
+			if test.wantCmd != gotCmd {
+				t.Errorf("want command %v got %v", test.wantCmd, gotCmd)
 			}
 
-			if msg.Flags != test.flags {
-				t.Errorf("want %v got %v", test.flags, msg.Flags)
+			if test.wantFlags != gotFlags {
+				t.Errorf("want flags %v got %v", test.wantFlags, gotFlags)
 			}
 		})
 	}
@@ -85,20 +85,15 @@ func TestI1DeviceProductData(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1), recvCh: make(chan *Message, 1)}
-			conn.ackCh <- TestAck
+			conn := &testConnection{acks: []*Message{TestAck}}
 			if test.wantErr == nil {
 				msg := *TestProductDataResponse
 				buf, _ := test.want.MarshalBinary()
 				msg.Payload = make([]byte, 14)
 				copy(msg.Payload, buf)
-				conn.recvCh <- &msg
+				conn.recv = []*Message{&msg}
 			} else {
-				go func() {
-					conn.recvCh <- TestAck
-					time.Sleep(time.Nanosecond)
-					conn.recvCh <- TestAck
-				}()
+				conn.recv = []*Message{TestAck, TestAck}
 			}
 
 			device := newI1Device(conn, time.Millisecond)
@@ -129,8 +124,7 @@ func TestI1DeviceReceive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{recvCh: make(chan *Message, 1)}
-			conn.recvCh <- test.input
+			conn := &testConnection{recv: []*Message{test.input}}
 			device := newI1Device(conn, time.Millisecond)
 			_, err := device.Receive()
 			if !IsError(err, test.wantErr) {

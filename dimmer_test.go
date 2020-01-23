@@ -55,20 +55,43 @@ func TestDimmerConfig(t *testing.T) {
 }
 
 func TestDimmableDeviceConfig(t *testing.T) {
-	conn := &testConnection{recvCh: make(chan *Message, 1), sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
-	dd := NewDimmer(NewSwitch(conn, time.Millisecond), time.Millisecond, 67)
 	want := DimmerConfig{31, 42, 15, 27, 4}
 	payload, _ := want.MarshalBinary()
 	msg := &Message{Command: CmdExtendedGetSet, Payload: make([]byte, 14)}
 	copy(msg.Payload, payload)
-	conn.recvCh <- msg
-	conn.ackCh <- TestAck
 
+	conn := &testConnection{recv: []*Message{msg}, acks: []*Message{TestAck}}
+	dd := NewDimmer(NewSwitch(conn, time.Millisecond), time.Millisecond, 67)
 	got, err := dd.DimmerConfig()
-	<-conn.sendCh
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	} else if got != want {
 		t.Errorf("Want config %v got %v", want, got)
+	}
+}
+
+func TestDimmerSendCommand(t *testing.T) {
+	tests := []struct {
+		name    string
+		v       FirmwareVersion
+		sendCmd Command
+		wantCmd Command
+	}{
+		{"On", 0x01, CmdLightOnAtRamp, CmdLightOnAtRamp},
+		{"On (v67)", 0x43, CmdLightOnAtRamp, CmdLightOnAtRampV67},
+		{"Off", 0x01, CmdLightOffAtRamp, CmdLightOffAtRamp},
+		{"Off (v67)", 0x43, CmdLightOffAtRamp, CmdLightOffAtRampV67},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conn := &testConnection{acks: []*Message{TestAck}}
+			dimmer := &Dimmer{Switch: &Switch{Device: conn}, firmwareVersion: test.v}
+			dimmer.SendCommand(test.sendCmd, nil)
+			gotCmd := conn.sent[0].Command
+			if test.wantCmd != gotCmd {
+				t.Errorf("Wanted command %v got %v", test.wantCmd, gotCmd)
+			}
+		})
 	}
 }

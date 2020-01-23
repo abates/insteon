@@ -48,59 +48,6 @@ func (sc *SwitchConfig) MarshalBinary() ([]byte, error) {
 	return buf, nil
 }
 
-// Switch is any implementation that satisfies the following switch functions
-type Switch interface {
-	Device
-
-	// On changes the device state to on
-	On() error
-
-	// Off changes the device state to off
-	Off() error
-
-	// Status returns the device's current status. The returned level is 0 for off and
-	// 255 for fully on. A switch alternates only between 0 and 255 while a dimmer can
-	// be any value in between
-	Status() (level int, err error)
-
-	// OperatingFlags queries the device and returns the LightFlags
-	OperatingFlags() (LightFlags, error)
-
-	// SetLED enable or disables the device status LED. When false, the
-	// status LED should be extuingished and when the flag is true the device
-	// status LED should be lit
-	SetLED(flag bool) error
-
-	// SetLoadSense enables or disables the device's load sense
-	SetLoadSense(flag bool) error
-
-	// SetProgramLock will set the program lock flag on the device. Program lock prevents
-	// local changes at the device
-	SetProgramLock(flag bool) error
-
-	// SetResumeDim sets the resume dim flag on the device.  If set, the device will
-	// return to the previous ramp level when turned on
-	SetResumeDim(flag bool) error
-
-	// SetTxLED will enable the device status LED to flash on
-	// insteon traffic
-	SetTxLED(flag bool) error
-
-	// SetX10Address sets the X10 house and unit codes
-	SetX10Address(button int, houseCode, unitCode byte) error
-
-	// SwitchConfig queries the device and returns the returned configuration
-	SwitchConfig() (SwitchConfig, error)
-}
-
-// LinkableSwitch represents a switch that contains an Insteon version 2
-// (or higher) engine.  A LinkableSwitch contains a remotely manageable
-// All-Link database
-type LinkableSwitch interface {
-	Switch
-	Linkable
-}
-
 // LightFlags are the operating flags for a switch or dimmer
 type LightFlags [5]byte
 
@@ -143,34 +90,21 @@ func (lf LightFlags) ErrorBlink() bool { return lf[4]&0x02 == 0x02 }
 // TODO: Confirm this description is correct
 func (lf LightFlags) CleanupReport() bool { return lf[4]&0x04 == 0x04 }
 
-type switchedDevice struct {
+type Switch struct {
 	Device
-	timeout time.Duration
-}
-
-type linkableSwitch struct {
-	LinkableDevice
-	*switchedDevice
 	timeout time.Duration
 }
 
 // NewSwitch is a factory function that will return the correctly
 // configured switch based on the underlying device
-func NewSwitch(device Device, timeout time.Duration) Switch {
-	sw := &switchedDevice{Device: device, timeout: timeout}
-	if linkable, ok := device.(LinkableDevice); ok {
-		return &linkableSwitch{LinkableDevice: linkable, switchedDevice: sw}
-	}
-	return sw
+func NewSwitch(device Device, timeout time.Duration) *Switch {
+	return &Switch{Device: device, timeout: timeout}
 }
-
-func (sd *switchedDevice) On() error  { return sd.SendCommand(CmdLightOn, nil) }
-func (sd *switchedDevice) Off() error { return sd.SendCommand(CmdLightOff, nil) }
 
 // Status sends a LightStatusRequest to determine the device's current
 // level. For switched devices this is either 0 or 255, dimmable devices
 // will be the current dim level between 0 and 255
-func (sd *switchedDevice) Status() (level int, err error) {
+func (sd *Switch) Status() (level int, err error) {
 	ack, err := sd.Send(&Message{
 		Flags:   StandardDirectMessage,
 		Command: CmdLightStatusRequest,
@@ -181,15 +115,11 @@ func (sd *switchedDevice) Status() (level int, err error) {
 	return level, err
 }
 
-func (sd *switchedDevice) String() string {
+func (sd *Switch) String() string {
 	return fmt.Sprintf("Switch (%s)", sd.Address())
 }
 
-func (sd *switchedDevice) SetX10Address(button int, houseCode, unitCode byte) error {
-	return sd.SendCommand(CmdExtendedGetSet, []byte{byte(button), 0x04, houseCode, unitCode})
-}
-
-func (sd *switchedDevice) SwitchConfig() (config SwitchConfig, err error) {
+func (sd *Switch) SwitchConfig() (config SwitchConfig, err error) {
 	// SEE DimmerConfig() notes for explanation of D1 and D2 (payload[0] and payload[1])
 	err = sd.Device.SendCommand(CmdExtendedGetSet, []byte{0x00, 0x00})
 	if err == nil {
@@ -206,20 +136,7 @@ func (sd *switchedDevice) SwitchConfig() (config SwitchConfig, err error) {
 	return config, err
 }
 
-func (sd *switchedDevice) setOperatingFlags(flags byte, conditional bool) error {
-	if conditional {
-		return sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)), nil)
-	}
-	return sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)+1), nil)
-}
-
-func (sd *switchedDevice) SetProgramLock(flag bool) error { return sd.setOperatingFlags(0, flag) }
-func (sd *switchedDevice) SetTxLED(flag bool) error       { return sd.setOperatingFlags(2, flag) }
-func (sd *switchedDevice) SetResumeDim(flag bool) error   { return sd.setOperatingFlags(4, flag) }
-func (sd *switchedDevice) SetLoadSense(flag bool) error   { return sd.setOperatingFlags(6, !flag) }
-func (sd *switchedDevice) SetLED(flag bool) error         { return sd.setOperatingFlags(8, !flag) }
-
-func (sd *switchedDevice) OperatingFlags() (flags LightFlags, err error) {
+func (sd *Switch) OperatingFlags() (flags LightFlags, err error) {
 	commands := []Command{
 		CmdGetOperatingFlags.SubCommand(0x00),
 		CmdGetOperatingFlags.SubCommand(0x01),

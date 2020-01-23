@@ -2,30 +2,9 @@ package insteon
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
 	"time"
 )
-
-func TestSwitchFactory(t *testing.T) {
-	tests := []struct {
-		desc  string
-		input Device
-		want  reflect.Type
-	}{
-		{"Switch", &i1Device{}, reflect.TypeOf(&switchedDevice{})},
-		{"Linkable Switch", &i2Device{}, reflect.TypeOf(&linkableSwitch{})},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			got := reflect.TypeOf(NewSwitch(test.input, 0))
-			if test.want != got {
-				t.Errorf("want type %v got %v", test.want, got)
-			}
-		})
-	}
-}
 
 func TestSwitchConfig(t *testing.T) {
 	tests := []struct {
@@ -94,43 +73,16 @@ func TestLightFlags(t *testing.T) {
 	}
 }
 
-func TestSwitchCommands(t *testing.T) {
-	extractError := func(v interface{}, err error) error {
-		return err
-	}
-
-	tests := []*commandTest{
-		{"SetProgramLock(true)", func(d Device) error { return d.(Switch).SetProgramLock(true) }, CmdSetOperatingFlags.SubCommand(0), nil, nil},
-		{"SetProgramLock(false)", func(d Device) error { return d.(Switch).SetProgramLock(false) }, CmdSetOperatingFlags.SubCommand(1), nil, nil},
-		{"SetTxLED(true)", func(d Device) error { return d.(Switch).SetTxLED(true) }, CmdSetOperatingFlags.SubCommand(2), nil, nil},
-		{"SetTxLED(false)", func(d Device) error { return d.(Switch).SetTxLED(false) }, CmdSetOperatingFlags.SubCommand(3), nil, nil},
-		{"SetResumeDime(true)", func(d Device) error { return d.(Switch).SetResumeDim(true) }, CmdSetOperatingFlags.SubCommand(4), nil, nil},
-		{"SetResumeDime(false)", func(d Device) error { return d.(Switch).SetResumeDim(false) }, CmdSetOperatingFlags.SubCommand(5), nil, nil},
-		{"SetLoadSense(true)", func(d Device) error { return d.(Switch).SetLoadSense(true) }, CmdSetOperatingFlags.SubCommand(7), nil, nil},
-		{"SetLoadSense(false)", func(d Device) error { return d.(Switch).SetLoadSense(false) }, CmdSetOperatingFlags.SubCommand(6), nil, nil},
-		{"SetLED(true)", func(d Device) error { return d.(Switch).SetLED(true) }, CmdSetOperatingFlags.SubCommand(9), nil, nil},
-		{"SetLED(false)", func(d Device) error { return d.(Switch).SetLED(false) }, CmdSetOperatingFlags.SubCommand(8), nil, nil},
-		{"On", func(d Device) error { return d.(Switch).On() }, CmdLightOn, nil, nil},
-		{"Off", func(d Device) error { return d.(Switch).Off() }, CmdLightOff, nil, nil},
-		{"Status", func(d Device) error { return extractError(d.(Switch).Status()) }, CmdLightStatusRequest, nil, nil},
-		{"SetX10Address", func(d Device) error { return d.(Switch).SetX10Address(7, 8, 9) }, CmdExtendedGetSet, nil, []byte{7, 4, 8, 9}},
-	}
-
-	testDeviceCommands(t, func(conn *testConnection) Device { return NewSwitch(conn, time.Nanosecond) }, tests)
-}
-
 func TestSwitchedDeviceConfig(t *testing.T) {
-	conn := &testConnection{recvCh: make(chan *Message, 1), sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
-	sd := NewSwitch(conn, time.Millisecond)
 	want := SwitchConfig{31, 42}
 	payload, _ := want.MarshalBinary()
 	msg := &Message{Command: CmdExtendedGetSet, Payload: make([]byte, 14)}
 	copy(msg.Payload, payload)
-	conn.recvCh <- msg
-	conn.ackCh <- TestAck
+
+	conn := &testConnection{recv: []*Message{msg}, acks: []*Message{TestAck}}
+	sd := NewSwitch(conn, time.Millisecond)
 
 	got, err := sd.SwitchConfig()
-	<-conn.sendCh
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	} else if got != want {
@@ -146,9 +98,9 @@ func TestSwitchedDeviceOperatingFlags(t *testing.T) {
 		CmdGetOperatingFlags.SubCommand(6),
 		CmdGetOperatingFlags.SubCommand(7),
 	}
-	conn := &testConnection{ackCh: make(chan *Message, len(cmds)), sendCh: make(chan *Message, len(cmds))}
+	conn := &testConnection{}
 	for _, cmd := range cmds {
-		conn.ackCh <- &Message{Command: cmd}
+		conn.acks = append(conn.acks, &Message{Command: cmd})
 	}
 
 	sd := NewSwitch(conn, time.Nanosecond)

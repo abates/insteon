@@ -95,18 +95,6 @@ func errLookup(msg *Message, err error) (*Message, error) {
 	return msg, err
 }
 
-func AssignToAllLinkGroup(group Group) (Command, []byte) {
-	return CmdAssignToAllLinkGroup.SubCommand(int(group)), nil
-}
-
-func DeleteFromAllLinkGroup(group Group) (Command, []byte) {
-	return CmdDeleteFromAllLinkGroup.SubCommand(int(group)), nil
-}
-
-func Ping() (Command, []byte) {
-	return CmdPing, nil
-}
-
 // ProductData will retrieve the device's product data
 func (i1 *i1Device) ProductData() (data *ProductData, err error) {
 	i1.Lock()

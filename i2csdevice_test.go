@@ -76,31 +76,35 @@ func TestI2CsErrLookup(t *testing.T) {
 
 func TestI2CsDeviceSendCommand(t *testing.T) {
 	tests := []struct {
-		desc    string
-		command Command
-		payload []byte
-		flags   Flags
+		desc       string
+		sndCmd     Command
+		sndPayload []byte
+		wantCmd    Command
 	}{
-		{"SD", Command{byte(StandardDirectMessage), 1, 2}, nil, StandardDirectMessage},
-		{"ED", Command{byte(ExtendedDirectMessage), 2, 3}, []byte{1, 2, 3, 4}, ExtendedDirectMessage},
+		{"SD", Command{byte(StandardDirectMessage), 1, 2}, nil, Command{byte(StandardDirectMessage), 1, 2}},
+		{"ED", Command{byte(ExtendedDirectMessage), 2, 3}, []byte{1, 2, 3, 4}, Command{byte(ExtendedDirectMessage), 2, 3}},
+		//{"Enter Linking Mode", CmdEnterUnlinkingMode.SubCommand(42), nil, CmdEnterLinkingModeExt.SubCommand(42)},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
-			device := newI2CsDevice(conn, time.Millisecond)
 			ackFlags := StandardDirectAck
-			if len(test.payload) > 0 {
+			if len(test.sndPayload) > 0 {
 				ackFlags = ExtendedDirectAck
 			}
-			conn.ackCh <- &Message{Flags: ackFlags}
+			conn := &testConnection{acks: []*Message{{Flags: ackFlags}}}
+			device := newI2CsDevice(conn, time.Millisecond)
+			device.SendCommand(test.sndCmd, test.sndPayload)
 
-			device.SendCommand(test.command, test.payload)
+			gotMsg := conn.sent[0]
 
-			msg := <-conn.sendCh
-
-			if test.command[0] == byte(ExtendedDirectMessage) && msg.Payload[len(msg.Payload)-1] == 0 {
+			if test.sndCmd[0] == byte(ExtendedDirectMessage) && gotMsg.Payload[len(gotMsg.Payload)-1] == 0 {
 				t.Errorf("Expected checksum to be set")
+			}
+
+			gotCmd := gotMsg.Command
+			if test.wantCmd != gotCmd {
+				t.Errorf("Wanted command %v got %v", test.wantCmd, gotCmd)
 			}
 		})
 	}
@@ -122,8 +126,7 @@ func TestI2CsDeviceReceive(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{recvCh: make(chan *Message, 1)}
-			conn.recvCh <- test.input
+			conn := &testConnection{recv: []*Message{test.input}}
 			device := newI2CsDevice(conn, time.Millisecond)
 			_, err := device.Receive()
 			if !IsError(err, test.wantErr) {

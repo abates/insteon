@@ -63,7 +63,7 @@ func (dc *DimmerConfig) MarshalBinary() ([]byte, error) {
 }
 
 type Dimmer struct {
-	Switch
+	*Switch
 	timeout         time.Duration
 	firmwareVersion FirmwareVersion
 }
@@ -71,7 +71,7 @@ type Dimmer struct {
 // NewDimmer is a factory function that will return a dimmer switch configured
 // appropriately for the given firmware version.  All dimmers are switches, so
 // the first argument is a Switch object used to compose the new dimmer
-func NewDimmer(sw Switch, timeout time.Duration, firmwareVersion FirmwareVersion) *Dimmer {
+func NewDimmer(sw *Switch, timeout time.Duration, firmwareVersion FirmwareVersion) *Dimmer {
 	dd := &Dimmer{
 		Switch:          sw,
 		timeout:         timeout,
@@ -102,13 +102,13 @@ func (dd *Dimmer) DimmerConfig() (config DimmerConfig, err error) {
 }
 
 func (dd *Dimmer) SendCommand(cmd Command, payload []byte) error {
-	if cmd[0] == CmdLightOnAtRamp[0] {
+	if cmd[1] == CmdLightOnAtRamp[1] {
 		if dd.firmwareVersion >= 0x43 {
-			cmd = CmdLightOnAtRampV67.SubCommand(int(cmd[1]))
+			cmd = CmdLightOnAtRampV67.SubCommand(int(cmd[2]))
 		}
-	} else if cmd[0] == CmdLightOffAtRamp[0] {
+	} else if cmd[1] == CmdLightOffAtRamp[1] {
 		if dd.firmwareVersion >= 0x43 {
-			cmd = CmdLightOffAtRampV67.SubCommand(int(cmd[1]))
+			cmd = CmdLightOffAtRampV67.SubCommand(int(cmd[2]))
 		}
 	}
 	return dd.Switch.SendCommand(cmd, payload)
@@ -116,60 +116,4 @@ func (dd *Dimmer) SendCommand(cmd Command, payload []byte) error {
 
 func (dd *Dimmer) String() string {
 	return fmt.Sprintf("Dimmer (%s)", dd.Address())
-}
-
-func TurnOn(level int) (Command, []byte) {
-	return CmdLightOn.SubCommand(level), nil
-}
-
-func TurnOnFast(level int) (Command, []byte) {
-	return CmdLightOnFast.SubCommand(level), nil
-}
-
-func Brighten() (Command, []byte) {
-	return CmdLightBrighten, nil
-}
-
-func Dim() (Command, []byte) {
-	return CmdLightDim, nil
-}
-
-func StartBrighten() (Command, []byte) {
-	return CmdLightStartManual.SubCommand(1), nil
-}
-
-func StartDim() (Command, []byte) {
-	return CmdLightStartManual.SubCommand(0), nil
-}
-
-func StopChange() (Command, []byte) {
-	return CmdLightStopManual, nil
-}
-
-func InstantChange(level int) (Command, []byte) {
-	return CmdLightInstantChange.SubCommand(level), nil
-}
-
-func SetLightStatus(level int) (Command, []byte) {
-	return CmdLightSetStatus.SubCommand(level), nil
-}
-
-func OnAtRamp(level, ramp int) (Command, []byte) {
-	levelRamp := byte(level) << 4
-	levelRamp |= byte(ramp) & 0x0f
-	return CmdLightOnAtRamp.SubCommand(int(levelRamp)), nil
-}
-
-func OffAtRamp(ramp int) (Command, []byte) {
-	return CmdLightOffAtRamp.SubCommand(0x0f & ramp), nil
-}
-
-func SetDefaultRamp(rate int) (Command, []byte) {
-	// See notes on DimmerConfig() for information about D1 (payload[0])
-	return CmdExtendedGetSet, []byte{0x01, 0x05, byte(rate)}
-}
-
-func SetDefaultOnLevel(level int) (Command, []byte) {
-	// See notes on DimmerConfig() for information about D1 (payload[0])
-	return CmdExtendedGetSet, []byte{0x01, 0x06, byte(level)}
 }

@@ -103,8 +103,8 @@ func TestCommandGenerators(t *testing.T) {
 		{"ExitLinkingMode", ExitLinkingMode, CmdExitLinkingMode, nil},
 		{"EnterLinkingMode", func() (Command, []byte) { return EnterLinkingMode(10) }, CmdEnterLinkingMode.SubCommand(10), nil},
 		{"EnterUnlinkingMode", func() (Command, []byte) { return EnterUnlinkingMode(10) }, CmdEnterUnlinkingMode.SubCommand(10), nil},
-		{"Turn Light On", func() (Command, []byte) { return TurnOn(27) }, CmdLightOn.SubCommand(27), nil},
-		{"Turn Light On Fast", func() (Command, []byte) { return TurnOnFast(42) }, CmdLightOnFast.SubCommand(42), nil},
+		{"Turn Light On", func() (Command, []byte) { return TurnLightOn(27) }, CmdLightOn.SubCommand(27), nil},
+		{"Turn Light On Fast", func() (Command, []byte) { return TurnLightOnFast(42) }, CmdLightOnFast.SubCommand(42), nil},
 		{"Brighten Light", Brighten, CmdLightBrighten, nil},
 		{"Dim Light", Dim, CmdLightDim, nil},
 		{"Start Brighten Light", StartBrighten, CmdLightStartManual.SubCommand(1), nil},
@@ -116,6 +116,17 @@ func TestCommandGenerators(t *testing.T) {
 		{"Light Off At Ramp", func() (Command, []byte) { return OffAtRamp(0x37) }, CmdLightOffAtRamp.SubCommand(0x7), nil},
 		{"Light Default Ramp", func() (Command, []byte) { return SetDefaultRamp(0x37) }, CmdExtendedGetSet, []byte{0x01, 0x05, 0x37}},
 		{"Light Default On Level", func() (Command, []byte) { return SetDefaultOnLevel(0x37) }, CmdExtendedGetSet, []byte{0x01, 0x06, 0x37}},
+		{"Set Program Lock", func() (Command, []byte) { return SetProgramLock(true) }, CmdSetOperatingFlags.SubCommand(0), nil},
+		{"Clear Program Lock", func() (Command, []byte) { return SetProgramLock(false) }, CmdSetOperatingFlags.SubCommand(1), nil},
+		{"Set Tx LED", func() (Command, []byte) { return SetTxLED(true) }, CmdSetOperatingFlags.SubCommand(2), nil},
+		{"Clear Tx LED", func() (Command, []byte) { return SetTxLED(false) }, CmdSetOperatingFlags.SubCommand(3), nil},
+		{"Set Resume Dim", func() (Command, []byte) { return SetResumeDim(true) }, CmdSetOperatingFlags.SubCommand(4), nil},
+		{"Clear Resume Dim", func() (Command, []byte) { return SetResumeDim(false) }, CmdSetOperatingFlags.SubCommand(5), nil},
+		{"Set Load Sense", func() (Command, []byte) { return SetLoadSense(true) }, CmdSetOperatingFlags.SubCommand(7), nil},
+		{"Clear Load Sense", func() (Command, []byte) { return SetLoadSense(false) }, CmdSetOperatingFlags.SubCommand(6), nil},
+		{"Set LED", func() (Command, []byte) { return SetLED(true) }, CmdSetOperatingFlags.SubCommand(9), nil},
+		{"Clear LED", func() (Command, []byte) { return SetLED(false) }, CmdSetOperatingFlags.SubCommand(8), nil},
+		{"SetX10Address", func() (Command, []byte) { return SetX10Address(7, 8, 9) }, CmdExtendedGetSet, []byte{7, 4, 8, 9}},
 	}
 
 	for _, test := range tests {

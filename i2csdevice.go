@@ -35,8 +35,8 @@ func newI2CsDevice(connection Connection, timeout time.Duration) *i2CsDevice {
 }
 
 func (i2cs *i2CsDevice) SendCommand(cmd Command, payload []byte) error {
-	if cmd[0] == CmdEnterUnlinkingMode[0] {
-		cmd = CmdEnterLinkingModeExt.SubCommand(int(cmd[1]))
+	if cmd[1] == CmdEnterUnlinkingMode[1] {
+		cmd = CmdEnterLinkingModeExt.SubCommand(int(cmd[2]))
 		payload = make([]byte, 14)
 	}
 	return i2cs.i2Device.SendCommand(cmd, payload)

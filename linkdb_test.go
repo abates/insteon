@@ -160,15 +160,14 @@ func TestLinkdbLinks(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			// Add high water mark
 			links := append(test.want, &LinkRecord{})
-			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1), recvCh: make(chan *Message, len(links))}
-			conn.ackCh <- TestAck
+			conn := &testConnection{acks: []*Message{TestAck}}
 			memAddress := BaseLinkDBAddress
 			for _, link := range links {
 				lr := &linkRequest{Type: linkResponse, MemAddress: memAddress, Link: link}
 				msg := &Message{Command: CmdReadWriteALDB, Flags: ExtendedDirectMessage, Payload: make([]byte, 14)}
 				buf, _ := lr.MarshalBinary()
 				copy(msg.Payload, buf)
-				conn.recvCh <- msg
+				conn.recv = append(conn.recv, msg)
 				memAddress -= LinkRecordSize
 			}
 
@@ -204,16 +203,14 @@ func TestLinkdbWriteLink(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{sendCh: make(chan *Message, 1), ackCh: make(chan *Message, 1)}
-			conn.ackCh <- TestAck
+			conn := &testConnection{acks: []*Message{TestAck}}
 			linkdb := linkdb{device: conn, links: test.links}
 			gotErr := linkdb.writeLink(test.inputIndex, test.inputRecord)
 			if test.wantErr != gotErr {
 				t.Errorf("Want err %v got %v", test.wantErr, gotErr)
 			} else if gotErr == nil {
-				msg := <-conn.sendCh
 				lr := &linkRequest{}
-				lr.UnmarshalBinary(msg.Payload)
+				lr.UnmarshalBinary(conn.sent[0].Payload)
 				if lr.Type != writeLink {
 					t.Errorf("Expected %v got %v", writeLink, lr.Type)
 				}
@@ -249,16 +246,15 @@ func TestLinkdbWriteLinks(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{sendCh: make(chan *Message, len(test.wantMemAddress)), ackCh: make(chan *Message, len(test.wantMemAddress))}
+			conn := &testConnection{}
 			for i := 0; i < len(test.wantMemAddress); i++ {
-				conn.ackCh <- TestAck
+				conn.acks = append(conn.acks, TestAck)
 			}
 			linkdb := linkdb{device: conn}
 			linkdb.WriteLinks(test.input...)
 			gotMemAddress := []MemAddress{}
 			gotLinks := []*LinkRecord{}
-			close(conn.sendCh)
-			for msg := range conn.sendCh {
+			for _, msg := range conn.sent {
 				lr := &linkRequest{}
 				lr.UnmarshalBinary(msg.Payload)
 				gotLinks = append(gotLinks, lr.Link)
@@ -326,9 +322,9 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{sendCh: make(chan *Message, len(test.want)), ackCh: make(chan *Message, len(test.want))}
+			conn := &testConnection{}
 			for i := 0; i < len(test.want); i++ {
-				conn.ackCh <- TestAck
+				conn.acks = append(conn.acks, TestAck)
 			}
 			index := make(map[LinkID]int)
 			for i, link := range test.existingLinks {
@@ -337,9 +333,7 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 			ldb := &linkdb{age: time.Now().Add(time.Hour), links: test.existingLinks, index: index, device: conn, timeout: time.Second}
 			ldb.UpdateLinks(test.input...)
 
-			close(conn.sendCh)
-			i := 0
-			for msg := range conn.sendCh {
+			for i, msg := range conn.sent {
 				want := test.want[i]
 				lr := &linkRequest{}
 				lr.UnmarshalBinary(msg.Payload)
@@ -350,8 +344,8 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 				i++
 			}
 
-			if i < len(test.want) {
-				t.Errorf("Wanted %d addresses got %d", len(test.want), i)
+			if len(conn.sent) < len(test.want) {
+				t.Errorf("Wanted %d addresses got %d", len(test.want), len(conn.sent))
 			}
 		})
 	}

@@ -35,7 +35,7 @@ func newI2Device(connection Connection, timeout time.Duration) *i2Device {
 }
 
 func (i2 *i2Device) SendCommand(cmd Command, payload []byte) error {
-	if cmd[0] == CmdEnterLinkingMode[0] || cmd[0] == CmdEnterUnlinkingMode[0] {
+	if cmd[1] == CmdEnterLinkingMode[1] || cmd[1] == CmdEnterUnlinkingMode[1] {
 		return i2.linkingMode(cmd, payload...)
 	}
 	return i2.i1Device.SendCommand(cmd, payload)
@@ -50,31 +50,6 @@ func (i2 *i2Device) linkingMode(cmd Command, payload ...byte) error {
 		<-time.After(PropagationDelay(3, len(payload) > 0))
 	}
 	return err
-}
-
-// EnterLinkingMode is the programmatic equivalent of holding down
-// the set button for two seconds. If the device is the first
-// to enter linking mode, then it is the controller. The next
-// device to enter linking mode is the responder.  LinkingMode
-// is usually indicated by a flashing GREEN LED on the device
-func EnterLinkingMode(group Group) (Command, []byte) {
-	return CmdEnterLinkingMode.SubCommand(int(group)), nil
-}
-
-// EnterUnlinkingMode puts a controller device into unlinking mode
-// when the set button is then pushed (EnterLinkingMode) on a linked
-// device the corresponding links in both the controller and responder
-// are deleted.  EnterUnlinkingMode is the programmatic equivalent
-// to pressing the set button until the device beeps, releasing, then
-// pressing the set button again until the device beeps again. UnlinkingMode
-// is usually indicated by a flashing RED LED on the device
-func EnterUnlinkingMode(group Group) (Command, []byte) {
-	return CmdEnterUnlinkingMode.SubCommand(int(group)), nil
-}
-
-// ExitLinkingMode takes a controller out of linking/unlinking mode.
-func ExitLinkingMode() (Command, []byte) {
-	return CmdExitLinkingMode, nil
 }
 
 // String returns the string "I2 Device (<address>)" where <address> is the destination
