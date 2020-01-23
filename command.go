@@ -73,6 +73,10 @@ func ExitLinkingMode() (Command, []byte) {
 	return CmdExitLinkingMode, nil
 }
 
+func TurnLightOff() (Command, []byte) {
+	return CmdLightOff, nil
+}
+
 func TurnLightOn(level int) (Command, []byte) {
 	return CmdLightOn.SubCommand(level), nil
 }
@@ -109,13 +113,13 @@ func SetLightStatus(level int) (Command, []byte) {
 	return CmdLightSetStatus.SubCommand(level), nil
 }
 
-func OnAtRamp(level, ramp int) (Command, []byte) {
+func LightOnAtRamp(level, ramp int) (Command, []byte) {
 	levelRamp := byte(level) << 4
 	levelRamp |= byte(ramp) & 0x0f
 	return CmdLightOnAtRamp.SubCommand(int(levelRamp)), nil
 }
 
-func OffAtRamp(ramp int) (Command, []byte) {
+func LightOffAtRamp(ramp int) (Command, []byte) {
 	return CmdLightOffAtRamp.SubCommand(0x0f & ramp), nil
 }
 
