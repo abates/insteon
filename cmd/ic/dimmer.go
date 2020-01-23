@@ -22,7 +22,7 @@ import (
 )
 
 type dimmer struct {
-	insteon.Dimmer
+	*insteon.Dimmer
 	addr insteon.Address
 
 	level int
@@ -73,7 +73,7 @@ func init() {
 func (dim *dimmer) init() (err error) {
 	device, err := connect(modem, dim.addr)
 	if err == nil {
-		if d, ok := device.(insteon.Dimmer); ok {
+		if d, ok := device.(*insteon.Dimmer); ok {
 			dim.Dimmer = d
 		} else {
 			err = fmt.Errorf("Device %s is not a dimmer", dim.addr)
@@ -122,17 +122,19 @@ func (dim *dimmer) statusCmd() error {
 	return err
 }
 
-func (dim *dimmer) onCmd() error            { return dim.OnLevel(dim.level) }
-func (dim *dimmer) offCmd() error           { return dim.Off() }
-func (dim *dimmer) onFastCmd() error        { return dim.OnFast(dim.level) }
-func (dim *dimmer) brightenCmd() error      { return dim.Brighten() }
-func (dim *dimmer) dimCmd() error           { return dim.Dim() }
-func (dim *dimmer) startBrightenCmd() error { return dim.StartBrighten() }
-func (dim *dimmer) startDimCmd() error      { return dim.StartDim() }
-func (dim *dimmer) stopChangeCmd() error    { return dim.StopChange() }
-func (dim *dimmer) instantChangeCmd() error { return dim.InstantChange(dim.level) }
-func (dim *dimmer) setStatusCmd() error     { return dim.SetStatus(dim.level) }
-func (dim *dimmer) onRampCmd() error        { return dim.OnAtRamp(dim.level, dim.ramp) }
-func (dim *dimmer) offRampCmd() error       { return dim.OffAtRamp(dim.ramp) }
-func (dim *dimmer) setRampCmd() error       { return dim.SetDefaultRamp(dim.ramp) }
-func (dim *dimmer) setOnLevelCmd() error    { return dim.SetDefaultOnLevel(dim.level) }
+func (dim *dimmer) onCmd() error            { return dim.SendCommand(insteon.TurnLightOn(dim.level)) }
+func (dim *dimmer) offCmd() error           { return dim.SendCommand(insteon.TurnLightOff()) }
+func (dim *dimmer) onFastCmd() error        { return dim.SendCommand(insteon.TurnLightOnFast(dim.level)) }
+func (dim *dimmer) brightenCmd() error      { return dim.SendCommand(insteon.Brighten()) }
+func (dim *dimmer) dimCmd() error           { return dim.SendCommand(insteon.Dim()) }
+func (dim *dimmer) startBrightenCmd() error { return dim.SendCommand(insteon.StartBrighten()) }
+func (dim *dimmer) startDimCmd() error      { return dim.SendCommand(insteon.StartDim()) }
+func (dim *dimmer) stopChangeCmd() error    { return dim.SendCommand(insteon.StopChange()) }
+func (dim *dimmer) instantChangeCmd() error { return dim.SendCommand(insteon.InstantChange(dim.level)) }
+func (dim *dimmer) setStatusCmd() error     { return dim.SendCommand(insteon.SetLightStatus(dim.level)) }
+func (dim *dimmer) onRampCmd() error {
+	return dim.SendCommand(insteon.LightOnAtRamp(dim.level, dim.ramp))
+}
+func (dim *dimmer) offRampCmd() error    { return dim.SendCommand(insteon.LightOffAtRamp(dim.ramp)) }
+func (dim *dimmer) setRampCmd() error    { return dim.SendCommand(insteon.SetDefaultRamp(dim.ramp)) }
+func (dim *dimmer) setOnLevelCmd() error { return dim.SendCommand(insteon.SetDefaultOnLevel(dim.level)) }

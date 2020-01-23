@@ -60,10 +60,10 @@ func (sw *swtch) switchConfigCmd() error {
 	return err
 }
 
-func (sw *swtch) switchOnCmd() error     { return sw.On() }
-func (sw *swtch) switchOffCmd() error    { return sw.Off() }
+func (sw *swtch) switchOnCmd() error     { return sw.SendCommand(insteon.TurnLightOn(255)) }
+func (sw *swtch) switchOffCmd() error    { return sw.SendCommand(insteon.TurnLightOff()) }
 func (sw *swtch) switchSetCmd() error    { return nil }
-func (sw *swtch) switchSetLedCmd() error { return sw.SetLED(sw.led) }
+func (sw *swtch) switchSetLedCmd() error { return sw.SendCommand(insteon.SetLED(sw.led)) }
 
 func (sw *swtch) switchStatusCmd() error {
 	level, err := sw.Status()

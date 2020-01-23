@@ -237,6 +237,5 @@ func (dev *device) editCmd() error {
 }
 
 func (dev *device) sendCmd() error {
-	_, err := dev.SendCommand(dev.cmd.Command, dev.data)
-	return err
+	return dev.SendCommand(dev.cmd.Command, dev.data)
 }
