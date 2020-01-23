@@ -34,10 +34,17 @@ func newI2Device(connection Connection, timeout time.Duration) *i2Device {
 	return i2
 }
 
+func (i2 *i2Device) SendCommand(cmd Command, payload []byte) error {
+	if cmd[0] == CmdEnterLinkingMode[0] || cmd[0] == CmdEnterUnlinkingMode[0] {
+		return i2.linkingMode(cmd, payload...)
+	}
+	return i2.i1Device.SendCommand(cmd, payload)
+}
+
 func (i2 *i2Device) linkingMode(cmd Command, payload ...byte) error {
 	i2.Lock()
 	defer i2.Unlock()
-	_, err := i2.SendCommand(cmd, payload)
+	err := i2.SendCommand(cmd, payload)
 	if err == nil {
 		Log.Tracef("Waiting %s for response (Set-Button Pressed Controller/Responder)", i2.timeout)
 		<-time.After(PropagationDelay(3, len(payload) > 0))
@@ -50,8 +57,8 @@ func (i2 *i2Device) linkingMode(cmd Command, payload ...byte) error {
 // to enter linking mode, then it is the controller. The next
 // device to enter linking mode is the responder.  LinkingMode
 // is usually indicated by a flashing GREEN LED on the device
-func (i2 *i2Device) EnterLinkingMode(group Group) error {
-	return i2.linkingMode(CmdEnterLinkingMode.SubCommand(int(group)))
+func EnterLinkingMode(group Group) (Command, []byte) {
+	return CmdEnterLinkingMode.SubCommand(int(group)), nil
 }
 
 // EnterUnlinkingMode puts a controller device into unlinking mode
@@ -61,13 +68,13 @@ func (i2 *i2Device) EnterLinkingMode(group Group) error {
 // to pressing the set button until the device beeps, releasing, then
 // pressing the set button again until the device beeps again. UnlinkingMode
 // is usually indicated by a flashing RED LED on the device
-func (i2 *i2Device) EnterUnlinkingMode(group Group) error {
-	return i2.linkingMode(CmdEnterUnlinkingMode.SubCommand(int(group)))
+func EnterUnlinkingMode(group Group) (Command, []byte) {
+	return CmdEnterUnlinkingMode.SubCommand(int(group)), nil
 }
 
 // ExitLinkingMode takes a controller out of linking/unlinking mode.
-func (i2 *i2Device) ExitLinkingMode() error {
-	return extractError(i2.SendCommand(CmdExitLinkingMode, nil))
+func ExitLinkingMode() (Command, []byte) {
+	return CmdExitLinkingMode, nil
 }
 
 // String returns the string "I2 Device (<address>)" where <address> is the destination

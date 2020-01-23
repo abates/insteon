@@ -98,9 +98,8 @@ type Device interface {
 
 	// SendCommand will send the given command bytes to the device including
 	// a payload (for extended messages). If payload length is zero then a standard
-	// length message is used to deliver the commands. The command bytes from the
-	// response ack are returned as well as any error
-	SendCommand(cmd Command, payload []byte) (response Command, err error)
+	// length message is used to deliver the commands.
+	SendCommand(cmd Command, payload []byte) error
 }
 
 // PingableDevice is any device that implements the Ping method

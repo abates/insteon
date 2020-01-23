@@ -231,7 +231,16 @@ func (conn *connection) Send(msg *Message) (ack *Message, err error) {
 }
 
 func (conn *connection) Receive() (msg *Message, err error) {
-	return readFromCh(conn.msgCh, conn.timeout)
+	var open bool
+	select {
+	case msg, open = <-conn.msgCh:
+		if !open {
+			err = io.EOF
+		}
+	case <-time.After(conn.timeout):
+		err = ErrReadTimeout
+	}
+	return
 }
 
 func (conn *connection) IDRequest() (version FirmwareVersion, devCat DevCat, err error) {
@@ -293,17 +302,4 @@ func Receive(conn Connection, timeout time.Duration, cb func(*Message) error) (e
 		err = nil
 	}
 	return err
-}
-
-func readFromCh(ch <-chan *Message, timeout time.Duration) (msg *Message, err error) {
-	var open bool
-	select {
-	case msg, open = <-ch:
-		if !open {
-			err = io.EOF
-		}
-	case <-time.After(timeout):
-		err = ErrReadTimeout
-	}
-	return
 }

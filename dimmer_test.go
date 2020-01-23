@@ -2,30 +2,9 @@ package insteon
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
 	"time"
 )
-
-func TestDimmerFactory(t *testing.T) {
-	tests := []struct {
-		desc  string
-		input Switch
-		want  reflect.Type
-	}{
-		{"Dimmer", &switchedDevice{}, reflect.TypeOf(&dimmer{})},
-		{"Linkable Dimmer", &linkableSwitch{}, reflect.TypeOf(&linkableDimmer{})},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			got := reflect.TypeOf(NewDimmer(test.input, 0, 0))
-			if test.want != got {
-				t.Errorf("want type %v got %v", test.want, got)
-			}
-		})
-	}
-}
 
 func TestDimmerConfig(t *testing.T) {
 	tests := []struct {
@@ -73,37 +52,6 @@ func TestDimmerConfig(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestDimmerCommands(t *testing.T) {
-	tests := []*commandTest{
-		{"OnLevel", func(d Device) error { return d.(Dimmer).OnLevel(10) }, CmdLightOn.SubCommand(10), nil, nil},
-		{"OnFast", func(d Device) error { return d.(Dimmer).OnFast(10) }, CmdLightOnFast.SubCommand(10), nil, nil},
-		{"Brighten", func(d Device) error { return d.(Dimmer).Brighten() }, CmdLightBrighten, nil, nil},
-		{"Dim", func(d Device) error { return d.(Dimmer).Dim() }, CmdLightDim, nil, nil},
-		{"StartBrighten", func(d Device) error { return d.(Dimmer).StartBrighten() }, CmdLightStartManual.SubCommand(1), nil, nil},
-		{"StartTime", func(d Device) error { return d.(Dimmer).StartDim() }, CmdLightStartManual.SubCommand(0), nil, nil},
-		{"StopChange", func(d Device) error { return d.(Dimmer).StopChange() }, CmdLightStopManual, nil, nil},
-		{"InstantChange", func(d Device) error { return d.(Dimmer).InstantChange(15) }, CmdLightInstantChange.SubCommand(15), nil, nil},
-		{"SetStatus", func(d Device) error { return d.(Dimmer).SetStatus(31) }, CmdLightSetStatus.SubCommand(31), nil, nil},
-		{"OnAtRamp", func(d Device) error { return d.(Dimmer).OnAtRamp(0x03, 0x07) }, CmdLightOnAtRamp.SubCommand(0x37), nil, nil},
-		{"OffAtRamp", func(d Device) error { return d.(Dimmer).OffAtRamp(0xfa) }, CmdLightOffAtRamp.SubCommand(0x0a), nil, nil},
-		{"SetDefaultRamp", func(d Device) error { return d.(Dimmer).SetDefaultRamp(3) }, CmdExtendedGetSet, nil, []byte{1, 5, 3}},
-		{"SetDefaultOnLevel", func(d Device) error { return d.(Dimmer).SetDefaultOnLevel(7) }, CmdExtendedGetSet, nil, []byte{1, 6, 7}},
-	}
-
-	testDeviceCommands(t, func(conn *testConnection) Device {
-		return NewDimmer(NewSwitch(conn, time.Nanosecond), time.Nanosecond, 0)
-	}, tests)
-
-	tests = []*commandTest{
-		{"OnAtRamp v67", func(d Device) error { return d.(Dimmer).OnAtRamp(0x03, 0x07) }, CmdLightOnAtRampV67.SubCommand(0x37), nil, nil},
-		{"OffAtRamp v67", func(d Device) error { return d.(Dimmer).OffAtRamp(0xfa) }, CmdLightOffAtRampV67.SubCommand(0x0a), nil, nil},
-	}
-	testDeviceCommands(t, func(conn *testConnection) Device {
-		return NewDimmer(NewSwitch(conn, time.Nanosecond), time.Nanosecond, 67)
-	}, tests)
-
 }
 
 func TestDimmableDeviceConfig(t *testing.T) {

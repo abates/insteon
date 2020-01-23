@@ -74,19 +74,6 @@ func TestI1DeviceSendCommand(t *testing.T) {
 	}
 }
 
-func TestI1DeviceCommands(t *testing.T) {
-	tests := []*commandTest{
-		{"AssignToAllLinkGroup", func(d Device) error { return d.(*i1Device).AssignToAllLinkGroup(10) }, CmdAssignToAllLinkGroup.SubCommand(10), nil, nil},
-		{"DeleteFromAllLinkGroup", func(d Device) error { return d.(*i1Device).DeleteFromAllLinkGroup(10) }, CmdDeleteFromAllLinkGroup.SubCommand(10), nil, nil},
-		{"CmdPing", func(d Device) error { return d.(*i1Device).Ping() }, CmdPing, nil, nil},
-		{"SetAllLinkCommandAlias", func(d Device) error { return d.(*i1Device).SetAllLinkCommandAlias(Command{}, Command{}) }, Command{}, ErrNotImplemented, nil},
-		{"SetAllLinkCommandAliasData", func(d Device) error { return d.(*i1Device).SetAllLinkCommandAliasData(nil) }, Command{}, ErrNotImplemented, nil},
-		{"BlockDataTransfer", func(d Device) error { _, err := d.(*i1Device).BlockDataTransfer(0, 0, 0); return err }, Command{}, ErrNotImplemented, nil},
-	}
-
-	testDeviceCommands(t, func(conn *testConnection) Device { return newI1Device(conn, time.Millisecond) }, tests)
-}
-
 func TestI1DeviceProductData(t *testing.T) {
 	tests := []struct {
 		desc    string

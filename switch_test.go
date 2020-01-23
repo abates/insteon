@@ -95,6 +95,10 @@ func TestLightFlags(t *testing.T) {
 }
 
 func TestSwitchCommands(t *testing.T) {
+	extractError := func(v interface{}, err error) error {
+		return err
+	}
+
 	tests := []*commandTest{
 		{"SetProgramLock(true)", func(d Device) error { return d.(Switch).SetProgramLock(true) }, CmdSetOperatingFlags.SubCommand(0), nil, nil},
 		{"SetProgramLock(false)", func(d Device) error { return d.(Switch).SetProgramLock(false) }, CmdSetOperatingFlags.SubCommand(1), nil, nil},

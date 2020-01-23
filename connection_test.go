@@ -58,9 +58,9 @@ func (tc *testConnection) IDRequest() (FirmwareVersion, DevCat, error) {
 	return tc.firmwareVersion, tc.devCat, nil
 }
 
-func (tc *testConnection) SendCommand(cmd Command, payload []byte) (Command, error) {
-	msg, err := tc.Send(&Message{Command: cmd, Payload: payload})
-	return msg.Command, err
+func (tc *testConnection) SendCommand(cmd Command, payload []byte) error {
+	_, err := tc.Send(&Message{Command: cmd, Payload: payload})
+	return err
 }
 
 func (tc *testConnection) Send(msg *Message) (*Message, error) {

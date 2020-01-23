@@ -164,16 +164,19 @@ func NewSwitch(device Device, timeout time.Duration) Switch {
 	return sw
 }
 
-func (sd *switchedDevice) On() error  { return extractError(sd.SendCommand(CmdLightOn, nil)) }
-func (sd *switchedDevice) Off() error { return extractError(sd.SendCommand(CmdLightOff, nil)) }
+func (sd *switchedDevice) On() error  { return sd.SendCommand(CmdLightOn, nil) }
+func (sd *switchedDevice) Off() error { return sd.SendCommand(CmdLightOff, nil) }
 
 // Status sends a LightStatusRequest to determine the device's current
 // level. For switched devices this is either 0 or 255, dimmable devices
 // will be the current dim level between 0 and 255
 func (sd *switchedDevice) Status() (level int, err error) {
-	response, err := sd.SendCommand(CmdLightStatusRequest, nil)
+	ack, err := sd.Send(&Message{
+		Flags:   StandardDirectMessage,
+		Command: CmdLightStatusRequest,
+	})
 	if err == nil {
-		level = int(response[2])
+		level = int(ack.Command[2])
 	}
 	return level, err
 }
@@ -183,12 +186,12 @@ func (sd *switchedDevice) String() string {
 }
 
 func (sd *switchedDevice) SetX10Address(button int, houseCode, unitCode byte) error {
-	return extractError(sd.SendCommand(CmdExtendedGetSet, []byte{byte(button), 0x04, houseCode, unitCode}))
+	return sd.SendCommand(CmdExtendedGetSet, []byte{byte(button), 0x04, houseCode, unitCode})
 }
 
 func (sd *switchedDevice) SwitchConfig() (config SwitchConfig, err error) {
 	// SEE DimmerConfig() notes for explanation of D1 and D2 (payload[0] and payload[1])
-	_, err = sd.Device.SendCommand(CmdExtendedGetSet, []byte{0x00, 0x00})
+	err = sd.Device.SendCommand(CmdExtendedGetSet, []byte{0x00, 0x00})
 	if err == nil {
 		err = Receive(sd, sd.timeout, func(msg *Message) error {
 			if msg.Command == CmdExtendedGetSet {
@@ -205,9 +208,9 @@ func (sd *switchedDevice) SwitchConfig() (config SwitchConfig, err error) {
 
 func (sd *switchedDevice) setOperatingFlags(flags byte, conditional bool) error {
 	if conditional {
-		return extractError(sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)), nil))
+		return sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)), nil)
 	}
-	return extractError(sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)+1), nil))
+	return sd.SendCommand(CmdSetOperatingFlags.SubCommand(int(flags)+1), nil)
 }
 
 func (sd *switchedDevice) SetProgramLock(flag bool) error { return sd.setOperatingFlags(0, flag) }
@@ -225,8 +228,13 @@ func (sd *switchedDevice) OperatingFlags() (flags LightFlags, err error) {
 		CmdGetOperatingFlags.SubCommand(0x05),
 	}
 
+	var ack *Message
 	for i := 0; i < len(commands) && err == nil; i++ {
-		commands[i], err = sd.SendCommand(commands[i], nil)
+		ack, err = sd.Send(&Message{
+			Flags:   StandardDirectMessage,
+			Command: commands[i],
+		})
+		commands[i] = ack.Command
 		flags[i] = commands[i][2]
 	}
 	return

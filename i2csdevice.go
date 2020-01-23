@@ -34,11 +34,12 @@ func newI2CsDevice(connection Connection, timeout time.Duration) *i2CsDevice {
 	return i2cs
 }
 
-// EnterLinkingMode will put the device into linking mode. This is
-// equivalent to holding down the set button until the device
-// beeps and the indicator light starts flashing
-func (i2cs *i2CsDevice) EnterLinkingMode(group Group) (err error) {
-	return i2cs.linkingMode(CmdEnterLinkingModeExt.SubCommand(int(group)), make([]byte, 14)...)
+func (i2cs *i2CsDevice) SendCommand(cmd Command, payload []byte) error {
+	if cmd[0] == CmdEnterUnlinkingMode[0] {
+		cmd = CmdEnterLinkingModeExt.SubCommand(int(cmd[1]))
+		payload = make([]byte, 14)
+	}
+	return i2cs.i2Device.SendCommand(cmd, payload)
 }
 
 // Address returns the unique Insteon address of the device

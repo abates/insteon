@@ -62,182 +62,31 @@ func (dc *DimmerConfig) MarshalBinary() ([]byte, error) {
 	return buf, nil
 }
 
-// Dimmer is any device that satisfies the following interface
-type Dimmer interface {
-	// Switch is the underlying Switch object that this dimmer is
-	// composed of
-	Switch
-
-	// OnLevel turns the dimmer on to the specified level (0-255)
-	OnLevel(level int) error
-
-	// OnFast will turn the dimmer on to the specified level as fast as
-	// possible (bypassing the default ramp rate)
-	OnFast(level int) error
-
-	// Brighten will increase the brightness one step
-	Brighten() error
-
-	// Dim will decrease the brightness one step
-	Dim() error
-
-	// StartBrighten behaves as if the dimmers' brighten button is being
-	// continuously pressed
-	StartBrighten() error
-
-	// StartDim behaves as if the dimmer's dim button is being
-	// continuously pressed
-	StartDim() error
-
-	// StopChange cancels the previous StartBrighten or StartDim commands
-	StopChange() error
-
-	// InstantChange will set the dimmer's on level instantaneously (with no
-	// ramp rate whatsoever
-	InstantChange(level int) error
-
-	// SetStatus changes the dimmer's status LED
-	SetStatus(level int) error
-
-	// OnAtRamp will turn the dimmer on to the given level at the given ramp rate
-	OnAtRamp(level, ramp int) error
-
-	// OffAtRamp will turn the dimmer off using the specified ramp rate
-	OffAtRamp(ramp int) error
-
-	// SetDefaultRamp sets the ramp rate that is used for the default on-level
-	// when the on or off button is tapped
-	SetDefaultRamp(level int) error
-
-	// SetDefaultOnLevel sets the lighting level that is recalled when the on
-	// button is tapped
-	SetDefaultOnLevel(level int) error
-
-	// DimmerConfig queries the dimmer and returns the configuration
-	DimmerConfig() (DimmerConfig, error)
-}
-
-// LinkableDimmer represents a Dimmer switch that supports remote
-// linking (Insteon Engine version 2 or higher)
-type LinkableDimmer interface {
-	Dimmer
-	Linkable
-}
-
-type dimmer struct {
+type Dimmer struct {
 	Switch
 	timeout         time.Duration
 	firmwareVersion FirmwareVersion
 }
 
-type linkableDimmer struct {
-	LinkableSwitch
-	*dimmer
-}
-
 // NewDimmer is a factory function that will return a dimmer switch configured
 // appropriately for the given firmware version.  All dimmers are switches, so
 // the first argument is a Switch object used to compose the new dimmer
-func NewDimmer(sw Switch, timeout time.Duration, firmwareVersion FirmwareVersion) Dimmer {
-	dd := &dimmer{
+func NewDimmer(sw Switch, timeout time.Duration, firmwareVersion FirmwareVersion) *Dimmer {
+	dd := &Dimmer{
 		Switch:          sw,
 		timeout:         timeout,
 		firmwareVersion: firmwareVersion,
 	}
-	if linkable, ok := sw.(LinkableSwitch); ok {
-		return &linkableDimmer{LinkableSwitch: linkable, dimmer: dd}
-	}
 	return dd
 }
 
-func (dd *dimmer) OnLevel(level int) error {
-	_, err := dd.SendCommand(CmdLightOn.SubCommand(level), nil)
-	return err
-}
-
-func (dd *dimmer) OnFast(level int) error {
-	_, err := dd.SendCommand(CmdLightOnFast.SubCommand(level), nil)
-	return err
-}
-
-func (dd *dimmer) Brighten() error {
-	_, err := dd.SendCommand(CmdLightBrighten, nil)
-	return err
-}
-
-func (dd *dimmer) Dim() error {
-	_, err := dd.SendCommand(CmdLightDim, nil)
-	return err
-}
-
-func (dd *dimmer) StartBrighten() error {
-	_, err := dd.SendCommand(CmdLightStartManual.SubCommand(1), nil)
-	return err
-}
-
-func (dd *dimmer) StartDim() error {
-	_, err := dd.SendCommand(CmdLightStartManual.SubCommand(0), nil)
-	return err
-}
-
-func (dd *dimmer) StopChange() error {
-	_, err := dd.SendCommand(CmdLightStopManual, nil)
-	return err
-}
-
-func (dd *dimmer) InstantChange(level int) error {
-	_, err := dd.SendCommand(CmdLightInstantChange.SubCommand(level), nil)
-	return err
-}
-
-func (dd *dimmer) SetStatus(level int) error {
-	_, err := dd.SendCommand(CmdLightSetStatus.SubCommand(level), nil)
-	return err
-}
-
-func (dd *dimmer) OnAtRamp(level, ramp int) (err error) {
-	levelRamp := byte(level) << 4
-	levelRamp |= byte(ramp) & 0x0f
-	if dd.firmwareVersion >= 0x43 {
-		_, err = dd.SendCommand(CmdLightOnAtRampV67.SubCommand(int(levelRamp)), nil)
-	} else {
-		_, err = dd.SendCommand(CmdLightOnAtRamp.SubCommand(int(levelRamp)), nil)
-	}
-	return err
-}
-
-func (dd *dimmer) OffAtRamp(ramp int) (err error) {
-	if dd.firmwareVersion >= 0x43 {
-		_, err = dd.SendCommand(CmdLightOffAtRampV67.SubCommand(0x0f&ramp), nil)
-	} else {
-		_, err = dd.SendCommand(CmdLightOffAtRamp.SubCommand(0x0f&ramp), nil)
-	}
-	return err
-}
-
-func (dd *dimmer) String() string {
-	return fmt.Sprintf("Dimmer (%s)", dd.Address())
-}
-
-func (dd *dimmer) SetDefaultRamp(rate int) error {
-	// See notes on DimmerConfig() for information about D1 (payload[0])
-	_, err := dd.SendCommand(CmdExtendedGetSet, []byte{0x01, 0x05, byte(rate)})
-	return err
-}
-
-func (dd *dimmer) SetDefaultOnLevel(level int) error {
-	// See notes on DimmerConfig() for information about D1 (payload[0])
-	_, err := dd.SendCommand(CmdExtendedGetSet, []byte{0x01, 0x06, byte(level)})
-	return err
-}
-
-func (dd *dimmer) DimmerConfig() (config DimmerConfig, err error) {
+func (dd *Dimmer) DimmerConfig() (config DimmerConfig, err error) {
 	// The documentation talks about D1 (payload[0]) being the button/group number, but my
 	// SwitchLinc dimmers all return the same information regardless of
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
-	_, err = dd.Switch.SendCommand(CmdExtendedGetSet, []byte{0x01, 0x00})
+	err = dd.Switch.SendCommand(CmdExtendedGetSet, []byte{0x01, 0x00})
 	if err == nil {
 		err = Receive(dd.Switch, dd.timeout, func(msg *Message) error {
 			if msg.Command == CmdExtendedGetSet {
@@ -250,4 +99,77 @@ func (dd *dimmer) DimmerConfig() (config DimmerConfig, err error) {
 		})
 	}
 	return config, err
+}
+
+func (dd *Dimmer) SendCommand(cmd Command, payload []byte) error {
+	if cmd[0] == CmdLightOnAtRamp[0] {
+		if dd.firmwareVersion >= 0x43 {
+			cmd = CmdLightOnAtRampV67.SubCommand(int(cmd[1]))
+		}
+	} else if cmd[0] == CmdLightOffAtRamp[0] {
+		if dd.firmwareVersion >= 0x43 {
+			cmd = CmdLightOffAtRampV67.SubCommand(int(cmd[1]))
+		}
+	}
+	return dd.Switch.SendCommand(cmd, payload)
+}
+
+func (dd *Dimmer) String() string {
+	return fmt.Sprintf("Dimmer (%s)", dd.Address())
+}
+
+func TurnOn(level int) (Command, []byte) {
+	return CmdLightOn.SubCommand(level), nil
+}
+
+func TurnOnFast(level int) (Command, []byte) {
+	return CmdLightOnFast.SubCommand(level), nil
+}
+
+func Brighten() (Command, []byte) {
+	return CmdLightBrighten, nil
+}
+
+func Dim() (Command, []byte) {
+	return CmdLightDim, nil
+}
+
+func StartBrighten() (Command, []byte) {
+	return CmdLightStartManual.SubCommand(1), nil
+}
+
+func StartDim() (Command, []byte) {
+	return CmdLightStartManual.SubCommand(0), nil
+}
+
+func StopChange() (Command, []byte) {
+	return CmdLightStopManual, nil
+}
+
+func InstantChange(level int) (Command, []byte) {
+	return CmdLightInstantChange.SubCommand(level), nil
+}
+
+func SetLightStatus(level int) (Command, []byte) {
+	return CmdLightSetStatus.SubCommand(level), nil
+}
+
+func OnAtRamp(level, ramp int) (Command, []byte) {
+	levelRamp := byte(level) << 4
+	levelRamp |= byte(ramp) & 0x0f
+	return CmdLightOnAtRamp.SubCommand(int(levelRamp)), nil
+}
+
+func OffAtRamp(ramp int) (Command, []byte) {
+	return CmdLightOffAtRamp.SubCommand(0x0f & ramp), nil
+}
+
+func SetDefaultRamp(rate int) (Command, []byte) {
+	// See notes on DimmerConfig() for information about D1 (payload[0])
+	return CmdExtendedGetSet, []byte{0x01, 0x05, byte(rate)}
+}
+
+func SetDefaultOnLevel(level int) (Command, []byte) {
+	// See notes on DimmerConfig() for information about D1 (payload[0])
+	return CmdExtendedGetSet, []byte{0x01, 0x06, byte(level)}
 }

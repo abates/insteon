@@ -40,11 +40,20 @@ func newI1Device(connection Connection, timeout time.Duration) *i1Device {
 	return i1
 }
 
-// SendCommand will send the given command bytes to the device including
+// sendCommand will send the given command bytes to the device including
+// a payload (for extended messages). If payload length is zero then a standard
+// length message is used to deliver the commands. Any error encountered sending
+// the command is returned (eg. ack timeout, etc)
+func (i1 *i1Device) SendCommand(command Command, payload []byte) error {
+	_, err := i1.sendCommand(command, payload)
+	return err
+}
+
+// sendCommand will send the given command bytes to the device including
 // a payload (for extended messages). If payload length is zero then a standard
 // length message is used to deliver the commands. The command bytes from the
 // response ack are returned as well as any error
-func (i1 *i1Device) SendCommand(command Command, payload []byte) (response Command, err error) {
+func (i1 *i1Device) sendCommand(command Command, payload []byte) (response Command, err error) {
 	i1.cmdMutex.Lock()
 	defer i1.cmdMutex.Unlock()
 	flags := StandardDirectMessage
@@ -86,20 +95,16 @@ func errLookup(msg *Message, err error) (*Message, error) {
 	return msg, err
 }
 
-func extractError(v interface{}, err error) error {
-	return err
+func AssignToAllLinkGroup(group Group) (Command, []byte) {
+	return CmdAssignToAllLinkGroup.SubCommand(int(group)), nil
 }
 
-// AssignToAllLinkGroup will inform the device what group should be used during an All-Linking
-// session
-func (i1 *i1Device) AssignToAllLinkGroup(group Group) error {
-	return extractError(i1.SendCommand(CmdAssignToAllLinkGroup.SubCommand(int(group)), nil))
+func DeleteFromAllLinkGroup(group Group) (Command, []byte) {
+	return CmdDeleteFromAllLinkGroup.SubCommand(int(group)), nil
 }
 
-// DeleteFromAllLinkGroup will inform the device which group should be unlinked during an
-// All-Link unlinking session
-func (i1 *i1Device) DeleteFromAllLinkGroup(group Group) (err error) {
-	return extractError(i1.SendCommand(CmdDeleteFromAllLinkGroup.SubCommand(int(group)), nil))
+func Ping() (Command, []byte) {
+	return CmdPing, nil
 }
 
 // ProductData will retrieve the device's product data
@@ -107,7 +112,7 @@ func (i1 *i1Device) ProductData() (data *ProductData, err error) {
 	i1.Lock()
 	defer i1.Unlock()
 
-	_, err = i1.SendCommand(CmdProductDataReq, nil)
+	err = i1.SendCommand(CmdProductDataReq, nil)
 	if err == nil {
 		err = Receive(i1.Connection, i1.timeout, func(msg *Message) error {
 			if msg.Command[1] == CmdProductDataResp[1] {
@@ -121,33 +126,6 @@ func (i1 *i1Device) ProductData() (data *ProductData, err error) {
 		})
 	}
 	return data, err
-}
-
-// Ping will send a Ping command to the device
-func (i1 *i1Device) Ping() (err error) {
-	i1.Lock()
-	defer i1.Unlock()
-	return extractError(i1.SendCommand(CmdPing, nil))
-}
-
-// SetAllLinkCommandAlias will set the device's standard command to be used
-// when the given alias command is sent
-func (i1 *i1Device) SetAllLinkCommandAlias(match, replace Command) error {
-	// TODO implement
-	return ErrNotImplemented
-}
-
-// SetAllLinkCommandAliasData will set any extended data required by the alias
-// command
-func (i1 *i1Device) SetAllLinkCommandAliasData(data []byte) error {
-	// TODO implement
-	return ErrNotImplemented
-}
-
-// BlockDataTransfer will retrieve a block of memory from the device
-func (i1 *i1Device) BlockDataTransfer(start, end MemAddress, length int) ([]byte, error) {
-	// TODO implement
-	return nil, ErrNotImplemented
 }
 
 // String returns the string "I1 Device (<address>)" where <address> is the destination

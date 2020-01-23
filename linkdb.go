@@ -147,7 +147,7 @@ func (ldb *linkdb) refresh() error {
 	Log.Debugf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
 	buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
-	_, err := ldb.device.SendCommand(CmdReadWriteALDB, buf)
+	err := ldb.device.SendCommand(CmdReadWriteALDB, buf)
 
 	if err == nil {
 		err = Receive(ldb.device, ldb.timeout, func(msg *Message) error {
@@ -196,7 +196,7 @@ func (ldb *linkdb) writeLink(index int, link *LinkRecord) (err error) {
 	}
 	memAddress := BaseLinkDBAddress - (MemAddress(index) * LinkRecordSize)
 	buf, _ := (&linkRequest{MemAddress: memAddress, Type: writeLink, Link: link}).MarshalBinary()
-	_, err = ldb.device.SendCommand(CmdReadWriteALDB, buf)
+	err = ldb.device.SendCommand(CmdReadWriteALDB, buf)
 	if err == nil {
 		if link.Flags.LastRecord() {
 			// if the last record comes before the end of the cached links then
