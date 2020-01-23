@@ -88,7 +88,7 @@ func (dd *Dimmer) DimmerConfig() (config DimmerConfig, err error) {
 	// D2 is 0x00 for requests
 	err = dd.Switch.SendCommand(CmdExtendedGetSet, []byte{0x01, 0x00})
 	if err == nil {
-		err = Receive(dd.Switch, dd.timeout, func(msg *Message) error {
+		err = Receive(dd.Switch.Receive, dd.timeout, func(msg *Message) error {
 			if msg.Command == CmdExtendedGetSet {
 				err = config.UnmarshalBinary(msg.Payload)
 				if err == nil {

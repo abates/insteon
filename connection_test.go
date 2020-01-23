@@ -63,6 +63,10 @@ func (tc *testConnection) SendCommand(cmd Command, payload []byte) error {
 	return err
 }
 
+func (tc *testConnection) Exclusive(cb func()) {
+	cb()
+}
+
 func (tc *testConnection) Send(msg *Message) (*Message, error) {
 	sent := &Message{}
 	*sent = *msg
@@ -85,7 +89,6 @@ func (tc *testConnection) Receive() (*Message, error) {
 }
 
 func TestConnectionOptions(t *testing.T) {
-	mu := &sync.Mutex{}
 	tests := []struct {
 		desc  string
 		input ConnectionOption
@@ -93,7 +96,6 @@ func TestConnectionOptions(t *testing.T) {
 	}{
 		{"Timeout Option", ConnectionTimeout(time.Hour), &connection{timeout: time.Hour}},
 		{"Filter Option", ConnectionFilter(CmdReadWriteALDB), &connection{match: []Command{CmdReadWriteALDB}}},
-		{"Mutex Option", ConnectionMutex(mu), &connection{Mutex: mu}},
 		{"TTL Option", ConnectionTTL(3), &connection{ttl: 3}},
 	}
 

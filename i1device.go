@@ -15,14 +15,12 @@
 package insteon
 
 import (
-	"sync"
 	"time"
 )
 
 // i1Device provides remote communication to version 1 engines
 type i1Device struct {
 	Connection
-	cmdMutex        sync.Mutex
 	devCat          DevCat
 	firmwareVersion FirmwareVersion
 	timeout         time.Duration
@@ -54,8 +52,6 @@ func (i1 *i1Device) SendCommand(command Command, payload []byte) error {
 // length message is used to deliver the commands. The command bytes from the
 // response ack are returned as well as any error
 func (i1 *i1Device) sendCommand(command Command, payload []byte) (response Command, err error) {
-	i1.cmdMutex.Lock()
-	defer i1.cmdMutex.Unlock()
 	flags := StandardDirectMessage
 	if len(payload) > 0 {
 		flags = ExtendedDirectMessage
@@ -97,12 +93,9 @@ func errLookup(msg *Message, err error) (*Message, error) {
 
 // ProductData will retrieve the device's product data
 func (i1 *i1Device) ProductData() (data *ProductData, err error) {
-	i1.Lock()
-	defer i1.Unlock()
-
 	err = i1.SendCommand(CmdProductDataReq, nil)
 	if err == nil {
-		err = Receive(i1.Connection, i1.timeout, func(msg *Message) error {
+		err = Receive(i1.Connection.Receive, i1.timeout, func(msg *Message) error {
 			if msg.Command[1] == CmdProductDataResp[1] {
 				data = &ProductData{}
 				err = data.UnmarshalBinary(msg.Payload)

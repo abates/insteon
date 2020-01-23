@@ -38,6 +38,7 @@ func (i2cs *i2CsDevice) SendCommand(cmd Command, payload []byte) error {
 	if cmd[1] == CmdEnterUnlinkingMode[1] {
 		cmd = CmdEnterLinkingModeExt.SubCommand(int(cmd[2]))
 		payload = make([]byte, 14)
+		return i2cs.i2Device.linkingMode(cmd, payload...)
 	}
 	return i2cs.i2Device.SendCommand(cmd, payload)
 }
@@ -103,9 +104,6 @@ func i2csErrLookup(msg *Message, err error) (*Message, error) {
 // with the appropriate broadcast message, or if the local system
 // doesn't receive it
 func (i2cs *i2CsDevice) IDRequest() (FirmwareVersion, DevCat, error) {
-	i2cs.Lock()
-	defer i2cs.Unlock()
-
 	return i2cs.connection.IDRequest()
 }
 
@@ -113,15 +111,4 @@ func (i2cs *i2CsDevice) IDRequest() (FirmwareVersion, DevCat, error) {
 // always returns, but may return with an error (such as ErrReadTimeout)
 func (i2cs *i2CsDevice) Receive() (*Message, error) {
 	return i2csErrLookup(i2cs.connection.Receive())
-}
-
-// Lock the connection so that it not usable by other go routines.  This is
-// implemented by an underlying sync.Mutex object
-func (i2cs *i2CsDevice) Lock() {
-	i2cs.connection.Lock()
-}
-
-// Unlock is the complement to the Lock function effectively unlocking the Mutex
-func (i2cs *i2CsDevice) Unlock() {
-	i2cs.connection.Unlock()
 }

@@ -98,18 +98,9 @@ type Connection interface {
 	// not have a corresponding link entry.  In this case, VerI2Cs is returned
 	// as well as ErrNotLinked
 	EngineVersion() (EngineVersion, error)
-
-	// Lock the connection so that it not usable by other go routines.  This is
-	// implemented by an underlying sync.Mutex object
-	Lock()
-
-	// Unlock is the complement to the Lock function effectively unlocking the Mutex
-	Unlock()
 }
 
 type connection struct {
-	*sync.Mutex
-
 	addr     Address
 	match    []Command
 	timeout  time.Duration
@@ -118,6 +109,8 @@ type connection struct {
 
 	msgCh   chan *Message
 	closeCh chan chan error
+
+	mu sync.Mutex
 }
 
 // ConnectionOption provides a means to customize the connection config
@@ -152,17 +145,6 @@ func ConnectionFilter(match ...Command) ConnectionOption {
 	}
 }
 
-// ConnectionMutex provides a way to set the underlying Mutex.  This allows a global
-// mutex to be used (as in the case of a PLM)
-func ConnectionMutex(mu *sync.Mutex) ConnectionOption {
-	return func(conn *connection) error {
-		if conn != nil {
-			conn.Mutex = mu
-		}
-		return nil
-	}
-}
-
 // NewConnection will return a connection that is setup and ready to be used.  The txCh and
 // rxCh will be used to send and receive insteon messages.  Any supplied options will be
 // used to customize the connection's config
@@ -172,8 +154,6 @@ func NewConnection(upstream Sender, addr Address, options ...ConnectionOption) (
 
 func newConnection(upstream Sender, addr Address, options ...ConnectionOption) (*connection, error) {
 	conn := &connection{
-		Mutex: &sync.Mutex{},
-
 		addr:    addr,
 		timeout: 3 * time.Second,
 
@@ -212,6 +192,12 @@ func (conn *connection) dispatch(msg *Message) {
 }
 
 func (conn *connection) Send(msg *Message) (ack *Message, err error) {
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+	return conn.send(msg)
+}
+
+func (conn *connection) send(msg *Message) (ack *Message, err error) {
 	msg.Dst = conn.addr
 	msg.Flags = Flag(MsgTypeDirect, len(msg.Payload) > 0, conn.ttl, conn.ttl)
 	Log.Tracef("Connection %v TX %v", conn.addr, msg)
@@ -219,7 +205,7 @@ func (conn *connection) Send(msg *Message) (ack *Message, err error) {
 
 	if err == nil {
 		// wait for ack
-		err = Receive(conn, conn.timeout, func(msg *Message) (err error) {
+		err = Receive(conn.receive, conn.timeout, func(msg *Message) (err error) {
 			if msg.Ack() || msg.Nak() {
 				ack = msg
 				err = ErrReceiveComplete
@@ -231,6 +217,12 @@ func (conn *connection) Send(msg *Message) (ack *Message, err error) {
 }
 
 func (conn *connection) Receive() (msg *Message, err error) {
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+	return conn.receive()
+}
+
+func (conn *connection) receive() (msg *Message, err error) {
 	var open bool
 	select {
 	case msg, open = <-conn.msgCh:
@@ -244,8 +236,10 @@ func (conn *connection) Receive() (msg *Message, err error) {
 }
 
 func (conn *connection) IDRequest() (version FirmwareVersion, devCat DevCat, err error) {
-	_, err = conn.Send(&Message{Command: CmdIDRequest, Flags: StandardDirectMessage})
-	err = Receive(conn, conn.timeout, func(msg *Message) error {
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+	_, err = conn.send(&Message{Command: CmdIDRequest, Flags: StandardDirectMessage})
+	err = Receive(conn.receive, conn.timeout, func(msg *Message) error {
 		if msg.Broadcast() && (msg.Command[1] == 0x01 || msg.Command[1] == 0x02) {
 			version = FirmwareVersion(msg.Dst[2])
 			devCat = DevCat{msg.Dst[0], msg.Dst[1]}
@@ -281,11 +275,11 @@ func (conn *connection) EngineVersion() (version EngineVersion, err error) {
 // to return with no error.  If the callback returns ErrReadContinue then the timeout is updated
 // for an additional read.  If the callback returns any other error then that error will
 // be returned
-func Receive(conn Connection, timeout time.Duration, cb func(*Message) error) (err error) {
+func Receive(rcvr func() (*Message, error), timeout time.Duration, cb func(*Message) error) (err error) {
 	readTimeout := time.Now().Add(timeout)
 	for err == nil {
 		var msg *Message
-		msg, err = conn.Receive()
+		msg, err = rcvr()
 		if err == nil {
 			if readTimeout.Before(time.Now()) {
 				err = ErrReadTimeout

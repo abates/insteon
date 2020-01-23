@@ -150,7 +150,7 @@ func (ldb *linkdb) refresh() error {
 	err := ldb.device.SendCommand(CmdReadWriteALDB, buf)
 
 	if err == nil {
-		err = Receive(ldb.device, ldb.timeout, func(msg *Message) error {
+		err = Receive(ldb.device.Receive, ldb.timeout, func(msg *Message) error {
 			if msg.Flags.Extended() && msg.Command[1] == CmdReadWriteALDB[1] {
 				lr := &linkRequest{}
 				err = lr.UnmarshalBinary(msg.Payload)
@@ -183,10 +183,8 @@ func (ldb *linkdb) refresh() error {
 
 // Links will retrieve the link-database from the device and
 // return a list of LinkRecords
-func (ldb *linkdb) Links() ([]*LinkRecord, error) {
-	ldb.device.Lock()
-	defer ldb.device.Unlock()
-	err := ldb.refresh()
+func (ldb *linkdb) Links() (links []*LinkRecord, err error) {
+	err = ldb.refresh()
 	return ldb.links, err
 }
 
@@ -218,9 +216,8 @@ func (ldb *linkdb) writeLink(index int, link *LinkRecord) (err error) {
 }
 
 func (ldb *linkdb) WriteLinks(links ...*LinkRecord) (err error) {
-	ldb.device.Lock()
-	defer ldb.device.Unlock()
-	return ldb.writeLinks(links...)
+	err = ldb.writeLinks(links...)
+	return err
 }
 
 func (ldb *linkdb) writeLinks(links ...*LinkRecord) (err error) {
@@ -241,8 +238,6 @@ func (ldb *linkdb) writeLinks(links ...*LinkRecord) (err error) {
 }
 
 func (ldb *linkdb) UpdateLinks(links ...*LinkRecord) (err error) {
-	ldb.device.Lock()
-	defer ldb.device.Unlock()
 	err = ldb.refresh()
 
 	if err == nil {

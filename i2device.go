@@ -22,6 +22,7 @@ import (
 type i2Device struct {
 	*i1Device
 	linkdb
+	conn    Connection
 	timeout time.Duration
 }
 
@@ -29,6 +30,7 @@ type i2Device struct {
 // Insteon engines
 func newI2Device(connection Connection, timeout time.Duration) *i2Device {
 	i2 := &i2Device{i1Device: newI1Device(connection, timeout), timeout: timeout}
+	i2.conn = connection
 	i2.linkdb.device = i2
 	i2.linkdb.timeout = timeout
 	return i2
@@ -41,10 +43,8 @@ func (i2 *i2Device) SendCommand(cmd Command, payload []byte) error {
 	return i2.i1Device.SendCommand(cmd, payload)
 }
 
-func (i2 *i2Device) linkingMode(cmd Command, payload ...byte) error {
-	i2.Lock()
-	defer i2.Unlock()
-	err := i2.SendCommand(cmd, payload)
+func (i2 *i2Device) linkingMode(cmd Command, payload ...byte) (err error) {
+	err = i2.i1Device.SendCommand(cmd, payload)
 	if err == nil {
 		Log.Tracef("Waiting %s for response (Set-Button Pressed Controller/Responder)", i2.timeout)
 		<-time.After(PropagationDelay(3, len(payload) > 0))
