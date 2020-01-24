@@ -119,9 +119,9 @@ func (p ProductKey) String() string {
 // such as on/off switches and dimmer switches
 type DevCat [2]byte
 
-// Category returns the Category that the DevCat falls under
-func (dc DevCat) Category() Category {
-	return Category(dc[0])
+// Domain returns what device domain a particular device belongs to
+func (dc DevCat) Domain() Domain {
+	return Domain(dc[0])
 }
 
 // SubCategory returns the specific SubCategory for this DevCat
@@ -136,8 +136,8 @@ func (dc DevCat) String() string {
 	return sprintf("%02x.%02x", dc[0], dc[1])
 }
 
-// Category is type for the Category byte in the DevCat
-type Category byte
+// Domain represents an entire domain of similar devices (dimmers, switches, thermostats, etc)
+type Domain byte
 
 // SubCategory is the type for the SubCategory byte in the DevCat
 type SubCategory byte

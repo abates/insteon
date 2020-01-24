@@ -65,18 +65,18 @@ func TestProductKey(t *testing.T) {
 func TestDevCat(t *testing.T) {
 	tests := []struct {
 		input               [2]byte
-		expectedCategory    Category
+		expectedDomain      Domain
 		expectedSubCategory SubCategory
 		expectedString      string
 	}{
-		{[2]byte{0x01, 0x02}, Category(0x01), SubCategory(0x02), "01.02"},
+		{[2]byte{0x01, 0x02}, Domain(0x01), SubCategory(0x02), "01.02"},
 	}
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
 			devCat := DevCat(test.input)
-			if devCat.Category() != test.expectedCategory {
-				t.Errorf("got Category 0x%02x, want 0x%02x", devCat.Category(), test.expectedCategory)
+			if devCat.Domain() != test.expectedDomain {
+				t.Errorf("got Domain 0x%02x, want 0x%02x", devCat.Domain(), test.expectedDomain)
 			}
 
 			if devCat.SubCategory() != test.expectedSubCategory {

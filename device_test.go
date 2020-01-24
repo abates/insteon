@@ -23,18 +23,18 @@ import (
 func TestDeviceRegistry(t *testing.T) {
 	dr := &DeviceRegistry{}
 
-	if _, found := dr.Find(Category(1)); found {
-		t.Error("Expected nothing found for Category(1)")
+	if _, found := dr.Find(Domain(1)); found {
+		t.Error("Expected nothing found for Domain(1)")
 	}
 
 	constructorCalled := false
-	dr.Register(Category(1), func(DeviceInfo, Device, time.Duration) (Device, error) {
+	dr.Register(Domain(1), func(DeviceInfo, Device, time.Duration) (Device, error) {
 		constructorCalled = true
 		return nil, nil
 	})
 
-	if _, found := dr.Find(Category(1)); !found {
-		t.Error("Expected to find Category(1)")
+	if _, found := dr.Find(Domain(1)); !found {
+		t.Error("Expected to find Domain(1)")
 	}
 
 	dr.New(DeviceInfo{DevCat: DevCat{1, 0}}, &testConnection{}, 0)
@@ -42,9 +42,9 @@ func TestDeviceRegistry(t *testing.T) {
 		t.Errorf("Expected New() to call device constructor")
 	}
 
-	dr.Delete(Category(1))
-	if _, found := dr.Find(Category(1)); found {
-		t.Error("Expected nothing found for Category(1)")
+	dr.Delete(Domain(1))
+	if _, found := dr.Find(Domain(1)); found {
+		t.Error("Expected nothing found for Domain(1)")
 	}
 }
 

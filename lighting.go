@@ -21,7 +21,7 @@ import (
 var (
 	// LightingCategories match the two device categories known to be lighting
 	// devices.  0x01 are dimmable devices and 0x02 are switched devices
-	LightingCategories = []Category{Category(1), Category(2)}
+	LightingDomains = []Domain{Domain(1), Domain(2)}
 )
 
 func init() {

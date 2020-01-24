@@ -40,30 +40,26 @@ var Devices DeviceRegistry
 // DeviceRegistry is a mechanism to keep track of specific constructors for different
 // device categories
 type DeviceRegistry struct {
-	// devices key is the first byte of the
-	// Category.  Documentation simply calls this
-	// the category and the second byte the sub
-	// category, but we've combined both bytes
-	// into a single type
-	devices map[Category]DeviceConstructor
+	// Devices are mapped by their domain
+	devices map[Domain]DeviceConstructor
 }
 
 // Register will assign the given constructor to the supplied category
-func (dr *DeviceRegistry) Register(category Category, constructor DeviceConstructor) {
+func (dr *DeviceRegistry) Register(domain Domain, constructor DeviceConstructor) {
 	if dr.devices == nil {
-		dr.devices = make(map[Category]DeviceConstructor)
+		dr.devices = make(map[Domain]DeviceConstructor)
 	}
-	dr.devices[category] = constructor
+	dr.devices[domain] = constructor
 }
 
 // Delete will remove a device constructor from the registry
-func (dr *DeviceRegistry) Delete(category Category) {
-	delete(dr.devices, category)
+func (dr *DeviceRegistry) Delete(domain Domain) {
+	delete(dr.devices, domain)
 }
 
 // Find looks for a constructor corresponding to the given category
-func (dr *DeviceRegistry) Find(category Category) (DeviceConstructor, bool) {
-	constructor, found := dr.devices[category]
+func (dr *DeviceRegistry) Find(domain Domain) (DeviceConstructor, bool) {
+	constructor, found := dr.devices[domain]
 	return constructor, found
 }
 
@@ -77,7 +73,7 @@ func (dr *DeviceRegistry) Find(category Category) (DeviceConstructor, bool) {
 func (dr *DeviceRegistry) New(info DeviceInfo, conn Connection, timeout time.Duration) (Device, error) {
 	device, err := New(info.EngineVersion, conn, timeout)
 	if err == nil {
-		if constructor, found := dr.Find(info.DevCat.Category()); found {
+		if constructor, found := dr.Find(info.DevCat.Domain()); found {
 			device, err = constructor(info, device, timeout)
 		}
 	}
