@@ -80,7 +80,7 @@ func TestSwitchedDeviceConfig(t *testing.T) {
 	copy(msg.Payload, payload)
 
 	conn := &testConnection{recv: []*Message{msg}, acks: []*Message{TestAck}}
-	sd := NewSwitch(conn, time.Millisecond)
+	sd := NewSwitch(DeviceInfo{}, conn, time.Millisecond)
 
 	got, err := sd.SwitchConfig()
 	if err != nil {
@@ -103,7 +103,7 @@ func TestSwitchedDeviceOperatingFlags(t *testing.T) {
 		conn.acks = append(conn.acks, &Message{Command: cmd})
 	}
 
-	sd := NewSwitch(conn, time.Nanosecond)
+	sd := NewSwitch(DeviceInfo{}, conn, time.Nanosecond)
 	want := LightFlags{3, 4, 5, 6, 7}
 	got, _ := sd.OperatingFlags()
 

@@ -109,8 +109,8 @@ func TestAddressables(t *testing.T) {
 		{"I1Device", newI1Device(&testConnection{addr: Address{1, 2, 3}}, 0), Address{1, 2, 3}},
 		{"I2Device", newI2Device(&testConnection{addr: Address{1, 2, 3}}, 0), Address{1, 2, 3}},
 		{"I2CsDevice", newI2CsDevice(&testConnection{addr: Address{1, 2, 3}}, 0), Address{1, 2, 3}},
-		{"Switch", NewSwitch(&testConnection{addr: Address{1, 2, 3}}, 0), Address{1, 2, 3}},
-		{"Dimmer", NewDimmer(NewSwitch(&testConnection{addr: Address{1, 2, 3}}, 0), 0, 0), Address{1, 2, 3}},
+		{"Switch", NewSwitch(DeviceInfo{}, &testConnection{addr: Address{1, 2, 3}}, 0), Address{1, 2, 3}},
+		{"Dimmer", NewDimmer(DeviceInfo{}, &testConnection{addr: Address{1, 2, 3}}, 0), Address{1, 2, 3}},
 		{"Connection", &connection{addr: Address{1, 2, 3}}, Address{1, 2, 3}},
 	}
 

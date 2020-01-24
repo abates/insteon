@@ -61,7 +61,7 @@ func TestDimmableDeviceConfig(t *testing.T) {
 	copy(msg.Payload, payload)
 
 	conn := &testConnection{recv: []*Message{msg}, acks: []*Message{TestAck}}
-	dd := NewDimmer(NewSwitch(conn, time.Millisecond), time.Millisecond, 67)
+	dd := NewDimmer(DeviceInfo{FirmwareVersion: 67}, conn, time.Millisecond)
 	got, err := dd.DimmerConfig()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)

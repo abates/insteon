@@ -96,7 +96,7 @@ func (p *plmCmd) infoCmd(string) (err error) {
 	info, err := modem.Info()
 	if err == nil {
 		fmt.Printf("   Address: %s\n", info.Address)
-		fmt.Printf("  Category: %02x Sub-Category: %02x\n", info.DevCat.Category(), info.DevCat.SubCategory())
+		fmt.Printf("  Category: %02x Sub-Category: %02x\n", info.DevCat.Domain(), info.DevCat.Category())
 		fmt.Printf("  Firmware: %d\n", info.Firmware)
 		err = isLinkable(modem, func(linkable insteon.Linkable) error {
 			return util.PrintLinks(os.Stdout, linkable)

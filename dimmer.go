@@ -71,11 +71,11 @@ type Dimmer struct {
 // NewDimmer is a factory function that will return a dimmer switch configured
 // appropriately for the given firmware version.  All dimmers are switches, so
 // the first argument is a Switch object used to compose the new dimmer
-func NewDimmer(sw *Switch, timeout time.Duration, firmwareVersion FirmwareVersion) *Dimmer {
+func NewDimmer(info DeviceInfo, device Device, timeout time.Duration) *Dimmer {
 	dd := &Dimmer{
-		Switch:          sw,
+		Switch:          NewSwitch(info, device, timeout),
 		timeout:         timeout,
-		firmwareVersion: firmwareVersion,
+		firmwareVersion: info.FirmwareVersion,
 	}
 	return dd
 }

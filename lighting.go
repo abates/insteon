@@ -30,9 +30,9 @@ func init() {
 }
 
 func switchedDeviceFactory(info DeviceInfo, device Device, timeout time.Duration) (Device, error) {
-	return NewSwitch(device, timeout), nil
+	return NewSwitch(info, device, timeout), nil
 }
 
 func dimmableDeviceFactory(info DeviceInfo, device Device, timeout time.Duration) (Device, error) {
-	return NewDimmer(NewSwitch(device, timeout), timeout, info.FirmwareVersion), nil
+	return NewDimmer(info, device, timeout), nil
 }

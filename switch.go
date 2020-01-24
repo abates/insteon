@@ -97,7 +97,7 @@ type Switch struct {
 
 // NewSwitch is a factory function that will return the correctly
 // configured switch based on the underlying device
-func NewSwitch(device Device, timeout time.Duration) *Switch {
+func NewSwitch(info DeviceInfo, device Device, timeout time.Duration) *Switch {
 	return &Switch{Device: device, timeout: timeout}
 }
 
