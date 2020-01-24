@@ -124,9 +124,10 @@ func (dc DevCat) Domain() Domain {
 	return Domain(dc[0])
 }
 
-// SubCategory returns the specific SubCategory for this DevCat
-func (dc DevCat) SubCategory() SubCategory {
-	return SubCategory(dc[1])
+// Category returns the device's category.  For instance a DevCat with the
+// Domain "Dimmable" may return the Category for LampLinc or SwitchLinc Dimmer
+func (dc DevCat) Category() Category {
+	return Category(dc[1])
 }
 
 // String returns a string representation of the DevCat in the
@@ -139,8 +140,9 @@ func (dc DevCat) String() string {
 // Domain represents an entire domain of similar devices (dimmers, switches, thermostats, etc)
 type Domain byte
 
-// SubCategory is the type for the SubCategory byte in the DevCat
-type SubCategory byte
+// Category indicates the specific kind of device within a domain.  For instance, a LampLing and
+// a SwitchLinc Dimmer are both within the Dimmable device domain
+type Category byte
 
 // MarshalJSON will convert the DevCat to a valid JSON byte string
 func (dc DevCat) MarshalJSON() ([]byte, error) {
