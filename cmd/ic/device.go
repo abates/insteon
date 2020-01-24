@@ -90,7 +90,7 @@ type device struct {
 	data data
 }
 
-func (dev *device) init() (err error) {
+func (dev *device) init(string) (err error) {
 	dev.Device, err = connect(modem, dev.addr)
 	return err
 }
@@ -102,7 +102,7 @@ func connect(plm *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
 			pc := &plmCmd{addresses: []insteon.Address{addr}}
-			err = pc.linkCmd()
+			err = pc.linkCmd("link")
 		}
 
 		if err == nil {
@@ -119,32 +119,32 @@ func isLinkable(thing interface{}, cb func(linkable insteon.Linkable) error) err
 	return fmt.Errorf("%v is not linkable", thing)
 }
 
-func (dev *device) linkCmd() error {
+func (dev *device) linkCmd(string) error {
 	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		return linkable.EnterLinkingMode(insteon.Group(0x01))
 	})
 }
 
-func (dev *device) unlinkCmd() error {
+func (dev *device) unlinkCmd(string) error {
 	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		return linkable.EnterUnlinkingMode(insteon.Group(0x01))
 	})
 }
 
-func (dev *device) exitLinkCmd() error {
+func (dev *device) exitLinkCmd(string) error {
 	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		return linkable.ExitLinkingMode()
 	})
 }
 
-func (dev *device) dumpCmd() error {
+func (dev *device) dumpCmd(string) error {
 	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		err := dumpLinkDatabase(linkable)
 		return err
 	})
 }
 
-func (dev *device) infoCmd() (err error) {
+func (dev *device) infoCmd(string) (err error) {
 	return printDevInfo(dev.Device, "")
 }
 
@@ -167,7 +167,7 @@ func printDevInfo(device insteon.Device, extra string) (err error) {
 	return err
 }
 
-func (dev *device) versionCmd() error {
+func (dev *device) versionCmd(string) error {
 	firmware, _, err := dev.IDRequest()
 	if err == nil {
 		fmt.Printf("Device version: %s\n", firmware)
@@ -175,7 +175,7 @@ func (dev *device) versionCmd() error {
 	return err
 }
 
-func (dev *device) editCmd() error {
+func (dev *device) editCmd(string) error {
 	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		dbLinks, _ := linkable.Links()
 		if len(dbLinks) == 0 {
@@ -236,6 +236,6 @@ func (dev *device) editCmd() error {
 	})
 }
 
-func (dev *device) sendCmd() error {
+func (dev *device) sendCmd(string) error {
 	return dev.SendCommand(dev.cmd.Command, dev.data)
 }

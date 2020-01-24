@@ -83,7 +83,7 @@ func init() {
 	cmd.Arguments.VarSlice((*addrList)(&p.addresses), "<device id>,...")
 }
 
-func (p *plmCmd) resetCmd() (err error) {
+func (p *plmCmd) resetCmd(string) (err error) {
 	msg := "WARNING: This will erase the modem All-Link database and reset the modem to factory defaults\nProceed? (y/n) "
 	if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
 		err = modem.Reset()
@@ -91,7 +91,7 @@ func (p *plmCmd) resetCmd() (err error) {
 	return err
 }
 
-func (p *plmCmd) infoCmd() (err error) {
+func (p *plmCmd) infoCmd(string) (err error) {
 	fmt.Printf("PLM Info\n")
 	info, err := modem.Info()
 	if err == nil {
@@ -105,8 +105,8 @@ func (p *plmCmd) infoCmd() (err error) {
 	return err
 }
 
-func (p *plmCmd) linkCmd() error      { return p.link(false) }
-func (p *plmCmd) crossLinkCmd() error { return p.link(true) }
+func (p *plmCmd) linkCmd(string) error      { return p.link(false) }
+func (p *plmCmd) crossLinkCmd(string) error { return p.link(true) }
 
 func (p *plmCmd) link(crosslink bool) error {
 	return isLinkable(modem, func(lmodem insteon.Linkable) (err error) {
@@ -141,13 +141,13 @@ func (p *plmCmd) link(crosslink bool) error {
 	})
 }
 
-func (p *plmCmd) allLinkCmd() error {
+func (p *plmCmd) allLinkCmd(string) error {
 	return isLinkable(modem, func(linkable insteon.Linkable) error {
 		return linkable.EnterLinkingMode(insteon.Group(0x01))
 	})
 }
 
-func (p *plmCmd) unlinkCmd() (err error) {
+func (p *plmCmd) unlinkCmd(string) (err error) {
 	group := insteon.Group(0x01)
 
 	return isLinkable(modem, func(lmodem insteon.Linkable) (err error) {

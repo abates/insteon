@@ -25,7 +25,7 @@ func init() {
 	app.SubCommand("monitor", cli.DescOption("Monitor the Insteon network"), cli.CallbackOption(monCmd))
 }
 
-func monCmd() (err error) {
+func monCmd(string) (err error) {
 	log.Printf("Starting monitor...")
 	conn, err := modem.Monitor()
 	if err == nil {

@@ -40,7 +40,7 @@ func init() {
 	cmd.Arguments.Bool(&sw.led, "<true|false>")
 }
 
-func (sw *swtch) init() error {
+func (sw *swtch) init(string) error {
 	device, err := connect(modem, sw.addr)
 	if err == nil {
 		if s, ok := device.(insteon.Switch); ok {
@@ -52,7 +52,7 @@ func (sw *swtch) init() error {
 	return err
 }
 
-func (sw *swtch) switchConfigCmd() error {
+func (sw *swtch) switchConfigCmd(string) error {
 	config, err := sw.SwitchConfig()
 	if err == nil {
 		err = printDevInfo(sw, fmt.Sprintf("  X10 Address: %02x.%02x", config.HouseCode, config.UnitCode))
@@ -60,12 +60,12 @@ func (sw *swtch) switchConfigCmd() error {
 	return err
 }
 
-func (sw *swtch) switchOnCmd() error     { return sw.SendCommand(insteon.TurnLightOn(255)) }
-func (sw *swtch) switchOffCmd() error    { return sw.SendCommand(insteon.TurnLightOff()) }
-func (sw *swtch) switchSetCmd() error    { return nil }
-func (sw *swtch) switchSetLedCmd() error { return sw.SendCommand(insteon.SetLED(sw.led)) }
+func (sw *swtch) switchOnCmd(string) error     { return sw.SendCommand(insteon.TurnLightOn(255)) }
+func (sw *swtch) switchOffCmd(string) error    { return sw.SendCommand(insteon.TurnLightOff()) }
+func (sw *swtch) switchSetCmd(string) error    { return nil }
+func (sw *swtch) switchSetLedCmd(string) error { return sw.SendCommand(insteon.SetLED(sw.led)) }
 
-func (sw *swtch) switchStatusCmd() error {
+func (sw *swtch) switchStatusCmd(string) error {
 	level, err := sw.Status()
 	if err == nil {
 		if level == 0 {

@@ -44,7 +44,7 @@ func init() {
 	app.Flags.UintVar(&ttlFlag, "ttl", 3, "default ttl for sending Insteon messages")
 }
 
-func run() error {
+func run(string) error {
 	if logLevelFlag > insteon.LevelNone {
 		insteon.Log.Level(logLevelFlag)
 	}
