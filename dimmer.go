@@ -80,7 +80,7 @@ func NewDimmer(info DeviceInfo, device Device, timeout time.Duration) *Dimmer {
 	return dd
 }
 
-func (dd *Dimmer) DimmerConfig() (config DimmerConfig, err error) {
+func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 	// The documentation talks about D1 (payload[0]) being the button/group number, but my
 	// SwitchLinc dimmers all return the same information regardless of
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.

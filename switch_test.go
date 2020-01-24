@@ -82,7 +82,7 @@ func TestSwitchedDeviceConfig(t *testing.T) {
 	conn := &testConnection{recv: []*Message{msg}, acks: []*Message{TestAck}}
 	sd := NewSwitch(DeviceInfo{}, conn, time.Millisecond)
 
-	got, err := sd.SwitchConfig()
+	got, err := sd.Config()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	} else if got != want {

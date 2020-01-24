@@ -119,8 +119,8 @@ func (sd *Switch) String() string {
 	return fmt.Sprintf("Switch (%s)", sd.Address())
 }
 
-func (sd *Switch) SwitchConfig() (config SwitchConfig, err error) {
-	// SEE DimmerConfig() notes for explanation of D1 and D2 (payload[0] and payload[1])
+func (sd *Switch) Config() (config SwitchConfig, err error) {
+	// SEE Dimmer.Config() notes for explanation of D1 and D2 (payload[0] and payload[1])
 	err = sd.Device.SendCommand(CmdExtendedGetSet, []byte{0x00, 0x00})
 	if err == nil {
 		err = Receive(sd.Receive, sd.timeout, func(msg *Message) error {
