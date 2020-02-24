@@ -257,12 +257,14 @@ func (conn *connection) EngineVersion() (version EngineVersion, err error) {
 			// This only happens if the device is an I2Cs device and
 			// is not linked to the queryier
 			if ack.Command[2] == 0xff {
+				Log.Debugf("Device %v is an unlinked I2Cs device", conn.Address())
 				version = VerI2Cs
 				err = ErrNotLinked
 			} else {
 				err = ErrNak
 			}
 		} else {
+			Log.Debugf("Device %v responded with an engine version %d", conn.Address(), ack.Command[2])
 			version = EngineVersion(ack.Command[2])
 		}
 	}

@@ -83,7 +83,7 @@ func (dim *dimmer) init(string) (err error) {
 }
 
 func (dim *dimmer) configCmd(string) error {
-	config, err := dim.DimmerConfig()
+	config, err := dim.Config()
 	if err == nil {
 		fmt.Printf("           X10 Address: %02x.%02x\n", config.HouseCode, config.UnitCode)
 		fmt.Printf("          Default Ramp: %d\n", config.Ramp)

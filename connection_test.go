@@ -51,6 +51,8 @@ type testConnection struct {
 
 func (tc *testConnection) Address() Address { return tc.addr }
 
+func (tc *testConnection) LinkDatabase() (Linkable, error) { return nil, nil }
+
 func (tc *testConnection) EngineVersion() (EngineVersion, error) {
 	return tc.engineVersion, tc.engineVersionErr
 }

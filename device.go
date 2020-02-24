@@ -87,15 +87,26 @@ type Addressable interface {
 	Address() Address
 }
 
+// Commandable indicates that the implementation exists to send commands
+type Commandable interface {
+	// SendCommand will send the given command bytes to the device including
+	// a payload (for extended messages). If payload length is zero then a standard
+	// length message is used to deliver the commands.
+	SendCommand(cmd Command, payload []byte) error
+}
+
 // Device is the most basic capability that any device must implement. Devices
 // can be sent commands and can receive messages
 type Device interface {
 	Connection
 
-	// SendCommand will send the given command bytes to the device including
-	// a payload (for extended messages). If payload length is zero then a standard
-	// length message is used to deliver the commands.
-	SendCommand(cmd Command, payload []byte) error
+	Commandable
+
+	// LinkDatabase will return a LinkDatabase if the underlying device
+	// supports it.  If the underlying device (namely I1 devices) does
+	// not support the All-Link database then an ErrNotSupported will
+	// be returned
+	LinkDatabase() (Linkable, error)
 }
 
 // PingableDevice is any device that implements the Ping method
@@ -132,25 +143,11 @@ type AllLinkable interface {
 	DeleteFromAllLinkGroup(Group) error
 }
 
-// LinkableDevice represents a Device that contains an All-Link database
-// that can be accessed over the network.  Devices with Insteon Engine
-// version 2 and higher are Linkable
-type LinkableDevice interface {
-	Device
-	Linkable
-}
-
-// AddressableLinkable represent Linkable devices (may be devices such
-// as a PLM) that also implement an Address() method to retrieve the
-// device's Insteon address
-type AddressableLinkable interface {
-	Addressable
-	Linkable
-}
-
 // Linkable is any device that can be put into
 // linking mode and the link database can be managed remotely
 type Linkable interface {
+	Addressable
+
 	// EnterLinkingMode is the programmatic equivalent of holding down
 	// the set button for two seconds. If the device is the first
 	// to enter linking mode, then it is the controller. The next

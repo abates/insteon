@@ -83,7 +83,7 @@ func TestI2CsDeviceSendCommand(t *testing.T) {
 	}{
 		{"SD", Command{byte(StandardDirectMessage), 1, 2}, nil, Command{byte(StandardDirectMessage), 1, 2}},
 		{"ED", Command{byte(ExtendedDirectMessage), 2, 3}, []byte{1, 2, 3, 4}, Command{byte(ExtendedDirectMessage), 2, 3}},
-		{"Enter Linking Mode", CmdEnterUnlinkingMode.SubCommand(42), nil, CmdEnterLinkingModeExt.SubCommand(42)},
+		{"Enter Linking Mode", CmdEnterLinkingMode.SubCommand(42), nil, CmdEnterLinkingModeExt.SubCommand(42)},
 	}
 
 	for _, test := range tests {

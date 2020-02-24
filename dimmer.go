@@ -63,6 +63,7 @@ func (dc *DimmerConfig) MarshalBinary() ([]byte, error) {
 }
 
 type Dimmer struct {
+	Device
 	*Switch
 	timeout         time.Duration
 	firmwareVersion FirmwareVersion
@@ -73,6 +74,7 @@ type Dimmer struct {
 // the first argument is a Switch object used to compose the new dimmer
 func NewDimmer(info DeviceInfo, device Device, timeout time.Duration) *Dimmer {
 	dd := &Dimmer{
+		Device:          device,
 		Switch:          NewSwitch(info, device, timeout),
 		timeout:         timeout,
 		firmwareVersion: info.FirmwareVersion,

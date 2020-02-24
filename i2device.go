@@ -37,13 +37,10 @@ func newI2Device(connection Connection, timeout time.Duration) *i2Device {
 }
 
 func (i2 *i2Device) SendCommand(cmd Command, payload []byte) error {
-	if cmd[1] == CmdEnterLinkingMode[1] || cmd[1] == CmdEnterUnlinkingMode[1] {
-		return i2.linkingMode(cmd, payload...)
-	}
 	return i2.i1Device.SendCommand(cmd, payload)
 }
 
-func (i2 *i2Device) linkingMode(cmd Command, payload ...byte) (err error) {
+func (i2 *i2Device) linkingMode(cmd Command, payload []byte) (err error) {
 	err = i2.i1Device.SendCommand(cmd, payload)
 	if err == nil {
 		Log.Tracef("Waiting %s for response (Set-Button Pressed Controller/Responder)", i2.timeout)
@@ -56,4 +53,24 @@ func (i2 *i2Device) linkingMode(cmd Command, payload ...byte) (err error) {
 // address of the device
 func (i2 *i2Device) String() string {
 	return sprintf("I2 Device (%s)", i2.Address())
+}
+
+func (i2 *i2Device) Address() Address {
+	return i2.i1Device.Address()
+}
+
+func (i2 *i2Device) EnterLinkingMode(group Group) error {
+	return i2.linkingMode(EnterLinkingMode(group))
+}
+
+func (i2 *i2Device) EnterUnlinkingMode(group Group) error {
+	return i2.linkingMode(EnterUnlinkingMode(group))
+}
+
+func (i2 *i2Device) ExitLinkingMode() error {
+	return i2.SendCommand(ExitLinkingMode())
+}
+
+func (i2 *i2Device) LinkDatabase() (Linkable, error) {
+	return i2, nil
 }

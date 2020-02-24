@@ -120,3 +120,7 @@ func (i1 *i1Device) String() string {
 func (i1 *i1Device) Receive() (*Message, error) {
 	return errLookup(i1.Connection.Receive())
 }
+
+func (i1 *i1Device) LinkDatabase() (Linkable, error) {
+	return nil, ErrNotSupported
+}

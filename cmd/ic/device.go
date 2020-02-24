@@ -104,17 +104,19 @@ func connect(plm *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 			pc := &plmCmd{addresses: []insteon.Address{addr}}
 			err = pc.linkCmd("link")
 		}
-
-		if err == nil {
-			device, err = plm.Open(addr, insteon.ConnectionTimeout(timeoutFlag), insteon.ConnectionTTL(uint8(ttlFlag)))
-		}
 	}
 	return device, err
 }
 
 func isLinkable(thing interface{}, cb func(linkable insteon.Linkable) error) error {
-	if linkable, ok := thing.(insteon.Linkable); ok {
-		return cb(linkable)
+	if device, ok := thing.(insteon.Device); ok {
+		linkdb, err := device.LinkDatabase()
+		if err == nil {
+			return cb(linkdb)
+		}
+		return fmt.Errorf("%v does not support remote link database management: %v", device, err)
+	} else if plm, ok := thing.(*plm.PLM); ok {
+		return cb(plm)
 	}
 	return fmt.Errorf("%v is not linkable", thing)
 }

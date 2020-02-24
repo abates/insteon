@@ -11,6 +11,10 @@ type testLinkable struct {
 	links []*insteon.LinkRecord
 }
 
+func (tl *testLinkable) Address() insteon.Address {
+	return insteon.Address{1, 2, 3}
+}
+
 func (tl *testLinkable) Links() ([]*insteon.LinkRecord, error) {
 	return tl.links, nil
 }

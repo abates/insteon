@@ -53,7 +53,7 @@ func (sw *swtch) init(string) error {
 }
 
 func (sw *swtch) switchConfigCmd(string) error {
-	config, err := sw.SwitchConfig()
+	config, err := sw.Config()
 	if err == nil {
 		err = printDevInfo(sw, fmt.Sprintf("  X10 Address: %02x.%02x", config.HouseCode, config.UnitCode))
 	}

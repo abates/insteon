@@ -155,8 +155,7 @@ func (ldb *linkdb) EnterLinkingMode(group insteon.Group) error {
 	payload, _ := lr.MarshalBinary()
 	_, err := ldb.plm.send(&Packet{Command: CmdStartAllLink, Payload: payload})
 	if err == nil {
-		// arbitrary wait to allow plm's set-button message to be propogated
-		<-time.After(600 * time.Millisecond)
+		time.Sleep(insteon.PropagationDelay(3, true))
 	}
 	return err
 }
@@ -170,5 +169,8 @@ func (ldb *linkdb) EnterUnlinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0xff), Group: group}
 	payload, _ := lr.MarshalBinary()
 	_, err := ldb.plm.send(&Packet{Command: CmdStartAllLink, Payload: payload})
+	if err == nil {
+		time.Sleep(insteon.PropagationDelay(3, true))
+	}
 	return err
 }

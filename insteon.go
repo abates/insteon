@@ -40,6 +40,10 @@ var (
 	// send a message
 	ErrSendTimeout = errors.New("Send Timeout")
 
+	// ErrNotSupported indicates some feature (namely an updateable All-Link database) is
+	// not supported by the underyling Insteon device
+	ErrNotSupported = errors.New("Feature is not supported by the device")
+
 	// ErrNotImplemented indicates that a device function has not yet been implemented
 	ErrNotImplemented = errors.New("Command is not yet implemented")
 

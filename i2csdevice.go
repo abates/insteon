@@ -31,16 +31,31 @@ func newI2CsDevice(connection Connection, timeout time.Duration) *i2CsDevice {
 	// pass i2cs in here so that the downstream devices (I2Device and its I1Device) will
 	// get checksums set for extended messages
 	i2cs.i2Device = newI2Device(i2cs, timeout)
+	i2cs.linkdb.device = i2cs
+	i2cs.linkdb.timeout = timeout
+
 	return i2cs
 }
 
-func (i2cs *i2CsDevice) SendCommand(cmd Command, payload []byte) error {
-	if cmd[1] == CmdEnterUnlinkingMode[1] {
-		cmd = CmdEnterLinkingModeExt.SubCommand(int(cmd[2]))
-		payload = make([]byte, 14)
-		return i2cs.i2Device.linkingMode(cmd, payload...)
+// Send will send the message to the device and wait for the
+// device to respond with an Ack/Nak.  Send will always return
+// but may return with a read timeout or other communication error
+// In the case of the I2CsDevice, if an extended message is being
+// sent, then the checksum of the message is computed and set as
+// the last byte of the payload
+func (i2cs *i2CsDevice) Send(message *Message) (*Message, error) {
+	if message.Command[1] == CmdEnterLinkingMode[1] {
+		message.Command = CmdEnterLinkingModeExt.SubCommand(int(message.Command[2]))
+		message.Payload = make([]byte, 14)
+		message.Flags = ExtendedDirectMessage
 	}
-	return i2cs.i2Device.SendCommand(cmd, payload)
+
+	// set checksum
+	if message.Flags.Extended() {
+		l := len(message.Payload)
+		message.Payload[l-1] = checksum(message.Command, message.Payload)
+	}
+	return i2cs.connection.Send(message)
 }
 
 // Address returns the unique Insteon address of the device
@@ -60,21 +75,6 @@ func checksum(cmd Command, buf []byte) byte {
 		sum += b
 	}
 	return ^sum + 1
-}
-
-// Send will send the message to the device and wait for the
-// device to respond with an Ack/Nak.  Send will always return
-// but may return with a read timeout or other communication error
-// In the case of the I2CsDevice, if an extended message is being
-// sent, then the checksum of the message is computed and set as
-// the last byte of the payload
-func (i2cs *i2CsDevice) Send(msg *Message) (ack *Message, err error) {
-	// set checksum
-	if msg.Flags.Extended() {
-		l := len(msg.Payload)
-		msg.Payload[l-1] = checksum(msg.Command, msg.Payload)
-	}
-	return i2cs.connection.Send(msg)
 }
 
 func i2csErrLookup(msg *Message, err error) (*Message, error) {

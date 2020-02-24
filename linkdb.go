@@ -126,10 +126,10 @@ const (
 )
 
 type linkdb struct {
+	device  Device
 	age     time.Time
 	links   []*LinkRecord
 	index   map[LinkID]int
-	device  Device
 	timeout time.Duration
 }
 
