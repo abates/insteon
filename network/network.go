@@ -40,9 +40,8 @@ type Network struct {
 // messages/responses
 func New(bridge Bridge, options ...Option) (*Network, error) {
 	network := &Network{
-		timeout:    time.Second * 10,
-		DB:         NewProductDB(),
-		connection: connection,
+		timeout: time.Second * 10,
+		DB:      NewProductDB(),
 	}
 
 	for _, option := range options {
@@ -51,7 +50,7 @@ func New(bridge Bridge, options ...Option) (*Network, error) {
 		}
 	}
 
-	return network
+	return network, nil
 }
 
 /*func (network *Network) process() {
@@ -148,7 +147,7 @@ func (network *Network) EngineVersion(dst insteon.Address) (engineVersion insteo
 // DeviceInfo object will not have the engine version field populated as this information
 // is not included in the broadcast response.
 func (network *Network) IDRequest(dst insteon.Address) (info insteon.DeviceInfo, err error) {
-	info = insteon.DeviceInfo{
+	/*info = insteon.DeviceInfo{
 		Address: dst,
 	}
 	conn := network.connect(dst, 1, insteon.CmdSetButtonPressedResponder, insteon.CmdSetButtonPressedController)
@@ -166,7 +165,7 @@ func (network *Network) IDRequest(dst insteon.Address) (info insteon.DeviceInfo,
 				err = insteon.ErrReadTimeout
 			}
 		}
-	}
+	}*/
 
 	return
 }
@@ -212,7 +211,7 @@ func (network *Network) close() error {
 
 // Close will cleanup/close open connections and disconnect gracefully
 func (network *Network) Close() error {
-	ch := make(chan error)
+	/*ch := make(chan error)
 	network.closeCh <- ch
 	close(network.closeCh)
 	err := <-ch
@@ -221,6 +220,6 @@ func (network *Network) Close() error {
 		if err == nil {
 			err = err1
 		}
-	}
-	return err
+	}*/
+	return nil
 }
