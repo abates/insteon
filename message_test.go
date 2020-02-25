@@ -45,6 +45,9 @@ var (
 	TestMessageIncorrectChecksum  = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0x00, 0xfd}, nil}
 	TestMessageNoLoadDetectedI2Cs = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0x00, 0xfe}, nil}
 	TestMessageNotLinkedI2Cs      = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0x00, 0xff}, nil}
+
+	TestPing    = &Message{testSrcAddr, testDstAddr, StandardDirectMessage, CmdPing, nil}
+	TestPingAck = &Message{testDstAddr, testSrcAddr, StandardDirectAck, CmdPing, nil}
 )
 
 func TestMessageType(t *testing.T) {

@@ -111,11 +111,3 @@ func TestDeviceOpen(t *testing.T) {
 		})
 	}
 }
-
-type commandTest struct {
-	desc        string
-	callback    func(Device) error
-	wantCmd     Command
-	wantErr     error
-	wantPayload []byte
-}

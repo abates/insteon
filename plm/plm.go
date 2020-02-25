@@ -32,8 +32,6 @@ var (
 	ErrAckTimeout         = errors.New("Timeout waiting for Ack from the PLM")
 	ErrRetryCountExceeded = errors.New("Retry count exceeded sending command")
 	ErrNak                = errors.New("PLM responded with a NAK.  Resend command")
-
-	MaxRetries = 3
 )
 
 func hexDump(format string, buf []byte, sep string) string {
@@ -49,6 +47,7 @@ type PLM struct {
 	linkdb
 	portMutex  sync.Mutex
 	timeout    time.Duration
+	retries    int
 	writeDelay time.Duration
 	nextWrite  time.Time
 	port       *Port
@@ -64,12 +63,13 @@ type Option func(p *PLM) error
 func New(port *Port, timeout time.Duration, options ...Option) (*PLM, error) {
 	plm := &PLM{
 		timeout:    timeout,
+		retries:    3,
 		writeDelay: 500 * time.Millisecond,
 		port:       port,
 
 		plmCh: make(chan *Packet),
 	}
-	plm.demux = insteon.NewDemux(plm)
+	plm.demux.Sender = plm
 	plm.linkdb.plm = plm
 	plm.linkdb.timeout = timeout
 
@@ -138,7 +138,23 @@ func (plm *PLM) Send(msg *insteon.Message) error {
 // send a packet and wait for the PLM to ack that the packet was
 // sent.  This is a blocking function. Only callers that have acquired
 // the mutex should call this function
-func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
+func (plm *PLM) send(packet *Packet) (ack *Packet, err error) {
+	retries := 0
+	err = ErrRetryCountExceeded
+	for retries < plm.retries {
+		ack, err = plm.tx(packet)
+		if err == ErrNak || err == ErrReadTimeout {
+			// TODO add exponential backoff
+			retries++
+		} else {
+			break
+		}
+	}
+
+	return ack, err
+}
+
+func (plm *PLM) tx(txPacket *Packet) (ack *Packet, err error) {
 	plm.portMutex.Lock()
 	defer plm.portMutex.Unlock()
 
@@ -213,8 +229,12 @@ func (plm *PLM) Open(addr insteon.Address, options ...insteon.ConnectionOption) 
 	return insteon.Open(conn, plm.timeout)
 }
 
-func (plm *PLM) Monitor() (insteon.Connection, error) {
-	return plm.demux.New(insteon.Wildcard)
+func (plm *PLM) Monitor(ch chan *insteon.Message) error {
+	conn, err := plm.demux.New(insteon.Wildcard)
+	if err == nil {
+		conn.AddHandler(ch, insteon.Command{0x00, 0xff, 0xff})
+	}
+	return err
 }
 
 // retry will deliver a packet to the Insteon network. If delivery fails (due

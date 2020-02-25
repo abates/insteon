@@ -18,20 +18,18 @@ func TestI1DeviceErrLookup(t *testing.T) {
 	tests := []struct {
 		desc  string
 		input *Message
-		err   error
 		want  error
 	}{
-		{"nil error", &Message{}, nil, nil},
-		{"ErrUnknownCommand", &Message{Command: Command{0, 0, 0xfd}, Flags: StandardDirectNak}, nil, ErrUnknownCommand},
-		{"ErrNoLoadDetected", &Message{Command: Command{0, 0, 0xfe}, Flags: StandardDirectNak}, nil, ErrNoLoadDetected},
-		{"ErrNotLinked", &Message{Command: Command{0, 0, 0xff}, Flags: StandardDirectNak}, nil, ErrNotLinked},
-		{"ErrUnexpectedResponse", &Message{Command: Command{0, 0, 0xfc}, Flags: StandardDirectNak}, nil, ErrUnexpectedResponse},
-		{"ErrReadTimeout", &Message{Command: Command{0, 0, 0xfc}, Flags: StandardDirectNak}, ErrReadTimeout, ErrReadTimeout},
+		{"nil error", &Message{}, nil},
+		{"ErrUnknownCommand", &Message{Command: Command{0, 0, 0xfd}, Flags: StandardDirectNak}, ErrUnknownCommand},
+		{"ErrNoLoadDetected", &Message{Command: Command{0, 0, 0xfe}, Flags: StandardDirectNak}, ErrNoLoadDetected},
+		{"ErrNotLinked", &Message{Command: Command{0, 0, 0xff}, Flags: StandardDirectNak}, ErrNotLinked},
+		{"ErrUnexpectedResponse", &Message{Command: Command{0, 0, 0xfc}, Flags: StandardDirectNak}, ErrUnexpectedResponse},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			_, got := errLookup(test.input, test.err)
+			_, got := errLookup(test.input)
 			if !IsError(got, test.want) {
 				t.Errorf("want %v got %v", test.want, got)
 			}
@@ -109,27 +107,11 @@ func TestI1DeviceProductData(t *testing.T) {
 	}
 }
 
-func TestI1DeviceReceive(t *testing.T) {
-	tests := []struct {
-		desc    string
-		input   *Message
-		wantErr error
-	}{
-		{"nil error", &Message{}, nil},
-		{"ErrUnknownCommand", &Message{Command: Command{0, 0, 0xfd}, Flags: StandardDirectNak}, ErrUnknownCommand},
-		{"ErrNoLoadDetected", &Message{Command: Command{0, 0, 0xfe}, Flags: StandardDirectNak}, ErrNoLoadDetected},
-		{"ErrNotLinked", &Message{Command: Command{0, 0, 0xff}, Flags: StandardDirectNak}, ErrNotLinked},
-		{"ErrUnexpectedResponse", &Message{Command: Command{0, 0, 0xfc}, Flags: StandardDirectNak}, ErrUnexpectedResponse},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{recv: []*Message{test.input}}
-			device := newI1Device(conn, time.Millisecond)
-			_, err := device.Receive()
-			if !IsError(err, test.wantErr) {
-				t.Errorf("want error %v got %v", test.wantErr, err)
-			}
-		})
+func TestI1DeviceLinkDatabase(t *testing.T) {
+	device := &i1Device{}
+	want := ErrNotSupported
+	_, got := device.LinkDatabase()
+	if want != got {
+		t.Errorf("Expected error %v got %v", want, got)
 	}
 }

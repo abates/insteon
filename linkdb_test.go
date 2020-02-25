@@ -147,21 +147,25 @@ func TestLinkDbOld(t *testing.T) {
 
 func TestLinkdbLinks(t *testing.T) {
 	tests := []struct {
-		desc string
-		age  time.Time
-		want []*LinkRecord
+		desc    string
+		age     time.Time
+		want    []*LinkRecord
+		wantErr error
 	}{
-		{"not old", time.Now().Add(time.Hour), nil},
-		{"old 1", time.Now().Add(-1 * time.Hour), []*LinkRecord{ControllerLink(1, Address{1, 2, 3})}},
-		{"old 2", time.Now().Add(-1 * time.Hour), []*LinkRecord{ControllerLink(1, Address{4, 5, 6}), ControllerLink(1, Address{1, 2, 3})}},
+		{"not old", time.Now().Add(time.Hour), nil, nil},
+		{"old 1", time.Now().Add(-1 * time.Hour), []*LinkRecord{ControllerLink(1, Address{1, 2, 3})}, nil},
+		{"old 2", time.Now().Add(-1 * time.Hour), []*LinkRecord{ControllerLink(1, Address{4, 5, 6}), ControllerLink(1, Address{1, 2, 3})}, nil},
+		{"timeout", time.Now().Add(-1 * time.Hour), nil, ErrReadTimeout},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			// Add high water mark
 			links := append(test.want, &LinkRecord{})
-			conn := &testConnection{acks: []*Message{TestAck}}
+			conn := &testConnection{acks: []*Message{{Command: CmdReadWriteALDB, Flags: StandardDirectAck}}}
 			memAddress := BaseLinkDBAddress
+			// Add the ACK to the dispatch queue
+			conn.recv = []*Message{conn.acks[0]}
 			for _, link := range links {
 				lr := &linkRequest{Type: linkResponse, MemAddress: memAddress, Link: link}
 				msg := &Message{Command: CmdReadWriteALDB, Flags: ExtendedDirectMessage, Payload: make([]byte, 14)}

@@ -38,12 +38,12 @@ func newI1Device(connection Connection, timeout time.Duration) *i1Device {
 	return i1
 }
 
-// sendCommand will send the given command bytes to the device including
+// SendCommand will send the given command bytes to the device including
 // a payload (for extended messages). If payload length is zero then a standard
 // length message is used to deliver the commands. Any error encountered sending
 // the command is returned (eg. ack timeout, etc)
 func (i1 *i1Device) SendCommand(command Command, payload []byte) error {
-	_, err := i1.sendCommand(command, payload)
+	_, err := i1.sendCommand(command, payload, errLookup)
 	return err
 }
 
@@ -51,7 +51,7 @@ func (i1 *i1Device) SendCommand(command Command, payload []byte) error {
 // a payload (for extended messages). If payload length is zero then a standard
 // length message is used to deliver the commands. The command bytes from the
 // response ack are returned as well as any error
-func (i1 *i1Device) sendCommand(command Command, payload []byte) (response Command, err error) {
+func (i1 *i1Device) sendCommand(command Command, payload []byte, errLookup func(*Message) (*Message, error)) (response Command, err error) {
 	flags := StandardDirectMessage
 	if len(payload) > 0 {
 		flags = ExtendedDirectMessage
@@ -69,14 +69,18 @@ func (i1 *i1Device) sendCommand(command Command, payload []byte) (response Comma
 	})
 
 	if err == nil {
-		response = ack.Command
+		ack, err = errLookup(ack)
+		if err == nil {
+			response = ack.Command
+		}
 	}
 
 	return response, err
 }
 
-func errLookup(msg *Message, err error) (*Message, error) {
-	if err == nil && msg.Flags.Type() == MsgTypeDirectNak {
+func errLookup(msg *Message) (*Message, error) {
+	var err error
+	if msg.Flags.Type() == MsgTypeDirectNak {
 		switch msg.Command[2] & 0xff {
 		case 0xfd:
 			err = ErrUnknownCommand
@@ -93,18 +97,17 @@ func errLookup(msg *Message, err error) (*Message, error) {
 
 // ProductData will retrieve the device's product data
 func (i1 *i1Device) ProductData() (data *ProductData, err error) {
+	ch := make(chan *Message, 1)
+	i1.AddHandler(ch, CmdProductDataResp)
+	defer i1.RemoveHandler(ch, CmdProductDataResp)
 	err = i1.SendCommand(CmdProductDataReq, nil)
 	if err == nil {
-		err = Receive(i1.Connection.Receive, i1.timeout, func(msg *Message) error {
-			if msg.Command[1] == CmdProductDataResp[1] {
-				data = &ProductData{}
-				err = data.UnmarshalBinary(msg.Payload)
-				if err == nil {
-					err = ErrReceiveComplete
-				}
-			}
-			return err
-		})
+		var msg *Message
+		msg, err = readFromCh(ch, i1.timeout)
+		if err == nil {
+			data = &ProductData{}
+			err = data.UnmarshalBinary(msg.Payload)
+		}
 	}
 	return data, err
 }
@@ -113,12 +116,6 @@ func (i1 *i1Device) ProductData() (data *ProductData, err error) {
 // address of the device
 func (i1 *i1Device) String() string {
 	return sprintf("I1 Device (%s)", i1.Address())
-}
-
-// Receive waits for the next message from the device.  Receive
-// always returns, but may return with an error (such as ErrReadTimeout)
-func (i1 *i1Device) Receive() (*Message, error) {
-	return errLookup(i1.Connection.Receive())
 }
 
 func (i1 *i1Device) LinkDatabase() (Linkable, error) {

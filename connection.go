@@ -16,8 +16,6 @@ package insteon
 
 import (
 	"fmt"
-	"io"
-	"sync"
 	"time"
 )
 
@@ -27,43 +25,43 @@ type Sender interface {
 	Send(*Message) error
 }
 
-type Demux interface {
-	Dispatch(*Message)
-	New(addr Address, options ...ConnectionOption) (Connection, error)
-}
-
-func NewDemux(sender Sender) Demux {
-	return &demux{
-		Sender:      sender,
-		connections: make(map[Address]*connection),
-	}
-}
-
-type demux struct {
+// Demux provides a way to demultiplex incoming Insteon messages to
+// individual devices.  This abstracts the complexity away from things
+// like the PLM so that the PLM can focus solely on bridging between the
+// Insteon network and the software interface.  The Demux itself is
+// not thread safe and any locking should be provided by the caller.  In
+// most cases, if the demux is only used within an event loop (such as the
+// readLoop in the PLM implementation) then no locking is required.  The
+// underlying Connections use channel to pass messages so they are inherently
+// thread safe
+type Demux struct {
+	// Sender is the upstream device (PLM, for instance)
 	Sender
-	mu          sync.Mutex
-	connections map[Address]*connection
+	connections map[Address][]Connection
 }
 
-func (d *demux) Dispatch(msg *Message) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	for addr, conn := range d.connections {
-		if addr == Wildcard || addr == msg.Src {
-			conn.dispatch(msg)
-			break
+// Dispatch a message to the proper listening connection
+func (d *Demux) Dispatch(msg *Message) {
+	for _, addr := range []Address{msg.Src, Wildcard} {
+		if connections, found := d.connections[addr]; found {
+			for _, conn := range connections {
+				conn.Dispatch(msg)
+			}
 		}
 	}
 }
 
-func (d *demux) New(addr Address, options ...ConnectionOption) (Connection, error) {
+// New creates a new connection that will receive messages dispatched by
+// this demux.  The returned connection will use the upstream sender
+// directly.
+func (d *Demux) New(addr Address, options ...ConnectionOption) (Connection, error) {
 	var err error
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	conn, found := d.connections[addr]
-	if !found {
-		conn, err = newConnection(d, addr, options...)
-		d.connections[addr] = conn
+	conn, err := newConnection(d, addr, options...)
+	if err == nil {
+		if d.connections == nil {
+			d.connections = make(map[Address][]Connection)
+		}
+		d.connections[addr] = append(d.connections[addr], conn)
 	}
 	return conn, err
 }
@@ -74,6 +72,10 @@ type Connection interface {
 	// Address returns the unique Insteon address of the device
 	Address() Address
 
+	// Dispatch will deliver a message to this connection.  This should
+	// only be called by upstream interfaces, such as Demux or PLM
+	Dispatch(*Message)
+
 	// Send will send the message to the device and wait for the
 	// device to respond with an Ack/Nak.  Send will always return
 	// but may return with a read timeout or other communication error
@@ -81,7 +83,7 @@ type Connection interface {
 
 	// Receive waits for the next message from the device.  Receive
 	// always returns, but may return with an error (such as ErrReadTimeout)
-	Receive() (*Message, error)
+	//Receive() (*Message, error)
 
 	// IDRequest sends an IDRequest command to the device and waits for
 	// the corresponding Set Button Pressed Controller/Responder message.
@@ -98,19 +100,24 @@ type Connection interface {
 	// not have a corresponding link entry.  In this case, VerI2Cs is returned
 	// as well as ErrNotLinked
 	EngineVersion() (EngineVersion, error)
+
+	// AddHandler adds an event handler that is called when a message containing the
+	// first byte of the given command is received.  This is useful to setup
+	// event handlers to update internal state, which may arrive in asynchronous
+	// messages
+	AddHandler(chan<- *Message, ...Command)
+
+	// RemoveHandler will remove a previously set message handler
+	RemoveHandler(chan<- *Message, ...Command)
 }
 
 type connection struct {
-	addr     Address
-	match    []Command
+	addr Address
+	//match    []Command
 	timeout  time.Duration
 	ttl      uint8
 	upstream Sender
-
-	msgCh   chan *Message
-	closeCh chan chan error
-
-	mu sync.Mutex
+	handlers map[byte]map[chan<- *Message]interface{}
 }
 
 // ConnectionOption provides a means to customize the connection config
@@ -136,15 +143,6 @@ func ConnectionTimeout(timeout time.Duration) ConnectionOption {
 	}
 }
 
-// ConnectionFilter will configure the connection to filter all traffic
-// except messages with matching commands
-func ConnectionFilter(match ...Command) ConnectionOption {
-	return func(conn *connection) error {
-		conn.match = match
-		return nil
-	}
-}
-
 // NewConnection will return a connection that is setup and ready to be used.  The txCh and
 // rxCh will be used to send and receive insteon messages.  Any supplied options will be
 // used to customize the connection's config
@@ -157,9 +155,8 @@ func newConnection(upstream Sender, addr Address, options ...ConnectionOption) (
 		addr:    addr,
 		timeout: 3 * time.Second,
 
+		handlers: make(map[byte]map[chan<- *Message]interface{}),
 		upstream: upstream,
-		msgCh:    make(chan *Message, 1),
-		closeCh:  make(chan chan error),
 	}
 
 	for _, option := range options {
@@ -177,76 +174,85 @@ func (conn *connection) Address() Address {
 	return conn.addr
 }
 
-func (conn *connection) dispatch(msg *Message) {
-	if len(conn.match) > 0 {
-		for _, m := range conn.match {
-			if (msg.Command == m) || (msg.Command[1] == m[1] && m[2] == 0x00) {
-				Log.Tracef("Connection %v RX %v", conn.addr, msg)
-				conn.msgCh <- msg
-			}
+func (conn *connection) Dispatch(msg *Message) {
+	handlers, found := conn.handlers[msg.Command[1]]
+	// look for wildcard handlers if any exist
+	if !found {
+		handlers, found = conn.handlers[0xff]
+	}
+
+	if found {
+		for handler := range handlers {
+			handler <- msg
 		}
-	} else {
-		Log.Tracef("Connection %v RX %v", conn.addr, msg)
-		conn.msgCh <- msg
+	}
+}
+
+func (conn *connection) AddHandler(ch chan<- *Message, cmds ...Command) {
+	for _, cmd := range cmds {
+		handlers, found := conn.handlers[cmd[1]]
+		if !found {
+			handlers = make(map[chan<- *Message]interface{})
+			conn.handlers[cmd[1]] = handlers
+		}
+		handlers[ch] = struct{}{}
+	}
+}
+
+func (conn *connection) RemoveHandler(ch chan<- *Message, cmds ...Command) {
+	for _, cmd := range cmds {
+		if handlers, found := conn.handlers[cmd[1]]; found {
+			delete(handlers, ch)
+		}
 	}
 }
 
 func (conn *connection) Send(msg *Message) (ack *Message, err error) {
-	conn.mu.Lock()
-	defer conn.mu.Unlock()
 	return conn.send(msg)
 }
 
+func (conn *connection) addHandler(buflen int, cmds ...Command) chan *Message {
+	ch := make(chan *Message, buflen)
+	conn.AddHandler(ch, cmds...)
+	return ch
+}
+
+func readFromCh(ch <-chan *Message, timeout time.Duration) (*Message, error) {
+	select {
+	case msg := <-ch:
+		return msg, nil
+	case <-time.After(timeout):
+	}
+	return nil, ErrReadTimeout
+}
+
 func (conn *connection) send(msg *Message) (ack *Message, err error) {
+	ch := conn.addHandler(1, msg.Command)
+	defer conn.RemoveHandler(ch, msg.Command)
+
 	msg.Dst = conn.addr
 	msg.Flags = Flag(MsgTypeDirect, len(msg.Payload) > 0, conn.ttl, conn.ttl)
 	Log.Tracef("Connection %v TX %v", conn.addr, msg)
 	err = conn.upstream.Send(msg)
 
 	if err == nil {
-		// wait for ack
-		err = Receive(conn.receive, conn.timeout, func(msg *Message) (err error) {
-			if msg.Ack() || msg.Nak() {
-				ack = msg
-				err = ErrReceiveComplete
-			}
-			return err
-		})
+		ack, err = readFromCh(ch, conn.timeout)
+		if err == ErrReadTimeout {
+			err = ErrAckTimeout
+		}
 	}
 	return ack, err
 }
 
-func (conn *connection) Receive() (msg *Message, err error) {
-	conn.mu.Lock()
-	defer conn.mu.Unlock()
-	return conn.receive()
-}
-
-func (conn *connection) receive() (msg *Message, err error) {
-	var open bool
-	select {
-	case msg, open = <-conn.msgCh:
-		if !open {
-			err = io.EOF
-		}
-	case <-time.After(conn.timeout):
-		err = ErrReadTimeout
-	}
-	return
-}
-
 func (conn *connection) IDRequest() (version FirmwareVersion, devCat DevCat, err error) {
-	conn.mu.Lock()
-	defer conn.mu.Unlock()
+	ch := conn.addHandler(1, CmdSetButtonPressedResponder, CmdSetButtonPressedController)
+	defer conn.RemoveHandler(ch, CmdSetButtonPressedResponder, CmdSetButtonPressedController)
 	_, err = conn.send(&Message{Command: CmdIDRequest, Flags: StandardDirectMessage})
-	err = Receive(conn.receive, conn.timeout, func(msg *Message) error {
-		if msg.Broadcast() && (msg.Command[1] == 0x01 || msg.Command[1] == 0x02) {
-			version = FirmwareVersion(msg.Dst[2])
-			devCat = DevCat{msg.Dst[0], msg.Dst[1]}
-			err = ErrReceiveComplete
-		}
-		return err
-	})
+	msg, err := readFromCh(ch, conn.timeout)
+	if err == nil {
+		version = FirmwareVersion(msg.Dst[2])
+		devCat = DevCat{msg.Dst[0], msg.Dst[1]}
+	}
 	return
 }
 
@@ -269,33 +275,4 @@ func (conn *connection) EngineVersion() (version EngineVersion, err error) {
 		}
 	}
 	return
-}
-
-// Receive is a utility function that wraps up receiving with timeout functionality allowing
-// callers to only deal with the received messages and not dealing with timeout circumstances.
-// When the callback is done receiving an ErrReceiveComplete should be returned causing Receive
-// to return with no error.  If the callback returns ErrReadContinue then the timeout is updated
-// for an additional read.  If the callback returns any other error then that error will
-// be returned
-func Receive(rcvr func() (*Message, error), timeout time.Duration, cb func(*Message) error) (err error) {
-	readTimeout := time.Now().Add(timeout)
-	for err == nil {
-		var msg *Message
-		msg, err = rcvr()
-		if err == nil {
-			if readTimeout.Before(time.Now()) {
-				err = ErrReadTimeout
-			} else {
-				err = cb(msg)
-				if err == ErrReceiveContinue {
-					readTimeout = time.Now().Add(timeout)
-					err = nil
-				}
-			}
-		}
-	}
-	if err == ErrReceiveComplete {
-		err = nil
-	}
-	return err
 }

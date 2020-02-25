@@ -18,32 +18,11 @@ import (
 	"time"
 )
 
-// i2CsDevice can communicate with Version 2 (checksum) Insteon Engines
-type i2CsDevice struct {
-	*i2Device
-	connection Connection
+type i2CsConnection struct {
+	Connection
 }
 
-// newI2CsDevice will initialize a new I2CsDevice object and make
-// it ready for use
-func newI2CsDevice(connection Connection, timeout time.Duration) *i2CsDevice {
-	i2cs := &i2CsDevice{connection: connection}
-	// pass i2cs in here so that the downstream devices (I2Device and its I1Device) will
-	// get checksums set for extended messages
-	i2cs.i2Device = newI2Device(i2cs, timeout)
-	i2cs.linkdb.device = i2cs
-	i2cs.linkdb.timeout = timeout
-
-	return i2cs
-}
-
-// Send will send the message to the device and wait for the
-// device to respond with an Ack/Nak.  Send will always return
-// but may return with a read timeout or other communication error
-// In the case of the I2CsDevice, if an extended message is being
-// sent, then the checksum of the message is computed and set as
-// the last byte of the payload
-func (i2cs *i2CsDevice) Send(message *Message) (*Message, error) {
+func (i2cs i2CsConnection) Send(message *Message) (*Message, error) {
 	if message.Command[1] == CmdEnterLinkingMode[1] {
 		message.Command = CmdEnterLinkingModeExt.SubCommand(int(message.Command[2]))
 		message.Payload = make([]byte, 14)
@@ -55,12 +34,33 @@ func (i2cs *i2CsDevice) Send(message *Message) (*Message, error) {
 		l := len(message.Payload)
 		message.Payload[l-1] = checksum(message.Command, message.Payload)
 	}
-	return i2cs.connection.Send(message)
+	return i2cs.Connection.Send(message)
 }
 
-// Address returns the unique Insteon address of the device
-func (i2cs *i2CsDevice) Address() Address {
-	return i2cs.connection.Address()
+// i2CsDevice can communicate with Version 2 (checksum) Insteon Engines
+type i2CsDevice struct {
+	*i2Device
+}
+
+// newI2CsDevice will initialize a new I2CsDevice object and make
+// it ready for use
+func newI2CsDevice(connection Connection, timeout time.Duration) *i2CsDevice {
+	i2cs := &i2CsDevice{
+		i2Device: newI2Device(i2CsConnection{connection}, timeout),
+	}
+	i2cs.linkdb.device = i2cs
+	i2cs.linkdb.timeout = timeout
+
+	return i2cs
+}
+
+// SendCommand will send the given command bytes to the device including
+// a payload (for extended messages). If payload length is zero then a standard
+// length message is used to deliver the commands. Any error encountered sending
+// the command is returned (eg. ack timeout, etc)
+func (i2cs *i2CsDevice) SendCommand(command Command, payload []byte) error {
+	_, err := i2cs.sendCommand(command, payload, i2csErrLookup)
+	return err
 }
 
 // String returns the string "I2CS Device (<address>)" where <address> is the destination
@@ -77,8 +77,9 @@ func checksum(cmd Command, buf []byte) byte {
 	return ^sum + 1
 }
 
-func i2csErrLookup(msg *Message, err error) (*Message, error) {
-	if err == nil && msg.Flags.Type() == MsgTypeDirectNak {
+func i2csErrLookup(msg *Message) (*Message, error) {
+	var err error
+	if msg.Flags.Type() == MsgTypeDirectNak {
 		switch msg.Command[2] & 0xff {
 		case 0xfb:
 			err = ErrIllegalValue
@@ -95,20 +96,4 @@ func i2csErrLookup(msg *Message, err error) (*Message, error) {
 		}
 	}
 	return msg, err
-}
-
-// IDRequest sends an IDRequest command to the device and waits for
-// the corresponding Set Button Pressed Controller/Responder message.
-// The response is parsed and the Firmware version and DevCat are
-// returned.  A ReadTimeout may occur if the device doesn't respond
-// with the appropriate broadcast message, or if the local system
-// doesn't receive it
-func (i2cs *i2CsDevice) IDRequest() (FirmwareVersion, DevCat, error) {
-	return i2cs.connection.IDRequest()
-}
-
-// Receive waits for the next message from the device.  Receive
-// always returns, but may return with an error (such as ErrReadTimeout)
-func (i2cs *i2CsDevice) Receive() (*Message, error) {
-	return i2csErrLookup(i2cs.connection.Receive())
 }

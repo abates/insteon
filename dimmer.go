@@ -88,17 +88,17 @@ func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
+	ch := make(chan *Message, 1)
+	dd.AddHandler(ch, CmdExtendedGetSet)
+	defer dd.RemoveHandler(ch, CmdExtendedGetSet)
+
 	err = dd.Switch.SendCommand(CmdExtendedGetSet, []byte{0x01, 0x00})
 	if err == nil {
-		err = Receive(dd.Switch.Receive, dd.timeout, func(msg *Message) error {
-			if msg.Command == CmdExtendedGetSet {
-				err = config.UnmarshalBinary(msg.Payload)
-				if err == nil {
-					err = ErrReceiveComplete
-				}
-			}
-			return err
-		})
+		var msg *Message
+		msg, err = readFromCh(ch, dd.timeout)
+		if err == nil {
+			err = config.UnmarshalBinary(msg.Payload)
+		}
 	}
 	return config, err
 }

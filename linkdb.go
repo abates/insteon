@@ -146,37 +146,47 @@ func (ldb *linkdb) refresh() error {
 	ldb.links = nil
 	Log.Debugf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
+	ch := make(chan *Message, 10)
+	ldb.device.AddHandler(ch, CmdReadWriteALDB)
+	defer ldb.device.RemoveHandler(ch, CmdReadWriteALDB)
+
 	buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
 	err := ldb.device.SendCommand(CmdReadWriteALDB, buf)
 
-	if err == nil {
-		err = Receive(ldb.device.Receive, ldb.timeout, func(msg *Message) error {
-			if msg.Flags.Extended() && msg.Command[1] == CmdReadWriteALDB[1] {
-				lr := &linkRequest{}
-				err = lr.UnmarshalBinary(msg.Payload)
-				// make sure there was no error unmarshalling, also make sure
-				// that it's a new memory address.  Since insteon messages
-				// are retransmitted, it is possible that the same ALDB response
-				// will be received more than once
-				if err == nil {
-					if lr.MemAddress != lastAddress {
-						lastAddress = lr.MemAddress
-						if lr.Link.Flags.LastRecord() {
-							err = ErrReceiveComplete
-						} else {
-							ldb.links = append(ldb.links, lr.Link)
-							ldb.index[lr.Link.id()] = len(ldb.links) - 1
-							err = ErrReceiveContinue
-						}
-					}
+	var msg *Message
+	for err == nil {
+		msg, err = readFromCh(ch, ldb.timeout)
+		if err != nil {
+			break
+		}
+
+		// the channel receives the ack (from the above SendCommand) because the
+		// handler was set up prior to sending the command, so we just ignore it
+		if msg.Ack() {
+			continue
+		}
+
+		lr := &linkRequest{}
+		err = lr.UnmarshalBinary(msg.Payload)
+		// make sure there was no error unmarshalling, also make sure
+		// that it's a new memory address.  Since insteon messages
+		// are retransmitted, it is possible that the same ALDB response
+		// will be received more than once
+		if err == nil {
+			if lr.MemAddress != lastAddress {
+				lastAddress = lr.MemAddress
+				if lr.Link.Flags.LastRecord() {
+					break
+				} else {
+					ldb.links = append(ldb.links, lr.Link)
+					ldb.index[lr.Link.id()] = len(ldb.links) - 1
 				}
 			}
-			return err
-		})
-
-		if err == nil {
-			ldb.age = time.Now()
 		}
+	}
+
+	if err == nil {
+		ldb.age = time.Now()
 	}
 	return err
 }

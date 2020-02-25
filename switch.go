@@ -121,17 +121,14 @@ func (sd *Switch) String() string {
 
 func (sd *Switch) Config() (config SwitchConfig, err error) {
 	// SEE Dimmer.Config() notes for explanation of D1 and D2 (payload[0] and payload[1])
+	ch := make(chan *Message, 1)
+	sd.AddHandler(ch, CmdExtendedGetSet)
+	defer sd.RemoveHandler(ch, CmdExtendedGetSet)
 	err = sd.Device.SendCommand(CmdExtendedGetSet, []byte{0x00, 0x00})
 	if err == nil {
-		err = Receive(sd.Receive, sd.timeout, func(msg *Message) error {
-			if msg.Command == CmdExtendedGetSet {
-				err = config.UnmarshalBinary(msg.Payload)
-				if err == nil {
-					err = ErrReceiveComplete
-				}
-			}
-			return err
-		})
+		var msg *Message
+		msg, err = readFromCh(ch, sd.timeout)
+		err = config.UnmarshalBinary(msg.Payload)
 	}
 	return config, err
 }

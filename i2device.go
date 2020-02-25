@@ -36,10 +36,6 @@ func newI2Device(connection Connection, timeout time.Duration) *i2Device {
 	return i2
 }
 
-func (i2 *i2Device) SendCommand(cmd Command, payload []byte) error {
-	return i2.i1Device.SendCommand(cmd, payload)
-}
-
 func (i2 *i2Device) linkingMode(cmd Command, payload []byte) (err error) {
 	err = i2.i1Device.SendCommand(cmd, payload)
 	if err == nil {
@@ -53,10 +49,6 @@ func (i2 *i2Device) linkingMode(cmd Command, payload []byte) (err error) {
 // address of the device
 func (i2 *i2Device) String() string {
 	return sprintf("I2 Device (%s)", i2.Address())
-}
-
-func (i2 *i2Device) Address() Address {
-	return i2.i1Device.Address()
 }
 
 func (i2 *i2Device) EnterLinkingMode(group Group) error {

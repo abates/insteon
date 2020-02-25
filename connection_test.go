@@ -25,10 +25,14 @@ import (
 type testSender struct {
 	sndMsg []*Message
 	sndErr error
+	sndCb  func()
 }
 
 func (tsr *testSender) Send(msg *Message) error {
 	tsr.sndMsg = append(tsr.sndMsg, msg)
+	if tsr.sndCb != nil {
+		tsr.sndCb()
+	}
 	return tsr.sndErr
 }
 
@@ -41,9 +45,10 @@ type testConnection struct {
 	engineVersion    EngineVersion
 	engineVersionErr error
 
-	sent    []*Message
-	acks    []*Message
-	sendErr error
+	sent       []*Message
+	acks       []*Message
+	dispatched []*Message
+	sendErr    error
 
 	recv    []*Message
 	recvErr error
@@ -52,6 +57,23 @@ type testConnection struct {
 func (tc *testConnection) Address() Address { return tc.addr }
 
 func (tc *testConnection) LinkDatabase() (Linkable, error) { return nil, nil }
+
+func (tc *testConnection) AddHandler(ch chan<- *Message, cmds ...Command) {
+	go func() {
+		for len(tc.recv) > 0 {
+			if tc.recvErr == nil {
+				ch <- tc.recv[0]
+				tc.recv = tc.recv[1:]
+			}
+		}
+	}()
+}
+
+func (tc *testConnection) Dispatch(msg *Message) {
+	tc.dispatched = append(tc.dispatched, msg)
+}
+
+func (tc *testConnection) RemoveHandler(chan<- *Message, ...Command) {}
 
 func (tc *testConnection) EngineVersion() (EngineVersion, error) {
 	return tc.engineVersion, tc.engineVersionErr
@@ -63,10 +85,6 @@ func (tc *testConnection) IDRequest() (FirmwareVersion, DevCat, error) {
 func (tc *testConnection) SendCommand(cmd Command, payload []byte) error {
 	_, err := tc.Send(&Message{Command: cmd, Payload: payload})
 	return err
-}
-
-func (tc *testConnection) Exclusive(cb func()) {
-	cb()
 }
 
 func (tc *testConnection) Send(msg *Message) (*Message, error) {
@@ -90,6 +108,30 @@ func (tc *testConnection) Receive() (*Message, error) {
 	return nil, tc.recvErr
 }
 
+func TestDemuxDispatch(t *testing.T) {
+	conn := &testConnection{}
+	wildcard := &testConnection{}
+	addr := Address{1, 2, 3}
+	mux := &Demux{connections: map[Address][]Connection{addr: {conn}, Wildcard: {wildcard}}}
+	mux.Dispatch(&Message{Src: addr})
+	if len(conn.dispatched) != 1 {
+		t.Errorf("Expected message to be dispatched to connection")
+	}
+
+	if len(wildcard.dispatched) != 1 {
+		t.Errorf("Expected message to be dispatched to wildcard connection")
+	}
+
+	mux.Dispatch(&Message{Src: Address{3, 4, 5}})
+	if len(conn.dispatched) != 1 {
+		t.Errorf("Connection unexpectedly received message")
+	}
+
+	if len(wildcard.dispatched) != 2 {
+		t.Errorf("Expected message to be dispatched to wildcard connection")
+	}
+}
+
 func TestConnectionOptions(t *testing.T) {
 	tests := []struct {
 		desc  string
@@ -97,7 +139,6 @@ func TestConnectionOptions(t *testing.T) {
 		want  *connection
 	}{
 		{"Timeout Option", ConnectionTimeout(time.Hour), &connection{timeout: time.Hour}},
-		{"Filter Option", ConnectionFilter(CmdReadWriteALDB), &connection{match: []Command{CmdReadWriteALDB}}},
 		{"TTL Option", ConnectionTTL(3), &connection{ttl: 3}},
 	}
 
@@ -116,22 +157,23 @@ func TestConnectionSend(t *testing.T) {
 	tests := []struct {
 		name        string
 		input       *Message
+		response    *Message
 		expectedErr error
 	}{
-		{"Send Ack", testMsg(MsgTypeDirectAck, Command{}), nil},
-		{"Send Nak", TestProductDataResponse, ErrAckTimeout},
+		{"Send Ack", TestPing, TestPingAck, nil},
+		{"Send Nak", TestProductDataResponse, TestProductDataResponse, ErrAckTimeout},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			sender := &testSender{sndErr: test.expectedErr}
 			conn, err := newConnection(sender, Address{}, ConnectionTimeout(time.Millisecond))
-			conn.dispatch(test.input)
+			sender.sndCb = func() { conn.Dispatch(test.response) }
 			if err != nil {
-				t.Errorf("Unexpected error from NewCOnnection(): %v", err)
+				t.Errorf("Unexpected error from NewConnection(): %v", err)
 			}
 
-			_, err = conn.Send(&Message{})
+			_, err = conn.Send(test.input)
 			if err != test.expectedErr {
 				t.Errorf("Want %v got %v", test.expectedErr, err)
 			}
@@ -168,43 +210,13 @@ func TestNewConnectionTTL(t *testing.T) {
 	}
 }
 
-func TestConnectionReceive(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       *Message
-		match       Command
-		expectedErr error
-	}{
-		{"ReadTimeout 1", &Message{Command: Command{0x00, 0x00, 0x00}}, Command{0x00, 0x01, 0x01}, ErrReadTimeout},
-		{"ReadTimeout 2", &Message{Command: Command{0x00, 0x01, 0xff}}, Command{0x00, 0x01, 0x01}, ErrReadTimeout},
-		{"Match 1", &Message{Command: Command{0x00, 0x01, 0x01}}, Command{0x00, 0x01, 0x01}, nil},
-		{"Match 2", &Message{Command: Command{0x00, 0x01, 0x01}}, Command{0x00, 0x01, 0x00}, nil},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			sender := &testSender{}
-			conn, err := newConnection(sender, Address{}, ConnectionFilter(test.match), ConnectionTimeout(time.Millisecond))
-			conn.dispatch(test.input)
-			if err != nil {
-				t.Errorf("Unexpected error from NewConnection(): %v", err)
-			}
-
-			_, err = conn.Receive()
-
-			if test.expectedErr != err {
-				t.Errorf("want %v got %v", test.expectedErr, err)
-			}
-		})
-	}
-}
-
 func TestConnectionIDRequest(t *testing.T) {
 	sender := &testSender{}
 	conn, _ := newConnection(sender, Address{}, ConnectionTimeout(time.Millisecond))
-	conn.msgCh = make(chan *Message, 2)
-	conn.dispatch(TestAck)
-	conn.dispatch(&Message{Dst: Address{07, 79, 42}, Command: Command{0, 1}, Flags: StandardBroadcast})
+	sender.sndCb = func() {
+		conn.Dispatch(TestAck)
+		conn.Dispatch(&Message{Dst: Address{07, 79, 42}, Command: Command{0, 1}, Flags: StandardBroadcast})
+	}
 
 	wantVersion := FirmwareVersion(42)
 	wantDevCat := DevCat{07, 79}
@@ -235,7 +247,7 @@ func TestConnectionEngineVersion(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			sender := &testSender{}
 			conn, _ := newConnection(sender, Address{}, ConnectionTimeout(time.Millisecond))
-			conn.dispatch(test.input)
+			sender.sndCb = func() { conn.Dispatch(test.input) }
 
 			gotVersion, err := conn.EngineVersion()
 			if err != test.wantErr {
@@ -248,19 +260,3 @@ func TestConnectionEngineVersion(t *testing.T) {
 		})
 	}
 }
-
-/*func TestReceive(t *testing.T) {
-	// happy path
-	conn := &testConnection{recv: []*Message{TestAck}}
-	err := Receive(conn, time.Millisecond, func(*Message) error { return ErrReceiveComplete })
-	if err != nil {
-		t.Errorf("Expected no error got %v", err)
-	}
-
-	// sad path
-	go func() { time.Sleep(time.Second); conn.recvCh <- TestAck }()
-	err = Receive(conn, time.Millisecond, func(*Message) error { return nil })
-	if err != ErrReadTimeout {
-		t.Errorf("Expected ErrReadTimeout got %v", err)
-	}
-}*/

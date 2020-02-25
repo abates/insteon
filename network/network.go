@@ -21,26 +21,10 @@ import (
 	"github.com/abates/insteon"
 )
 
-// PacketRequest is used to request that a packetized (marshaled) insteon
-// message be sent to the network. Once the upstream device (PLM usually)
-// has attempted to send the packet, the Err field will be assigned and
-// DoneCh will be written to and closed
-type PacketRequest struct {
-	Payload []byte
-	Err     error
-	DoneCh  chan<- *PacketRequest
-}
+type Option func(*Network) error
 
-// MessageRequest is used to request a message be sent to a specific device.
-// Once the connection has sent the message and either received an ack or
-// encountered an error, the Ack and Err fields will be filled and DoneCh
-// will be written to and closed
-type MessageRequest struct {
-	Message *insteon.Message
-	timeout time.Time
-	Ack     *insteon.Message
-	Err     error
-	DoneCh  chan<- *MessageRequest
+type Bridge interface {
+	Open(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Device, error)
 }
 
 // Network is the main means to communicate with
@@ -49,33 +33,29 @@ type Network struct {
 	timeout     time.Duration
 	DB          ProductDatabase
 	connections []insteon.Connection
-
-	connection   insteon.Connection
-	connectCh    chan insteon.Connection
-	disconnectCh chan insteon.Connection
-	closeCh      chan chan error
 }
 
 // New creates a new Insteon network instance for the send and receive channels.  The timeout
 // indicates how long the network (and subsuquent devices) should wait when expecting incoming
 // messages/responses
-func New(connection insteon.Connection, timeout time.Duration) *Network {
+func New(bridge Bridge, options ...Option) (*Network, error) {
 	network := &Network{
-		timeout:    timeout,
+		timeout:    time.Second * 10,
 		DB:         NewProductDB(),
 		connection: connection,
-
-		connectCh:    make(chan insteon.Connection),
-		disconnectCh: make(chan insteon.Connection),
-		closeCh:      make(chan chan error),
 	}
 
-	go network.process()
+	for _, option := range options {
+		if err := option(network); err != nil {
+			return nil, err
+		}
+	}
+
 	return network
 }
 
-func (network *Network) process() {
-	/*defer network.close()
+/*func (network *Network) process() {
+	defer network.close()
 	for {
 		select {
 		case buf := <-network.connection.Receive():
@@ -88,8 +68,8 @@ func (network *Network) process() {
 			ch <- network.close()
 			return
 		}
-	}*/
-}
+	}
+}*/
 
 func (network *Network) receive(buf []byte) {
 	msg := &insteon.Message{}
