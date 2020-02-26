@@ -11,7 +11,7 @@ func TestPlmOption(t *testing.T) {
 	want := 1234 * time.Millisecond
 	buf := bytes.NewBuffer(nil)
 
-	without, err := New(&Port{in: bufio.NewReader(buf), out: buf}, 5*time.Second)
+	without, err := New(bufio.NewReader(buf), buf, 5*time.Second)
 	if err != nil {
 		t.Errorf("unexpected error from plm.New(): %v", err)
 	}
@@ -19,7 +19,7 @@ func TestPlmOption(t *testing.T) {
 		t.Errorf("writeDelay is %v, expected anything else", without.writeDelay)
 	}
 
-	with, err := New(&Port{in: bufio.NewReader(buf), out: buf}, 5*time.Second, WriteDelay(want))
+	with, err := New(bufio.NewReader(buf), buf, 5*time.Second, WriteDelay(want))
 	if err != nil {
 		t.Errorf("unexpected error from plm.New(): %v", err)
 	}
