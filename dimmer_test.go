@@ -86,7 +86,7 @@ func TestDimmerSendCommand(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			conn := &testConnection{acks: []*Message{TestAck}}
-			dimmer := &Dimmer{Switch: &Switch{Device: conn}, firmwareVersion: test.v}
+			dimmer := NewDimmer(DeviceInfo{FirmwareVersion: test.v}, conn, time.Millisecond)
 			dimmer.SendCommand(test.sendCmd, nil)
 			gotCmd := conn.sent[0].Command
 			if test.wantCmd != gotCmd {
