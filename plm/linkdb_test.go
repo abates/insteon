@@ -136,7 +136,7 @@ func TestLinkDBRefresh(t *testing.T) {
 			name:    "Read Timeout",
 			timeout: -time.Hour,
 			ack:     []*Packet{{Command: CmdGetFirstAllLink}},
-			rxErr:   errors.New("Foo"),
+			rxErr:   ErrReadTimeout,
 			wantErr: ErrReadTimeout,
 		},
 	}
