@@ -80,17 +80,15 @@ func (alr *allLinkReq) String() string {
 	return fmt.Sprintf("%02x %d", alr.Mode, alr.Group)
 }
 
-type linkdbPLM interface {
-	Lock()
-	Unlock()
-	receive(timeout time.Duration) (*Packet, error)
-	send(packet *Packet) (ack *Packet, err error)
+type senderReceiver interface {
+	send(*Packet) (*Packet, error)
+	ReadPacket() (*Packet, error)
 }
 
 type linkdb struct {
 	age     time.Time
 	links   []*insteon.LinkRecord
-	plm     linkdbPLM
+	plm     senderReceiver
 	timeout time.Duration
 }
 
@@ -104,10 +102,9 @@ func (ldb *linkdb) refresh() error {
 	}
 	links := make([]*insteon.LinkRecord, 0)
 	_, err := ldb.plm.send(&Packet{Command: CmdGetFirstAllLink})
-	timeout := time.Now().Add(ldb.timeout)
 	for err == nil {
 		var pkt *Packet
-		pkt, err = ldb.plm.receive(ldb.timeout)
+		pkt, err = ldb.plm.ReadPacket()
 		if err == nil {
 			if pkt.Command == CmdAllLinkRecordResp {
 				link := &insteon.LinkRecord{}
@@ -117,8 +114,6 @@ func (ldb *linkdb) refresh() error {
 					_, err = ldb.plm.send(&Packet{Command: CmdGetNextAllLink})
 				}
 			}
-		} else if timeout.Before(time.Now()) {
-			err = ErrReadTimeout
 		}
 	}
 
@@ -130,27 +125,19 @@ func (ldb *linkdb) refresh() error {
 }
 
 func (ldb *linkdb) Links() ([]*insteon.LinkRecord, error) {
-	ldb.plm.Lock()
-	defer ldb.plm.Unlock()
 	err := ldb.refresh()
 	return ldb.links, err
 }
 
 func (ldb *linkdb) WriteLinks(...*insteon.LinkRecord) error {
-	ldb.plm.Lock()
-	defer ldb.plm.Unlock()
 	return insteon.ErrNotImplemented
 }
 
 func (ldb *linkdb) UpdateLinks(...*insteon.LinkRecord) error {
-	ldb.plm.Lock()
-	defer ldb.plm.Unlock()
 	return insteon.ErrNotImplemented
 }
 
 func (ldb *linkdb) EnterLinkingMode(group insteon.Group) error {
-	ldb.plm.Lock()
-	defer ldb.plm.Unlock()
 	lr := &allLinkReq{Mode: linkingMode(0x03), Group: group}
 	payload, _ := lr.MarshalBinary()
 	_, err := ldb.plm.send(&Packet{Command: CmdStartAllLink, Payload: payload})

@@ -61,7 +61,7 @@ func TestLinkDBOld(t *testing.T) {
 	}
 }
 
-type testLinkdbPLM struct {
+type testSenderReceiver struct {
 	rx    []*Packet
 	rxErr error
 	tx    []*Packet
@@ -69,10 +69,7 @@ type testLinkdbPLM struct {
 	ack   []*Packet
 }
 
-func (tlplm *testLinkdbPLM) Lock()   {}
-func (tlplm *testLinkdbPLM) Unlock() {}
-
-func (tlplm *testLinkdbPLM) receive(timeout time.Duration) (p *Packet, err error) {
+func (tlplm *testSenderReceiver) ReadPacket() (p *Packet, err error) {
 	err = tlplm.rxErr
 	if len(tlplm.rx) > 0 {
 		p = tlplm.rx[0]
@@ -83,7 +80,7 @@ func (tlplm *testLinkdbPLM) receive(timeout time.Duration) (p *Packet, err error
 	return
 }
 
-func (tlplm *testLinkdbPLM) send(packet *Packet) (ack *Packet, err error) {
+func (tlplm *testSenderReceiver) send(packet *Packet) (ack *Packet, err error) {
 	tlplm.tx = append(tlplm.tx, packet)
 	err = tlplm.txErr
 	if len(tlplm.ack) > 0 {
@@ -146,7 +143,7 @@ func TestLinkDBRefresh(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			plm := &testLinkdbPLM{rx: test.rx, rxErr: test.rxErr, ack: test.ack, txErr: test.txErr}
+			plm := &testSenderReceiver{rx: test.rx, rxErr: test.rxErr, ack: test.ack, txErr: test.txErr}
 			ldb := linkdb{plm: plm, age: test.age, timeout: test.timeout}
 			gotLinks, gotErr := ldb.Links()
 			if test.wantErr == gotErr {
@@ -185,7 +182,7 @@ func TestLinkdbCommand(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			plm := &testLinkdbPLM{ack: []*Packet{{Ack: 0x06}}}
+			plm := &testSenderReceiver{ack: []*Packet{{Ack: 0x06}}}
 			ldb := &linkdb{plm: plm}
 			gotErr := test.test(ldb)
 			if gotErr == nil {

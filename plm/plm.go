@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/abates/insteon"
@@ -43,9 +42,7 @@ func hexDump(format string, buf []byte, sep string) string {
 }
 
 type PLM struct {
-	sync.Mutex
 	linkdb
-	portMutex  sync.Mutex
 	timeout    time.Duration
 	retries    int
 	writeDelay time.Duration
@@ -130,34 +127,26 @@ func (plm *PLM) Send(msg *insteon.Message) error {
 	if err == nil {
 		// slice off the source address since the PLM doesn't want it
 		buf = buf[3:]
-		_, err = plm.send(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
+		retries := 0
+		err = ErrRetryCountExceeded
+		for retries < plm.retries {
+			_, err = plm.send(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
+			if err == ErrNak || err == ErrReadTimeout {
+				// TODO add exponential backoff
+				retries++
+			} else {
+				break
+			}
+		}
 	}
+
 	return err
 }
 
 // send a packet and wait for the PLM to ack that the packet was
 // sent.  This is a blocking function. Only callers that have acquired
 // the mutex should call this function
-func (plm *PLM) send(packet *Packet) (ack *Packet, err error) {
-	retries := 0
-	err = ErrRetryCountExceeded
-	for retries < plm.retries {
-		ack, err = plm.tx(packet)
-		if err == ErrNak || err == ErrReadTimeout {
-			// TODO add exponential backoff
-			retries++
-		} else {
-			break
-		}
-	}
-
-	return ack, err
-}
-
-func (plm *PLM) tx(txPacket *Packet) (ack *Packet, err error) {
-	plm.portMutex.Lock()
-	defer plm.portMutex.Unlock()
-
+func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
 	writeDelay := time.Duration(0)
 	if txPacket.Command == CmdSendInsteonMsg {
 		writeDelay = plm.writeDelay
@@ -181,38 +170,21 @@ func (plm *PLM) tx(txPacket *Packet) (ack *Packet, err error) {
 		plm.port.Write(buf)
 		plm.nextWrite = time.Now().Add(writeDelay)
 
-		// loop until either timeout or the appropriate ack is received
-		timeout := time.Now().Add(plm.timeout)
-		for err == nil {
-			select {
-			case rxPacket := <-plm.plmCh:
-				if txPacket.Command == rxPacket.Command {
-					ack = rxPacket
-					if rxPacket.NAK() {
-						err = ErrNak
-					}
-					return
-				}
-			case <-time.After(plm.timeout):
-				err = ErrAckTimeout
-			}
-
-			if timeout.Before(time.Now()) {
-				err = ErrAckTimeout
-			}
-		}
+		ack, err = plm.ReadPacket()
 	}
 	return
 }
 
-func (plm *PLM) receive(timeout time.Duration) (pkt *Packet, err error) {
-	plm.portMutex.Lock()
-	defer plm.portMutex.Unlock()
+func (plm *PLM) ReadPacket() (pkt *Packet, err error) {
 	select {
 	case pkt = <-plm.plmCh:
-	case <-time.After(timeout):
+		if pkt.NAK() {
+			err = ErrNak
+		}
+	case <-time.After(plm.timeout):
 		err = ErrReadTimeout
 	}
+
 	return
 }
 
@@ -235,26 +207,6 @@ func (plm *PLM) Monitor(ch chan *insteon.Message) error {
 		conn.AddHandler(ch, insteon.Command{0x00, 0xff, 0xff})
 	}
 	return err
-}
-
-// retry will deliver a packet to the Insteon network. If delivery fails (due
-// to a NAK from the PLM) then we will retry and decrement retries. This
-// continues until the packet is sent (as acknowledged by the PLM) or retries
-// reaches zero
-func retry(plm *PLM, packet *Packet, retries int) (ack *Packet, err error) {
-	for err == ErrNak || retries > 0 {
-		ack, err = plm.send(packet)
-		if err == nil {
-			break
-		}
-		retries--
-	}
-
-	if err == ErrNak {
-		insteon.Log.Debugf("Retry count exceeded")
-		err = ErrRetryCountExceeded
-	}
-	return ack, err
 }
 
 func (plm *PLM) Info() (info *Info, err error) {
