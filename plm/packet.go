@@ -18,6 +18,8 @@ import (
 	"fmt"
 )
 
+const maxPaclen = 25
+
 type Packet struct {
 	Command Command
 	Payload []byte
