@@ -24,7 +24,7 @@ import (
 
 var (
 	// Log is the global log object. The default level is set to Info
-	Log = &Logger{level: LevelInfo, logger: log.New(os.Stderr, "", log.LstdFlags)}
+	Log = &Logger{Level: LevelInfo, Logger: log.New(os.Stderr, "", log.LstdFlags)}
 )
 
 // LogLevel indicates verbosity of logging
@@ -84,17 +84,12 @@ const (
 // Logger is a struct that keeps track of a log level and only
 // prints messages of that level or lower
 type Logger struct {
-	level  LogLevel
-	logger *log.Logger
-}
-
-// Level sets the Loggers log level
-func (s *Logger) Level(level LogLevel) {
-	s.level = level
+	Level  LogLevel
+	Logger *log.Logger
 }
 
 func (s *Logger) logf(level LogLevel, format string, v ...interface{}) {
-	if s.level >= level {
+	if s.Level >= level {
 		format = sprintf("%5s %s", level, format)
 		if level == LevelTrace {
 			pc := make([]uintptr, 10)
@@ -105,7 +100,7 @@ func (s *Logger) logf(level LogLevel, format string, v ...interface{}) {
 
 			format = sprintf("%s:%d %s", function, frame.Line, format)
 		}
-		s.logger.Printf(format, v...)
+		s.Logger.Printf(format, v...)
 	}
 }
 

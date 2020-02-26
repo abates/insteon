@@ -46,7 +46,7 @@ func init() {
 
 func run(string) error {
 	if logLevelFlag > insteon.LevelNone {
-		insteon.Log.Level(logLevelFlag)
+		insteon.Log.Level = logLevelFlag
 	}
 
 	c := &serial.Config{
