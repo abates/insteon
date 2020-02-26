@@ -47,7 +47,8 @@ type PLM struct {
 	retries    int
 	writeDelay time.Duration
 	nextWrite  time.Time
-	port       *Port
+	reader     PacketReader
+	writer     io.Writer
 	demux      insteon.Demux
 
 	plmCh chan *Packet
@@ -57,15 +58,17 @@ type PLM struct {
 type Option func(p *PLM) error
 
 // New creates a new PLM instance.
-func New(port *Port, timeout time.Duration, options ...Option) (*PLM, error) {
+func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...Option) (*PLM, error) {
 	plm := &PLM{
 		timeout:    timeout,
 		retries:    3,
 		writeDelay: 500 * time.Millisecond,
-		port:       port,
+		reader:     NewPacketReader(reader),
+		writer:     LogWriter{writer},
 
 		plmCh: make(chan *Packet),
 	}
+
 	plm.demux.Sender = plm
 	plm.linkdb.plm = plm
 	plm.linkdb.timeout = timeout
@@ -92,26 +95,19 @@ func WriteDelay(d time.Duration) Option {
 
 func (plm *PLM) readLoop() {
 	for {
-		buf, err := plm.port.Read()
+		packet, err := plm.reader.ReadPacket()
 		if err == nil {
-			packet := &Packet{}
-			err := packet.UnmarshalBinary(buf)
-
-			if err == nil {
-				insteon.Log.Tracef("%v", packet)
-				if packet.Command == 0x50 || packet.Command == 0x51 {
-					msg := &insteon.Message{}
-					err := msg.UnmarshalBinary(packet.Payload)
-					if err == nil {
-						plm.demux.Dispatch(msg)
-					} else {
-						insteon.Log.Infof("Failed to unmarshal Insteon Message: %v", err)
-					}
+			insteon.Log.Tracef("%v", packet)
+			if packet.Command == CmdStdMsgReceived || packet.Command == CmdExtMsgReceived {
+				msg := &insteon.Message{}
+				err := msg.UnmarshalBinary(packet.Payload)
+				if err == nil {
+					plm.demux.Dispatch(msg)
 				} else {
-					plm.plmCh <- packet
+					insteon.Log.Infof("Failed to unmarshal Insteon Message: %v", err)
 				}
 			} else {
-				insteon.Log.Infof("Failed to unmarshal packet: %v", err)
+				plm.plmCh <- packet
 			}
 		} else {
 			if err != io.EOF {
@@ -167,7 +163,7 @@ func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
 		}
 
 		insteon.Log.Tracef("Sending packet %v (write delay %v)", txPacket, writeDelay)
-		plm.port.Write(buf)
+		plm.writer.Write(buf)
 		plm.nextWrite = time.Now().Add(writeDelay)
 
 		ack, err = plm.ReadPacket()
@@ -266,5 +262,7 @@ func (plm *PLM) String() string {
 
 func (plm *PLM) Close() {
 	//close(plm.insteonTxCh)
-	plm.port.Close()
+	if closer, ok := plm.writer.(io.Closer); ok {
+		closer.Close()
+	}
 }
