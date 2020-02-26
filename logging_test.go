@@ -35,8 +35,7 @@ func TestLogging(t *testing.T) {
 
 		buffer := bytes.NewBuffer([]byte{})
 		testLogger := log.New(buffer, "", 0)
-		logger := &Logger{logger: testLogger}
-		logger.Level(level)
+		logger := &Logger{Logger: testLogger, Level: level}
 
 		logger.Infof("message")
 		logger.Debugf("message")
@@ -118,7 +117,7 @@ func TestLog(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			builder := &strings.Builder{}
-			logger := &Logger{level: test.level, logger: log.New(builder, "", 0)}
+			logger := &Logger{Level: test.level, Logger: log.New(builder, "", 0)}
 			test.tf(logger)
 			got := strings.TrimSpace(builder.String())
 			if !strings.HasSuffix(got, test.want) {

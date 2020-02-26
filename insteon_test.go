@@ -22,7 +22,7 @@ import (
 
 func init() {
 	// turn off logging for tests
-	Log.Level(LevelNone)
+	Log.Level = LevelNone
 }
 
 func TestAddress(t *testing.T) {
