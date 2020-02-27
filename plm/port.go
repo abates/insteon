@@ -91,7 +91,7 @@ func (pr *PacketReader) read() (int, error) {
 	insteon.Log.Tracef("Attempting to read %d more bytes", paclen)
 	nn, err := io.ReadAtLeast(pr.reader, pr.buf[2:2+paclen], paclen)
 	n += nn
-	insteon.Log.Tracef("Completed read (err %v): %d %s", err, n, hexDump("%02x", pr.buf[0:n], " "))
+	insteon.Log.Tracef("Completed read (err %v): %s", err, hexDump("%02x", pr.buf[0:n], " "))
 
 	if err == nil {
 		// read some more if it's an extended message (this conditional is
@@ -114,6 +114,7 @@ func (pr *PacketReader) read() (int, error) {
 func (pr *PacketReader) ReadPacket() (packet *Packet, err error) {
 	n, err := pr.read()
 	if err == nil {
+		insteon.Log.Tracef("%s", hexDump("%02x", pr.buf[0:n], " "))
 		packet = &Packet{}
 		err = packet.UnmarshalBinary(pr.buf[0:n])
 	}

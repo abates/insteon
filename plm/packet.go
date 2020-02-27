@@ -97,9 +97,7 @@ func (p *Packet) UnmarshalBinary(buf []byte) (err error) {
 	// some padding at the front since the source address
 	// is removed
 	if p.Command == CmdSendInsteonMsg {
-		newBuf := make([]byte, len(buf)+3)
-		copy(newBuf[3:], buf)
-		buf = newBuf
+		p.Payload = make([]byte, 3)
 	}
 
 	if 0x60 <= p.Command && p.Command <= 0x7f {
@@ -107,8 +105,6 @@ func (p *Packet) UnmarshalBinary(buf []byte) (err error) {
 		buf = buf[0 : len(buf)-1]
 	}
 
-	p.Payload = make([]byte, len(buf))
-	copy(p.Payload, buf)
-
+	p.Payload = append(p.Payload, buf...)
 	return err
 }
