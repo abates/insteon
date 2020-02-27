@@ -144,6 +144,11 @@ func (dc DevCat) String() string {
 // Domain represents an entire domain of similar devices (dimmers, switches, thermostats, etc)
 type Domain byte
 
+const (
+	DimmerDomain Domain = 0x01
+	SwitchDomain        = 0x02
+)
+
 // Category indicates the specific kind of device within a domain.  For instance, a LampLing and
 // a SwitchLinc Dimmer are both within the Dimmable device domain
 type Category byte

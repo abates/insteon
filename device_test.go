@@ -17,42 +17,13 @@ package insteon
 import (
 	"reflect"
 	"testing"
-	"time"
 )
-
-func TestDeviceRegistry(t *testing.T) {
-	dr := &DeviceRegistry{}
-
-	if _, found := dr.Find(Domain(1)); found {
-		t.Error("Expected nothing found for Domain(1)")
-	}
-
-	constructorCalled := false
-	dr.Register(Domain(1), func(DeviceInfo, Device, time.Duration) (Device, error) {
-		constructorCalled = true
-		return nil, nil
-	})
-
-	if _, found := dr.Find(Domain(1)); !found {
-		t.Error("Expected to find Domain(1)")
-	}
-
-	dr.New(DeviceInfo{DevCat: DevCat{1, 0}}, &testConnection{}, 0)
-	if !constructorCalled {
-		t.Errorf("Expected New() to call device constructor")
-	}
-
-	dr.Delete(Domain(1))
-	if _, found := dr.Find(Domain(1)); found {
-		t.Error("Expected nothing found for Domain(1)")
-	}
-}
 
 func mkPayload(buf ...byte) []byte {
 	return append(buf, make([]byte, 14-len(buf))...)
 }
 
-func TestDeviceNew(t *testing.T) {
+func TestDeviceCreate(t *testing.T) {
 	tests := []struct {
 		desc     string
 		input    EngineVersion
@@ -67,7 +38,7 @@ func TestDeviceNew(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			device, gotErr := New(test.input, &testConnection{}, 0)
+			device, gotErr := create(test.input, &testConnection{}, 0)
 			gotType := reflect.TypeOf(device)
 
 			if test.wantErr != gotErr {

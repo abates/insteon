@@ -29,57 +29,6 @@ const (
 // device is running
 type EngineVersion int
 
-// DeviceConstructor will return an initialized device for the given input arguments.  The DeviceInfo
-// allows a factory to select different
-type DeviceConstructor func(info DeviceInfo, device Device, timeout time.Duration) (Device, error)
-
-// Devices is a global DeviceRegistry. This device registry should only be used
-// if you are adding a new device category to the system
-var Devices DeviceRegistry
-
-// DeviceRegistry is a mechanism to keep track of specific constructors for different
-// device categories
-type DeviceRegistry struct {
-	// Devices are mapped by their domain
-	devices map[Domain]DeviceConstructor
-}
-
-// Register will assign the given constructor to the supplied category
-func (dr *DeviceRegistry) Register(domain Domain, constructor DeviceConstructor) {
-	if dr.devices == nil {
-		dr.devices = make(map[Domain]DeviceConstructor)
-	}
-	dr.devices[domain] = constructor
-}
-
-// Delete will remove a device constructor from the registry
-func (dr *DeviceRegistry) Delete(domain Domain) {
-	delete(dr.devices, domain)
-}
-
-// Find looks for a constructor corresponding to the given category
-func (dr *DeviceRegistry) Find(domain Domain) (DeviceConstructor, bool) {
-	constructor, found := dr.devices[domain]
-	return constructor, found
-}
-
-// New will look in the registry for a device constructor matching the
-// given device category (supplied by the DeviceInfo argument).  If found,
-// the constructor is called and the specific device type is returned.  If
-// not found, then a base device (I1Device, I2Device, I2CsDevice) is returned
-//
-// Errors are only returned if the device category is found in the registry and
-// that type's constructor returns an error
-func (dr *DeviceRegistry) New(info DeviceInfo, conn Connection, timeout time.Duration) (Device, error) {
-	device, err := New(info.EngineVersion, conn, timeout)
-	if err == nil {
-		if constructor, found := dr.Find(info.DevCat.Domain()); found {
-			device, err = constructor(info, device, timeout)
-		}
-	}
-	return device, err
-}
-
 // Addressable is any receiver that can be queried for its address
 type Addressable interface {
 	// Address will return the 3 byte destination address of the device.
@@ -191,10 +140,10 @@ type Linkable interface {
 // DeviceInfo is a record of information about known
 // devices on the network
 type DeviceInfo struct {
-	Address         Address
-	DevCat          DevCat
-	FirmwareVersion FirmwareVersion
-	EngineVersion   EngineVersion
+	Address         Address         `json:"address"`
+	DevCat          DevCat          `json:"devCat"`
+	FirmwareVersion FirmwareVersion `json:"firmwareVersion"`
+	EngineVersion   EngineVersion   `json:"engineVersion"`
 }
 
 // Open will create a new device that is ready to be used. Open tries to contact
@@ -217,17 +166,33 @@ func Open(conn Connection, timeout time.Duration) (device Device, err error) {
 		}
 		info.FirmwareVersion, info.DevCat, err = conn.IDRequest()
 		if err == nil {
-			device, err = Devices.New(info, conn, timeout)
+			device, err = New(info, conn, timeout)
 		}
 	} else if err == ErrNotLinked {
-		device, _ = New(VerI2Cs, conn, timeout)
+		device, _ = create(VerI2Cs, conn, timeout)
 	}
 	return device, err
 }
 
-// New will return either an I1Device, an I2Device or an I2CsDevice based on the
+// New will use the supplied DeviceInfo to create a device instance for the
+// given connection.  For instance, if the DevCat is 0x01 with an I2CS
+// EngineVersion then a Dimmer with an underlying i2CsDevice will be returned
+func New(info DeviceInfo, conn Connection, timeout time.Duration) (Device, error) {
+	device, err := create(info.EngineVersion, conn, timeout)
+	if err == nil {
+		switch info.DevCat.Domain() {
+		case DimmerDomain:
+			device = NewDimmer(info, device, timeout)
+		case SwitchDomain:
+			device = NewSwitch(info, device, timeout)
+		}
+	}
+	return device, err
+}
+
+// create will return either an I1Device, an I2Device or an I2CsDevice based on the
 // supplied EngineVersion
-func New(version EngineVersion, conn Connection, timeout time.Duration) (device Device, err error) {
+func create(version EngineVersion, conn Connection, timeout time.Duration) (device Device, err error) {
 	switch version {
 	case VerI1:
 		device = newI1Device(conn, timeout)
