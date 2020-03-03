@@ -29,7 +29,7 @@ type ProductDatabase interface {
 	//UpdateDevCat(address insteon.Address, devCat insteon.DevCat)
 	//UpdateEngineVersion(address insteon.Address, engineVersion insteon.EngineVersion)
 	//UpdateFirmwareVersion(address insteon.Address, firmwareVersion insteon.FirmwareVersion)
-	Update(address insteon.Address, cb func(deviceInfo insteon.DeviceInfo))
+	Update(address insteon.Address, cb func(deviceInfo *insteon.DeviceInfo))
 	Find(address insteon.Address) (deviceInfo insteon.DeviceInfo, found bool)
 }
 
@@ -56,7 +56,7 @@ func (pdb *productDatabase) Find(address insteon.Address) (deviceInfo insteon.De
 	return deviceInfo, found
 }
 
-func (pdb *productDatabase) update(address insteon.Address, callback func(*insteon.DeviceInfo)) {
+func (pdb *productDatabase) Update(address insteon.Address, callback func(*insteon.DeviceInfo)) {
 	pdb.mutex.Lock()
 	deviceInfo, found := pdb.devices[address]
 	if !found {
@@ -69,7 +69,7 @@ func (pdb *productDatabase) update(address insteon.Address, callback func(*inste
 	pdb.mutex.Unlock()
 }
 
-func (pdb *productDatabase) UpdateFirmwareVersion(address insteon.Address, firmwareVersion insteon.FirmwareVersion) {
+/*func (pdb *productDatabase) UpdateFirmwareVersion(address insteon.Address, firmwareVersion insteon.FirmwareVersion) {
 	pdb.update(address, func(deviceInfo *insteon.DeviceInfo) { deviceInfo.FirmwareVersion = firmwareVersion })
 }
 
@@ -79,4 +79,4 @@ func (pdb *productDatabase) UpdateEngineVersion(address insteon.Address, engineV
 
 func (pdb *productDatabase) UpdateDevCat(address insteon.Address, devCat insteon.DevCat) {
 	pdb.update(address, func(deviceInfo *insteon.DeviceInfo) { deviceInfo.DevCat = devCat })
-}
+}*/

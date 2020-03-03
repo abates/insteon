@@ -15,9 +15,6 @@
 package network
 
 import (
-	"io"
-	"time"
-
 	"github.com/abates/insteon"
 )
 
@@ -30,6 +27,7 @@ type Bridge interface {
 // Network is the main means to communicate with
 // devices on the Insteon network
 type Network struct {
+	DB ProductDatabase
 }
 
 // New creates a new Insteon network instance for the send and receive channels.  The timeout
@@ -49,11 +47,12 @@ func New(bridge Bridge, options ...Option) (*Network, error) {
 
 func (net *Network) Open(dst insteon.Address) (insteon.Device, error) {
 	// look in the database to see if we know about this device
-	info, found := net.db.Find(dst)
+	/*info, found := net.DB.Find(dst)
 	if found {
 	} else {
 		// if we don't know about the device, query the network
-	}
+	}*/
+	return nil, nil
 }
 
 /*func (network *Network) process() {
@@ -81,23 +80,20 @@ func (network *Network) receive(buf []byte) {
 		if msg.Broadcast() {
 			// Set Button Pressed Controller/Responder
 			if msg.Command[1] == 0x01 || msg.Command[1] == 0x02 {
-				network.DB.UpdateFirmwareVersion(msg.Src, insteon.FirmwareVersion(msg.Dst[2]))
-				network.DB.UpdateDevCat(msg.Src, insteon.DevCat{msg.Dst[0], msg.Dst[1]})
+				network.DB.Update(msg.Src, func(info *insteon.DeviceInfo) { info.FirmwareVersion = insteon.FirmwareVersion(msg.Dst[2]) })
+				network.DB.Update(msg.Src, func(info *insteon.DeviceInfo) { info.DevCat = insteon.DevCat{msg.Dst[0], msg.Dst[1]} })
 			}
 		} else if msg.Ack() && msg.Command[1] == 0x0d {
 			// Engine Version Request ACK
-			network.DB.UpdateEngineVersion(msg.Src, insteon.EngineVersion(msg.Command[2]))
+			network.DB.Update(msg.Src, func(info *insteon.DeviceInfo) { info.EngineVersion = insteon.EngineVersion(msg.Command[2]) })
 		}
 
-		for range network.connections {
-			// TODO: FIX THIS
-			//connection.Push(msg)
-		}
 	} else {
 		insteon.Log.Infof("Failed to unmarshal buffer: %v", err)
 	}
 }
 
+/*
 func (network *Network) disconnect(connection insteon.Connection) {
 	for i, conn := range network.connections {
 		if conn == connection {
@@ -110,7 +106,7 @@ func (network *Network) disconnect(connection insteon.Connection) {
 	}
 }
 
-/*func (network *Network) sendMessage(msg *insteon.Message) error {
+func (network *Network) sendMessage(msg *insteon.Message) error {
 	buf, err := msg.MarshalBinary()
 
 	if err == nil {
@@ -208,7 +204,6 @@ func (network *Network) Connect(dst insteon.Address) (device insteon.Device, err
 }
 
 func (network *Network) close() error {
-	network.connections = nil
 	return nil
 }
 

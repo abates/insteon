@@ -15,7 +15,6 @@
 package network
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/abates/insteon"
@@ -40,7 +39,7 @@ import (
 	}
 }*/
 
-type testProductDB struct {
+/*type testProductDB struct {
 	updates    sync.Map
 	deviceInfo *insteon.DeviceInfo
 }
@@ -73,7 +72,7 @@ func (tpd *testProductDB) Find(address insteon.Address) (deviceInfo insteon.Devi
 		return insteon.DeviceInfo{}, false
 	}
 	return *tpd.deviceInfo, true
-}
+}*/
 
 func TestProductDatabaseUpdateFind(t *testing.T) {
 	address := insteon.Address{0, 1, 2}
@@ -82,9 +81,15 @@ func TestProductDatabaseUpdateFind(t *testing.T) {
 		update func(*productDatabase)
 		test   func(insteon.DeviceInfo) bool
 	}{
-		{"UpdateFirmwareVersion", func(pdb *productDatabase) { pdb.UpdateFirmwareVersion(address, insteon.FirmwareVersion(42)) }, func(di insteon.DeviceInfo) bool { return di.FirmwareVersion == insteon.FirmwareVersion(42) }},
-		{"UpdateEngineVersion", func(pdb *productDatabase) { pdb.UpdateEngineVersion(address, insteon.EngineVersion(42)) }, func(di insteon.DeviceInfo) bool { return di.EngineVersion == insteon.EngineVersion(42) }},
-		{"UpdateDevCat", func(pdb *productDatabase) { pdb.UpdateDevCat(address, insteon.DevCat{42, 42}) }, func(di insteon.DeviceInfo) bool { return di.DevCat == insteon.DevCat{42, 42} }},
+		{"UpdateFirmwareVersion", func(pdb *productDatabase) {
+			pdb.Update(address, func(info *insteon.DeviceInfo) { info.FirmwareVersion = insteon.FirmwareVersion(42) })
+		}, func(di insteon.DeviceInfo) bool { return di.FirmwareVersion == insteon.FirmwareVersion(42) }},
+		{"UpdateEngineVersion", func(pdb *productDatabase) {
+			pdb.Update(address, func(info *insteon.DeviceInfo) { info.EngineVersion = insteon.EngineVersion(42) })
+		}, func(di insteon.DeviceInfo) bool { return di.EngineVersion == insteon.EngineVersion(42) }},
+		{"UpdateDevCat", func(pdb *productDatabase) {
+			pdb.Update(address, func(info *insteon.DeviceInfo) { info.DevCat = insteon.DevCat{42, 42} })
+		}, func(di insteon.DeviceInfo) bool { return di.DevCat == insteon.DevCat{42, 42} }},
 	}
 
 	for _, test := range tests {
