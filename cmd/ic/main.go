@@ -60,7 +60,7 @@ func run(string) error {
 		return fmt.Errorf("error opening serial port: %v", err)
 	}
 
-	modem, err = plm.New(s, s, timeoutFlag, plm.WriteDelay(writeDelayFlag))
+	modem, err = plm.New(s, s, timeoutFlag, plm.WriteDelay(writeDelayFlag), plm.ConnectionOptions(insteon.ConnectionTimeout(timeoutFlag), insteon.ConnectionTTL(uint8(ttlFlag))))
 
 	if err != nil {
 		return fmt.Errorf("error opening plm: %v", err)

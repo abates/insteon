@@ -16,7 +16,6 @@ package insteon
 
 import (
 	"testing"
-	"time"
 )
 
 func TestChecksum(t *testing.T) {
@@ -49,22 +48,23 @@ func TestChecksum(t *testing.T) {
 
 func TestI2CsErrLookup(t *testing.T) {
 	tests := []struct {
-		desc  string
-		input *Message
-		want  error
+		desc     string
+		input    *Message
+		inputErr error
+		want     error
 	}{
-		{"nil error", &Message{}, nil},
-		{"ErrIllegalValue", &Message{Command: Command{0, 0, 0xfb}, Flags: StandardDirectNak}, ErrIllegalValue},
-		{"ErrPreNak", &Message{Command: Command{0, 0, 0xfc}, Flags: StandardDirectNak}, ErrPreNak},
-		{"ErrIncorrectChecksum", &Message{Command: Command{0, 0, 0xfd}, Flags: StandardDirectNak}, ErrIncorrectChecksum},
-		{"ErrNoLoadDetected", &Message{Command: Command{0, 0, 0xfe}, Flags: StandardDirectNak}, ErrNoLoadDetected},
-		{"ErrNotLinked", &Message{Command: Command{0, 0, 0xff}, Flags: StandardDirectNak}, ErrNotLinked},
-		{"ErrUnexpectedResponse", &Message{Command: Command{0, 0, 0xfa}, Flags: StandardDirectNak}, ErrUnexpectedResponse},
+		{"nil error", &Message{}, nil, nil},
+		{"ErrIllegalValue", &Message{Command: Command{0, 0, 0xfb}, Flags: StandardDirectNak}, ErrNak, ErrIllegalValue},
+		{"ErrPreNak", &Message{Command: Command{0, 0, 0xfc}, Flags: StandardDirectNak}, ErrNak, ErrPreNak},
+		{"ErrIncorrectChecksum", &Message{Command: Command{0, 0, 0xfd}, Flags: StandardDirectNak}, ErrNak, ErrIncorrectChecksum},
+		{"ErrNoLoadDetected", &Message{Command: Command{0, 0, 0xfe}, Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
+		{"ErrNotLinked", &Message{Command: Command{0, 0, 0xff}, Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
+		{"ErrUnexpectedResponse", &Message{Command: Command{0, 0, 0xfa}, Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			_, got := i2csErrLookup(test.input)
+			_, got := i2csErrLookup(test.input, test.inputErr)
 			if !IsError(got, test.want) {
 				t.Errorf("want %v got %v", test.want, got)
 			}
@@ -91,7 +91,7 @@ func TestI2CsDeviceSendCommand(t *testing.T) {
 				ackFlags = ExtendedDirectAck
 			}
 			conn := &testConnection{acks: []*Message{{Flags: ackFlags}}}
-			device := newI2CsDevice(conn, time.Millisecond)
+			device := newI2CsDevice(testDialer{conn}, DeviceInfo{})
 			device.SendCommand(test.sndCmd, test.sndPayload)
 
 			gotMsg := conn.sent[0]
@@ -106,18 +106,4 @@ func TestI2CsDeviceSendCommand(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestI2CsDeviceIDRequest(t *testing.T) {
-	wantDevCat := DevCat{1, 2}
-	wantFirmwareVersion := FirmwareVersion(3)
-	conn := &testConnection{devCat: wantDevCat, firmwareVersion: wantFirmwareVersion}
-	device := newI2CsDevice(conn, 0)
-	gotFirmwareVersion, gotDevCat, _ := device.IDRequest()
-	if wantFirmwareVersion != gotFirmwareVersion {
-		t.Errorf("want Firmware Version %v got %v", wantFirmwareVersion, gotFirmwareVersion)
-	} else if wantDevCat != gotDevCat {
-		t.Errorf("want DevCat %v got %v", wantDevCat, gotDevCat)
-	}
-
 }

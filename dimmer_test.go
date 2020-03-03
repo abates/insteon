@@ -3,7 +3,6 @@ package insteon
 import (
 	"bytes"
 	"testing"
-	"time"
 )
 
 func TestDimmerConfig(t *testing.T) {
@@ -61,7 +60,7 @@ func TestDimmableDeviceConfig(t *testing.T) {
 	copy(msg.Payload, payload)
 
 	conn := &testConnection{recv: []*Message{msg}, acks: []*Message{TestAck}}
-	dd := NewDimmer(DeviceInfo{FirmwareVersion: 67}, conn, time.Millisecond)
+	dd := NewDimmer(&testDevice{conn}, DeviceInfo{FirmwareVersion: 67})
 	got, err := dd.Config()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -86,7 +85,7 @@ func TestDimmerSendCommand(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			conn := &testConnection{acks: []*Message{TestAck}}
-			dimmer := NewDimmer(DeviceInfo{FirmwareVersion: test.v}, conn, time.Millisecond)
+			dimmer := NewDimmer(testDevice{conn}, DeviceInfo{FirmwareVersion: test.v})
 			dimmer.SendCommand(test.sendCmd, nil)
 			gotCmd := conn.sent[0].Command
 			if test.wantCmd != gotCmd {

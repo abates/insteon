@@ -3,7 +3,6 @@ package insteon
 import (
 	"bytes"
 	"testing"
-	"time"
 )
 
 func TestSwitchConfig(t *testing.T) {
@@ -80,7 +79,7 @@ func TestSwitchedDeviceConfig(t *testing.T) {
 	copy(msg.Payload, payload)
 
 	conn := &testConnection{recv: []*Message{msg}, acks: []*Message{TestAck}}
-	sd := NewSwitch(DeviceInfo{}, conn, time.Millisecond)
+	sd := NewSwitch(testDevice{conn}, DeviceInfo{})
 
 	got, err := sd.Config()
 	if err != nil {
@@ -103,7 +102,7 @@ func TestSwitchedDeviceOperatingFlags(t *testing.T) {
 		conn.acks = append(conn.acks, &Message{Command: cmd})
 	}
 
-	sd := NewSwitch(DeviceInfo{}, conn, time.Nanosecond)
+	sd := NewSwitch(testDevice{conn}, DeviceInfo{})
 	want := LightFlags{3, 4, 5, 6, 7}
 	got, _ := sd.OperatingFlags()
 

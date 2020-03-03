@@ -16,7 +16,6 @@ package insteon
 
 import (
 	"fmt"
-	"time"
 )
 
 // SwitchConfig contains the HouseCode and UnitCode for a switch's
@@ -92,43 +91,43 @@ func (lf LightFlags) CleanupReport() bool { return lf[4]&0x04 == 0x04 }
 
 type Switch struct {
 	Device
-	timeout time.Duration
+	info DeviceInfo
 }
 
 // NewSwitch is a factory function that will return the correctly
 // configured switch based on the underlying device
-func NewSwitch(info DeviceInfo, device Device, timeout time.Duration) *Switch {
-	return &Switch{Device: device, timeout: timeout}
+func NewSwitch(device Device, info DeviceInfo) *Switch {
+	return &Switch{Device: device, info: info}
 }
 
 // Status sends a LightStatusRequest to determine the device's current
 // level. For switched devices this is either 0 or 255, dimmable devices
 // will be the current dim level between 0 and 255
 func (sd *Switch) Status() (level int, err error) {
-	ack, err := sd.Send(&Message{
-		Flags:   StandardDirectMessage,
-		Command: CmdLightStatusRequest,
-	})
+	ack, err := sd.SendCommand(CmdLightStatusRequest, nil)
 	if err == nil {
-		level = int(ack.Command[2])
+		level = int(ack[2])
 	}
 	return level, err
 }
 
 func (sd *Switch) String() string {
-	return fmt.Sprintf("Switch (%s)", sd.Address())
+	return fmt.Sprintf("Switch (%s)", sd.info.Address)
 }
 
 func (sd *Switch) Config() (config SwitchConfig, err error) {
 	// SEE Dimmer.Config() notes for explanation of D1 and D2 (payload[0] and payload[1])
-	ch := make(chan *Message, 1)
-	sd.AddHandler(ch, CmdExtendedGetSet)
-	defer sd.RemoveHandler(ch, CmdExtendedGetSet)
-	err = sd.Device.SendCommand(CmdExtendedGetSet, []byte{0x00, 0x00})
+	conn, err := sd.Dial(CmdExtendedGetSet)
 	if err == nil {
-		var msg *Message
-		msg, err = readFromCh(ch, sd.timeout)
-		err = config.UnmarshalBinary(msg.Payload)
+		defer conn.Close()
+		_, err := conn.Send(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x00, 0x00}})
+		if err == nil {
+			var msg *Message
+			msg, err = conn.Receive()
+			if err == nil {
+				err = config.UnmarshalBinary(msg.Payload)
+			}
+		}
 	}
 	return config, err
 }
@@ -142,14 +141,21 @@ func (sd *Switch) OperatingFlags() (flags LightFlags, err error) {
 		CmdGetOperatingFlags.SubCommand(0x05),
 	}
 
-	var ack *Message
-	for i := 0; i < len(commands) && err == nil; i++ {
-		ack, err = sd.Send(&Message{
-			Flags:   StandardDirectMessage,
-			Command: commands[i],
-		})
-		commands[i] = ack.Command
-		flags[i] = commands[i][2]
+	conn, err := sd.Dial(CmdGetOperatingFlags)
+	if err == nil {
+		defer conn.Close()
+		var ack *Message
+		for i := 0; i < len(commands) && err == nil; i++ {
+			ack, err = conn.Send(&Message{Command: commands[i]})
+			if err == nil {
+				commands[i] = ack.Command
+				flags[i] = commands[i][2]
+			}
+		}
 	}
 	return
+}
+
+func (sd *Switch) Address() Address {
+	return sd.info.Address
 }

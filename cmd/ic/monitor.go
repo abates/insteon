@@ -27,10 +27,11 @@ func init() {
 
 func monCmd(string) (err error) {
 	log.Printf("Starting monitor...")
-	ch := make(chan *insteon.Message, 10)
-	err = modem.Monitor(ch)
-	if err == nil {
-		for msg := range ch {
+	conn, err := modem.Monitor()
+	var msg *insteon.Message
+	for err == nil {
+		msg, err = conn.Receive()
+		if err == nil {
 			log.Printf("%s", msg)
 		}
 	}

@@ -42,16 +42,19 @@ func hexDump(format string, buf []byte, sep string) string {
 }
 
 type PLM struct {
+	insteon.Demux
+	reader PacketReader
+	writer io.Writer
+
 	linkdb
 	timeout    time.Duration
 	retries    int
 	writeDelay time.Duration
 	nextWrite  time.Time
-	reader     PacketReader
-	writer     io.Writer
-	demux      insteon.Demux
+	lastRead   time.Time
 
-	plmCh chan *Packet
+	connOptions []insteon.ConnectionOption
+	plmCh       chan *Packet
 }
 
 // The Option mechanism is based on the method described at https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
@@ -60,18 +63,14 @@ type Option func(p *PLM) error
 // New creates a new PLM instance.
 func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...Option) (*PLM, error) {
 	plm := &PLM{
-		timeout:    timeout,
-		retries:    3,
-		writeDelay: 500 * time.Millisecond,
 		reader:     NewPacketReader(reader),
 		writer:     LogWriter{writer},
+		timeout:    timeout,
+		retries:    3,
+		writeDelay: 0,
 
-		plmCh: make(chan *Packet),
+		plmCh: make(chan *Packet, 1),
 	}
-
-	plm.demux.Sender = plm
-	plm.linkdb.plm = plm
-	plm.linkdb.timeout = timeout
 
 	for _, o := range options {
 		err := o(plm)
@@ -81,14 +80,37 @@ func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...O
 		}
 	}
 
+	if plm.Demux == nil {
+		plm.Demux = insteon.NewDemux(plm, plm.connOptions...)
+	}
+
+	plm.linkdb.plm = plm
+	plm.linkdb.retries = plm.retries
+	plm.linkdb.timeout = plm.timeout
+
 	go plm.readLoop()
 	return plm, nil
+}
+
+// Demux sets the internal demuxer that the PLM will use
+func Demux(demux insteon.Demux) Option {
+	return func(p *PLM) error {
+		p.Demux = demux
+		return nil
+	}
 }
 
 // WriteDelay can be passed as a parameter to New to change the delay used after writing a command before reading the response.
 func WriteDelay(d time.Duration) Option {
 	return func(p *PLM) error {
 		p.writeDelay = d
+		return nil
+	}
+}
+
+func ConnectionOptions(options ...insteon.ConnectionOption) Option {
+	return func(p *PLM) error {
+		p.connOptions = options
 		return nil
 	}
 }
@@ -100,49 +122,46 @@ func (plm *PLM) readLoop() {
 			insteon.Log.Tracef("%v", packet)
 			if packet.Command == CmdStdMsgReceived || packet.Command == CmdExtMsgReceived {
 				msg := &insteon.Message{}
-				err := msg.UnmarshalBinary(packet.Payload)
+				err = msg.UnmarshalBinary(packet.Payload)
 				if err == nil {
-					plm.demux.Dispatch(msg)
-				} else {
-					insteon.Log.Infof("Failed to unmarshal Insteon Message: %v", err)
+					insteon.Log.Debugf("PLM Insteon RX %v", msg)
+					plm.Dispatch(msg)
 				}
 			} else {
-				plm.plmCh <- packet
+				insteon.Log.Debugf("PLM CMD RX %v", packet)
+				select {
+				case plm.plmCh <- packet:
+				default:
+					insteon.Log.Infof("Nothing listening on PLM channel")
+				}
 			}
 		} else {
 			if err != io.EOF {
-				insteon.Log.Infof("Failed to read from PLM port: %v", err)
+				insteon.Log.Infof("PLM Read Error: %v", err)
 			}
 			break
 		}
 	}
+
+	insteon.Log.Infof("PLM Read Done")
 }
 
-func (plm *PLM) Send(msg *insteon.Message) error {
+// WriteMessage to the network
+func (plm *PLM) WriteMessage(msg *insteon.Message) error {
 	buf, err := msg.MarshalBinary()
 	if err == nil {
 		// slice off the source address since the PLM doesn't want it
 		buf = buf[3:]
-		retries := 0
-		err = ErrRetryCountExceeded
-		for retries < plm.retries {
-			_, err = plm.send(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
-			if err == ErrNak || err == ErrReadTimeout {
-				// TODO add exponential backoff
-				retries++
-			} else {
-				break
-			}
-		}
+		_, err = RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
 	}
 
 	return err
 }
 
-// send a packet and wait for the PLM to ack that the packet was
+// WritePacket and wait for the PLM to ack that the packet was
 // sent.  This is a blocking function. Only callers that have acquired
 // the mutex should call this function
-func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
+func (plm *PLM) WritePacket(txPacket *Packet) (ack *Packet, err error) {
 	writeDelay := time.Duration(0)
 	if txPacket.Command == CmdSendInsteonMsg {
 		writeDelay = plm.writeDelay
@@ -159,14 +178,17 @@ func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
 		if time.Now().Before(plm.nextWrite) {
 			delay := plm.nextWrite.Sub(time.Now())
 			insteon.Log.Tracef("Delaying write for %s", delay)
-			<-time.After(delay)
+			time.Sleep(delay)
 		}
 
 		insteon.Log.Tracef("Sending packet %v (write delay %v)", txPacket, writeDelay)
-		plm.writer.Write(buf)
+		_, err = plm.writer.Write(buf)
 		plm.nextWrite = time.Now().Add(writeDelay)
 
-		ack, err = plm.ReadPacket()
+		if err == nil {
+			insteon.Log.Debugf("PLM TX %v", txPacket)
+			ack, err = plm.ReadPacket()
+		}
 	}
 	return
 }
@@ -174,39 +196,26 @@ func (plm *PLM) send(txPacket *Packet) (ack *Packet, err error) {
 func (plm *PLM) ReadPacket() (pkt *Packet, err error) {
 	select {
 	case pkt = <-plm.plmCh:
-		if pkt.NAK() {
-			err = ErrNak
-		}
 	case <-time.After(plm.timeout):
-		err = ErrReadTimeout
+		return nil, ErrReadTimeout
 	}
 
-	return
-}
-
-func (plm *PLM) Connect(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Connection, error) {
-	return plm.demux.New(addr, options...)
-}
-
-func (plm *PLM) Open(addr insteon.Address, options ...insteon.ConnectionOption) (insteon.Device, error) {
-	conn, err := plm.Connect(addr, options...)
-	if err != nil {
-		return nil, err
+	if pkt.NAK() {
+		err = ErrNak
 	}
-
-	return insteon.Open(conn, plm.timeout)
+	return pkt, err
 }
 
-func (plm *PLM) Monitor(ch chan *insteon.Message) error {
-	conn, err := plm.demux.New(insteon.Wildcard)
-	if err == nil {
-		conn.AddHandler(ch, insteon.Command{0x00, 0xff, 0xff})
-	}
-	return err
+func (plm *PLM) Open(dst insteon.Address) (insteon.Device, error) {
+	return insteon.Open(plm.Demux, dst)
+}
+
+func (plm *PLM) Monitor() (insteon.Connection, error) {
+	return plm.Demux.Dial(insteon.Wildcard)
 }
 
 func (plm *PLM) Info() (info *Info, err error) {
-	ack, err := plm.send(&Packet{Command: CmdGetInfo})
+	ack, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdGetInfo})
 	if err == nil {
 		info = &Info{}
 		err = info.UnmarshalBinary(ack.Payload)
@@ -219,13 +228,13 @@ func (plm *PLM) Reset() error {
 	timeout := plm.timeout
 	plm.timeout = 20 * time.Second
 
-	_, err := plm.send(&Packet{Command: CmdReset})
+	_, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdReset})
 	plm.timeout = timeout
 	return err
 }
 
 func (plm *PLM) Config() (config Config, err error) {
-	ack, err := plm.send(&Packet{Command: CmdGetConfig})
+	ack, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdGetConfig})
 	if err == nil {
 		err = config.UnmarshalBinary(ack.Payload)
 	}
@@ -234,7 +243,7 @@ func (plm *PLM) Config() (config Config, err error) {
 
 func (plm *PLM) SetConfig(config Config) error {
 	payload, _ := config.MarshalBinary()
-	_, err := plm.send(&Packet{Command: CmdSetConfig, Payload: payload})
+	_, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdSetConfig, Payload: payload})
 	return err
 }
 

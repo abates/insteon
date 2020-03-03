@@ -22,24 +22,19 @@ import (
 type i2Device struct {
 	*i1Device
 	linkdb
-	conn    Connection
-	timeout time.Duration
 }
 
 // newI2Device will construct an device object that can communicate with version 2
 // Insteon engines
-func newI2Device(connection Connection, timeout time.Duration) *i2Device {
-	i2 := &i2Device{i1Device: newI1Device(connection, timeout), timeout: timeout}
-	i2.conn = connection
-	i2.linkdb.device = i2
-	i2.linkdb.timeout = timeout
+func newI2Device(dial Dialer, info DeviceInfo) *i2Device {
+	i2 := &i2Device{i1Device: newI1Device(dial, info)}
+	i2.linkdb.dialer = i2
 	return i2
 }
 
 func (i2 *i2Device) linkingMode(cmd Command, payload []byte) (err error) {
-	err = i2.i1Device.SendCommand(cmd, payload)
+	_, err = i2.SendCommand(cmd, payload)
 	if err == nil {
-		Log.Tracef("Waiting %s for response (Set-Button Pressed Controller/Responder)", i2.timeout)
 		<-time.After(PropagationDelay(3, len(payload) > 0))
 	}
 	return err
@@ -48,7 +43,7 @@ func (i2 *i2Device) linkingMode(cmd Command, payload []byte) (err error) {
 // String returns the string "I2 Device (<address>)" where <address> is the destination
 // address of the device
 func (i2 *i2Device) String() string {
-	return sprintf("I2 Device (%s)", i2.Address())
+	return sprintf("I2 Device (%s)", i2.Info().Address)
 }
 
 func (i2 *i2Device) EnterLinkingMode(group Group) error {
@@ -60,7 +55,8 @@ func (i2 *i2Device) EnterUnlinkingMode(group Group) error {
 }
 
 func (i2 *i2Device) ExitLinkingMode() error {
-	return i2.SendCommand(ExitLinkingMode())
+	_, err := i2.SendCommand(ExitLinkingMode())
+	return err
 }
 
 func (i2 *i2Device) LinkDatabase() (Linkable, error) {

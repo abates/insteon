@@ -16,7 +16,6 @@ package insteon
 
 import (
 	"fmt"
-	"time"
 )
 
 // DimmerConfig includes the X10 configuration as well as default ramp
@@ -64,35 +63,25 @@ func (dc *DimmerConfig) MarshalBinary() ([]byte, error) {
 
 type Dimmer struct {
 	*Switch
-	timeout time.Duration
-}
-
-type v67DimmerDevice struct {
-	Device
-}
-
-func (dd v67DimmerDevice) SendCommand(cmd Command, payload []byte) error {
-	if cmd[1] == CmdLightOnAtRamp[1] {
-		cmd = CmdLightOnAtRampV67.SubCommand(int(cmd[2]))
-	} else if cmd[1] == CmdLightOffAtRamp[1] {
-		cmd = CmdLightOffAtRampV67.SubCommand(int(cmd[2]))
-	}
-	return dd.Device.SendCommand(cmd, payload)
+	info DeviceInfo
 }
 
 // NewDimmer is a factory function that will return a dimmer switch configured
 // appropriately for the given firmware version.  All dimmers are switches, so
 // the first argument is a Switch object used to compose the new dimmer
-func NewDimmer(info DeviceInfo, device Device, timeout time.Duration) *Dimmer {
-	if info.FirmwareVersion >= 0x43 {
-		device = v67DimmerDevice{device}
-	}
+func NewDimmer(device Device, info DeviceInfo) *Dimmer {
+	return &Dimmer{Switch: NewSwitch(device, info), info: info}
+}
 
-	dd := &Dimmer{
-		Switch:  NewSwitch(info, device, timeout),
-		timeout: timeout,
+func (dd *Dimmer) SendCommand(cmd Command, payload []byte) (Command, error) {
+	if dd.info.FirmwareVersion >= 0x43 {
+		if cmd[1] == CmdLightOnAtRamp[1] {
+			cmd = CmdLightOnAtRampV67.SubCommand(int(cmd[2]))
+		} else if cmd[1] == CmdLightOffAtRamp[1] {
+			cmd = CmdLightOffAtRampV67.SubCommand(int(cmd[2]))
+		}
 	}
-	return dd
+	return dd.Switch.SendCommand(cmd, payload)
 }
 
 func (dd *Dimmer) Config() (config DimmerConfig, err error) {
@@ -101,21 +90,20 @@ func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
-	ch := make(chan *Message, 1)
-	dd.AddHandler(ch, CmdExtendedGetSet)
-	defer dd.RemoveHandler(ch, CmdExtendedGetSet)
-
-	err = dd.Switch.SendCommand(CmdExtendedGetSet, []byte{0x01, 0x00})
+	conn, err := dd.Dial(CmdExtendedGetSet)
 	if err == nil {
-		var msg *Message
-		msg, err = readFromCh(ch, dd.timeout)
+		defer conn.Close()
+		_, err := conn.Send(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
 		if err == nil {
-			err = config.UnmarshalBinary(msg.Payload)
+			msg, err := conn.Receive()
+			if err == nil {
+				err = config.UnmarshalBinary(msg.Payload)
+			}
 		}
 	}
 	return config, err
 }
 
 func (dd *Dimmer) String() string {
-	return fmt.Sprintf("Dimmer (%s)", dd.Address())
+	return fmt.Sprintf("Dimmer (%s)", dd.info.Address)
 }

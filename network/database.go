@@ -26,9 +26,10 @@ import (
 // must be thread safe as the methods can be called from multiple
 // go routines
 type ProductDatabase interface {
-	UpdateDevCat(address insteon.Address, devCat insteon.DevCat)
-	UpdateEngineVersion(address insteon.Address, engineVersion insteon.EngineVersion)
-	UpdateFirmwareVersion(address insteon.Address, firmwareVersion insteon.FirmwareVersion)
+	//UpdateDevCat(address insteon.Address, devCat insteon.DevCat)
+	//UpdateEngineVersion(address insteon.Address, engineVersion insteon.EngineVersion)
+	//UpdateFirmwareVersion(address insteon.Address, firmwareVersion insteon.FirmwareVersion)
+	Update(address insteon.Address, cb func(deviceInfo insteon.DeviceInfo))
 	Find(address insteon.Address) (deviceInfo insteon.DeviceInfo, found bool)
 }
 

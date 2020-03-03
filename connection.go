@@ -16,13 +16,38 @@ package insteon
 
 import (
 	"fmt"
+	"io"
+	"sync"
 	"time"
+)
+
+const (
+	NumRetries = 5
+
+	Timeout = time.Second * 5
 )
 
 // Sender will deliver an Insteon message to the network
 type Sender interface {
 	// Send will send a message to the device
 	Send(*Message) error
+}
+
+type MessageReader interface {
+	ReadMessage() (*Message, error)
+}
+
+type MessageWriter interface {
+	WriteMessage(*Message) error
+}
+
+type Bridge interface {
+	MessageReader
+	MessageWriter
+}
+
+type Dialer interface {
+	Dial(dst Address, cmds ...Command) (conn Connection, err error)
 }
 
 // Demux provides a way to demultiplex incoming Insteon messages to
@@ -34,90 +59,93 @@ type Sender interface {
 // readLoop in the PLM implementation) then no locking is required.  The
 // underlying Connections use channel to pass messages so they are inherently
 // thread safe
-type Demux struct {
-	// Sender is the upstream device (PLM, for instance)
-	Sender
-	connections map[Address][]Connection
+type Demux interface {
+	Dialer
+	MessageWriter
+	Dispatch(msg *Message)
 }
 
-// Dispatch a message to the proper listening connection
-func (d *Demux) Dispatch(msg *Message) {
+type demux struct {
+	// Sender is the upstream device (PLM, for instance)
+	MessageWriter
+	reader      MessageReader
+	connections map[Address][]*connection
+	lock        sync.Mutex
+	options     []ConnectionOption
+}
+
+func NewDemux(writer MessageWriter, options ...ConnectionOption) Demux {
+	d := &demux{
+		MessageWriter: writer,
+		connections:   make(map[Address][]*connection),
+	}
+
+	return d
+}
+
+func (d *demux) Dispatch(msg *Message) {
+	d.lock.Lock()
+	defer d.lock.Unlock()
+	Log.Debugf("RX %s", msg)
 	for _, addr := range []Address{msg.Src, Wildcard} {
-		if connections, found := d.connections[addr]; found {
-			for _, conn := range connections {
-				conn.Dispatch(msg)
-			}
+		for _, conn := range d.connections[addr] {
+			conn.dispatch(msg)
 		}
 	}
 }
 
-// New creates a new connection that will receive messages dispatched by
-// this demux.  The returned connection will use the upstream sender
-// directly.
-func (d *Demux) New(addr Address, options ...ConnectionOption) (Connection, error) {
-	var err error
-	conn, err := newConnection(d, addr, options...)
+func (d *demux) Dial(addr Address, cmds ...Command) (Connection, error) {
+	conn, err := newConnection(d, addr, cmds, d.options...)
+
 	if err == nil {
-		if d.connections == nil {
-			d.connections = make(map[Address][]Connection)
-		}
+		d.lock.Lock()
+		defer d.lock.Unlock()
 		d.connections[addr] = append(d.connections[addr], conn)
 	}
 	return conn, err
 }
 
-// Connection is a very basic communication mechanism to send
-// and receive messages with individual Insteon devices.
-type Connection interface {
-	// Address returns the unique Insteon address of the device
-	Address() Address
+func (d *demux) close(conn *connection) {
+	d.lock.Lock()
+	defer d.lock.Unlock()
+	for i, lconn := range d.connections[conn.addr] {
+		if conn == lconn {
+			d.connections[conn.addr] = append(d.connections[conn.addr][0:i], d.connections[conn.addr][i+1:]...)
+			break
+		}
+	}
+}
 
-	// Dispatch will deliver a message to this connection.  This should
-	// only be called by upstream interfaces, such as Demux or PLM
-	Dispatch(*Message)
-
+type MessageSender interface {
 	// Send will send the message to the device and wait for the
 	// device to respond with an Ack/Nak.  Send will always return
 	// but may return with a read timeout or other communication error
 	Send(*Message) (ack *Message, err error)
+}
 
+type MessageReceiver interface {
 	// Receive waits for the next message from the device.  Receive
 	// always returns, but may return with an error (such as ErrReadTimeout)
-	//Receive() (*Message, error)
+	Receive() (*Message, error)
+}
 
-	// IDRequest sends an IDRequest command to the device and waits for
-	// the corresponding Set Button Pressed Controller/Responder message.
-	// The response is parsed and the Firmware version and DevCat are
-	// returned.  A ReadTimeout may occur if the device doesn't respond
-	// with the appropriate broadcast message, or if the local system
-	// doesn't receive it
-	IDRequest() (FirmwareVersion, DevCat, error)
+// Connection is a very basic communication mechanism to send
+// and receive messages with individual Insteon devices.
+type Connection interface {
+	MessageReceiver
+	io.Closer
 
-	// EngineVersion will query the device for its Insteon Engine Version
-	// and returns the response.  If the device never responds, then ErrReadTimeout
-	// is the returned error.  If the device responds with a Nak and Command 2
-	// is 0xff then that means the engine version is I2Cs and the device does
-	// not have a corresponding link entry.  In this case, VerI2Cs is returned
-	// as well as ErrNotLinked
-	EngineVersion() (EngineVersion, error)
-
-	// AddHandler adds an event handler that is called when a message containing the
-	// first byte of the given command is received.  This is useful to setup
-	// event handlers to update internal state, which may arrive in asynchronous
-	// messages
-	AddHandler(chan<- *Message, ...Command)
-
-	// RemoveHandler will remove a previously set message handler
-	RemoveHandler(chan<- *Message, ...Command)
+	Send(msg *Message) (ack *Message, err error)
 }
 
 type connection struct {
-	addr Address
-	//match    []Command
-	timeout  time.Duration
-	ttl      uint8
-	upstream Sender
-	handlers map[byte]map[chan<- *Message]interface{}
+	MessageWriter
+	recvCh  chan *Message
+	addr    Address
+	match   []Command
+	timeout time.Duration
+	ttl     uint8
+	retries int
 }
 
 // ConnectionOption provides a means to customize the connection config
@@ -143,20 +171,14 @@ func ConnectionTimeout(timeout time.Duration) ConnectionOption {
 	}
 }
 
-// NewConnection will return a connection that is setup and ready to be used.  The txCh and
-// rxCh will be used to send and receive insteon messages.  Any supplied options will be
-// used to customize the connection's config
-func NewConnection(upstream Sender, addr Address, options ...ConnectionOption) (Connection, error) {
-	return newConnection(upstream, addr, options...)
-}
-
-func newConnection(upstream Sender, addr Address, options ...ConnectionOption) (*connection, error) {
+func newConnection(writer MessageWriter, addr Address, cmds []Command, options ...ConnectionOption) (*connection, error) {
 	conn := &connection{
-		addr:    addr,
-		timeout: 3 * time.Second,
-
-		handlers: make(map[byte]map[chan<- *Message]interface{}),
-		upstream: upstream,
+		MessageWriter: writer,
+		recvCh:        make(chan *Message, 1),
+		addr:          addr,
+		match:         cmds,
+		timeout:       Timeout,
+		retries:       NumRetries,
 	}
 
 	for _, option := range options {
@@ -166,112 +188,112 @@ func newConnection(upstream Sender, addr Address, options ...ConnectionOption) (
 			return nil, err
 		}
 	}
-
 	return conn, nil
 }
 
-func (conn *connection) Address() Address {
-	return conn.addr
-}
-
-func (conn *connection) Dispatch(msg *Message) {
-	handlers, found := conn.handlers[msg.Command[1]]
-	// look for wildcard handlers if any exist
-	if !found {
-		handlers, found = conn.handlers[0xff]
+func (conn *connection) Close() error {
+	if demux, ok := conn.MessageWriter.(*demux); ok {
+		demux.close(conn)
 	}
-
-	if found {
-		for handler := range handlers {
-			handler <- msg
-		}
-	}
-}
-
-func (conn *connection) AddHandler(ch chan<- *Message, cmds ...Command) {
-	for _, cmd := range cmds {
-		handlers, found := conn.handlers[cmd[1]]
-		if !found {
-			handlers = make(map[chan<- *Message]interface{})
-			conn.handlers[cmd[1]] = handlers
-		}
-		handlers[ch] = struct{}{}
-	}
-}
-
-func (conn *connection) RemoveHandler(ch chan<- *Message, cmds ...Command) {
-	for _, cmd := range cmds {
-		if handlers, found := conn.handlers[cmd[1]]; found {
-			delete(handlers, ch)
-		}
-	}
+	return nil
 }
 
 func (conn *connection) Send(msg *Message) (ack *Message, err error) {
-	return conn.send(msg)
-}
-
-func (conn *connection) addHandler(buflen int, cmds ...Command) chan *Message {
-	ch := make(chan *Message, buflen)
-	conn.AddHandler(ch, cmds...)
-	return ch
-}
-
-func readFromCh(ch <-chan *Message, timeout time.Duration) (*Message, error) {
-	select {
-	case msg := <-ch:
-		return msg, nil
-	case <-time.After(timeout):
-	}
-	return nil, ErrReadTimeout
-}
-
-func (conn *connection) send(msg *Message) (ack *Message, err error) {
-	ch := conn.addHandler(1, msg.Command)
-	defer conn.RemoveHandler(ch, msg.Command)
-
 	msg.Dst = conn.addr
-	msg.Flags = Flag(MsgTypeDirect, len(msg.Payload) > 0, conn.ttl, conn.ttl)
-	Log.Tracef("Connection %v TX %v", conn.addr, msg)
-	err = conn.upstream.Send(msg)
+	msg.Flags = StandardDirectMessage
+	if len(msg.Payload) > 0 {
+		msg.Flags = ExtendedDirectMessage
+		if len(msg.Payload) < 14 {
+			tmp := make([]byte, 14)
+			copy(tmp, msg.Payload)
+			msg.Payload = tmp
+		}
+	}
+	retries := 0
+	for err == nil && retries <= conn.retries {
+		err = conn.WriteMessage(msg)
 
-	if err == nil {
-		ack, err = readFromCh(ch, conn.timeout)
-		if err == ErrReadTimeout {
-			err = ErrAckTimeout
+		if err == nil {
+			Log.Debugf("TX %s", msg)
+			// wait for ack
+			ack, err = conn.Receive()
+			if err == nil {
+				if ack.Nak() {
+					err = ErrNak
+				}
+				break
+			} else if err == ErrReadTimeout {
+				err = nil
+				retries++
+				if retries > conn.retries {
+					err = ErrAckTimeout
+					break
+				}
+			}
 		}
 	}
 	return ack, err
 }
 
-func (conn *connection) IDRequest() (version FirmwareVersion, devCat DevCat, err error) {
-	ch := conn.addHandler(1, CmdSetButtonPressedResponder, CmdSetButtonPressedController)
-	defer conn.RemoveHandler(ch, CmdSetButtonPressedResponder, CmdSetButtonPressedController)
-	_, err = conn.send(&Message{Command: CmdIDRequest, Flags: StandardDirectMessage})
-	msg, err := readFromCh(ch, conn.timeout)
+func (conn *connection) Receive() (*Message, error) {
+	select {
+	case msg := <-conn.recvCh:
+		return msg, nil
+	case <-time.After(conn.timeout):
+	}
+	return nil, ErrReadTimeout
+}
+
+func (conn *connection) dispatch(msg *Message) {
+	if len(conn.match) == 0 {
+		// match everything
+		conn.recvCh <- msg
+	} else {
+		for _, cmd := range conn.match {
+			if cmd[1] == msg.Command[1] {
+				conn.recvCh <- msg
+				break
+			}
+		}
+	}
+}
+
+func IDRequest(dialer Dialer, dst Address) (version FirmwareVersion, devCat DevCat, err error) {
+	conn, err := dialer.Dial(dst, CmdIDRequest, CmdSetButtonPressedResponder, CmdSetButtonPressedController)
+	defer conn.Close()
 	if err == nil {
-		version = FirmwareVersion(msg.Dst[2])
-		devCat = DevCat{msg.Dst[0], msg.Dst[1]}
+		_, err := conn.Send(&Message{Command: CmdIDRequest})
+		if err == nil {
+			var msg *Message
+			msg, err = conn.Receive()
+			if err == nil {
+				version = FirmwareVersion(msg.Dst[2])
+				devCat = DevCat{msg.Dst[0], msg.Dst[1]}
+			}
+		}
 	}
 	return
 }
 
-func (conn *connection) EngineVersion() (version EngineVersion, err error) {
-	ack, err := conn.Send(&Message{Command: CmdGetEngineVersion, Flags: StandardDirectMessage})
+func GetEngineVersion(dialer Dialer, dst Address) (version EngineVersion, err error) {
+	conn, err := dialer.Dial(dst, CmdGetEngineVersion)
+	defer conn.Close()
 	if err == nil {
-		if ack.Nak() {
+		var ack *Message
+		ack, err = conn.Send(&Message{Command: CmdGetEngineVersion})
+		if err == nil {
+			Log.Debugf("Device %v responded with an engine version %d", conn, ack.Command[2])
+			version = EngineVersion(ack.Command[2])
+		} else if err == ErrNak {
 			// This only happens if the device is an I2Cs device and
 			// is not linked to the queryier
 			if ack.Command[2] == 0xff {
-				Log.Debugf("Device %v is an unlinked I2Cs device", conn.Address())
+				Log.Debugf("Device %v is an unlinked I2Cs device", conn)
 				version = VerI2Cs
 				err = ErrNotLinked
 			} else {
 				err = ErrNak
 			}
-		} else {
-			Log.Debugf("Device %v responded with an engine version %d", conn.Address(), ack.Command[2])
-			version = EngineVersion(ack.Command[2])
 		}
 	}
 	return

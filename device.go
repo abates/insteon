@@ -14,10 +14,6 @@
 
 package insteon
 
-import (
-	"time"
-)
-
 // Insteon Engine Versions
 const (
 	VerI1 EngineVersion = iota
@@ -36,18 +32,22 @@ type Addressable interface {
 	Address() Address
 }
 
+type DeviceDialer interface {
+	Dial(cmds ...Command) (Connection, error)
+}
+
 // Commandable indicates that the implementation exists to send commands
 type Commandable interface {
 	// SendCommand will send the given command bytes to the device including
 	// a payload (for extended messages). If payload length is zero then a standard
 	// length message is used to deliver the commands.
-	SendCommand(cmd Command, payload []byte) error
+	SendCommand(cmd Command, payload []byte) (ack Command, err error)
 }
 
 // Device is the most basic capability that any device must implement. Devices
 // can be sent commands and can receive messages
 type Device interface {
-	Connection
+	DeviceDialer
 
 	Commandable
 
@@ -56,6 +56,9 @@ type Device interface {
 	// not support the All-Link database then an ErrNotSupported will
 	// be returned
 	LinkDatabase() (Linkable, error)
+
+	// Info will return the device's information
+	Info() DeviceInfo
 }
 
 // PingableDevice is any device that implements the Ping method
@@ -153,23 +156,23 @@ type DeviceInfo struct {
 // returned.  Only I2CsDevices will respond with a "Not Linked" NAK when being
 // queried for the EngineVersion.
 //
-// If no spefici device type is found in the registry, then the base device (I1Device,
+// If no specific device type is found in the registry, then the base device (I1Device,
 // I2Device or I2CsDevice) is returned.  If, in opening the device, a "Not Linked" NAK
 // is encountered, then the I2CsDevice is returned with an ErrNotLinked error.  This
 // allows the application to initiate linking, if desired
-func Open(conn Connection, timeout time.Duration) (device Device, err error) {
-	version, err := conn.EngineVersion()
+func Open(dialer Dialer, dst Address) (device Device, err error) {
+	version, err := GetEngineVersion(dialer, dst)
 	if err == nil {
 		info := DeviceInfo{
-			Address:       conn.Address(),
+			Address:       dst,
 			EngineVersion: version,
 		}
-		info.FirmwareVersion, info.DevCat, err = conn.IDRequest()
+		info.FirmwareVersion, info.DevCat, err = IDRequest(dialer, dst)
 		if err == nil {
-			device, err = New(info, conn, timeout)
+			device, err = New(dialer, info)
 		}
 	} else if err == ErrNotLinked {
-		device, _ = create(VerI2Cs, conn, timeout)
+		device, _ = create(dialer, DeviceInfo{EngineVersion: VerI2Cs})
 	}
 	return device, err
 }
@@ -177,14 +180,14 @@ func Open(conn Connection, timeout time.Duration) (device Device, err error) {
 // New will use the supplied DeviceInfo to create a device instance for the
 // given connection.  For instance, if the DevCat is 0x01 with an I2CS
 // EngineVersion then a Dimmer with an underlying i2CsDevice will be returned
-func New(info DeviceInfo, conn Connection, timeout time.Duration) (Device, error) {
-	device, err := create(info.EngineVersion, conn, timeout)
+func New(dialer Dialer, info DeviceInfo) (Device, error) {
+	device, err := create(dialer, info)
 	if err == nil {
 		switch info.DevCat.Domain() {
 		case DimmerDomain:
-			device = NewDimmer(info, device, timeout)
+			device = NewDimmer(device, info)
 		case SwitchDomain:
-			device = NewSwitch(info, device, timeout)
+			device = NewSwitch(device, info)
 		}
 	}
 	return device, err
@@ -192,14 +195,14 @@ func New(info DeviceInfo, conn Connection, timeout time.Duration) (Device, error
 
 // create will return either an I1Device, an I2Device or an I2CsDevice based on the
 // supplied EngineVersion
-func create(version EngineVersion, conn Connection, timeout time.Duration) (device Device, err error) {
-	switch version {
+func create(dialer Dialer, info DeviceInfo) (device Device, err error) {
+	switch info.EngineVersion {
 	case VerI1:
-		device = newI1Device(conn, timeout)
+		device = newI1Device(dialer, info)
 	case VerI2:
-		device = newI2Device(conn, timeout)
+		device = newI2Device(dialer, info)
 	case VerI2Cs:
-		device = newI2CsDevice(conn, timeout)
+		device = newI2CsDevice(dialer, info)
 	default:
 		err = ErrVersion
 	}

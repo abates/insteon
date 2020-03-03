@@ -23,6 +23,24 @@ func mkPayload(buf ...byte) []byte {
 	return append(buf, make([]byte, 14-len(buf))...)
 }
 
+type testDevice struct {
+	conn Connection
+}
+
+func (td testDevice) Dial(cmds ...Command) (Connection, error) { return td.conn, nil }
+
+func (td testDevice) SendCommand(cmd Command, payload []byte) (ack Command, err error) {
+	msg, err := td.conn.Send(&Message{Command: cmd, Payload: payload})
+	if err == nil {
+		ack = msg.Command
+	}
+	return
+}
+
+func (td testDevice) LinkDatabase() (Linkable, error) { return nil, nil }
+
+func (td testDevice) Info() DeviceInfo { return DeviceInfo{} }
+
 func TestDeviceCreate(t *testing.T) {
 	tests := []struct {
 		desc     string
@@ -38,7 +56,7 @@ func TestDeviceCreate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			device, gotErr := create(test.input, &testConnection{}, 0)
+			device, gotErr := create(nil, DeviceInfo{EngineVersion: test.input})
 			gotType := reflect.TypeOf(device)
 
 			if test.wantErr != gotErr {
@@ -59,18 +77,18 @@ func TestDeviceOpen(t *testing.T) {
 		wantType reflect.Type
 		wantErr  error
 	}{
-		{"I1Device", &testConnection{engineVersion: VerI1}, reflect.TypeOf(&i1Device{}), nil},
-		{"I2Device", &testConnection{engineVersion: VerI2}, reflect.TypeOf(&i2Device{}), nil},
-		{"I2CsDevice", &testConnection{engineVersion: VerI2Cs}, reflect.TypeOf(&i2CsDevice{}), nil},
-		{"Dimmer", &testConnection{engineVersion: VerI1, devCat: DevCat{1, 0}}, reflect.TypeOf(&Dimmer{}), nil},
-		{"Switch", &testConnection{engineVersion: VerI1, devCat: DevCat{2, 0}}, reflect.TypeOf(&Switch{}), nil},
-		{"ErrVersion", &testConnection{engineVersion: 4}, reflect.TypeOf(nil), ErrVersion},
-		{"Not Linked", &testConnection{engineVersionErr: ErrNotLinked}, reflect.TypeOf(&i2CsDevice{}), ErrNotLinked},
+		{"I1Device", &testConnection{acks: []*Message{TestMessageEngineVersion1, TestAck}, recv: []*Message{SetButtonPressed(false, 0, 0, 0)}}, reflect.TypeOf(&i1Device{}), nil},
+		{"I2Device", &testConnection{acks: []*Message{TestMessageEngineVersion2, TestAck}, recv: []*Message{SetButtonPressed(false, 0, 0, 0)}}, reflect.TypeOf(&i2Device{}), nil},
+		{"I2CsDevice", &testConnection{acks: []*Message{TestMessageEngineVersion2cs, TestAck}, recv: []*Message{SetButtonPressed(false, 0, 0, 0)}}, reflect.TypeOf(&i2CsDevice{}), nil},
+		{"Dimmer", &testConnection{acks: []*Message{TestMessageEngineVersion2cs, TestAck}, recv: []*Message{SetButtonPressed(false, 1, 0, 0)}}, reflect.TypeOf(&Dimmer{}), nil},
+		{"Switch", &testConnection{acks: []*Message{TestMessageEngineVersion2cs, TestAck}, recv: []*Message{SetButtonPressed(false, 2, 0, 0)}}, reflect.TypeOf(&Switch{}), nil},
+		{"ErrVersion", &testConnection{acks: []*Message{TestMessageEngineVersion3, TestAck}, recv: []*Message{SetButtonPressed(false, 0, 0, 0)}}, reflect.TypeOf(nil), ErrVersion},
+		{"Not Linked", &testConnection{acks: []*Message{Ack(false, 0, 255)}, recv: []*Message{SetButtonPressed(false, 0, 0, 0)}}, reflect.TypeOf(&i2CsDevice{}), ErrNotLinked},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			device, gotErr := Open(test.input, 0)
+			device, gotErr := Open(&testDialer{test.input}, Address{})
 			gotType := reflect.TypeOf(device)
 
 			if test.wantErr != gotErr {

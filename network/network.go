@@ -30,19 +30,13 @@ type Bridge interface {
 // Network is the main means to communicate with
 // devices on the Insteon network
 type Network struct {
-	timeout     time.Duration
-	DB          ProductDatabase
-	connections []insteon.Connection
 }
 
 // New creates a new Insteon network instance for the send and receive channels.  The timeout
 // indicates how long the network (and subsuquent devices) should wait when expecting incoming
 // messages/responses
 func New(bridge Bridge, options ...Option) (*Network, error) {
-	network := &Network{
-		timeout: time.Second * 10,
-		DB:      NewProductDB(),
-	}
+	network := &Network{}
 
 	for _, option := range options {
 		if err := option(network); err != nil {
@@ -51,6 +45,15 @@ func New(bridge Bridge, options ...Option) (*Network, error) {
 	}
 
 	return network, nil
+}
+
+func (net *Network) Open(dst insteon.Address) (insteon.Device, error) {
+	// look in the database to see if we know about this device
+	info, found := net.db.Find(dst)
+	if found {
+	} else {
+		// if we don't know about the device, query the network
+	}
 }
 
 /*func (network *Network) process() {

@@ -26,6 +26,12 @@ const (
 	LinkRecordSize = MemAddress(8)
 )
 
+var (
+	// MaxLinkDbAge is the amount of time to wait until the local link database
+	// is considered old
+	MaxLinkDbAge = time.Hour
+)
+
 // MemAddress is an integer representing a specific location in a device's memory
 type MemAddress int
 
@@ -126,15 +132,14 @@ const (
 )
 
 type linkdb struct {
-	device  Device
-	age     time.Time
-	links   []*LinkRecord
-	index   map[LinkID]int
-	timeout time.Duration
+	dialer DeviceDialer
+	age    time.Time
+	links  []*LinkRecord
+	index  map[LinkID]int
 }
 
 func (ldb *linkdb) old() bool {
-	return ldb.age.Add(ldb.timeout).Before(time.Now())
+	return ldb.age.Add(MaxLinkDbAge).Before(time.Now())
 }
 
 func (ldb *linkdb) refresh() error {
@@ -146,40 +151,33 @@ func (ldb *linkdb) refresh() error {
 	ldb.links = nil
 	Log.Debugf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
-	ch := make(chan *Message, 10)
-	ldb.device.AddHandler(ch, CmdReadWriteALDB)
-	defer ldb.device.RemoveHandler(ch, CmdReadWriteALDB)
 
-	buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
-	err := ldb.device.SendCommand(CmdReadWriteALDB, buf)
+	conn, err := ldb.dialer.Dial(CmdReadWriteALDB)
+	if err == nil {
+		defer conn.Close()
+		buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
+		_, err := conn.Send(&Message{Command: CmdReadWriteALDB, Payload: buf})
 
-	var msg *Message
-	for err == nil {
-		msg, err = readFromCh(ch, ldb.timeout)
-		if err != nil {
-			break
-		}
-
-		// the channel receives the ack (from the above SendCommand) because the
-		// handler was set up prior to sending the command, so we just ignore it
-		if msg.Ack() {
-			continue
-		}
-
-		lr := &linkRequest{}
-		err = lr.UnmarshalBinary(msg.Payload)
-		// make sure there was no error unmarshalling, also make sure
-		// that it's a new memory address.  Since insteon messages
-		// are retransmitted, it is possible that the same ALDB response
-		// will be received more than once
-		if err == nil {
-			if lr.MemAddress != lastAddress {
-				lastAddress = lr.MemAddress
-				if lr.Link.Flags.LastRecord() {
-					break
-				} else {
-					ldb.links = append(ldb.links, lr.Link)
-					ldb.index[lr.Link.id()] = len(ldb.links) - 1
+		var msg *Message
+		for err == nil {
+			msg, err = conn.Receive()
+			if err == nil {
+				lr := &linkRequest{}
+				err = lr.UnmarshalBinary(msg.Payload)
+				// make sure there was no error unmarshalling, also make sure
+				// that it's a new memory address.  Since insteon messages
+				// are retransmitted, it is possible that the same ALDB response
+				// will be received more than once
+				if err == nil {
+					if lr.MemAddress != lastAddress {
+						lastAddress = lr.MemAddress
+						if lr.Link.Flags.LastRecord() {
+							break
+						} else {
+							ldb.links = append(ldb.links, lr.Link)
+							ldb.index[lr.Link.id()] = len(ldb.links) - 1
+						}
+					}
 				}
 			}
 		}
@@ -203,22 +201,25 @@ func (ldb *linkdb) writeLink(index int, link *LinkRecord) (err error) {
 		return ErrLinkIndexOutOfRange
 	}
 	memAddress := BaseLinkDBAddress - (MemAddress(index) * LinkRecordSize)
-	buf, _ := (&linkRequest{MemAddress: memAddress, Type: writeLink, Link: link}).MarshalBinary()
-	err = ldb.device.SendCommand(CmdReadWriteALDB, buf)
+	conn, err := ldb.dialer.Dial(CmdReadWriteALDB)
 	if err == nil {
-		if link.Flags.LastRecord() {
-			// if the last record comes before the end of the cached links then
-			// slice the local list at the index
-			if index < len(ldb.links) {
-				ldb.links = ldb.links[0:index]
-			}
-		} else {
-			// copy the link so it can't be modified outside of the database
-			link = &LinkRecord{Flags: link.Flags, Group: link.Group, Address: link.Address, Data: link.Data}
-			if index == len(ldb.links) {
-				ldb.links = append(ldb.links, link)
+		buf, _ := (&linkRequest{MemAddress: memAddress, Type: writeLink, Link: link}).MarshalBinary()
+		_, err = conn.Send(&Message{Command: CmdReadWriteALDB, Payload: buf})
+		if err == nil {
+			if link.Flags.LastRecord() {
+				// if the last record comes before the end of the cached links then
+				// slice the local list at the index
+				if index < len(ldb.links) {
+					ldb.links = ldb.links[0:index]
+				}
 			} else {
-				ldb.links[index] = link
+				// copy the link so it can't be modified outside of the database
+				link = &LinkRecord{Flags: link.Flags, Group: link.Group, Address: link.Address, Data: link.Data}
+				if index == len(ldb.links) {
+					ldb.links = append(ldb.links, link)
+				} else {
+					ldb.links[index] = link
+				}
 			}
 		}
 	}

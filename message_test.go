@@ -24,13 +24,35 @@ func testMsg(typ MessageType, cmd Command, payload ...byte) *Message {
 }
 
 var (
+	SetButtonPressed = func(controller bool, domain, category, firmware byte) *Message {
+		sbp := CmdSetButtonPressedResponder
+		if controller {
+			sbp = CmdSetButtonPressedController
+		}
+		return &Message{testDstAddr, Address{domain, category, firmware}, StandardBroadcast, sbp, nil}
+	}
+
+	Ack = func(ack bool, cmd1, cmd2 byte) *Message {
+		flags := StandardDirectNak
+		if ack {
+			flags = StandardDirectAck
+		}
+
+		return &Message{testSrcAddr, testDstAddr, flags, Command{0x00, cmd1, cmd2}, nil}
+	}
+
 	testSrcAddr = Address{1, 2, 3}
 	testDstAddr = Address{3, 4, 5}
 
-	TestMessageEngineVersion = &Message{testSrcAddr, testDstAddr, StandardDirectMessage, Command{0x00, 0x0d, 0x00}, nil}
-	TestMessagePing          = &Message{testSrcAddr, testDstAddr, StandardDirectMessage, Command{0x00, 0x0f, 0x00}, nil}
-	TestMessagePingAck       = &Message{testDstAddr, testSrcAddr, StandardDirectAck, Command{0x00, 0x0f, 0x00}, nil}
-	TestAck                  = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x00, 0x00}, nil}
+	TestMessageEngineVersion1   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x0d, 0x00}, nil}
+	TestMessageEngineVersion2   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x0d, 0x01}, nil}
+	TestMessageEngineVersion2cs = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x0d, 0x02}, nil}
+	TestMessageEngineVersion3   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x0d, 0x03}, nil}
+
+	TestMessagePing    = &Message{testSrcAddr, testDstAddr, StandardDirectMessage, Command{0x00, 0x0f, 0x00}, nil}
+	TestMessagePingAck = &Message{testDstAddr, testSrcAddr, StandardDirectAck, Command{0x00, 0x0f, 0x00}, nil}
+	TestPingNak        = &Message{testSrcAddr, testDstAddr, StandardDirectNak, Command{0x00, 0x0f, 0x00}, nil}
+	TestAck            = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x00, 0x00}, nil}
 
 	TestProductDataResponse = &Message{testDstAddr, testSrcAddr, ExtendedDirectMessage, CmdProductDataResp, []byte{0, 1, 2, 3, 4, 5, 0xff, 0xff, 0, 0, 0, 0, 0, 0}}
 	TestDeviceLink1         = &Message{testSrcAddr, testDstAddr, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xff, 0, 0xc0, 1, 7, 8, 9, 0, 0, 0, 0}}

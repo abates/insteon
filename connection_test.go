@@ -15,9 +15,8 @@
 package insteon
 
 import (
-	"fmt"
+	"io"
 	"reflect"
-	"sync"
 	"testing"
 	"time"
 )
@@ -37,55 +36,14 @@ func (tsr *testSender) Send(msg *Message) error {
 }
 
 type testConnection struct {
-	sync.Mutex
-
-	addr             Address
-	devCat           DevCat
-	firmwareVersion  FirmwareVersion
-	engineVersion    EngineVersion
-	engineVersionErr error
-
-	sent       []*Message
-	acks       []*Message
-	dispatched []*Message
-	sendErr    error
-
+	sent    []*Message
+	acks    []*Message
+	sendErr error
 	recv    []*Message
 	recvErr error
 }
 
-func (tc *testConnection) Address() Address { return tc.addr }
-
-func (tc *testConnection) LinkDatabase() (Linkable, error) { return nil, nil }
-
-func (tc *testConnection) AddHandler(ch chan<- *Message, cmds ...Command) {
-	go func() {
-		for len(tc.recv) > 0 {
-			if tc.recvErr == nil {
-				ch <- tc.recv[0]
-				tc.recv = tc.recv[1:]
-			}
-		}
-	}()
-}
-
-func (tc *testConnection) Dispatch(msg *Message) {
-	tc.dispatched = append(tc.dispatched, msg)
-}
-
-func (tc *testConnection) RemoveHandler(chan<- *Message, ...Command) {}
-
-func (tc *testConnection) EngineVersion() (EngineVersion, error) {
-	return tc.engineVersion, tc.engineVersionErr
-}
-func (tc *testConnection) IDRequest() (FirmwareVersion, DevCat, error) {
-	return tc.firmwareVersion, tc.devCat, nil
-}
-
-func (tc *testConnection) SendCommand(cmd Command, payload []byte) error {
-	_, err := tc.Send(&Message{Command: cmd, Payload: payload})
-	return err
-}
+func (tc *testConnection) Close() error { return nil }
 
 func (tc *testConnection) Send(msg *Message) (*Message, error) {
 	sent := &Message{}
@@ -96,138 +54,245 @@ func (tc *testConnection) Send(msg *Message) (*Message, error) {
 	}
 	ack := tc.acks[0]
 	tc.acks = tc.acks[1:]
-	return ack, nil
+	err := error(nil)
+	if ack.Nak() {
+		err = ErrNak
+	}
+	return ack, err
 }
 
 func (tc *testConnection) Receive() (*Message, error) {
-	if tc.recvErr == nil {
+	if len(tc.recv) > 0 {
 		msg := tc.recv[0]
 		tc.recv = tc.recv[1:]
-		return msg, nil
+		return msg, tc.recvErr
 	}
+
 	return nil, tc.recvErr
 }
 
+type testDialer struct {
+	conn *testConnection
+}
+
+func (td testDialer) Dial(dst Address, cmds ...Command) (conn Connection, err error) {
+	return td.conn, nil
+}
+
+type testDeviceDialer struct {
+	conn *testConnection
+}
+
+func (td testDeviceDialer) Dial(cmds ...Command) (conn Connection, err error) {
+	return td.conn, nil
+}
+
+type testReader struct {
+	msgs []*Message
+}
+
+func (tr *testReader) ReadMessage() (*Message, error) {
+	if len(tr.msgs) > 0 {
+		msg := tr.msgs[0]
+		tr.msgs = tr.msgs[1:]
+		return msg, nil
+	}
+	return nil, io.EOF
+}
+
+type testWriter struct {
+	msgs []*Message
+	err  error
+}
+
+func (tr *testWriter) WriteMessage(msg *Message) error {
+	tr.msgs = append(tr.msgs, msg)
+	return tr.err
+}
+
+type testBridge struct {
+	MessageReader
+	MessageWriter
+}
+
 func TestDemuxDispatch(t *testing.T) {
-	conn := &testConnection{}
-	wildcard := &testConnection{}
-	addr := Address{1, 2, 3}
-	mux := &Demux{connections: map[Address][]Connection{addr: {conn}, Wildcard: {wildcard}}}
-	mux.Dispatch(&Message{Src: addr})
-	if len(conn.dispatched) != 1 {
-		t.Errorf("Expected message to be dispatched to connection")
+	ch1 := make(chan *Message, 1)
+	ch2 := make(chan *Message, 2)
+
+	addr1 := Address{1, 2, 3}
+	addr2 := Address{3, 4, 5}
+	mux := &demux{
+		connections: map[Address][]*connection{
+			addr1:    {{recvCh: ch1}},
+			Wildcard: {{recvCh: ch2}},
+		},
+	}
+	mux.Dispatch(&Message{Src: addr1})
+	mux.Dispatch(&Message{Src: addr2})
+
+	if len(ch1) != 1 {
+		t.Errorf("Expected one message to be dispatched to connection got %d", len(ch1))
 	}
 
-	if len(wildcard.dispatched) != 1 {
-		t.Errorf("Expected message to be dispatched to wildcard connection")
-	}
-
-	mux.Dispatch(&Message{Src: Address{3, 4, 5}})
-	if len(conn.dispatched) != 1 {
-		t.Errorf("Connection unexpectedly received message")
-	}
-
-	if len(wildcard.dispatched) != 2 {
-		t.Errorf("Expected message to be dispatched to wildcard connection")
+	if len(ch2) != 2 {
+		t.Errorf("Expected two messages to be dispatched to wildcard connection got %d", len(ch2))
 	}
 }
 
 func TestConnectionOptions(t *testing.T) {
 	tests := []struct {
-		desc  string
-		input ConnectionOption
-		want  *connection
+		desc    string
+		input   ConnectionOption
+		want    *connection
+		wantErr string
 	}{
-		{"Timeout Option", ConnectionTimeout(time.Hour), &connection{timeout: time.Hour}},
-		{"TTL Option", ConnectionTTL(3), &connection{ttl: 3}},
+		{"Timeout Option", ConnectionTimeout(time.Hour), &connection{timeout: time.Hour}, ""},
+		{"TTL Option", ConnectionTTL(3), &connection{ttl: 3}, ""},
+		{"TTL Option (error)", ConnectionTTL(42), nil, "invalid ttl 42, must be in range 0-3"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			got := &connection{}
-			test.input(got)
-			if !reflect.DeepEqual(test.want, got) {
-				t.Errorf("want connection %+v got %+v", test.want, got)
+			err := test.input(got)
+			if err != nil {
+				if test.wantErr != err.Error() {
+					t.Errorf("Wanted error %s got %v", test.wantErr, err)
+				}
+			} else {
+				if !reflect.DeepEqual(test.want, got) {
+					t.Errorf("want connection %+v got %+v", test.want, got)
+				}
 			}
 		})
 	}
+}
+
+func TestDemuxDialClose(t *testing.T) {
+	demux := NewDemux(&testWriter{}).(*demux)
+	conn, err := demux.Dial(Address{1, 2, 3})
+	if err != nil {
+		t.Errorf("Unexpected error %v", err)
+	} else {
+		if connections, found := demux.connections[Address{1, 2, 3}]; found {
+			if len(connections) != 1 {
+				t.Errorf("Expected exactly one connection, got %d", len(connections))
+			} else if connections[0] != conn {
+				t.Errorf("Connections should be the same")
+			} else {
+				conn.Close()
+				if len(demux.connections[Address{1, 2, 3}]) != 0 {
+					t.Errorf("Expected connections slice to be empty, found %d", len(demux.connections[Address{1, 2, 3}]))
+				}
+			}
+		} else {
+			t.Errorf("Expected connection to be assigned by address")
+		}
+	}
+
 }
 
 func TestConnectionSend(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       *Message
-		response    *Message
-		expectedErr error
+		name      string
+		inputAddr Address
+		input     *Message
+		inputAck  *Message
+		wantMsg   *Message
+		wantErr   error
 	}{
-		{"Send Ack", TestPing, TestPingAck, nil},
-		{"Send Nak", TestProductDataResponse, TestProductDataResponse, ErrAckTimeout},
+		{"Standard Length Message", Address{1, 2, 3}, &Message{}, &Message{Flags: StandardDirectAck}, &Message{Dst: Address{1, 2, 3}, Flags: StandardDirectMessage}, nil},
+		{"Extended Length Message", Address{1, 2, 3}, &Message{Payload: []byte{1, 2}}, &Message{Flags: StandardDirectAck}, &Message{Dst: Address{1, 2, 3}, Flags: ExtendedDirectMessage, Payload: []byte{1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}, nil},
+		{"Nak", Address{1, 2, 3}, &Message{}, &Message{Flags: StandardDirectNak}, nil, ErrNak},
+		{"Ack Timeout", Address{1, 2, 3}, &Message{}, nil, nil, ErrAckTimeout},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			sender := &testSender{sndErr: test.expectedErr}
-			conn, err := newConnection(sender, Address{}, ConnectionTimeout(time.Millisecond))
-			sender.sndCb = func() { conn.Dispatch(test.response) }
+			writer := &testWriter{}
+			reader := make(chan *Message, 1)
+			if test.inputAck != nil {
+				reader <- test.inputAck
+			}
+
+			conn, err := newConnection(writer, test.inputAddr, nil, ConnectionTimeout(time.Microsecond))
+			conn.retries = 0
+			conn.recvCh = reader
 			if err != nil {
 				t.Errorf("Unexpected error from NewConnection(): %v", err)
 			}
 
-			_, err = conn.Send(test.input)
-			if err != test.expectedErr {
-				t.Errorf("Want %v got %v", test.expectedErr, err)
+			_, gotErr := conn.Send(test.input)
+			if test.wantErr != gotErr {
+				t.Errorf("Want error %v got %v", test.wantErr, gotErr)
+			} else if gotErr == nil {
+				gotMsg := writer.msgs[0]
+				if !reflect.DeepEqual(test.wantMsg, gotMsg) {
+					t.Errorf("Wanted message %v got %v", test.wantMsg, gotMsg)
+				}
 			}
 		})
 	}
 }
 
-func TestNewConnectionTTL(t *testing.T) {
+func TestConnectionDispatch(t *testing.T) {
 	tests := []struct {
-		ttl     uint8
-		wantErr string
+		name     string
+		match    []Command
+		input    *Message
+		wantRecv bool
 	}{
-		{0, ""},
-		{1, ""},
-		{2, ""},
-		{3, ""},
-		{4, "invalid ttl 4, must be in range 0-3"},
-		{254, "invalid ttl 254, must be in range 0-3"},
+		{"match everything", nil, &Message{}, true},
+		{"match one command", []Command{{1, 2, 3}}, &Message{Command: Command{1, 2, 3}}, true},
+		{"no match", []Command{{1, 2, 3}}, &Message{Command: Command{4, 5, 6}}, false},
 	}
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("ttl %d", tt.ttl), func(t *testing.T) {
-			sender := &testSender{}
-			_, err := NewConnection(sender, Address{}, ConnectionTTL(tt.ttl))
 
-			// TODO: consider switching to cmp package
-			var got string
-			if err != nil {
-				got = fmt.Sprintf("%v", err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conn := &connection{
+				match:  test.match,
+				recvCh: make(chan *Message, 1),
 			}
-			if got != tt.wantErr {
-				t.Errorf("got error %q, want %q", got, tt.wantErr)
+			conn.dispatch(test.input)
+			if test.wantRecv {
+				if len(conn.recvCh) != 1 {
+					t.Errorf("Wanted message to be delivered")
+				}
+			} else {
+				if len(conn.recvCh) != 0 {
+					t.Errorf("Message should not have been delivered")
+				}
 			}
 		})
 	}
 }
 
 func TestConnectionIDRequest(t *testing.T) {
-	sender := &testSender{}
-	conn, _ := newConnection(sender, Address{}, ConnectionTimeout(time.Millisecond))
-	sender.sndCb = func() {
-		conn.Dispatch(TestAck)
-		conn.Dispatch(&Message{Dst: Address{07, 79, 42}, Command: Command{0, 1}, Flags: StandardBroadcast})
+	tests := []struct {
+		desc        string
+		inputAck    *Message
+		input       *Message
+		wantVersion FirmwareVersion
+		wantDevCat  DevCat
+		wantErr     error
+	}{
+		{"Happy Path", &Message{Command: CmdIDRequest, Flags: StandardDirectAck}, SetButtonPressed(true, 7, 79, 42), FirmwareVersion(42), DevCat{07, 79}, nil},
 	}
-
-	wantVersion := FirmwareVersion(42)
-	wantDevCat := DevCat{07, 79}
-
-	gotVersion, gotDevCat, err := conn.IDRequest()
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	} else if gotVersion != wantVersion {
-		t.Errorf("Want FirmwareVersion %v got %v", wantVersion, gotVersion)
-	} else if gotDevCat != wantDevCat {
-		t.Errorf("Want DevCat %v got %v", wantDevCat, gotDevCat)
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			conn := &testConnection{acks: []*Message{test.inputAck}, recv: []*Message{test.input}}
+			gotVersion, gotDevCat, gotErr := IDRequest(testDialer{conn}, Address{})
+			if test.wantErr != gotErr {
+				t.Errorf("Wanted error %v got %v", test.wantErr, gotErr)
+			} else if gotErr == nil {
+				if gotVersion != test.wantVersion {
+					t.Errorf("Want FirmwareVersion %v got %v", test.wantVersion, gotVersion)
+				}
+				if gotDevCat != test.wantDevCat {
+					t.Errorf("Want DevCat %v got %v", test.wantDevCat, gotDevCat)
+				}
+			}
+		})
 	}
 }
 
@@ -245,11 +310,9 @@ func TestConnectionEngineVersion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			sender := &testSender{}
-			conn, _ := newConnection(sender, Address{}, ConnectionTimeout(time.Millisecond))
-			sender.sndCb = func() { conn.Dispatch(test.input) }
+			conn := &testConnection{acks: []*Message{test.input}}
 
-			gotVersion, err := conn.EngineVersion()
+			gotVersion, err := GetEngineVersion(testDialer{conn}, Address{})
 			if err != test.wantErr {
 				t.Errorf("want error %v got %v", test.wantErr, err)
 			} else if err == nil {

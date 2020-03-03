@@ -14,62 +14,51 @@
 
 package insteon
 
-import (
-	"time"
-)
-
 // i1Device provides remote communication to version 1 engines
 type i1Device struct {
-	Connection
-	devCat          DevCat
-	firmwareVersion FirmwareVersion
-	timeout         time.Duration
+	dial Dialer
+	info DeviceInfo
 }
 
 // newI1Device will construct an I1Device for the given connection
-func newI1Device(connection Connection, timeout time.Duration) *i1Device {
+func newI1Device(dial Dialer, info DeviceInfo) *i1Device {
 	i1 := &i1Device{
-		Connection:      connection,
-		devCat:          DevCat{0xff, 0xff},
-		firmwareVersion: FirmwareVersion(0x00),
-		timeout:         timeout,
+		dial: dial,
+		info: info,
 	}
 
 	return i1
+}
+
+func (i1 *i1Device) Info() DeviceInfo {
+	return i1.info
+}
+
+func (i1 *i1Device) Dial(cmds ...Command) (Connection, error) {
+	return i1.dial.Dial(i1.info.Address, cmds...)
 }
 
 // SendCommand will send the given command bytes to the device including
 // a payload (for extended messages). If payload length is zero then a standard
 // length message is used to deliver the commands. Any error encountered sending
 // the command is returned (eg. ack timeout, etc)
-func (i1 *i1Device) SendCommand(command Command, payload []byte) error {
-	_, err := i1.sendCommand(command, payload, errLookup)
-	return err
+func (i1 *i1Device) SendCommand(command Command, payload []byte) (Command, error) {
+	return i1.sendCommand(command, payload, errLookup)
 }
 
 // sendCommand will send the given command bytes to the device including
 // a payload (for extended messages). If payload length is zero then a standard
 // length message is used to deliver the commands. The command bytes from the
 // response ack are returned as well as any error
-func (i1 *i1Device) sendCommand(command Command, payload []byte, errLookup func(*Message) (*Message, error)) (response Command, err error) {
-	flags := StandardDirectMessage
-	if len(payload) > 0 {
-		flags = ExtendedDirectMessage
-		if len(payload) < 14 {
-			tmp := make([]byte, 14)
-			copy(tmp, payload)
-			payload = tmp
-		}
-	}
-
-	ack, err := i1.Connection.Send(&Message{
-		Flags:   flags,
-		Command: command,
-		Payload: payload,
-	})
-
+func (i1 *i1Device) sendCommand(command Command, payload []byte, errLookup func(*Message, error) (*Message, error)) (response Command, err error) {
+	conn, err := i1.Dial(command)
 	if err == nil {
-		ack, err = errLookup(ack)
+		defer conn.Close()
+		ack, err := errLookup(conn.Send(&Message{
+			Command: command,
+			Payload: payload,
+		}))
+
 		if err == nil {
 			response = ack.Command
 		}
@@ -78,9 +67,8 @@ func (i1 *i1Device) sendCommand(command Command, payload []byte, errLookup func(
 	return response, err
 }
 
-func errLookup(msg *Message) (*Message, error) {
-	var err error
-	if msg.Flags.Type() == MsgTypeDirectNak {
+func errLookup(msg *Message, err error) (*Message, error) {
+	if err == ErrNak {
 		switch msg.Command[2] & 0xff {
 		case 0xfd:
 			err = ErrUnknownCommand
@@ -97,25 +85,30 @@ func errLookup(msg *Message) (*Message, error) {
 
 // ProductData will retrieve the device's product data
 func (i1 *i1Device) ProductData() (data *ProductData, err error) {
-	ch := make(chan *Message, 1)
-	i1.AddHandler(ch, CmdProductDataResp)
-	defer i1.RemoveHandler(ch, CmdProductDataResp)
-	err = i1.SendCommand(CmdProductDataReq, nil)
+	conn, err := i1.Dial(CmdProductDataReq, CmdProductDataResp)
 	if err == nil {
-		var msg *Message
-		msg, err = readFromCh(ch, i1.timeout)
+		defer conn.Close()
+		_, err = conn.Send(&Message{Command: CmdProductDataReq})
 		if err == nil {
-			data = &ProductData{}
-			err = data.UnmarshalBinary(msg.Payload)
+			var msg *Message
+			msg, err = conn.Receive()
+			if err == nil {
+				data = &ProductData{}
+				err = data.UnmarshalBinary(msg.Payload)
+			}
 		}
 	}
 	return data, err
 }
 
+func (i1 *i1Device) Address() Address {
+	return i1.info.Address
+}
+
 // String returns the string "I1 Device (<address>)" where <address> is the destination
 // address of the device
 func (i1 *i1Device) String() string {
-	return sprintf("I1 Device (%s)", i1.Address())
+	return sprintf("I1 Device (%s)", i1.info.Address)
 }
 
 func (i1 *i1Device) LinkDatabase() (Linkable, error) {

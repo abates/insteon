@@ -11,11 +11,11 @@ func TestDeviceString(t *testing.T) {
 		device fmt.Stringer
 		want   string
 	}{
-		{"I1Device", newI1Device(&testConnection{addr: Address{1, 2, 3}}, 0), "I1 Device (01.02.03)"},
-		{"I2Device", newI2Device(&testConnection{addr: Address{1, 2, 3}}, 0), "I2 Device (01.02.03)"},
-		{"I2CsDevice", newI2CsDevice(&testConnection{addr: Address{1, 2, 3}}, 0), "I2CS Device (01.02.03)"},
-		{"Switch", NewSwitch(DeviceInfo{}, &testConnection{addr: Address{1, 2, 3}}, 0), "Switch (01.02.03)"},
-		{"Dimmer", NewDimmer(DeviceInfo{}, &testConnection{addr: Address{1, 2, 3}}, 0), "Dimmer (01.02.03)"},
+		{"I1Device", newI1Device(nil, DeviceInfo{Address: Address{1, 2, 3}}), "I1 Device (01.02.03)"},
+		{"I2Device", newI2Device(nil, DeviceInfo{Address: Address{1, 2, 3}}), "I2 Device (01.02.03)"},
+		{"I2CsDevice", newI2CsDevice(nil, DeviceInfo{Address: Address{1, 2, 3}}), "I2CS Device (01.02.03)"},
+		{"Switch", NewSwitch(nil, DeviceInfo{Address: Address{1, 2, 3}}), "Switch (01.02.03)"},
+		{"Dimmer", NewDimmer(nil, DeviceInfo{Address: Address{1, 2, 3}}), "Dimmer (01.02.03)"},
 		{"Link Record", &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}, "UC 1 01.02.03 0x04 0x05 0x06"},
 		{"Link Request Nil Link", &linkRequest{Type: readLink, MemAddress: BaseLinkDBAddress, NumRecords: 2, Link: nil}, "Link Read 0f.ff 2"},
 		{"Link Request", &linkRequest{Type: readLink, MemAddress: BaseLinkDBAddress, NumRecords: 2, Link: &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}}, "Link Read 0f.ff 2 UC 1 01.02.03 0x04 0x05 0x06"},

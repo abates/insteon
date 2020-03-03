@@ -106,12 +106,11 @@ func TestAddressables(t *testing.T) {
 		device Addressable
 		want   Address
 	}{
-		{"I1Device", newI1Device(&testConnection{addr: Address{1, 2, 3}}, 0), Address{1, 2, 3}},
-		{"I2Device", newI2Device(&testConnection{addr: Address{1, 2, 3}}, 0), Address{1, 2, 3}},
-		{"I2CsDevice", newI2CsDevice(&testConnection{addr: Address{1, 2, 3}}, 0), Address{1, 2, 3}},
-		{"Switch", NewSwitch(DeviceInfo{}, &testConnection{addr: Address{1, 2, 3}}, 0), Address{1, 2, 3}},
-		{"Dimmer", NewDimmer(DeviceInfo{}, &testConnection{addr: Address{1, 2, 3}}, 0), Address{1, 2, 3}},
-		{"Connection", &connection{addr: Address{1, 2, 3}}, Address{1, 2, 3}},
+		{"I1Device", newI1Device(nil, DeviceInfo{Address: Address{1, 2, 3}}), Address{1, 2, 3}},
+		{"I2Device", newI2Device(nil, DeviceInfo{Address: Address{1, 2, 3}}), Address{1, 2, 3}},
+		{"I2CsDevice", newI2CsDevice(nil, DeviceInfo{Address: Address{1, 2, 3}}), Address{1, 2, 3}},
+		{"Switch", NewSwitch(nil, DeviceInfo{Address: Address{1, 2, 3}}), Address{1, 2, 3}},
+		{"Dimmer", NewDimmer(nil, DeviceInfo{Address: Address{1, 2, 3}}), Address{1, 2, 3}},
 	}
 
 	for _, test := range tests {

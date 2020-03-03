@@ -14,27 +14,35 @@
 
 package insteon
 
-import (
-	"time"
-)
-
-type i2CsConnection struct {
+type i2csConnection struct {
 	Connection
 }
 
-func (i2cs i2CsConnection) Send(message *Message) (*Message, error) {
-	if message.Command[1] == CmdEnterLinkingMode[1] {
-		message.Command = CmdEnterLinkingModeExt.SubCommand(int(message.Command[2]))
-		message.Payload = make([]byte, 14)
-		message.Flags = ExtendedDirectMessage
+func (i2cs i2csConnection) Send(msg *Message) (ack *Message, err error) {
+	if msg.Command[1] == CmdEnterLinkingMode[1] {
+		msg.Flags = ExtendedDirectMessage
+		msg.Command = CmdEnterLinkingModeExt.SubCommand(int(msg.Command[2]))
+		msg.Payload = make([]byte, 14)
 	}
 
 	// set checksum
-	if message.Flags.Extended() {
-		l := len(message.Payload)
-		message.Payload[l-1] = checksum(message.Command, message.Payload)
+	if msg.Flags.Extended() {
+		l := len(msg.Payload)
+		msg.Payload[l-1] = checksum(msg.Command, msg.Payload)
 	}
-	return i2cs.Connection.Send(message)
+	return i2cs.Connection.Send(msg)
+}
+
+type i2csDialer struct {
+	dial Dialer
+}
+
+func (dialer i2csDialer) Dial(dst Address, cmds ...Command) (conn Connection, err error) {
+	conn, err = dialer.dial.Dial(dst, cmds...)
+	if err == nil {
+		conn = i2csConnection{conn}
+	}
+	return conn, err
 }
 
 // i2CsDevice can communicate with Version 2 (checksum) Insteon Engines
@@ -44,29 +52,19 @@ type i2CsDevice struct {
 
 // newI2CsDevice will initialize a new I2CsDevice object and make
 // it ready for use
-func newI2CsDevice(connection Connection, timeout time.Duration) *i2CsDevice {
+func newI2CsDevice(dialer Dialer, info DeviceInfo) *i2CsDevice {
 	i2cs := &i2CsDevice{
-		i2Device: newI2Device(i2CsConnection{connection}, timeout),
+		i2Device: newI2Device(i2csDialer{dialer}, info),
 	}
-	i2cs.linkdb.device = i2cs
-	i2cs.linkdb.timeout = timeout
+	i2cs.linkdb.dialer = i2cs
 
 	return i2cs
-}
-
-// SendCommand will send the given command bytes to the device including
-// a payload (for extended messages). If payload length is zero then a standard
-// length message is used to deliver the commands. Any error encountered sending
-// the command is returned (eg. ack timeout, etc)
-func (i2cs *i2CsDevice) SendCommand(command Command, payload []byte) error {
-	_, err := i2cs.sendCommand(command, payload, i2csErrLookup)
-	return err
 }
 
 // String returns the string "I2CS Device (<address>)" where <address> is the destination
 // address of the device
 func (i2cs *i2CsDevice) String() string {
-	return sprintf("I2CS Device (%s)", i2cs.Address())
+	return sprintf("I2CS Device (%s)", i2cs.Info().Address)
 }
 
 func checksum(cmd Command, buf []byte) byte {
@@ -77,9 +75,8 @@ func checksum(cmd Command, buf []byte) byte {
 	return ^sum + 1
 }
 
-func i2csErrLookup(msg *Message) (*Message, error) {
-	var err error
-	if msg.Flags.Type() == MsgTypeDirectNak {
+func i2csErrLookup(msg *Message, err error) (*Message, error) {
+	if err == ErrNak {
 		switch msg.Command[2] & 0xff {
 		case 0xfb:
 			err = ErrIllegalValue

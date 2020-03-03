@@ -17,9 +17,43 @@ package plm
 import (
 	"bufio"
 	"io"
+	"time"
 
 	"github.com/abates/insteon"
 )
+
+type PacketReader interface {
+	ReadPacket() (*Packet, error)
+}
+
+type PacketWriter interface {
+	WritePacket(*Packet) (ack *Packet, err error)
+}
+
+type retryWriter struct {
+	writer  PacketWriter
+	retries int
+}
+
+func (rw *retryWriter) WritePacket(packet *Packet) (ack *Packet, err error) {
+	retries := rw.retries
+	for 0 <= retries {
+		ack, err = rw.writer.WritePacket(packet)
+		if err == ErrNak || err == ErrReadTimeout {
+			// TODO add exponential backoff
+			insteon.Log.Debugf("Got %v retrying", err)
+			time.Sleep(time.Second)
+			retries++
+		} else {
+			break
+		}
+	}
+	return
+}
+
+func RetryWriter(writer PacketWriter, retries int) PacketWriter {
+	return &retryWriter{writer, retries}
+}
 
 // LogWriter is a pass-through io.Writer that just logs what
 // is written
@@ -40,7 +74,7 @@ func (lw LogWriter) Write(buf []byte) (int, error) {
 }
 
 // PacketReader reads PLM packets from a given io.Reader
-type PacketReader struct {
+type packetReader struct {
 	reader *bufio.Reader
 	buf    [maxPaclen]byte
 }
@@ -48,11 +82,11 @@ type PacketReader struct {
 // NewPacketReader will create and initialize a PacketReader for the
 // given io.Reader
 func NewPacketReader(reader io.Reader) PacketReader {
-	return PacketReader{reader: bufio.NewReader(reader)}
+	return &packetReader{reader: bufio.NewReader(reader)}
 }
 
 // sync will advance the reader until a start of text character is seen
-func (pr *PacketReader) sync() (n int, paclen int, err error) {
+func (pr *packetReader) sync() (n int, paclen int, err error) {
 	for err == nil {
 		var b byte
 		b, err = pr.reader.ReadByte()
@@ -81,7 +115,7 @@ func (pr *PacketReader) sync() (n int, paclen int, err error) {
 	return
 }
 
-func (pr *PacketReader) read() (int, error) {
+func (pr *packetReader) read() (int, error) {
 	// synchronize
 	n, paclen, err := pr.sync()
 	if err != nil {
@@ -111,7 +145,7 @@ func (pr *PacketReader) read() (int, error) {
 	return n, err
 }
 
-func (pr *PacketReader) ReadPacket() (packet *Packet, err error) {
+func (pr *packetReader) ReadPacket() (packet *Packet, err error) {
 	n, err := pr.read()
 	if err == nil {
 		insteon.Log.Tracef("%s", hexDump("%02x", pr.buf[0:n], " "))

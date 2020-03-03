@@ -95,8 +95,8 @@ func (dev *device) init(string) (err error) {
 	return err
 }
 
-func connect(plm *plm.PLM, addr insteon.Address) (insteon.Device, error) {
-	device, err := plm.Open(addr, insteon.ConnectionTimeout(timeoutFlag), insteon.ConnectionTTL(uint8(ttlFlag)))
+func connect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
+	device, err := modem.Open(addr)
 
 	if err == insteon.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
@@ -152,11 +152,9 @@ func (dev *device) infoCmd(string) (err error) {
 
 func printDevInfo(device insteon.Device, extra string) (err error) {
 	fmt.Printf("       Device: %v\n", device)
-	firmware, devCat, err := device.IDRequest()
-
 	if err == nil {
-		fmt.Printf("     Category: %v\n", devCat)
-		fmt.Printf("     Firmware: %v\n", firmware)
+		fmt.Printf("     Category: %v\n", device.Info().DevCat)
+		fmt.Printf("     Firmware: %v\n", device.Info().FirmwareVersion)
 
 		if extra != "" {
 			fmt.Printf("%s\n", extra)
@@ -170,11 +168,8 @@ func printDevInfo(device insteon.Device, extra string) (err error) {
 }
 
 func (dev *device) versionCmd(string) error {
-	firmware, _, err := dev.IDRequest()
-	if err == nil {
-		fmt.Printf("Device version: %s\n", firmware)
-	}
-	return err
+	fmt.Printf("Device version: %s\n", dev.Info().FirmwareVersion)
+	return nil
 }
 
 func (dev *device) editCmd(string) error {
@@ -239,5 +234,5 @@ func (dev *device) editCmd(string) error {
 }
 
 func (dev *device) sendCmd(string) error {
-	return dev.SendCommand(dev.cmd.Command, dev.data)
+	return extractErr(dev.SendCommand(dev.cmd.Command, dev.data))
 }

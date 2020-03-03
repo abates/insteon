@@ -134,7 +134,8 @@ func TestLinkRequestMarshalBinary(t *testing.T) {
 }
 
 func TestLinkDbOld(t *testing.T) {
-	ldb := linkdb{timeout: time.Second}
+	MaxLinkDbAge = time.Second
+	ldb := linkdb{}
 	if !ldb.old() {
 		t.Errorf("Expected ldb to report old")
 	}
@@ -164,8 +165,6 @@ func TestLinkdbLinks(t *testing.T) {
 			links := append(test.want, &LinkRecord{})
 			conn := &testConnection{acks: []*Message{{Command: CmdReadWriteALDB, Flags: StandardDirectAck}}}
 			memAddress := BaseLinkDBAddress
-			// Add the ACK to the dispatch queue
-			conn.recv = []*Message{conn.acks[0]}
 			for _, link := range links {
 				lr := &linkRequest{Type: linkResponse, MemAddress: memAddress, Link: link}
 				msg := &Message{Command: CmdReadWriteALDB, Flags: ExtendedDirectMessage, Payload: make([]byte, 14)}
@@ -175,7 +174,8 @@ func TestLinkdbLinks(t *testing.T) {
 				memAddress -= LinkRecordSize
 			}
 
-			linkdb := linkdb{age: test.age, device: conn, timeout: time.Millisecond}
+			MaxLinkDbAge = time.Millisecond
+			linkdb := linkdb{age: test.age, dialer: testDeviceDialer{conn}}
 			got, err := linkdb.Links()
 			if err == nil {
 				if len(got) == len(test.want) {
@@ -208,7 +208,7 @@ func TestLinkdbWriteLink(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			conn := &testConnection{acks: []*Message{TestAck}}
-			linkdb := linkdb{device: conn, links: test.links}
+			linkdb := linkdb{dialer: testDeviceDialer{conn}, links: test.links}
 			gotErr := linkdb.writeLink(test.inputIndex, test.inputRecord)
 			if test.wantErr != gotErr {
 				t.Errorf("Want err %v got %v", test.wantErr, gotErr)
@@ -254,7 +254,7 @@ func TestLinkdbWriteLinks(t *testing.T) {
 			for i := 0; i < len(test.wantMemAddress); i++ {
 				conn.acks = append(conn.acks, TestAck)
 			}
-			linkdb := linkdb{device: conn}
+			linkdb := linkdb{dialer: testDeviceDialer{conn}}
 			linkdb.WriteLinks(test.input...)
 			gotMemAddress := []MemAddress{}
 			gotLinks := []*LinkRecord{}
@@ -334,7 +334,8 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 			for i, link := range test.existingLinks {
 				index[link.id()] = i
 			}
-			ldb := &linkdb{age: time.Now().Add(time.Hour), links: test.existingLinks, index: index, device: conn, timeout: time.Second}
+			MaxLinkDbAge = time.Second
+			ldb := &linkdb{age: time.Now().Add(time.Hour), links: test.existingLinks, index: index, dialer: testDeviceDialer{conn}}
 			ldb.UpdateLinks(test.input...)
 
 			for i, msg := range conn.sent {

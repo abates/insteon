@@ -80,15 +80,16 @@ func (alr *allLinkReq) String() string {
 	return fmt.Sprintf("%02x %d", alr.Mode, alr.Group)
 }
 
-type senderReceiver interface {
-	send(*Packet) (*Packet, error)
+type modem interface {
+	WritePacket(*Packet) (*Packet, error)
 	ReadPacket() (*Packet, error)
 }
 
 type linkdb struct {
 	age     time.Time
 	links   []*insteon.LinkRecord
-	plm     senderReceiver
+	plm     modem
+	retries int
 	timeout time.Duration
 }
 
@@ -101,7 +102,7 @@ func (ldb *linkdb) refresh() error {
 		return nil
 	}
 	links := make([]*insteon.LinkRecord, 0)
-	_, err := ldb.plm.send(&Packet{Command: CmdGetFirstAllLink})
+	_, err := RetryWriter(ldb.plm, ldb.retries).WritePacket(&Packet{Command: CmdGetFirstAllLink})
 	for err == nil {
 		var pkt *Packet
 		pkt, err = ldb.plm.ReadPacket()
@@ -111,7 +112,7 @@ func (ldb *linkdb) refresh() error {
 				err = link.UnmarshalBinary(pkt.Payload)
 				if err == nil {
 					links = append(links, link)
-					_, err = ldb.plm.send(&Packet{Command: CmdGetNextAllLink})
+					_, err = ldb.plm.WritePacket(&Packet{Command: CmdGetNextAllLink})
 				}
 			}
 		}
@@ -140,7 +141,7 @@ func (ldb *linkdb) UpdateLinks(...*insteon.LinkRecord) error {
 func (ldb *linkdb) EnterLinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0x03), Group: group}
 	payload, _ := lr.MarshalBinary()
-	_, err := ldb.plm.send(&Packet{Command: CmdStartAllLink, Payload: payload})
+	_, err := ldb.plm.WritePacket(&Packet{Command: CmdStartAllLink, Payload: payload})
 	if err == nil {
 		time.Sleep(insteon.PropagationDelay(3, true))
 	}
@@ -148,14 +149,14 @@ func (ldb *linkdb) EnterLinkingMode(group insteon.Group) error {
 }
 
 func (ldb *linkdb) ExitLinkingMode() error {
-	_, err := ldb.plm.send(&Packet{Command: CmdCancelAllLink})
+	_, err := ldb.plm.WritePacket(&Packet{Command: CmdCancelAllLink})
 	return err
 }
 
 func (ldb *linkdb) EnterUnlinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0xff), Group: group}
 	payload, _ := lr.MarshalBinary()
-	_, err := ldb.plm.send(&Packet{Command: CmdStartAllLink, Payload: payload})
+	_, err := ldb.plm.WritePacket(&Packet{Command: CmdStartAllLink, Payload: payload})
 	if err == nil {
 		time.Sleep(insteon.PropagationDelay(3, true))
 	}

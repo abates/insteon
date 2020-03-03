@@ -16,7 +16,6 @@ package insteon
 
 import (
 	"testing"
-	"time"
 )
 
 func TestI2DeviceLinkCommands(t *testing.T) {
@@ -33,7 +32,7 @@ func TestI2DeviceLinkCommands(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			conn := &testConnection{acks: []*Message{TestAck}}
-			device := &i2Device{i1Device: newI1Device(conn, time.Millisecond)}
+			device := &i2Device{i1Device: newI1Device(&testDialer{conn}, DeviceInfo{})}
 			test.run(device)
 			if len(conn.sent) != 1 {
 				t.Errorf("Wanted 1 message to be sent, got %d", len(conn.sent))
