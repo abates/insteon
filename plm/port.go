@@ -105,7 +105,6 @@ func (pr *packetReader) sync() (n int, paclen int, err error) {
 				pr.buf[0] = 0x02
 				pr.buf[1] = b
 				n = 2
-				insteon.Log.Tracef("Successfully synchronized with input stream")
 				break
 			} else {
 				err = pr.reader.UnreadByte()
@@ -122,10 +121,8 @@ func (pr *packetReader) read() (int, error) {
 		return n, err
 	}
 
-	insteon.Log.Tracef("Attempting to read %d more bytes", paclen)
 	nn, err := io.ReadAtLeast(pr.reader, pr.buf[2:2+paclen], paclen)
 	n += nn
-	insteon.Log.Tracef("Completed read (err %v): %s", err, hexDump("%02x", pr.buf[0:n], " "))
 
 	if err == nil {
 		// read some more if it's an extended message (this conditional is
@@ -148,7 +145,6 @@ func (pr *packetReader) read() (int, error) {
 func (pr *packetReader) ReadPacket() (packet *Packet, err error) {
 	n, err := pr.read()
 	if err == nil {
-		insteon.Log.Tracef("%s", hexDump("%02x", pr.buf[0:n], " "))
 		packet = &Packet{}
 		err = packet.UnmarshalBinary(pr.buf[0:n])
 	}

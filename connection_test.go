@@ -243,14 +243,11 @@ func TestConnectionDispatch(t *testing.T) {
 		wantRecv bool
 	}{
 		{"match everything", nil, &Message{}, true},
-		{"match one command", []Command{{1, 2, 3}}, &Message{Command: Command{1, 2, 3}}, true},
-		{"no match", []Command{{1, 2, 3}}, &Message{Command: Command{4, 5, 6}}, false},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			conn := &connection{
-				match:  test.match,
 				recvCh: make(chan *Message, 1),
 			}
 			conn.dispatch(test.input)

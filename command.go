@@ -15,25 +15,48 @@
 
 package insteon
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 // Command is a 3 byte sequence that indicates command flags (direct, all-link or broadcast, standard/extended)
 // and two byte commands
-type Command [3]byte
+type Command int
 
 // SubCommand will return a new command where the subcommand byte is updated
 // to reflect command2 from the arguments
 func (cmd Command) SubCommand(command2 int) Command {
-	return Command{cmd[0], cmd[1], byte(command2)}
+	return (cmd & 0xffff00) | (0xff & Command(command2))
+}
+
+func (cmd *Command) Set(value string) error {
+	i, err := strconv.Atoi(value)
+	if err == nil {
+		*cmd = (*cmd & 0xffff00) | (0xff & Command(i))
+	}
+	return err
+}
+
+func (cmd Command) Command0() int {
+	return int(cmd >> 16 & 0xff)
+}
+
+func (cmd Command) Command1() int {
+	return int((cmd >> 8) & 0xff)
+}
+
+func (cmd Command) Command2() int {
+	return int(cmd & 0xff)
 }
 
 func (cmd Command) String() string {
 	if str, found := cmdStrings[cmd]; found {
 		return str
-	} else if str, found := cmdStrings[Command{cmd[0], cmd[1], 0x00}]; found {
-		return fmt.Sprintf("%s(%d)", str, cmd[2])
+	} else if str, found := cmdStrings[cmd&0xffff00]; found {
+		return fmt.Sprintf("%s(%d)", str, cmd.Command2())
 	}
-	return fmt.Sprintf("Command(0x%02x, 0x%02x, 0x%02x)", cmd[0], cmd[1], cmd[2])
+	return fmt.Sprintf("Command(0x%02x, 0x%02x, 0x%02x)", cmd.Command0(), cmd.Command1(), cmd.Command2())
 }
 
 func AssignToAllLinkGroup(group Group) (Command, []byte) {
@@ -42,10 +65,6 @@ func AssignToAllLinkGroup(group Group) (Command, []byte) {
 
 func DeleteFromAllLinkGroup(group Group) (Command, []byte) {
 	return CmdDeleteFromAllLinkGroup.SubCommand(int(group)), nil
-}
-
-func Ping() (Command, []byte) {
-	return CmdPing, nil
 }
 
 // EnterLinkingMode is the programmatic equivalent of holding down
@@ -68,41 +87,12 @@ func EnterUnlinkingMode(group Group) (Command, []byte) {
 	return CmdEnterUnlinkingMode.SubCommand(int(group)), nil
 }
 
-// ExitLinkingMode takes a controller out of linking/unlinking mode.
-func ExitLinkingMode() (Command, []byte) {
-	return CmdExitLinkingMode, nil
-}
-
-func TurnLightOff() (Command, []byte) {
-	return CmdLightOff, nil
-}
-
 func TurnLightOn(level int) (Command, []byte) {
 	return CmdLightOn.SubCommand(level), nil
 }
 
 func TurnLightOnFast(level int) (Command, []byte) {
 	return CmdLightOnFast.SubCommand(level), nil
-}
-
-func Brighten() (Command, []byte) {
-	return CmdLightBrighten, nil
-}
-
-func Dim() (Command, []byte) {
-	return CmdLightDim, nil
-}
-
-func StartBrighten() (Command, []byte) {
-	return CmdLightStartManual.SubCommand(1), nil
-}
-
-func StartDim() (Command, []byte) {
-	return CmdLightStartManual.SubCommand(0), nil
-}
-
-func StopChange() (Command, []byte) {
-	return CmdLightStopManual, nil
 }
 
 func InstantChange(level int) (Command, []byte) {
@@ -133,19 +123,13 @@ func SetDefaultOnLevel(level int) (Command, []byte) {
 	return CmdExtendedGetSet, []byte{0x01, 0x06, byte(level)}
 }
 
+func Backlight(onoff bool) (Command, []byte) {
+	if onoff {
+		return CmdEnableLED, make([]byte, 14)
+	}
+	return CmdDisableLED, make([]byte, 14)
+}
+
 func SetX10Address(button int, houseCode, unitCode byte) (Command, []byte) {
 	return CmdExtendedGetSet, []byte{byte(button), 0x04, houseCode, unitCode}
 }
-
-func setOperatingFlags(flags byte, conditional bool) (Command, []byte) {
-	if conditional {
-		return CmdSetOperatingFlags.SubCommand(int(flags)), nil
-	}
-	return CmdSetOperatingFlags.SubCommand(int(flags) + 1), nil
-}
-
-func SetProgramLock(flag bool) (Command, []byte) { return setOperatingFlags(0, flag) }
-func SetTxLED(flag bool) (Command, []byte)       { return setOperatingFlags(2, flag) }
-func SetResumeDim(flag bool) (Command, []byte)   { return setOperatingFlags(4, flag) }
-func SetLoadSense(flag bool) (Command, []byte)   { return setOperatingFlags(6, !flag) }
-func SetLED(flag bool) (Command, []byte)         { return setOperatingFlags(8, !flag) }

@@ -38,7 +38,14 @@ func TestChecksum(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			got := checksum(Command{0x00, test.input[0], test.input[1]}, test.input[2:])
+			cmd := Command(int(test.input[0])<<8 | int(test.input[1]))
+			got := byte(cmd.Command1()) + byte(cmd.Command2())
+			want := test.input[0] + test.input[1]
+			if want != got {
+				t.Errorf("Wanted byte 0x%02x got 0x%02x", want, got)
+			}
+
+			got = checksum(cmd, test.input[2:])
 			if got != test.expected {
 				t.Errorf("got checksum %02x, want %02x", got, test.expected)
 			}
@@ -54,12 +61,12 @@ func TestI2CsErrLookup(t *testing.T) {
 		want     error
 	}{
 		{"nil error", &Message{}, nil, nil},
-		{"ErrIllegalValue", &Message{Command: Command{0, 0, 0xfb}, Flags: StandardDirectNak}, ErrNak, ErrIllegalValue},
-		{"ErrPreNak", &Message{Command: Command{0, 0, 0xfc}, Flags: StandardDirectNak}, ErrNak, ErrPreNak},
-		{"ErrIncorrectChecksum", &Message{Command: Command{0, 0, 0xfd}, Flags: StandardDirectNak}, ErrNak, ErrIncorrectChecksum},
-		{"ErrNoLoadDetected", &Message{Command: Command{0, 0, 0xfe}, Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
-		{"ErrNotLinked", &Message{Command: Command{0, 0, 0xff}, Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
-		{"ErrUnexpectedResponse", &Message{Command: Command{0, 0, 0xfa}, Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
+		{"ErrIllegalValue", &Message{Command: Command(0x0000fb), Flags: StandardDirectNak}, ErrNak, ErrIllegalValue},
+		{"ErrPreNak", &Message{Command: Command(0x0000fc), Flags: StandardDirectNak}, ErrNak, ErrPreNak},
+		{"ErrIncorrectChecksum", &Message{Command: Command(0x0000fd), Flags: StandardDirectNak}, ErrNak, ErrIncorrectChecksum},
+		{"ErrNoLoadDetected", &Message{Command: Command(0x0000fe), Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
+		{"ErrNotLinked", &Message{Command: Command(0x0000ff), Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
+		{"ErrUnexpectedResponse", &Message{Command: Command(0x0000fa), Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
 	}
 
 	for _, test := range tests {
@@ -79,8 +86,8 @@ func TestI2CsDeviceSendCommand(t *testing.T) {
 		sndPayload []byte
 		wantCmd    Command
 	}{
-		{"SD", Command{byte(StandardDirectMessage), 1, 2}, nil, Command{byte(StandardDirectMessage), 1, 2}},
-		{"ED", Command{byte(ExtendedDirectMessage), 2, 3}, []byte{1, 2, 3, 4}, Command{byte(ExtendedDirectMessage), 2, 3}},
+		{"SD", Command((int(StandardDirectMessage) & 0xff << 16) | 0x0102), nil, Command((int(StandardDirectMessage) & 0xff << 16) | 0x0102)},
+		{"ED", Command((int(ExtendedDirectMessage) & 0xff << 16) | 0x0203), []byte{1, 2, 3, 4}, Command((int(ExtendedDirectMessage) & 0xff << 16) | 0x0203)},
 		{"Enter Linking Mode", CmdEnterLinkingMode.SubCommand(42), nil, CmdEnterLinkingModeExt.SubCommand(42)},
 	}
 
@@ -96,7 +103,7 @@ func TestI2CsDeviceSendCommand(t *testing.T) {
 
 			gotMsg := conn.sent[0]
 
-			if test.sndCmd[0] == byte(ExtendedDirectMessage) && gotMsg.Payload[len(gotMsg.Payload)-1] == 0 {
+			if test.sndCmd.Command0() == int(ExtendedDirectMessage) && gotMsg.Payload[len(gotMsg.Payload)-1] == 0 {
 				t.Errorf("Expected checksum to be set")
 			}
 

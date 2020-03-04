@@ -47,15 +47,15 @@ func (i2 *i2Device) String() string {
 }
 
 func (i2 *i2Device) EnterLinkingMode(group Group) error {
-	return i2.linkingMode(EnterLinkingMode(group))
+	return i2.linkingMode(CmdEnterLinkingMode.SubCommand(int(group)), nil)
 }
 
 func (i2 *i2Device) EnterUnlinkingMode(group Group) error {
-	return i2.linkingMode(EnterUnlinkingMode(group))
+	return i2.linkingMode(CmdEnterUnlinkingMode.SubCommand(int(group)), nil)
 }
 
 func (i2 *i2Device) ExitLinkingMode() error {
-	_, err := i2.SendCommand(ExitLinkingMode())
+	_, err := i2.SendCommand(CmdExitLinkingMode, nil)
 	return err
 }
 

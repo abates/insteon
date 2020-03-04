@@ -38,35 +38,35 @@ var (
 			flags = StandardDirectAck
 		}
 
-		return &Message{testSrcAddr, testDstAddr, flags, Command{0x00, cmd1, cmd2}, nil}
+		return &Message{testSrcAddr, testDstAddr, flags, Command(int(cmd1)<<7 | int(cmd2)), nil}
 	}
 
 	testSrcAddr = Address{1, 2, 3}
 	testDstAddr = Address{3, 4, 5}
 
-	TestMessageEngineVersion1   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x0d, 0x00}, nil}
-	TestMessageEngineVersion2   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x0d, 0x01}, nil}
-	TestMessageEngineVersion2cs = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x0d, 0x02}, nil}
-	TestMessageEngineVersion3   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x0d, 0x03}, nil}
+	TestMessageEngineVersion1   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command(0x000d00), nil}
+	TestMessageEngineVersion2   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command(0x000d01), nil}
+	TestMessageEngineVersion2cs = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command(0x000d02), nil}
+	TestMessageEngineVersion3   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command(0x000d03), nil}
 
-	TestMessagePing    = &Message{testSrcAddr, testDstAddr, StandardDirectMessage, Command{0x00, 0x0f, 0x00}, nil}
-	TestMessagePingAck = &Message{testDstAddr, testSrcAddr, StandardDirectAck, Command{0x00, 0x0f, 0x00}, nil}
-	TestPingNak        = &Message{testSrcAddr, testDstAddr, StandardDirectNak, Command{0x00, 0x0f, 0x00}, nil}
-	TestAck            = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command{0x00, 0x00, 0x00}, nil}
+	TestMessagePing    = &Message{testSrcAddr, testDstAddr, StandardDirectMessage, Command(0x000f00), nil}
+	TestMessagePingAck = &Message{testDstAddr, testSrcAddr, StandardDirectAck, Command(0x000f00), nil}
+	TestPingNak        = &Message{testSrcAddr, testDstAddr, StandardDirectNak, Command(0x000f00), nil}
+	TestAck            = &Message{testSrcAddr, testDstAddr, StandardDirectAck, Command(0x000000), nil}
 
 	TestProductDataResponse = &Message{testDstAddr, testSrcAddr, ExtendedDirectMessage, CmdProductDataResp, []byte{0, 1, 2, 3, 4, 5, 0xff, 0xff, 0, 0, 0, 0, 0, 0}}
 	TestDeviceLink1         = &Message{testSrcAddr, testDstAddr, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xff, 0, 0xc0, 1, 7, 8, 9, 0, 0, 0, 0}}
 	TestDeviceLink2         = &Message{testSrcAddr, testDstAddr, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xf7, 0, 0xc0, 1, 10, 11, 12, 0, 0, 0, 0}}
 	TestDeviceLink3         = &Message{testSrcAddr, testDstAddr, ExtendedDirectMessage, CmdReadWriteALDB, []byte{0, 1, 0x0f, 0xf7, 0, 0x00, 0, 0, 0, 0, 0, 0, 0, 0}}
 
-	TestMessageUnknownCommandNak  = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0x00, 0xfd}, nil}
-	TestMessageNoLoadDetected     = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0x00, 0xfe}, nil}
-	TestMessageNotLinked          = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0x00, 0xff}, nil}
-	TestMessageIllegalValue       = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0x00, 0xfb}, nil}
-	TestMessagePreNak             = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0x00, 0xfc}, nil}
-	TestMessageIncorrectChecksum  = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0x00, 0xfd}, nil}
-	TestMessageNoLoadDetectedI2Cs = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0x00, 0xfe}, nil}
-	TestMessageNotLinkedI2Cs      = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command{0x00, 0x00, 0xff}, nil}
+	TestMessageUnknownCommandNak  = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command(0x0000fd), nil}
+	TestMessageNoLoadDetected     = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command(0x0000fe), nil}
+	TestMessageNotLinked          = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command(0x0000ff), nil}
+	TestMessageIllegalValue       = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command(0x0000fb), nil}
+	TestMessagePreNak             = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command(0x0000fc), nil}
+	TestMessageIncorrectChecksum  = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command(0x0000fd), nil}
+	TestMessageNoLoadDetectedI2Cs = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command(0x0000fe), nil}
+	TestMessageNotLinkedI2Cs      = &Message{testDstAddr, testSrcAddr, StandardDirectNak, Command(0x0000ff), nil}
 
 	TestPing    = &Message{testSrcAddr, testDstAddr, StandardDirectMessage, CmdPing, nil}
 	TestPingAck = &Message{testDstAddr, testSrcAddr, StandardDirectAck, CmdPing, nil}
@@ -164,36 +164,36 @@ func TestFlags(t *testing.T) {
 
 func TestMessageMarshalUnmarshal(t *testing.T) {
 	tests := []struct {
-		desc            string
-		input           []byte
-		version         EngineVersion
-		expectedSrc     Address
-		expectedDst     Address
-		expectedFlags   Flags
-		expectedAck     bool
-		expectedNak     bool
-		expectedCommand Command
-		expectedError   error
+		desc          string
+		input         []byte
+		version       EngineVersion
+		wantSrc       Address
+		wantDst       Address
+		wantFlags     Flags
+		wantAck       bool
+		wantNak       bool
+		wantCmd       Command
+		expectedError error
 	}{
 		// Test 0
 		{
-			desc:            "0",
-			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x0a, 0x10, 0x00},
-			version:         VerI1,
-			expectedSrc:     Address{0x01, 0x02, 0x03},
-			expectedDst:     Address{0x04, 0x05, 0x06},
-			expectedFlags:   StandardDirectMessage,
-			expectedCommand: Command{byte(StandardDirectMessage) >> 4, 0x10, 0x00},
+			desc:      "0",
+			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x0a, 0x10, 0x00},
+			version:   VerI1,
+			wantSrc:   Address{0x01, 0x02, 0x03},
+			wantDst:   Address{0x04, 0x05, 0x06},
+			wantFlags: StandardDirectMessage,
+			wantCmd:   Command(0x001000),
 		},
 		// Test 1
 		{
-			desc:            "1",
-			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x8a, 0x01, 0x00},
-			version:         VerI1,
-			expectedSrc:     Address{0x01, 0x02, 0x03},
-			expectedDst:     Address{0x04, 0x05, 0x06},
-			expectedFlags:   Flags(0x8a),
-			expectedCommand: Command{0x08, 0x01, 0x00},
+			desc:      "1",
+			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x8a, 0x01, 0x00},
+			version:   VerI1,
+			wantSrc:   Address{0x01, 0x02, 0x03},
+			wantDst:   Address{0x04, 0x05, 0x06},
+			wantFlags: Flags(0x8a),
+			wantCmd:   Command(0x080100),
 		},
 		// Test 2
 		{
@@ -203,13 +203,13 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		},
 		// Test 3
 		{
-			desc:            "3",
-			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x1a, 0x09, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe},
-			version:         VerI1,
-			expectedSrc:     Address{0x01, 0x02, 0x03},
-			expectedDst:     Address{0x04, 0x05, 0x06},
-			expectedFlags:   ExtendedDirectMessage,
-			expectedCommand: Command{byte(ExtendedDirectMessage) >> 4, 0x09, 0x00},
+			desc:      "3",
+			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x1a, 0x09, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe},
+			version:   VerI1,
+			wantSrc:   Address{0x01, 0x02, 0x03},
+			wantDst:   Address{0x04, 0x05, 0x06},
+			wantFlags: ExtendedDirectMessage,
+			wantCmd:   Command(0x010900),
 		},
 		// Test 4
 		{
@@ -219,35 +219,35 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		},
 		// Test 5
 		{
-			desc:            "5",
-			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x1a, 0x2f, 0x00, 0x00, 0x02, 0x0f, 0xff, 0x08, 0xe2, 0x01, 0x08, 0xb6, 0xea, 0x00, 0x1b, 0x01, 0x12},
-			version:         VerI2Cs,
-			expectedSrc:     Address{0x01, 0x02, 0x03},
-			expectedDst:     Address{0x04, 0x05, 0x06},
-			expectedFlags:   ExtendedDirectMessage,
-			expectedCommand: Command{byte(ExtendedDirectMessage) >> 4, 0x2f, 0x00},
+			desc:      "5",
+			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x1a, 0x2f, 0x00, 0x00, 0x02, 0x0f, 0xff, 0x08, 0xe2, 0x01, 0x08, 0xb6, 0xea, 0x00, 0x1b, 0x01, 0x12},
+			version:   VerI2Cs,
+			wantSrc:   Address{0x01, 0x02, 0x03},
+			wantDst:   Address{0x04, 0x05, 0x06},
+			wantFlags: ExtendedDirectMessage,
+			wantCmd:   Command(0x012f00),
 		},
 		// Test 6
 		{
-			desc:            "6",
-			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xaa, 0x01, 0x00},
-			version:         VerI1,
-			expectedSrc:     Address{0x01, 0x02, 0x03},
-			expectedDst:     Address{0x04, 0x05, 0x06},
-			expectedFlags:   Flags(0xaa),
-			expectedNak:     true,
-			expectedCommand: Command{0x02, 0x01, 0x00},
+			desc:      "6",
+			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xaa, 0x01, 0x00},
+			version:   VerI1,
+			wantSrc:   Address{0x01, 0x02, 0x03},
+			wantDst:   Address{0x04, 0x05, 0x06},
+			wantFlags: Flags(0xaa),
+			wantNak:   true,
+			wantCmd:   Command(0x020100),
 		},
 		// Test 7
 		{
-			desc:            "7",
-			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x2a, 0x01, 0x00},
-			version:         VerI1,
-			expectedSrc:     Address{0x01, 0x02, 0x03},
-			expectedDst:     Address{0x04, 0x05, 0x06},
-			expectedFlags:   Flags(0x2a),
-			expectedAck:     true,
-			expectedCommand: Command{0x02, 0x01, 0x00},
+			desc:      "7",
+			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x2a, 0x01, 0x00},
+			version:   VerI1,
+			wantSrc:   Address{0x01, 0x02, 0x03},
+			wantDst:   Address{0x04, 0x05, 0x06},
+			wantFlags: Flags(0x2a),
+			wantAck:   true,
+			wantCmd:   Command(0x020100),
 		},
 	}
 
@@ -262,28 +262,28 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 				return
 			}
 
-			if test.expectedSrc != message.Src {
-				t.Errorf("got Src %v, want %v", message.Src, test.expectedSrc)
+			if test.wantSrc != message.Src {
+				t.Errorf("got Src %v, want %v", message.Src, test.wantSrc)
 			}
 
-			if test.expectedDst != message.Dst {
-				t.Errorf("got Dst %v, want %v", message.Dst, test.expectedDst)
+			if test.wantDst != message.Dst {
+				t.Errorf("got Dst %v, want %v", message.Dst, test.wantDst)
 			}
 
-			if test.expectedFlags != message.Flags {
-				t.Errorf("got Flags %v, want %v", message.Flags, test.expectedFlags)
+			if test.wantFlags != message.Flags {
+				t.Errorf("got Flags %v, want %v", message.Flags, test.wantFlags)
 			}
 
-			if test.expectedAck != message.Ack() {
-				t.Errorf("got Ack %v, want %v", message.Ack(), test.expectedAck)
+			if test.wantAck != message.Ack() {
+				t.Errorf("got Ack %v, want %v", message.Ack(), test.wantAck)
 			}
 
-			if test.expectedNak != message.Nak() {
-				t.Errorf("got Nak %v, want %v", message.Nak(), test.expectedNak)
+			if test.wantNak != message.Nak() {
+				t.Errorf("got Nak %v, want %v", message.Nak(), test.wantNak)
 			}
 
-			if test.expectedCommand != message.Command {
-				t.Errorf("got Command %v, want %v", message.Command, test.expectedCommand)
+			if test.wantCmd != message.Command {
+				t.Errorf("want Command 0x%06x got 0x%06x", int(test.wantCmd), int(message.Command))
 			}
 
 			buf, _ := message.MarshalBinary()

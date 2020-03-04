@@ -20,7 +20,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
@@ -46,30 +45,6 @@ func init() {
 	esnd.Arguments.VarSlice(&d.data, "<d1> <d2> ...")
 }
 
-type cmd struct {
-	insteon.Command
-}
-
-// Set satisfies the flag.Value interface
-func (cmd *cmd) Set(str string) error {
-	// Support non-period separated input too.
-	if len(str) == 4 {
-		str = strings.Join([]string{str[0:2], str[2:4]}, ".")
-	}
-
-	if len(str) != 5 {
-		return fmt.Errorf("Bad command format need xx.xx or xxxx where xx represents a valid hex value.  Got: %v", str)
-	}
-	var c1, c2 byte
-	_, err := fmt.Sscanf(str, "%2x.%2x", &c1, &c2)
-	if err != nil {
-		return fmt.Errorf("Bad command format need xx.xx or xxxx where xx represents a valid hex value.  Got: %v", str)
-	}
-	cmd.Command[1] = c1
-	cmd.Command[2] = c2
-	return nil
-}
-
 type data []byte
 
 func (d *data) Set(str string) error {
@@ -86,8 +61,8 @@ func (d *data) String() string { return fmt.Sprintf("%v", *d) }
 type device struct {
 	insteon.Device
 	addr insteon.Address
-	cmd  cmd
 	data data
+	cmd  cmdVar
 }
 
 func (dev *device) init(string) (err error) {
@@ -234,5 +209,6 @@ func (dev *device) editCmd(string) error {
 }
 
 func (dev *device) sendCmd(string) error {
-	return extractErr(dev.SendCommand(dev.cmd.Command, dev.data))
+	_, err := (dev.SendCommand(dev.cmd.Command, dev.data))
+	return err
 }

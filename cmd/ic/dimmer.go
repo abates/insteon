@@ -29,6 +29,19 @@ type dimmer struct {
 	ramp  int
 }
 
+var dimmerCommands = []Command{
+	Cmd("brighten", "brighten light one step", insteon.CmdLightBrighten),
+	Cmd("dim", "dim light one step", insteon.CmdLightDim),
+	Cmd("startBrighten", "start brightening the light", insteon.CmdStartBrighten),
+	Cmd("startDim", "start dimming the light", insteon.CmdStartDim),
+	Cmd("stopChange", "stop active change (brighten/dim)", insteon.CmdLightStopManual),
+	Cmd("onfast", "turn light on fast", insteon.CmdLightOnFast),
+	IntCmd("instantChange", "light instant change", "<level>", insteon.InstantChange),
+	IntCmd("setstatus", "set light's status indicator", "<level>", insteon.SetLightStatus),
+	TwintCmd("onramp", "turn light on to <level> at <rate>", "<level> <rate>", insteon.LightOnAtRamp),
+	IntCmd("offramp", "turn light off at <rate>", "<rate>", insteon.LightOffAtRamp),
+}
+
 func init() {
 	dim := &dimmer{}
 
@@ -36,38 +49,17 @@ func init() {
 	dimCmd.Arguments.Var(&dim.addr, "<device id>")
 
 	dimCmd.SubCommand("config", cli.DescOption("retrieve dimmer configuration information"), cli.CallbackOption(dim.configCmd))
-	dimCmd.SubCommand("off", cli.DescOption("turn the dimmer off"), cli.CallbackOption(dim.offCmd))
-	dimCmd.SubCommand("brighten", cli.DescOption("brighten the dimmer one step"), cli.CallbackOption(dim.brightenCmd))
-	dimCmd.SubCommand("dim", cli.DescOption("dim the dimmer one step"), cli.CallbackOption(dim.dimCmd))
-	dimCmd.SubCommand("startBrighten", cli.CallbackOption(dim.startBrightenCmd))
-	dimCmd.SubCommand("startDim", cli.CallbackOption(dim.startDimCmd))
-	dimCmd.SubCommand("stopChange", cli.CallbackOption(dim.stopChangeCmd))
 	dimCmd.SubCommand("status", cli.DescOption("get the switch status"), cli.CallbackOption(dim.statusCmd))
 
-	cmd := dimCmd.SubCommand("on", cli.UsageOption("<level>"), cli.DescOption("turn the dimmer on"), cli.CallbackOption(dim.onCmd))
-	cmd.Arguments.Int(&dim.level, "<level>")
-
-	cmd = dimCmd.SubCommand("onfast", cli.UsageOption("<level>"), cli.DescOption("turn the dimmer on fast"), cli.CallbackOption(dim.onFastCmd))
-	cmd.Arguments.Int(&dim.level, "<level>")
-
-	cmd = dimCmd.SubCommand("instantChange", cli.UsageOption("<level>"), cli.DescOption("instantly set the dimmer to the desired level (0-255)"), cli.CallbackOption(dim.instantChangeCmd))
-	cmd.Arguments.Int(&dim.level, "<level>")
-
-	cmd = dimCmd.SubCommand("setstatus", cli.UsageOption("<level>"), cli.DescOption("set the dimmer switch status LED to <level> (0-31)"), cli.CallbackOption(dim.setStatusCmd))
-	cmd.Arguments.Int(&dim.level, "<level>")
-
-	cmd = dimCmd.SubCommand("onramp", cli.UsageOption("<level> <ramp>"), cli.DescOption("turn the dimmer on to the desired level (0-15) at the given ramp rate (0-15)"), cli.CallbackOption(dim.onRampCmd))
-	cmd.Arguments.Int(&dim.level, "<level>")
-	cmd.Arguments.Int(&dim.ramp, "<ramp>")
-
-	cmd = dimCmd.SubCommand("offramp", cli.UsageOption("<ramp>"), cli.DescOption("turn the dimmer off at the givem ramp rate (0-31)"), cli.CallbackOption(dim.offRampCmd))
-	cmd.Arguments.Int(&dim.ramp, "<ramp>")
-
-	cmd = dimCmd.SubCommand("setramp", cli.UsageOption("<ramp>"), cli.DescOption("set default ramp rate (0-31)"), cli.CallbackOption(dim.setRampCmd))
-	cmd.Arguments.Int(&dim.ramp, "<ramp>")
-
-	cmd = dimCmd.SubCommand("setlevel", cli.UsageOption("<level>"), cli.DescOption("set default on level (0-255)"), cli.CallbackOption(dim.setOnLevelCmd))
-	cmd.Arguments.Int(&dim.level, "<level>")
+	for _, commands := range [][]Command{switchCommands, dimmerCommands} {
+		for _, cmd := range commands {
+			cb := func(cmd Command) func(string) error {
+				return func(string) error { return dim.runCmd(cmd) }
+			}(cmd)
+			c := dimCmd.SubCommand(cmd.Name(), cli.DescOption(cmd.Desc()), cli.UsageOption(cmd.Usage()), cli.CallbackOption(cb))
+			cmd.Setup(&c.Arguments)
+		}
+	}
 }
 
 func (dim *dimmer) init(string) (err error) {
@@ -79,6 +71,12 @@ func (dim *dimmer) init(string) (err error) {
 			err = fmt.Errorf("Device %s is not a dimmer", dim.addr)
 		}
 	}
+	return err
+}
+
+func (dim *dimmer) runCmd(cmd Command) (err error) {
+	_, err = dim.SendCommand(cmd.Command())
+
 	return err
 }
 
@@ -100,7 +98,6 @@ func (dim *dimmer) configCmd(string) error {
 		fmt.Printf("         Load Sense On: %v\n", flags.LoadSense())
 		fmt.Printf("              DB Delta: %v\n", flags.DBDelta())
 		fmt.Printf("                   SNR: %v\n", flags.SNR())
-		fmt.Printf("          SNR Failures: %v\n", flags.SNRFailCount())
 		fmt.Printf("           X10 Enabled: %v\n", flags.X10Enabled())
 		fmt.Printf("        Blink on Error: %v\n", flags.ErrorBlink())
 		fmt.Printf("Cleanup Report Enabled: %v\n", flags.CleanupReport())
@@ -120,43 +117,4 @@ func (dim *dimmer) statusCmd(string) error {
 		}
 	}
 	return err
-}
-
-func extractErr(v interface{}, err error) error {
-	return err
-}
-
-func (dim *dimmer) onCmd(string) error {
-	return extractErr(dim.SendCommand(insteon.TurnLightOn(dim.level)))
-}
-func (dim *dimmer) offCmd(string) error { return extractErr(dim.SendCommand(insteon.TurnLightOff())) }
-func (dim *dimmer) onFastCmd(string) error {
-	return extractErr(dim.SendCommand(insteon.TurnLightOnFast(dim.level)))
-}
-func (dim *dimmer) brightenCmd(string) error { return extractErr(dim.SendCommand(insteon.Brighten())) }
-func (dim *dimmer) dimCmd(string) error      { return extractErr(dim.SendCommand(insteon.Dim())) }
-func (dim *dimmer) startBrightenCmd(string) error {
-	return extractErr(dim.SendCommand(insteon.StartBrighten()))
-}
-func (dim *dimmer) startDimCmd(string) error { return extractErr(dim.SendCommand(insteon.StartDim())) }
-func (dim *dimmer) stopChangeCmd(string) error {
-	return extractErr(dim.SendCommand(insteon.StopChange()))
-}
-func (dim *dimmer) instantChangeCmd(string) error {
-	return extractErr(dim.SendCommand(insteon.InstantChange(dim.level)))
-}
-func (dim *dimmer) setStatusCmd(string) error {
-	return extractErr(dim.SendCommand(insteon.SetLightStatus(dim.level)))
-}
-func (dim *dimmer) onRampCmd(string) error {
-	return extractErr(dim.SendCommand(insteon.LightOnAtRamp(dim.level, dim.ramp)))
-}
-func (dim *dimmer) offRampCmd(string) error {
-	return extractErr(dim.SendCommand(insteon.LightOffAtRamp(dim.ramp)))
-}
-func (dim *dimmer) setRampCmd(string) error {
-	return extractErr(dim.SendCommand(insteon.SetDefaultRamp(dim.ramp)))
-}
-func (dim *dimmer) setOnLevelCmd(string) error {
-	return extractErr(dim.SendCommand(insteon.SetDefaultOnLevel(dim.level)))
 }

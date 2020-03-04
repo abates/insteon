@@ -61,11 +61,11 @@ func (lf LightFlags) TxLED() bool { return lf[0]&0x02 == 0x02 }
 func (lf LightFlags) ResumeDim() bool { return lf[0]&0x04 == 0x04 }
 
 // LED indicates if the status LED is enabled
-func (lf LightFlags) LED() bool { return lf[0]&0x08 == 0x08 }
+func (lf LightFlags) LED() bool { return lf[3]&0x10 == 0x10 }
 
 // LoadSense indicates if the device should activate when a load is
 // added
-func (lf LightFlags) LoadSense() bool { return lf[0]&0x10 == 0x10 }
+func (lf LightFlags) LoadSense() bool { return lf[4]&0x20 == 0x20 }
 
 // DBDelta indicates the number of changes that have been written to the all-link
 // database
@@ -73,10 +73,6 @@ func (lf LightFlags) DBDelta() int { return int(lf[1]) }
 
 // SNR indicates the current signal-to-noise ratio
 func (lf LightFlags) SNR() int { return int(lf[2]) }
-
-// SNRFailCount ...
-// @TODO research what this value means
-func (lf LightFlags) SNRFailCount() int { return int(lf[3]) }
 
 // X10Enabled indicates if the device will respond to X10 commands
 func (lf LightFlags) X10Enabled() bool { return lf[4]&0x01 != 0x01 }
@@ -106,7 +102,7 @@ func NewSwitch(device Device, info DeviceInfo) *Switch {
 func (sd *Switch) Status() (level int, err error) {
 	ack, err := sd.SendCommand(CmdLightStatusRequest, nil)
 	if err == nil {
-		level = int(ack[2])
+		level = ack.Command2()
 	}
 	return level, err
 }
@@ -134,11 +130,11 @@ func (sd *Switch) Config() (config SwitchConfig, err error) {
 
 func (sd *Switch) OperatingFlags() (flags LightFlags, err error) {
 	commands := []Command{
-		CmdGetOperatingFlags.SubCommand(0x00),
 		CmdGetOperatingFlags.SubCommand(0x01),
 		CmdGetOperatingFlags.SubCommand(0x02),
-		CmdGetOperatingFlags.SubCommand(0x03),
-		CmdGetOperatingFlags.SubCommand(0x05),
+		CmdGetOperatingFlags.SubCommand(0x04),
+		CmdGetOperatingFlags.SubCommand(0x10),
+		CmdGetOperatingFlags.SubCommand(0x20),
 	}
 
 	conn, err := sd.Dial(CmdGetOperatingFlags)
@@ -148,8 +144,7 @@ func (sd *Switch) OperatingFlags() (flags LightFlags, err error) {
 		for i := 0; i < len(commands) && err == nil; i++ {
 			ack, err = conn.Send(&Message{Command: commands[i]})
 			if err == nil {
-				commands[i] = ack.Command
-				flags[i] = commands[i][2]
+				flags[i] = byte(ack.Command.Command2())
 			}
 		}
 	}

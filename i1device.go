@@ -54,7 +54,8 @@ func (i1 *i1Device) sendCommand(command Command, payload []byte, errLookup func(
 	conn, err := i1.Dial(command)
 	if err == nil {
 		defer conn.Close()
-		ack, err := errLookup(conn.Send(&Message{
+		var ack *Message
+		ack, err = errLookup(conn.Send(&Message{
 			Command: command,
 			Payload: payload,
 		}))
@@ -69,7 +70,7 @@ func (i1 *i1Device) sendCommand(command Command, payload []byte, errLookup func(
 
 func errLookup(msg *Message, err error) (*Message, error) {
 	if err == ErrNak {
-		switch msg.Command[2] & 0xff {
+		switch msg.Command.Command2() & 0xff {
 		case 0xfd:
 			err = ErrUnknownCommand
 		case 0xfe:

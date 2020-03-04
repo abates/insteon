@@ -163,8 +163,8 @@ func (m *Message) MarshalBinary() (data []byte, err error) {
 	copy(data[0:3], m.Src[:])
 	copy(data[3:6], m.Dst[:])
 	data[6] = byte(m.Flags)
-	data[7] = m.Command[1]
-	data[8] = m.Command[2]
+	data[7] = byte(m.Command.Command1())
+	data[8] = byte(m.Command.Command2())
 	if m.Flags.Extended() {
 		data = append(data, make([]byte, 14)...)
 		copy(data[9:23], m.Payload)
@@ -184,9 +184,9 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	copy(m.Dst[:], data[3:6])
 	m.Flags = Flags(data[6])
 	if data[6]&0xe0 == 0xa0 || data[6]&0xe0 == 0xe0 {
-		m.Command = Command{(0x70 & data[6]) >> 4, data[7], data[8]}
+		m.Command = Command(int(0x70&data[6])<<12 | int(data[7])<<8 | int(data[8]))
 	} else {
-		m.Command = Command{data[6] >> 4, data[7], data[8]}
+		m.Command = Command(int(0xf0&data[6])<<12 | int(data[7])<<8 | int(data[8]))
 	}
 
 	if m.Flags.Extended() {
@@ -220,7 +220,9 @@ func (m *Message) String() (str string) {
 	// message when the request was extended length.  In any case,
 	// much of the time, the command lookup on an ack message may
 	// return a CommandByte that has an incorrect command name
-	if !m.Ack() {
+	if m.Ack() {
+		str = sprintf("%s %d.%d", str, m.Command.Command1(), m.Command.Command2())
+	} else {
 		str = sprintf("%s %v", str, m.Command)
 	}
 

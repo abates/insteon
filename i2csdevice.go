@@ -19,14 +19,18 @@ type i2csConnection struct {
 }
 
 func (i2cs i2csConnection) Send(msg *Message) (ack *Message, err error) {
-	if msg.Command[1] == CmdEnterLinkingMode[1] {
-		msg.Flags = ExtendedDirectMessage
-		msg.Command = CmdEnterLinkingModeExt.SubCommand(int(msg.Command[2]))
+	if msg.Command.Command1() == CmdEnterLinkingMode.Command1() {
+		msg.Command = CmdEnterLinkingModeExt.SubCommand(int(msg.Command.Command2()))
 		msg.Payload = make([]byte, 14)
 	}
 
 	// set checksum
-	if msg.Flags.Extended() {
+	if len(msg.Payload) > 0 {
+		if len(msg.Payload) < 14 {
+			tmp := make([]byte, 14)
+			copy(tmp, msg.Payload)
+			msg.Payload = tmp
+		}
 		l := len(msg.Payload)
 		msg.Payload[l-1] = checksum(msg.Command, msg.Payload)
 	}
@@ -68,7 +72,7 @@ func (i2cs *i2CsDevice) String() string {
 }
 
 func checksum(cmd Command, buf []byte) byte {
-	sum := cmd[1] + cmd[2]
+	sum := byte(cmd.Command1() + cmd.Command2())
 	for _, b := range buf {
 		sum += b
 	}
@@ -77,7 +81,7 @@ func checksum(cmd Command, buf []byte) byte {
 
 func i2csErrLookup(msg *Message, err error) (*Message, error) {
 	if err == ErrNak {
-		switch msg.Command[2] & 0xff {
+		switch msg.Command.Command2() & 0xff {
 		case 0xfb:
 			err = ErrIllegalValue
 		case 0xfc:

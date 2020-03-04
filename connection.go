@@ -142,7 +142,6 @@ type connection struct {
 	MessageWriter
 	recvCh  chan *Message
 	addr    Address
-	match   []Command
 	timeout time.Duration
 	ttl     uint8
 	retries int
@@ -176,7 +175,6 @@ func newConnection(writer MessageWriter, addr Address, cmds []Command, options .
 		MessageWriter: writer,
 		recvCh:        make(chan *Message, 1),
 		addr:          addr,
-		match:         cmds,
 		timeout:       Timeout,
 		retries:       NumRetries,
 	}
@@ -211,10 +209,10 @@ func (conn *connection) Send(msg *Message) (ack *Message, err error) {
 	}
 	retries := 0
 	for err == nil && retries <= conn.retries {
+		Log.Debugf("TX %s", msg)
 		err = conn.WriteMessage(msg)
 
 		if err == nil {
-			Log.Debugf("TX %s", msg)
 			// wait for ack
 			ack, err = conn.Receive()
 			if err == nil {
@@ -245,17 +243,7 @@ func (conn *connection) Receive() (*Message, error) {
 }
 
 func (conn *connection) dispatch(msg *Message) {
-	if len(conn.match) == 0 {
-		// match everything
-		conn.recvCh <- msg
-	} else {
-		for _, cmd := range conn.match {
-			if cmd[1] == msg.Command[1] {
-				conn.recvCh <- msg
-				break
-			}
-		}
-	}
+	conn.recvCh <- msg
 }
 
 func IDRequest(dialer Dialer, dst Address) (version FirmwareVersion, devCat DevCat, err error) {
@@ -282,12 +270,12 @@ func GetEngineVersion(dialer Dialer, dst Address) (version EngineVersion, err er
 		var ack *Message
 		ack, err = conn.Send(&Message{Command: CmdGetEngineVersion})
 		if err == nil {
-			Log.Debugf("Device %v responded with an engine version %d", conn, ack.Command[2])
-			version = EngineVersion(ack.Command[2])
+			Log.Debugf("Device %v responded with an engine version %d", conn, ack.Command.Command2())
+			version = EngineVersion(ack.Command.Command2())
 		} else if err == ErrNak {
 			// This only happens if the device is an I2Cs device and
 			// is not linked to the queryier
-			if ack.Command[2] == 0xff {
+			if ack.Command.Command2() == 0xff {
 				Log.Debugf("Device %v is an unlinked I2Cs device", conn)
 				version = VerI2Cs
 				err = ErrNotLinked

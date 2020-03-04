@@ -75,10 +75,10 @@ func NewDimmer(device Device, info DeviceInfo) *Dimmer {
 
 func (dd *Dimmer) SendCommand(cmd Command, payload []byte) (Command, error) {
 	if dd.info.FirmwareVersion >= 0x43 {
-		if cmd[1] == CmdLightOnAtRamp[1] {
-			cmd = CmdLightOnAtRampV67.SubCommand(int(cmd[2]))
-		} else if cmd[1] == CmdLightOffAtRamp[1] {
-			cmd = CmdLightOffAtRampV67.SubCommand(int(cmd[2]))
+		if cmd.Command1() == CmdLightOnAtRamp.Command1() {
+			cmd = CmdLightOnAtRampV67.SubCommand(int(cmd.Command2()))
+		} else if cmd.Command1() == CmdLightOffAtRamp.Command1() {
+			cmd = CmdLightOffAtRampV67.SubCommand(int(cmd.Command2()))
 		}
 	}
 	return dd.Switch.SendCommand(cmd, payload)

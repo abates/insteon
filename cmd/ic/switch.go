@@ -22,9 +22,15 @@ import (
 )
 
 type swtch struct {
-	insteon.Switch
+	*insteon.Switch
 	addr insteon.Address
 	led  bool
+}
+
+var switchCommands = []Command{
+	Cmd("on", "turn light on", insteon.CmdLightOn),
+	Cmd("off", "turn light off", insteon.CmdLightOff),
+	BoolCmd("backlight", "turn backlight on/off", "<true|false>", insteon.Backlight),
 }
 
 func init() {
@@ -32,23 +38,33 @@ func init() {
 
 	swCmd := app.SubCommand("switch", cli.UsageOption("<device id> <command>"), cli.DescOption("Interact with a specific switch"), cli.CallbackOption(sw.init))
 	swCmd.Arguments.Var(&sw.addr, "<device id>")
+
 	swCmd.SubCommand("config", cli.DescOption("retrieve switch configuration information"), cli.CallbackOption(sw.switchConfigCmd))
-	swCmd.SubCommand("on", cli.DescOption("turn the switch/light on"), cli.CallbackOption(sw.switchOnCmd))
-	swCmd.SubCommand("off", cli.DescOption("turn the switch/light off"), cli.CallbackOption(sw.switchOffCmd))
 	swCmd.SubCommand("status", cli.DescOption("get the switch status"), cli.CallbackOption(sw.switchStatusCmd))
-	cmd := swCmd.SubCommand("setled", cli.DescOption("set operating flags"), cli.UsageOption("<true|false>"), cli.CallbackOption(sw.switchSetLedCmd))
-	cmd.Arguments.Bool(&sw.led, "<true|false>")
+
+	for _, cmd := range switchCommands {
+		cb := func(cmd Command) func(string) error {
+			return func(string) error { return sw.runCmd(cmd) }
+		}(cmd)
+		c := swCmd.SubCommand(cmd.Name(), cli.DescOption(cmd.Desc()), cli.UsageOption(cmd.Usage()), cli.CallbackOption(cb))
+		cmd.Setup(&c.Arguments)
+	}
 }
 
 func (sw *swtch) init(string) error {
 	device, err := connect(modem, sw.addr)
 	if err == nil {
-		if s, ok := device.(insteon.Switch); ok {
+		if s, ok := device.(*insteon.Switch); ok {
 			sw.Switch = s
 		} else {
 			err = fmt.Errorf("Device at %s is a %T not a switch", sw.addr, device)
 		}
 	}
+	return err
+}
+
+func (sw *swtch) runCmd(cmd Command) error {
+	_, err := sw.SendCommand(cmd.Command())
 	return err
 }
 
@@ -58,15 +74,6 @@ func (sw *swtch) switchConfigCmd(string) error {
 		err = printDevInfo(sw, fmt.Sprintf("  X10 Address: %02x.%02x", config.HouseCode, config.UnitCode))
 	}
 	return err
-}
-
-func (sw *swtch) switchOnCmd(string) error {
-	return extractErr(sw.SendCommand(insteon.TurnLightOn(255)))
-}
-func (sw *swtch) switchOffCmd(string) error { return extractErr(sw.SendCommand(insteon.TurnLightOff())) }
-func (sw *swtch) switchSetCmd(string) error { return nil }
-func (sw *swtch) switchSetLedCmd(string) error {
-	return extractErr(sw.SendCommand(insteon.SetLED(sw.led)))
 }
 
 func (sw *swtch) switchStatusCmd(string) error {

@@ -21,10 +21,10 @@ func TestI1DeviceErrLookup(t *testing.T) {
 		want     error
 	}{
 		{"nil error", &Message{}, nil, nil},
-		{"ErrUnknownCommand", &Message{Command: Command{0, 0, 0xfd}, Flags: StandardDirectNak}, ErrNak, ErrUnknownCommand},
-		{"ErrNoLoadDetected", &Message{Command: Command{0, 0, 0xfe}, Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
-		{"ErrNotLinked", &Message{Command: Command{0, 0, 0xff}, Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
-		{"ErrUnexpectedResponse", &Message{Command: Command{0, 0, 0xfc}, Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
+		{"ErrUnknownCommand", &Message{Command: Command(0x0000fd), Flags: StandardDirectNak}, ErrNak, ErrUnknownCommand},
+		{"ErrNoLoadDetected", &Message{Command: Command(0x0000fe), Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
+		{"ErrNotLinked", &Message{Command: Command(0x0000ff), Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
+		{"ErrUnexpectedResponse", &Message{Command: Command(0x0000fc), Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
 	}
 
 	for _, test := range tests {
@@ -42,7 +42,7 @@ func TestI1DeviceSendCommand(t *testing.T) {
 		desc    string
 		wantCmd Command
 	}{
-		{"SD", Command{byte(StandardDirectMessage), 1, 2}},
+		{"SD", Command((0xff&int(StandardDirectMessage))<<16 | 0x0102)},
 	}
 
 	for _, test := range tests {
