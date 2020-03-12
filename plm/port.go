@@ -31,19 +31,20 @@ type PacketWriter interface {
 }
 
 type retryWriter struct {
-	writer  PacketWriter
-	retries int
+	writer    PacketWriter
+	retries   int
+	ignoreNak bool
 }
 
 func (rw *retryWriter) WritePacket(packet *Packet) (ack *Packet, err error) {
 	retries := rw.retries
 	for 0 <= retries {
 		ack, err = rw.writer.WritePacket(packet)
-		if err == ErrNak || err == ErrReadTimeout {
+		if (err == ErrNak && rw.ignoreNak) || err == ErrReadTimeout {
 			// TODO add exponential backoff
 			insteon.Log.Debugf("Got %v retrying", err)
 			time.Sleep(time.Second)
-			retries++
+			retries--
 		} else {
 			break
 		}
@@ -51,8 +52,8 @@ func (rw *retryWriter) WritePacket(packet *Packet) (ack *Packet, err error) {
 	return
 }
 
-func RetryWriter(writer PacketWriter, retries int) PacketWriter {
-	return &retryWriter{writer, retries}
+func RetryWriter(writer PacketWriter, retries int, ignoreNak bool) PacketWriter {
+	return &retryWriter{writer, retries, ignoreNak}
 }
 
 // LogWriter is a pass-through io.Writer that just logs what

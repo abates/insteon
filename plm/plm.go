@@ -152,7 +152,7 @@ func (plm *PLM) WriteMessage(msg *insteon.Message) error {
 	if err == nil {
 		// slice off the source address since the PLM doesn't want it
 		buf = buf[3:]
-		_, err = RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
+		_, err = RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
 	}
 
 	return err
@@ -215,7 +215,7 @@ func (plm *PLM) Monitor() (insteon.Connection, error) {
 }
 
 func (plm *PLM) Info() (info *Info, err error) {
-	ack, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdGetInfo})
+	ack, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdGetInfo})
 	if err == nil {
 		info = &Info{}
 		err = info.UnmarshalBinary(ack.Payload)
@@ -228,13 +228,13 @@ func (plm *PLM) Reset() error {
 	timeout := plm.timeout
 	plm.timeout = 20 * time.Second
 
-	_, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdReset})
+	_, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdReset})
 	plm.timeout = timeout
 	return err
 }
 
 func (plm *PLM) Config() (config Config, err error) {
-	ack, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdGetConfig})
+	ack, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdGetConfig})
 	if err == nil {
 		err = config.UnmarshalBinary(ack.Payload)
 	}
@@ -243,7 +243,7 @@ func (plm *PLM) Config() (config Config, err error) {
 
 func (plm *PLM) SetConfig(config Config) error {
 	payload, _ := config.MarshalBinary()
-	_, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdSetConfig, Payload: payload})
+	_, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSetConfig, Payload: payload})
 	return err
 }
 
