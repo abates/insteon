@@ -210,8 +210,25 @@ func (plm *PLM) Open(dst insteon.Address) (insteon.Device, error) {
 	return insteon.Open(plm.Demux, dst)
 }
 
-func (plm *PLM) Monitor() (insteon.Connection, error) {
-	return plm.Demux.Dial(insteon.Wildcard)
+func (plm *PLM) Monitor(cb func(insteon.Connection)) error {
+	config, err := plm.Config()
+	if err != nil {
+		return err
+	}
+
+	config.SetMonitorMode()
+	err = plm.SetConfig(config)
+	if err != nil {
+		return err
+	}
+
+	conn, err := plm.Demux.Dial(insteon.Wildcard)
+	if err == nil {
+		cb(conn)
+		config.clearMonitorMode()
+		err = plm.SetConfig(config)
+	}
+	return err
 }
 
 func (plm *PLM) Info() (info *Info, err error) {

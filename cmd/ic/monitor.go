@@ -27,13 +27,16 @@ func init() {
 
 func monCmd(string) (err error) {
 	log.Printf("Starting monitor...")
-	conn, err := modem.Monitor()
-	var msg *insteon.Message
-	for err == nil {
-		msg, err = conn.Receive()
-		if err == nil {
-			log.Printf("%s", msg)
+	err = modem.Monitor(func(conn insteon.Connection) {
+		var msg *insteon.Message
+		for err == nil {
+			msg, err = conn.Receive()
+			if err == insteon.ErrReadTimeout {
+				err = nil
+			} else if err == nil {
+				log.Printf("%s", msg)
+			}
 		}
-	}
+	})
 	return err
 }
