@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"fmt"
+	"time"
 )
 
 // SwitchConfig contains the HouseCode and UnitCode for a switch's
@@ -113,16 +114,15 @@ func (sd *Switch) String() string {
 
 func (sd *Switch) Config() (config SwitchConfig, err error) {
 	// SEE Dimmer.Config() notes for explanation of D1 and D2 (payload[0] and payload[1])
-	conn, err := sd.Dial(CmdExtendedGetSet)
+	rx := sd.Subscribe(CmdMatcher(CmdExtendedGetSet))
+	defer sd.Unsubscribe(rx)
+	_, err = sd.Publish(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
 	if err == nil {
-		defer conn.Close()
-		_, err := conn.Send(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x00, 0x00}})
-		if err == nil {
-			var msg *Message
-			msg, err = conn.Receive()
-			if err == nil {
-				err = config.UnmarshalBinary(msg.Payload)
-			}
+		select {
+		case msg := <-rx:
+			err = config.UnmarshalBinary(msg.Payload)
+		case <-time.After(time.Second * 3):
+			err = ErrReadTimeout
 		}
 	}
 	return config, err
@@ -137,15 +137,11 @@ func (sd *Switch) OperatingFlags() (flags LightFlags, err error) {
 		CmdGetOperatingFlags.SubCommand(0x20),
 	}
 
-	conn, err := sd.Dial(CmdGetOperatingFlags)
-	if err == nil {
-		defer conn.Close()
-		var ack *Message
-		for i := 0; i < len(commands) && err == nil; i++ {
-			ack, err = conn.Send(&Message{Command: commands[i]})
-			if err == nil {
-				flags[i] = byte(ack.Command.Command2())
-			}
+	var ack *Message
+	for i := 0; i < len(commands) && err == nil; i++ {
+		ack, err = sd.Publish(&Message{Command: commands[i]})
+		if err == nil {
+			flags[i] = byte(ack.Command.Command2())
 		}
 	}
 	return

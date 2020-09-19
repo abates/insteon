@@ -132,7 +132,7 @@ const (
 )
 
 type linkdb struct {
-	dialer DeviceDialer
+	device PubSub
 	age    time.Time
 	links  []*LinkRecord
 	index  map[LinkID]int
@@ -152,31 +152,38 @@ func (ldb *linkdb) refresh() error {
 	Log.Debugf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
 
-	conn, err := ldb.dialer.Dial(CmdReadWriteALDB)
-	if err == nil {
-		defer conn.Close()
-		buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
-		_, err := conn.Send(&Message{Command: CmdReadWriteALDB, Payload: buf})
+	rx := ldb.device.Subscribe(CmdMatcher(CmdReadWriteALDB))
+	defer ldb.device.Unsubscribe(rx)
+	buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
+	_, err := ldb.device.Publish(&Message{Command: CmdReadWriteALDB, Payload: buf})
 
-		var msg *Message
-		for err == nil {
-			msg, err = conn.Receive()
+	var msg *Message
+	for err == nil {
+		select {
+		case msg = <-rx:
+		// TODO: hard coded blah
+		case <-time.After(time.Second * 3):
+			err = ErrReadTimeout
+		}
+
+		if err == nil {
+			if msg.Ack() {
+				continue
+			}
+			lr := &linkRequest{}
+			err = lr.UnmarshalBinary(msg.Payload)
+			// make sure there was no error unmarshalling, also make sure
+			// that it's a new memory address.  Since insteon messages
+			// are retransmitted, it is possible that the same ALDB response
+			// will be received more than once
 			if err == nil {
-				lr := &linkRequest{}
-				err = lr.UnmarshalBinary(msg.Payload)
-				// make sure there was no error unmarshalling, also make sure
-				// that it's a new memory address.  Since insteon messages
-				// are retransmitted, it is possible that the same ALDB response
-				// will be received more than once
-				if err == nil {
-					if lr.MemAddress != lastAddress {
-						lastAddress = lr.MemAddress
-						if lr.Link.Flags.LastRecord() {
-							break
-						} else {
-							ldb.links = append(ldb.links, lr.Link)
-							ldb.index[lr.Link.id()] = len(ldb.links) - 1
-						}
+				if lr.MemAddress != lastAddress {
+					lastAddress = lr.MemAddress
+					if lr.Link.Flags.LastRecord() {
+						break
+					} else {
+						ldb.links = append(ldb.links, lr.Link)
+						ldb.index[lr.Link.id()] = len(ldb.links) - 1
 					}
 				}
 			}
@@ -201,25 +208,22 @@ func (ldb *linkdb) writeLink(index int, link *LinkRecord) (err error) {
 		return ErrLinkIndexOutOfRange
 	}
 	memAddress := BaseLinkDBAddress - (MemAddress(index) * LinkRecordSize)
-	conn, err := ldb.dialer.Dial(CmdReadWriteALDB)
+	buf, _ := (&linkRequest{MemAddress: memAddress, Type: writeLink, Link: link}).MarshalBinary()
+	_, err = ldb.device.Publish(&Message{Command: CmdReadWriteALDB, Payload: buf})
 	if err == nil {
-		buf, _ := (&linkRequest{MemAddress: memAddress, Type: writeLink, Link: link}).MarshalBinary()
-		_, err = conn.Send(&Message{Command: CmdReadWriteALDB, Payload: buf})
-		if err == nil {
-			if link.Flags.LastRecord() {
-				// if the last record comes before the end of the cached links then
-				// slice the local list at the index
-				if index < len(ldb.links) {
-					ldb.links = ldb.links[0:index]
-				}
+		if link.Flags.LastRecord() {
+			// if the last record comes before the end of the cached links then
+			// slice the local list at the index
+			if index < len(ldb.links) {
+				ldb.links = ldb.links[0:index]
+			}
+		} else {
+			// copy the link so it can't be modified outside of the database
+			link = &LinkRecord{Flags: link.Flags, Group: link.Group, Address: link.Address, Data: link.Data}
+			if index == len(ldb.links) {
+				ldb.links = append(ldb.links, link)
 			} else {
-				// copy the link so it can't be modified outside of the database
-				link = &LinkRecord{Flags: link.Flags, Group: link.Group, Address: link.Address, Data: link.Data}
-				if index == len(ldb.links) {
-					ldb.links = append(ldb.links, link)
-				} else {
-					ldb.links[index] = link
-				}
+				ldb.links[index] = link
 			}
 		}
 	}

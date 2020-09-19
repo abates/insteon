@@ -32,10 +32,6 @@ type Addressable interface {
 	Address() Address
 }
 
-type DeviceDialer interface {
-	Dial(cmds ...Command) (Connection, error)
-}
-
 // Commandable indicates that the implementation exists to send commands
 type Commandable interface {
 	// SendCommand will send the given command bytes to the device including
@@ -44,12 +40,19 @@ type Commandable interface {
 	SendCommand(cmd Command, payload []byte) (ack Command, err error)
 }
 
+type PubSub interface {
+	Publish(*Message) (*Message, error)
+
+	Subscribe(matcher Matcher) <-chan *Message
+
+	Unsubscribe(ch <-chan *Message)
+}
+
 // Device is the most basic capability that any device must implement. Devices
 // can be sent commands and can receive messages
 type Device interface {
-	DeviceDialer
-
 	Commandable
+	PubSub
 
 	// LinkDatabase will return a LinkDatabase if the underlying device
 	// supports it.  If the underlying device (namely I1 devices) does
@@ -160,19 +163,19 @@ type DeviceInfo struct {
 // I2Device or I2CsDevice) is returned.  If, in opening the device, a "Not Linked" NAK
 // is encountered, then the I2CsDevice is returned with an ErrNotLinked error.  This
 // allows the application to initiate linking, if desired
-func Open(dialer Dialer, dst Address) (device Device, err error) {
-	version, err := GetEngineVersion(dialer, dst)
+func Open(bus Bus, dst Address) (device Device, err error) {
+	version, err := GetEngineVersion(bus, dst)
 	if err == nil {
 		info := DeviceInfo{
 			Address:       dst,
 			EngineVersion: version,
 		}
-		info.FirmwareVersion, info.DevCat, err = IDRequest(dialer, dst)
+		info.FirmwareVersion, info.DevCat, err = IDRequest(bus, dst)
 		if err == nil {
-			device, err = New(dialer, info)
+			device, err = New(bus, info)
 		}
 	} else if err == ErrNotLinked {
-		device, _ = create(dialer, DeviceInfo{Address: dst, EngineVersion: VerI2Cs})
+		device, _ = create(bus, DeviceInfo{Address: dst, EngineVersion: VerI2Cs})
 	}
 	return device, err
 }
@@ -180,8 +183,8 @@ func Open(dialer Dialer, dst Address) (device Device, err error) {
 // New will use the supplied DeviceInfo to create a device instance for the
 // given connection.  For instance, if the DevCat is 0x01 with an I2CS
 // EngineVersion then a Dimmer with an underlying i2CsDevice will be returned
-func New(dialer Dialer, info DeviceInfo) (Device, error) {
-	device, err := create(dialer, info)
+func New(bus Bus, info DeviceInfo) (Device, error) {
+	device, err := create(bus, info)
 	if err == nil {
 		switch info.DevCat.Domain() {
 		case DimmerDomain:
@@ -195,14 +198,14 @@ func New(dialer Dialer, info DeviceInfo) (Device, error) {
 
 // create will return either an I1Device, an I2Device or an I2CsDevice based on the
 // supplied EngineVersion
-func create(dialer Dialer, info DeviceInfo) (device Device, err error) {
+func create(bus Bus, info DeviceInfo) (device Device, err error) {
 	switch info.EngineVersion {
 	case VerI1:
-		device = newI1Device(dialer, info)
+		device = newI1Device(bus, info)
 	case VerI2:
-		device = newI2Device(dialer, info)
+		device = newI2Device(bus, info)
 	case VerI2Cs:
-		device = newI2CsDevice(dialer, info)
+		device = newI2CsDevice(bus, info)
 	default:
 		err = ErrVersion
 	}

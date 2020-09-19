@@ -42,7 +42,7 @@ func hexDump(format string, buf []byte, sep string) string {
 }
 
 type PLM struct {
-	insteon.Demux
+	insteon.Bus
 	reader PacketReader
 	writer io.Writer
 
@@ -55,21 +55,23 @@ type PLM struct {
 
 	connOptions []insteon.ConnectionOption
 	plmCh       chan *Packet
+	messages    chan *insteon.Message
 }
 
 // The Option mechanism is based on the method described at https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 type Option func(p *PLM) error
 
 // New creates a new PLM instance.
-func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...Option) (*PLM, error) {
-	plm := &PLM{
+func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...Option) (plm *PLM, err error) {
+	plm = &PLM{
 		reader:     NewPacketReader(reader),
 		writer:     LogWriter{writer},
 		timeout:    timeout,
 		retries:    3,
 		writeDelay: 0,
 
-		plmCh: make(chan *Packet, 1),
+		plmCh:    make(chan *Packet, 1),
+		messages: make(chan *insteon.Message),
 	}
 
 	for _, o := range options {
@@ -80,24 +82,19 @@ func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...O
 		}
 	}
 
-	if plm.Demux == nil {
-		plm.Demux = insteon.NewDemux(plm, plm.connOptions...)
-	}
-
 	plm.linkdb.plm = plm
 	plm.linkdb.retries = plm.retries
 	plm.linkdb.timeout = plm.timeout
 
+	if plm.Bus == nil {
+		plm.Bus, err = insteon.NewBus(plm, plm.messages, plm.connOptions...)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	go plm.readLoop()
 	return plm, nil
-}
-
-// Demux sets the internal demuxer that the PLM will use
-func Demux(demux insteon.Demux) Option {
-	return func(p *PLM) error {
-		p.Demux = demux
-		return nil
-	}
 }
 
 // WriteDelay can be passed as a parameter to New to change the delay used after writing a command before reading the response.
@@ -125,7 +122,7 @@ func (plm *PLM) readLoop() {
 				err = msg.UnmarshalBinary(packet.Payload)
 				if err == nil {
 					insteon.Log.Debugf("PLM Insteon RX %v", msg)
-					plm.Dispatch(msg)
+					plm.messages <- msg
 				}
 			} else {
 				insteon.Log.Debugf("PLM CMD RX %v", packet)
@@ -207,10 +204,10 @@ func (plm *PLM) ReadPacket() (pkt *Packet, err error) {
 }
 
 func (plm *PLM) Open(dst insteon.Address) (insteon.Device, error) {
-	return insteon.Open(plm.Demux, dst)
+	return insteon.Open(plm.Bus, dst)
 }
 
-func (plm *PLM) Monitor(cb func(insteon.Connection)) error {
+func (plm *PLM) Monitor(cb func()) error {
 	config, err := plm.Config()
 	if err != nil {
 		return err
@@ -222,12 +219,12 @@ func (plm *PLM) Monitor(cb func(insteon.Connection)) error {
 		return err
 	}
 
-	conn, err := plm.Demux.Dial(insteon.Wildcard)
+	/*conn, err := plm.Demux.Dial(insteon.Wildcard)
 	if err == nil {
 		cb(conn)
 		config.clearMonitorMode()
 		err = plm.SetConfig(config)
-	}
+	}*/
 	return err
 }
 
@@ -291,4 +288,8 @@ func (plm *PLM) Close() {
 	if closer, ok := plm.writer.(io.Closer); ok {
 		closer.Close()
 	}
+}
+
+func (plm *PLM) LinkDatabase() (insteon.Linkable, error) {
+	return plm, nil
 }

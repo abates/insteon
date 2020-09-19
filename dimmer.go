@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"fmt"
+	"time"
 )
 
 // DimmerConfig includes the X10 configuration as well as default ramp
@@ -90,15 +91,15 @@ func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
-	conn, err := dd.Dial(CmdExtendedGetSet)
+	rx := dd.Subscribe(CmdMatcher(CmdExtendedGetSet))
+	defer dd.Unsubscribe(rx)
+	_, err = dd.Publish(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
 	if err == nil {
-		defer conn.Close()
-		_, err := conn.Send(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
-		if err == nil {
-			msg, err := conn.Receive()
-			if err == nil {
-				err = config.UnmarshalBinary(msg.Payload)
-			}
+		select {
+		case msg := <-rx:
+			err = config.UnmarshalBinary(msg.Payload)
+		case <-time.After(time.Second * 3):
+			err = ErrReadTimeout
 		}
 	}
 	return config, err

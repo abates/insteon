@@ -117,6 +117,10 @@ func (f Flags) Extended() bool { return f&0x10 == 0x10 }
 // retransmitted. This is decremented each time a message is repeated
 func (f Flags) TTL() int { return int((f & 0x0f) >> 2) }
 
+func (f *Flags) SetTTL(ttl uint8) {
+
+}
+
 // MaxTTL is the maximum number of times a message can be repeated
 func (f Flags) MaxTTL() int { return int(f & 0x03) }
 

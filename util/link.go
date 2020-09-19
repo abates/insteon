@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/abates/insteon"
@@ -31,6 +32,18 @@ var (
 	// ErrLinkNotFound is returned by the Find function when no matching record was found
 	ErrLinkNotFound = errors.New("Link was not found in the database")
 )
+
+type Linkable interface {
+	LinkDatabase() (insteon.Linkable, error)
+}
+
+func IfLinkable(thing Linkable, cb func(linkable insteon.Linkable) error) error {
+	linkdb, err := thing.LinkDatabase()
+	if err == nil {
+		return cb(linkdb)
+	}
+	return insteon.ErrNotLinkable
+}
 
 // FindDuplicateLinks will perform a linear search of the
 // LinkDB and return any links that are duplicates. Duplicate
@@ -220,30 +233,50 @@ func Link(group insteon.Group, controller, responder insteon.Linkable) (err erro
 	return err
 }
 
-func PrintLinks(out io.Writer, linkable insteon.Linkable) error {
-	dbLinks, err := linkable.Links()
-	fmt.Fprintf(out, "Link Database:\n")
-	if len(dbLinks) > 0 {
-		fmt.Fprintf(out, "    Flags Group Address    Data\n")
-
-		links := make(map[string][]*insteon.LinkRecord)
-		for _, link := range dbLinks {
-			links[link.Address.String()] = append(links[link.Address.String()], link)
-		}
-
-		linkAddresses := []string{}
-		for linkAddress := range links {
-			linkAddresses = append(linkAddresses, linkAddress)
-		}
-		sort.Strings(linkAddresses)
-
-		for _, linkAddress := range linkAddresses {
-			for _, link := range links[linkAddress] {
-				fmt.Fprintf(out, "    %-5s %5s %8s   %02x %02x %02x\n", link.Flags, link.Group, link.Address, link.Data[0], link.Data[1], link.Data[2])
+func DumpLinkDatabase(out io.Writer, linkable Linkable) error {
+	return IfLinkable(linkable, func(linkable insteon.Linkable) error {
+		links, err := linkable.Links()
+		if err == nil {
+			fmt.Fprintf(out, "links:\n")
+			for _, link := range links {
+				buf, _ := link.MarshalBinary()
+				s := make([]string, len(buf))
+				for i, b := range buf {
+					s[i] = fmt.Sprintf("0x%02x", b)
+				}
+				fmt.Fprintf(out, "- [ %s ]\n", strings.Join(s, ", "))
 			}
 		}
-	} else {
-		fmt.Fprintf(out, "    No links defined\n")
-	}
-	return err
+		return err
+	})
+}
+
+func PrintLinks(out io.Writer, linkable Linkable) error {
+	return IfLinkable(linkable, func(linkable insteon.Linkable) error {
+		dbLinks, err := linkable.Links()
+		fmt.Fprintf(out, "Link Database:\n")
+		if len(dbLinks) > 0 {
+			fmt.Fprintf(out, "    Flags Group Address    Data\n")
+
+			links := make(map[string][]*insteon.LinkRecord)
+			for _, link := range dbLinks {
+				links[link.Address.String()] = append(links[link.Address.String()], link)
+			}
+
+			linkAddresses := []string{}
+			for linkAddress := range links {
+				linkAddresses = append(linkAddresses, linkAddress)
+			}
+			sort.Strings(linkAddresses)
+
+			for _, linkAddress := range linkAddresses {
+				for _, link := range links[linkAddress] {
+					fmt.Fprintf(out, "    %-5s %5s %8s   %02x %02x %02x\n", link.Flags, link.Group, link.Address, link.Data[0], link.Data[1], link.Data[2])
+				}
+			}
+		} else {
+			fmt.Fprintf(out, "    No links defined\n")
+		}
+		return err
+	})
 }

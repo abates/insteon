@@ -18,7 +18,6 @@ import (
 	"log"
 
 	"github.com/abates/cli"
-	"github.com/abates/insteon"
 )
 
 func init() {
@@ -27,8 +26,8 @@ func init() {
 
 func monCmd(string) (err error) {
 	log.Printf("Starting monitor...")
-	err = modem.Monitor(func(conn insteon.Connection) {
-		var msg *insteon.Message
+	err = modem.Monitor(func() {
+		/*var msg *insteon.Message
 		for err == nil {
 			msg, err = conn.Receive()
 			if err == insteon.ErrReadTimeout {
@@ -36,7 +35,7 @@ func monCmd(string) (err error) {
 			} else if err == nil {
 				log.Printf("%s", msg)
 			}
-		}
+		}*/
 	})
 	return err
 }

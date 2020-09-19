@@ -45,23 +45,10 @@ func init() {
 	esnd.Arguments.VarSlice(&d.data, "<d1> <d2> ...")
 }
 
-type data []byte
-
-func (d *data) Set(str string) error {
-	var b byte
-	_, err := fmt.Sscanf(str, "%x", &b)
-	if err == nil {
-		*d = append(*d, b)
-	}
-	return err
-}
-
-func (d *data) String() string { return fmt.Sprintf("%v", *d) }
-
 type device struct {
 	insteon.Device
 	addr insteon.Address
-	data data
+	data dataVar
 	cmd  cmdVar
 }
 
@@ -83,42 +70,26 @@ func connect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 	return device, err
 }
 
-func isLinkable(thing interface{}, cb func(linkable insteon.Linkable) error) error {
-	if device, ok := thing.(insteon.Device); ok {
-		linkdb, err := device.LinkDatabase()
-		if err == nil {
-			return cb(linkdb)
-		}
-		return fmt.Errorf("%v does not support remote link database management: %v", device, err)
-	} else if plm, ok := thing.(*plm.PLM); ok {
-		return cb(plm)
-	}
-	return fmt.Errorf("%v is not linkable", thing)
-}
-
 func (dev *device) linkCmd(string) error {
-	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
+	return util.IfLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		return linkable.EnterLinkingMode(insteon.Group(0x01))
 	})
 }
 
 func (dev *device) unlinkCmd(string) error {
-	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
+	return util.IfLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		return linkable.EnterUnlinkingMode(insteon.Group(0x01))
 	})
 }
 
 func (dev *device) exitLinkCmd(string) error {
-	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
+	return util.IfLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		return linkable.ExitLinkingMode()
 	})
 }
 
 func (dev *device) dumpCmd(string) error {
-	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
-		err := dumpLinkDatabase(linkable)
-		return err
-	})
+	return util.DumpLinkDatabase(os.Stdout, dev.Device)
 }
 
 func (dev *device) infoCmd(string) (err error) {
@@ -135,9 +106,7 @@ func printDevInfo(device insteon.Device, extra string) (err error) {
 			fmt.Printf("%s\n", extra)
 		}
 
-		err = isLinkable(device, func(linkable insteon.Linkable) error {
-			return util.PrintLinks(os.Stdout, linkable)
-		})
+		err = util.PrintLinks(os.Stdout, device)
 	}
 	return err
 }
@@ -148,7 +117,7 @@ func (dev *device) versionCmd(string) error {
 }
 
 func (dev *device) editCmd(string) error {
-	return isLinkable(dev.Device, func(linkable insteon.Linkable) error {
+	return util.IfLinkable(dev.Device, func(linkable insteon.Linkable) error {
 		dbLinks, _ := linkable.Links()
 		if len(dbLinks) == 0 {
 			return fmt.Errorf("No links to edit")

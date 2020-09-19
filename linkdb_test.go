@@ -163,19 +163,21 @@ func TestLinkdbLinks(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			// Add high water mark
 			links := append(test.want, &LinkRecord{})
-			conn := &testConnection{acks: []*Message{{Command: CmdReadWriteALDB, Flags: StandardDirectAck}}}
+			ch := make(chan *Message, len(links))
+			tps := &testPubSub{publishResp: []*Message{{Command: CmdReadWriteALDB, Flags: StandardDirectAck}}, subscribeCh: ch}
+
 			memAddress := BaseLinkDBAddress
 			for _, link := range links {
 				lr := &linkRequest{Type: linkResponse, MemAddress: memAddress, Link: link}
 				msg := &Message{Command: CmdReadWriteALDB, Flags: ExtendedDirectMessage, Payload: make([]byte, 14)}
 				buf, _ := lr.MarshalBinary()
 				copy(msg.Payload, buf)
-				conn.recv = append(conn.recv, msg)
+				ch <- msg
 				memAddress -= LinkRecordSize
 			}
 
 			MaxLinkDbAge = time.Millisecond
-			linkdb := linkdb{age: test.age, dialer: testDeviceDialer{conn}}
+			linkdb := linkdb{age: test.age, device: tps}
 			got, err := linkdb.Links()
 			if err == nil {
 				if len(got) == len(test.want) {
@@ -184,6 +186,10 @@ func TestLinkdbLinks(t *testing.T) {
 				}
 			} else {
 				t.Errorf("Unexpected error %v", err)
+			}
+
+			if tps.unsubscribeCh != tps.subscribedCh {
+				t.Errorf("Expected listeners to be unsubscribed!")
 			}
 		})
 	}
@@ -207,14 +213,14 @@ func TestLinkdbWriteLink(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{acks: []*Message{TestAck}}
-			linkdb := linkdb{dialer: testDeviceDialer{conn}, links: test.links}
+			tps := &testPubSub{publishResp: []*Message{TestAck}}
+			linkdb := linkdb{device: tps, links: test.links}
 			gotErr := linkdb.writeLink(test.inputIndex, test.inputRecord)
 			if test.wantErr != gotErr {
 				t.Errorf("Want err %v got %v", test.wantErr, gotErr)
 			} else if gotErr == nil {
 				lr := &linkRequest{}
-				lr.UnmarshalBinary(conn.sent[0].Payload)
+				lr.UnmarshalBinary(tps.published[0].Payload)
 				if lr.Type != writeLink {
 					t.Errorf("Expected %v got %v", writeLink, lr.Type)
 				}
@@ -250,15 +256,15 @@ func TestLinkdbWriteLinks(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{}
+			tps := &testPubSub{}
 			for i := 0; i < len(test.wantMemAddress); i++ {
-				conn.acks = append(conn.acks, TestAck)
+				tps.publishResp = append(tps.publishResp, TestAck)
 			}
-			linkdb := linkdb{dialer: testDeviceDialer{conn}}
+			linkdb := linkdb{device: tps}
 			linkdb.WriteLinks(test.input...)
 			gotMemAddress := []MemAddress{}
 			gotLinks := []*LinkRecord{}
-			for _, msg := range conn.sent {
+			for _, msg := range tps.published {
 				lr := &linkRequest{}
 				lr.UnmarshalBinary(msg.Payload)
 				gotLinks = append(gotLinks, lr.Link)
@@ -326,19 +332,19 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{}
+			tps := &testPubSub{}
 			for i := 0; i < len(test.want); i++ {
-				conn.acks = append(conn.acks, TestAck)
+				tps.publishResp = append(tps.publishResp, TestAck)
 			}
 			index := make(map[LinkID]int)
 			for i, link := range test.existingLinks {
 				index[link.id()] = i
 			}
 			MaxLinkDbAge = time.Second
-			ldb := &linkdb{age: time.Now().Add(time.Hour), links: test.existingLinks, index: index, dialer: testDeviceDialer{conn}}
+			ldb := &linkdb{age: time.Now().Add(time.Hour), links: test.existingLinks, index: index, device: tps}
 			ldb.UpdateLinks(test.input...)
 
-			for i, msg := range conn.sent {
+			for i, msg := range tps.published {
 				want := test.want[i]
 				lr := &linkRequest{}
 				lr.UnmarshalBinary(msg.Payload)
@@ -349,8 +355,8 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 				i++
 			}
 
-			if len(conn.sent) < len(test.want) {
-				t.Errorf("Wanted %d addresses got %d", len(test.want), len(conn.sent))
+			if len(tps.published) < len(test.want) {
+				t.Errorf("Wanted %d addresses got %d", len(test.want), len(tps.published))
 			}
 		})
 	}

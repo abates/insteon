@@ -98,9 +98,7 @@ func (p *plmCmd) infoCmd(string) (err error) {
 		fmt.Printf("   Address: %s\n", info.Address)
 		fmt.Printf("  Category: %02x Sub-Category: %02x\n", info.DevCat.Domain(), info.DevCat.Category())
 		fmt.Printf("  Firmware: %d\n", info.Firmware)
-		err = isLinkable(modem, func(linkable insteon.Linkable) error {
-			return util.PrintLinks(os.Stdout, linkable)
-		})
+		err = util.PrintLinks(os.Stdout, modem)
 	}
 	return err
 }
@@ -109,7 +107,7 @@ func (p *plmCmd) linkCmd(string) error      { return p.link(false) }
 func (p *plmCmd) crossLinkCmd(string) error { return p.link(true) }
 
 func (p *plmCmd) link(crosslink bool) error {
-	return isLinkable(modem, func(lmodem insteon.Linkable) (err error) {
+	return util.IfLinkable(modem, func(lmodem insteon.Linkable) (err error) {
 		for _, addr := range p.addresses {
 			group := insteon.Group(0x01)
 			fmt.Printf("Linking to %s...", addr)
@@ -119,7 +117,7 @@ func (p *plmCmd) link(crosslink bool) error {
 			}
 
 			if err == nil {
-				err = isLinkable(device, func(ldevice insteon.Linkable) (err error) {
+				err = util.IfLinkable(device, func(ldevice insteon.Linkable) (err error) {
 					err = util.ForceLink(group, lmodem, ldevice)
 					if err == nil && crosslink {
 						err = util.ForceLink(group, ldevice, lmodem)
@@ -141,7 +139,7 @@ func (p *plmCmd) link(crosslink bool) error {
 }
 
 func (p *plmCmd) allLinkCmd(string) error {
-	return isLinkable(modem, func(linkable insteon.Linkable) error {
+	return util.IfLinkable(modem, func(linkable insteon.Linkable) error {
 		return linkable.EnterLinkingMode(insteon.Group(0x01))
 	})
 }
@@ -149,14 +147,14 @@ func (p *plmCmd) allLinkCmd(string) error {
 func (p *plmCmd) unlinkCmd(string) (err error) {
 	group := insteon.Group(0x01)
 
-	return isLinkable(modem, func(lmodem insteon.Linkable) (err error) {
+	return util.IfLinkable(modem, func(lmodem insteon.Linkable) (err error) {
 		for _, addr := range p.addresses {
 			var device insteon.Device
 			fmt.Printf("Unlinking from %s...", addr)
 			device, err = modem.Open(addr)
 
 			if err == nil {
-				err = isLinkable(device, func(ldevice insteon.Linkable) (err error) {
+				err = util.IfLinkable(device, func(ldevice insteon.Linkable) (err error) {
 					if err == nil {
 						err = util.Unlink(group, ldevice, lmodem)
 					}

@@ -97,11 +97,11 @@ func TestI2CsDeviceSendCommand(t *testing.T) {
 			if len(test.sndPayload) > 0 {
 				ackFlags = ExtendedDirectAck
 			}
-			conn := &testConnection{acks: []*Message{{Flags: ackFlags}}}
-			device := newI2CsDevice(testDialer{conn}, DeviceInfo{})
+			b := &testBus{publishResp: []*Message{{Flags: ackFlags}}}
+			device := newI2CsDevice(b, DeviceInfo{})
 			device.SendCommand(test.sndCmd, test.sndPayload)
 
-			gotMsg := conn.sent[0]
+			gotMsg := b.published
 
 			if test.sndCmd.Command0() == int(ExtendedDirectMessage) && gotMsg.Payload[len(gotMsg.Payload)-1] == 0 {
 				t.Errorf("Expected checksum to be set")

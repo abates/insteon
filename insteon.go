@@ -54,6 +54,9 @@ var (
 	// database
 	ErrNotLinked = errors.New("Not in All-Link group")
 
+	// ErrNotLinkable indicates a linking function was requested on a non-linkable device
+	ErrNotLinkable = errors.New("Device is not remotely linkable")
+
 	// ErrNoLoadDetected is an error returned by the device (this error condition is not documented)
 	ErrNoLoadDetected = errors.New("No load detected")
 

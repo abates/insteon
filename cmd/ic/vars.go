@@ -16,11 +16,25 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
 )
+
+type dataVar []byte
+
+func (d *dataVar) Set(str string) error {
+	var b byte
+	_, err := fmt.Sscanf(str, "%x", &b)
+	if err == nil {
+		*d = append(*d, b)
+	}
+	return err
+}
+
+func (d *dataVar) String() string { return fmt.Sprintf("%v", *d) }
 
 type cmdVar struct {
 	insteon.Command
@@ -29,17 +43,23 @@ type cmdVar struct {
 // Set satisfies the flag.Value interface
 func (cmd *cmdVar) Set(str string) error {
 	// Support non-period separated input too.
-	if len(str) == 4 {
-		str = strings.Join([]string{str[0:2], str[2:4]}, ".")
+	index := strings.Index(str, ".")
+	if index != -1 {
+		str = strings.Join([]string{str[0:index], str[index+1:]}, "")
 	}
 
-	if len(str) != 5 {
-		return fmt.Errorf("Bad command format need xx.xx or xxxx where xx represents a valid hex value.  Got: %v", str)
+	if len(str) != 4 {
+		return &strconv.NumError{"cmdVar.Set", str, strconv.ErrSyntax}
 	}
-	var c1, c2 int
-	_, err := fmt.Sscanf(str, "%2x.%2x", &c1, &c2)
+
+	c1, err := strconv.Atoi(str[0:2])
 	if err != nil {
-		return fmt.Errorf("Bad command format need xx.xx or xxxx where xx represents a valid hex value.  Got: %v", str)
+		return err
+	}
+
+	c2, err := strconv.Atoi(str[2:])
+	if err != nil {
+		return err
 	}
 	cmd.Command = insteon.Command((c1&0xff)<<8 | c2&0xff)
 	return nil

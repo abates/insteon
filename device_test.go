@@ -23,23 +23,29 @@ func mkPayload(buf ...byte) []byte {
 	return append(buf, make([]byte, 14-len(buf))...)
 }
 
-type testDevice struct {
-	conn Connection
+type testPubSub struct {
+	published   []*Message
+	publishResp []*Message
+	publishErr  error
+
+	subscribeCh   <-chan *Message
+	subscribedCh  <-chan *Message
+	unsubscribeCh <-chan *Message
 }
 
-func (td testDevice) Dial(cmds ...Command) (Connection, error) { return td.conn, nil }
-
-func (td testDevice) SendCommand(cmd Command, payload []byte) (ack Command, err error) {
-	msg, err := td.conn.Send(&Message{Command: cmd, Payload: payload})
-	if err == nil {
-		ack = msg.Command
-	}
-	return
+func (tps *testPubSub) Publish(msg *Message) (*Message, error) {
+	tps.published = append(tps.published, msg)
+	msg = tps.publishResp[0]
+	tps.publishResp = tps.publishResp[1:]
+	return msg, tps.publishErr
 }
 
-func (td testDevice) LinkDatabase() (Linkable, error) { return nil, nil }
+func (tps *testPubSub) Subscribe(matcher Matcher) <-chan *Message {
+	tps.subscribedCh = tps.subscribeCh
+	return tps.subscribeCh
+}
 
-func (td testDevice) Info() DeviceInfo { return DeviceInfo{} }
+func (tps *testPubSub) Unsubscribe(ch <-chan *Message) { tps.unsubscribeCh = ch }
 
 func TestDeviceCreate(t *testing.T) {
 	tests := []struct {
@@ -72,23 +78,30 @@ func TestDeviceCreate(t *testing.T) {
 
 func TestDeviceOpen(t *testing.T) {
 	tests := []struct {
-		desc     string
-		input    *testConnection
-		wantType reflect.Type
-		wantErr  error
+		desc       string
+		input      []*Message
+		messages   []*Message
+		publishErr error
+		wantType   reflect.Type
+		wantErr    error
 	}{
-		{"I1Device", &testConnection{acks: []*Message{TestMessageEngineVersion1, TestAck}, recv: []*Message{SetButtonPressed(false, 0, 0, 0)}}, reflect.TypeOf(&i1Device{}), nil},
-		{"I2Device", &testConnection{acks: []*Message{TestMessageEngineVersion2, TestAck}, recv: []*Message{SetButtonPressed(false, 0, 0, 0)}}, reflect.TypeOf(&i2Device{}), nil},
-		{"I2CsDevice", &testConnection{acks: []*Message{TestMessageEngineVersion2cs, TestAck}, recv: []*Message{SetButtonPressed(false, 0, 0, 0)}}, reflect.TypeOf(&i2CsDevice{}), nil},
-		{"Dimmer", &testConnection{acks: []*Message{TestMessageEngineVersion2cs, TestAck}, recv: []*Message{SetButtonPressed(false, 1, 0, 0)}}, reflect.TypeOf(&Dimmer{}), nil},
-		{"Switch", &testConnection{acks: []*Message{TestMessageEngineVersion2cs, TestAck}, recv: []*Message{SetButtonPressed(false, 2, 0, 0)}}, reflect.TypeOf(&Switch{}), nil},
-		{"ErrVersion", &testConnection{acks: []*Message{TestMessageEngineVersion3, TestAck}, recv: []*Message{SetButtonPressed(false, 0, 0, 0)}}, reflect.TypeOf(nil), ErrVersion},
-		{"Not Linked", &testConnection{acks: []*Message{Ack(false, 0, 255)}, recv: []*Message{SetButtonPressed(false, 0, 0, 0)}}, reflect.TypeOf(&i2CsDevice{}), ErrNotLinked},
+		{"I1Device", []*Message{TestMessageEngineVersion1, TestAck}, []*Message{SetButtonPressed(false, 0, 0, 0)}, nil, reflect.TypeOf(&i1Device{}), nil},
+		{"I2Device", []*Message{TestMessageEngineVersion2, TestAck}, []*Message{SetButtonPressed(false, 0, 0, 0)}, nil, reflect.TypeOf(&i2Device{}), nil},
+		{"I2CsDevice", []*Message{TestMessageEngineVersion2cs, TestAck}, []*Message{SetButtonPressed(false, 0, 0, 0)}, nil, reflect.TypeOf(&i2CsDevice{}), nil},
+		{"Dimmer", []*Message{TestMessageEngineVersion2cs, TestAck}, []*Message{SetButtonPressed(false, 1, 0, 0)}, nil, reflect.TypeOf(&Dimmer{}), nil},
+		{"Switch", []*Message{TestMessageEngineVersion2cs, TestAck}, []*Message{SetButtonPressed(false, 2, 0, 0)}, nil, reflect.TypeOf(&Switch{}), nil},
+		{"ErrVersion", []*Message{TestMessageEngineVersion3, TestAck}, []*Message{SetButtonPressed(false, 0, 0, 0)}, nil, reflect.TypeOf(nil), ErrVersion},
+		{"Not Linked", []*Message{Ack(false, 0, 255), SetButtonPressed(false, 0, 0, 0)}, nil, ErrNak, reflect.TypeOf(&i2CsDevice{}), ErrNotLinked},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			device, gotErr := Open(&testDialer{test.input}, Address{})
+			ch := make(chan *Message, len(test.messages))
+			for _, msg := range test.messages {
+				ch <- msg
+			}
+			tb := &testBus{subscribeCh: ch, publishResp: test.input, publishErr: test.publishErr}
+			device, gotErr := Open(tb, Address{})
 			gotType := reflect.TypeOf(device)
 
 			if test.wantErr != gotErr {

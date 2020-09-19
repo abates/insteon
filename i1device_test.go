@@ -2,6 +2,7 @@ package insteon
 
 import (
 	"testing"
+	"time"
 )
 
 func TestI1DeviceIsDevice(t *testing.T) {
@@ -47,11 +48,11 @@ func TestI1DeviceSendCommand(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{acks: []*Message{TestAck}}
-			device := newI1Device(testDialer{conn}, DeviceInfo{})
+			b := &testBus{publishResp: []*Message{TestAck}}
+			device := newI1Device(b, DeviceInfo{})
 			device.SendCommand(test.wantCmd, nil)
 
-			gotCmd := conn.sent[0].Command
+			gotCmd := b.published.Command
 
 			if test.wantCmd != gotCmd {
 				t.Errorf("want command %v got %v", test.wantCmd, gotCmd)
@@ -71,18 +72,19 @@ func TestI1DeviceProductData(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			conn := &testConnection{acks: []*Message{TestAck}}
+			ch := make(chan *Message, 1)
+			b := &testBus{publishResp: []*Message{TestAck}, subscribeCh: ch}
 			if test.wantErr == nil {
 				msg := *TestProductDataResponse
 				buf, _ := test.want.MarshalBinary()
 				msg.Payload = make([]byte, 14)
 				copy(msg.Payload, buf)
-				conn.recv = []*Message{&msg}
+				ch <- &msg
 			} else {
-				conn.recv = []*Message{TestAck, TestAck}
+				ch <- TestAck
 			}
 
-			device := newI1Device(testDialer{conn}, DeviceInfo{})
+			device := newI1Device(b, DeviceInfo{})
 			pd, err := device.ProductData()
 			if err != test.wantErr {
 				t.Errorf("want error %v got %v", test.wantErr, err)
@@ -101,5 +103,20 @@ func TestI1DeviceLinkDatabase(t *testing.T) {
 	_, got := device.LinkDatabase()
 	if want != got {
 		t.Errorf("Expected error %v got %v", want, got)
+	}
+}
+
+func TestI1DeviceDump(t *testing.T) {
+	device := &i1Device{nil, DeviceInfo{Address{1, 2, 3}, DevCat{5, 6}, FirmwareVersion(42), EngineVersion(2)}, time.Second}
+	want := `
+        Device: I1 Device (01.02.03)
+      Category: 05.06
+      Firmware: 42
+Engine Version: 2
+`[1:]
+
+	got := device.Dump()
+	if want != got {
+		t.Errorf("Wanted string %q got %q", want, got)
 	}
 }

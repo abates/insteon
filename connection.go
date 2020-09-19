@@ -16,8 +16,6 @@ package insteon
 
 import (
 	"fmt"
-	"io"
-	"sync"
 	"time"
 )
 
@@ -27,93 +25,178 @@ const (
 	Timeout = time.Second * 5
 )
 
-// Sender will deliver an Insteon message to the network
-type Sender interface {
-	// Send will send a message to the device
-	Send(*Message) error
-}
-
-type MessageReader interface {
-	ReadMessage() (*Message, error)
-}
-
 type MessageWriter interface {
 	WriteMessage(*Message) error
 }
 
-type Bridge interface {
-	MessageReader
-	MessageWriter
+type Bus interface {
+	Publish(*Message) (*Message, error)
+	Subscribe(src Address, matcher Matcher) <-chan *Message
+	Unsubscribe(src Address, ch <-chan *Message)
 }
 
-type Dialer interface {
-	Dial(dst Address, cmds ...Command) (conn Connection, err error)
+type Matcher interface {
+	Matches(msg *Message) bool
 }
 
-// Demux provides a way to demultiplex incoming Insteon messages to
-// individual devices.  This abstracts the complexity away from things
-// like the PLM so that the PLM can focus solely on bridging between the
-// Insteon network and the software interface.  The Demux itself is
-// not thread safe and any locking should be provided by the caller.  In
-// most cases, if the demux is only used within an event loop (such as the
-// readLoop in the PLM implementation) then no locking is required.  The
-// underlying Connections use channel to pass messages so they are inherently
-// thread safe
-type Demux interface {
-	Dialer
-	MessageWriter
-	Dispatch(msg *Message)
+type Matches func(msg *Message) bool
+
+func (m Matches) Matches(msg *Message) bool {
+	return m(msg)
 }
 
-type demux struct {
-	// Sender is the upstream device (PLM, for instance)
-	MessageWriter
-	reader      MessageReader
-	connections map[Address][]*connection
-	lock        sync.Mutex
-	options     []ConnectionOption
+func OrMatcher(matchers ...Matcher) Matcher {
+	return Matches(func(msg *Message) bool {
+		for _, matcher := range matchers {
+			if matcher.Matches(msg) {
+				return true
+			}
+		}
+		return false
+	})
 }
 
-func NewDemux(writer MessageWriter, options ...ConnectionOption) Demux {
-	d := &demux{
-		MessageWriter: writer,
-		connections:   make(map[Address][]*connection),
+type CmdMatcher Command
+
+func (m CmdMatcher) Matches(msg *Message) bool {
+	return Command(m).Command1() == msg.Command.Command1()
+}
+
+type subscriber struct {
+	src     Address
+	matcher Matcher
+	ch      chan *Message
+	readCh  <-chan *Message
+}
+
+type bus struct {
+	writer      MessageWriter
+	subscribe   chan *subscriber
+	unsubscribe chan *subscriber
+	closeCh     chan chan error
+	listeners   map[Address]map[<-chan *Message]*subscriber
+	timeout     time.Duration
+	retries     int
+	ttl         uint8
+}
+
+func NewBus(writer MessageWriter, messages <-chan *Message, options ...ConnectionOption) (Bus, error) {
+	b := &bus{
+		writer:      writer,
+		subscribe:   make(chan *subscriber),
+		unsubscribe: make(chan *subscriber),
+		listeners:   make(map[Address]map[<-chan *Message]*subscriber),
+		closeCh:     make(chan chan error),
+		timeout:     time.Second * 3,
+		retries:     3,
+		ttl:         3,
 	}
 
-	return d
+	for _, option := range options {
+		err := option(b)
+		if err != nil {
+			return b, err
+		}
+	}
+
+	go b.run(messages)
+	return b, nil
 }
 
-func (d *demux) Dispatch(msg *Message) {
-	d.lock.Lock()
-	defer d.lock.Unlock()
-	Log.Debugf("RX %s", msg)
-	for _, addr := range []Address{msg.Src, Wildcard} {
-		for _, conn := range d.connections[addr] {
-			conn.dispatch(msg)
+func (b *bus) run(messages <-chan *Message) {
+	Log.Debugf("Starting BUS")
+	for {
+		select {
+		case msg := <-messages:
+			Log.Debugf("Bus received %v", msg)
+			for _, s := range b.listeners[msg.Src] {
+				if s.matcher.Matches(msg) {
+					select {
+					case s.ch <- msg:
+					case <-time.After(b.timeout):
+						Log.Infof("Timeout attempting to deliver message to listener")
+					}
+				}
+			}
+
+		case s := <-b.subscribe:
+			m, found := b.listeners[s.src]
+			if !found {
+				m = make(map[<-chan *Message]*subscriber)
+				b.listeners[s.src] = m
+			}
+
+			m[s.ch] = s
+			Log.Debugf("Subscribed channel to %s", s.src)
+		case s := <-b.unsubscribe:
+			if m, found := b.listeners[s.src]; found {
+				delete(m, s.readCh)
+			}
+		case closeCh := <-b.closeCh:
+			defer func() { closeCh <- nil }()
+			return
 		}
 	}
 }
 
-func (d *demux) Dial(addr Address, cmds ...Command) (Connection, error) {
-	conn, err := newConnection(d, addr, cmds, d.options...)
+func (b *bus) Subscribe(src Address, matcher Matcher) <-chan *Message {
+	ch := make(chan *Message, 1)
+	b.subscribe <- &subscriber{src: src, matcher: matcher, ch: ch}
+	return ch
+}
+
+func (b *bus) Unsubscribe(src Address, ch <-chan *Message) {
+	b.unsubscribe <- &subscriber{src: src, readCh: ch}
+}
+
+func (b *bus) Publish(msg *Message) (*Message, error) {
+	if msg.Flags.Type().Direct() {
+		return b.publishDirect(msg)
+	} else {
+		//b.publishBroadcast(msg)
+	}
+	return nil, nil
+}
+
+func (b *bus) Close() error {
+	ch := make(chan error)
+	b.closeCh <- ch
+	return <-ch
+}
+
+func (b *bus) publishDirect(msg *Message) (ack *Message, err error) {
+	msg.Flags = Flag(MsgTypeDirect, len(msg.Payload) > 0, b.ttl, b.ttl)
+
+	if len(msg.Payload) > 0 && len(msg.Payload) < 14 {
+		tmp := make([]byte, 14)
+		copy(tmp, msg.Payload)
+		msg.Payload = tmp
+	}
+
+	retries := b.retries
+	Log.Debugf("Publishing %s", msg)
+	rx := b.Subscribe(msg.Dst, CmdMatcher(msg.Command))
+	defer b.Unsubscribe(msg.Dst, rx)
+	for err == nil && retries > 0 {
+		err = b.writer.WriteMessage(msg)
+
+		if err == nil {
+			select {
+			case ack = <-rx:
+				if ack.Nak() {
+					err = ErrNak
+				}
+				return ack, err
+			case <-time.After(b.timeout):
+				retries--
+			}
+		}
+	}
 
 	if err == nil {
-		d.lock.Lock()
-		defer d.lock.Unlock()
-		d.connections[addr] = append(d.connections[addr], conn)
+		err = ErrAckTimeout
 	}
-	return conn, err
-}
-
-func (d *demux) close(conn *connection) {
-	d.lock.Lock()
-	defer d.lock.Unlock()
-	for i, lconn := range d.connections[conn.addr] {
-		if conn == lconn {
-			d.connections[conn.addr] = append(d.connections[conn.addr][0:i], d.connections[conn.addr][i+1:]...)
-			break
-		}
-	}
+	return ack, err
 }
 
 type MessageSender interface {
@@ -129,34 +212,16 @@ type MessageReceiver interface {
 	Receive() (*Message, error)
 }
 
-// Connection is a very basic communication mechanism to send
-// and receive messages with individual Insteon devices.
-type Connection interface {
-	MessageReceiver
-	io.Closer
-
-	Send(msg *Message) (ack *Message, err error)
-}
-
-type connection struct {
-	MessageWriter
-	recvCh  chan *Message
-	addr    Address
-	timeout time.Duration
-	ttl     uint8
-	retries int
-}
-
 // ConnectionOption provides a means to customize the connection config
-type ConnectionOption func(*connection) error
+type ConnectionOption func(*bus) error
 
 // ConnectionTTL will set the connection's time to live flag
 func ConnectionTTL(ttl uint8) ConnectionOption {
-	return func(conn *connection) error {
+	return func(b *bus) error {
 		if ttl < 0 || ttl > 3 {
 			return fmt.Errorf("invalid ttl %d, must be in range 0-3", ttl)
 		}
-		conn.ttl = ttl
+		b.ttl = ttl
 		return nil
 	}
 }
@@ -164,124 +229,50 @@ func ConnectionTTL(ttl uint8) ConnectionOption {
 // ConnectionTimeout is a ConnectionOption that will set the connection's read
 // timeout
 func ConnectionTimeout(timeout time.Duration) ConnectionOption {
-	return func(conn *connection) error {
-		conn.timeout = timeout
+	return func(b *bus) error {
+		b.timeout = timeout
 		return nil
 	}
 }
 
-func newConnection(writer MessageWriter, addr Address, cmds []Command, options ...ConnectionOption) (*connection, error) {
-	conn := &connection{
-		MessageWriter: writer,
-		recvCh:        make(chan *Message, 1),
-		addr:          addr,
-		timeout:       Timeout,
-		retries:       NumRetries,
+func ConnectionRetry(retries int) ConnectionOption {
+	return func(b *bus) error {
+		b.retries = retries
+		return nil
 	}
-
-	for _, option := range options {
-		err := option(conn)
-		if err != nil {
-			Log.Infof("error setting connection option: %v", err)
-			return nil, err
-		}
-	}
-	return conn, nil
 }
 
-func (conn *connection) Close() error {
-	if demux, ok := conn.MessageWriter.(*demux); ok {
-		demux.close(conn)
-	}
-	return nil
-}
+func IDRequest(bus Bus, dst Address) (version FirmwareVersion, devCat DevCat, err error) {
+	rx := bus.Subscribe(dst, OrMatcher(CmdMatcher(CmdSetButtonPressedResponder), CmdMatcher(CmdSetButtonPressedController)))
+	defer bus.Unsubscribe(dst, rx)
 
-func (conn *connection) Send(msg *Message) (ack *Message, err error) {
-	msg.Dst = conn.addr
-	msg.Flags = StandardDirectMessage
-	if len(msg.Payload) > 0 {
-		msg.Flags = ExtendedDirectMessage
-		if len(msg.Payload) < 14 {
-			tmp := make([]byte, 14)
-			copy(tmp, msg.Payload)
-			msg.Payload = tmp
-		}
-	}
-	retries := 0
-	for err == nil && retries <= conn.retries {
-		Log.Debugf("TX %s", msg)
-		err = conn.WriteMessage(msg)
-
-		if err == nil {
-			// wait for ack
-			ack, err = conn.Receive()
-			if err == nil {
-				if ack.Nak() {
-					err = ErrNak
-				}
-				break
-			} else if err == ErrReadTimeout {
-				err = nil
-				retries++
-				if retries > conn.retries {
-					err = ErrAckTimeout
-					break
-				}
-			}
-		}
-	}
-	return ack, err
-}
-
-func (conn *connection) Receive() (*Message, error) {
-	select {
-	case msg := <-conn.recvCh:
-		return msg, nil
-	case <-time.After(conn.timeout):
-	}
-	return nil, ErrReadTimeout
-}
-
-func (conn *connection) dispatch(msg *Message) {
-	conn.recvCh <- msg
-}
-
-func IDRequest(dialer Dialer, dst Address) (version FirmwareVersion, devCat DevCat, err error) {
-	conn, err := dialer.Dial(dst, CmdIDRequest, CmdSetButtonPressedResponder, CmdSetButtonPressedController)
-	defer conn.Close()
+	_, err = bus.Publish(&Message{Dst: dst, Flags: StandardDirectMessage, Command: CmdIDRequest})
 	if err == nil {
-		_, err := conn.Send(&Message{Command: CmdIDRequest})
-		if err == nil {
-			var msg *Message
-			msg, err = conn.Receive()
-			if err == nil {
-				version = FirmwareVersion(msg.Dst[2])
-				devCat = DevCat{msg.Dst[0], msg.Dst[1]}
-			}
+		select {
+		case msg := <-rx:
+			version = FirmwareVersion(msg.Dst[2])
+			devCat = DevCat{msg.Dst[0], msg.Dst[1]}
+		case <-time.After(time.Second * 3):
+			err = ErrReadTimeout
 		}
 	}
 	return
 }
 
-func GetEngineVersion(dialer Dialer, dst Address) (version EngineVersion, err error) {
-	conn, err := dialer.Dial(dst, CmdGetEngineVersion)
-	defer conn.Close()
+func GetEngineVersion(bus Bus, dst Address) (version EngineVersion, err error) {
+	ack, err := bus.Publish(&Message{Dst: dst, Flags: StandardDirectMessage, Command: CmdGetEngineVersion})
 	if err == nil {
-		var ack *Message
-		ack, err = conn.Send(&Message{Command: CmdGetEngineVersion})
-		if err == nil {
-			Log.Debugf("Device %v responded with an engine version %d", conn, ack.Command.Command2())
-			version = EngineVersion(ack.Command.Command2())
-		} else if err == ErrNak {
-			// This only happens if the device is an I2Cs device and
-			// is not linked to the queryier
-			if ack.Command.Command2() == 0xff {
-				Log.Debugf("Device %v is an unlinked I2Cs device", conn)
-				version = VerI2Cs
-				err = ErrNotLinked
-			} else {
-				err = ErrNak
-			}
+		Log.Debugf("Device %v responded with an engine version %d", dst, ack.Command.Command2())
+		version = EngineVersion(ack.Command.Command2())
+	} else if err == ErrNak {
+		// This only happens if the device is an I2Cs device and
+		// is not linked to the queryier
+		if ack.Command.Command2() == 0xff {
+			Log.Debugf("Device %v is an unlinked I2Cs device", dst)
+			version = VerI2Cs
+			err = ErrNotLinked
+		} else {
+			err = ErrNak
 		}
 	}
 	return

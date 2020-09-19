@@ -59,8 +59,10 @@ func TestDimmableDeviceConfig(t *testing.T) {
 	msg := &Message{Command: CmdExtendedGetSet, Payload: make([]byte, 14)}
 	copy(msg.Payload, payload)
 
-	conn := &testConnection{recv: []*Message{msg}, acks: []*Message{TestAck}}
-	dd := NewDimmer(&testDevice{conn}, DeviceInfo{FirmwareVersion: 67})
+	ch := make(chan *Message, 1)
+	ch <- msg
+	b := &testBus{publishResp: []*Message{TestAck}, subscribeCh: ch}
+	dd := NewDimmer(&i1Device{b, DeviceInfo{}, 0}, DeviceInfo{FirmwareVersion: 67})
 	got, err := dd.Config()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -84,10 +86,10 @@ func TestDimmerSendCommand(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			conn := &testConnection{acks: []*Message{TestAck}}
-			dimmer := NewDimmer(testDevice{conn}, DeviceInfo{FirmwareVersion: test.v})
+			b := &testBus{publishResp: []*Message{TestAck}}
+			dimmer := NewDimmer(&i1Device{b, DeviceInfo{}, 0}, DeviceInfo{FirmwareVersion: test.v})
 			dimmer.SendCommand(test.sendCmd, nil)
-			gotCmd := conn.sent[0].Command
+			gotCmd := b.published.Command
 			if test.wantCmd != gotCmd {
 				t.Errorf("Wanted command %v got %v", test.wantCmd, gotCmd)
 			}

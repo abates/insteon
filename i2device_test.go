@@ -31,15 +31,11 @@ func TestI2DeviceLinkCommands(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			conn := &testConnection{acks: []*Message{TestAck}}
-			device := &i2Device{i1Device: newI1Device(&testDialer{conn}, DeviceInfo{})}
+			b := &testBus{publishResp: []*Message{TestAck}}
+			device := &i2Device{i1Device: newI1Device(b, DeviceInfo{})}
 			test.run(device)
-			if len(conn.sent) != 1 {
-				t.Errorf("Wanted 1 message to be sent, got %d", len(conn.sent))
-			} else {
-				if test.want != conn.sent[0].Command {
-					t.Errorf("Wanted command %v got %v", test.want, conn.sent[0].Command)
-				}
+			if test.want != b.published.Command {
+				t.Errorf("Wanted command %v got %v", test.want, b.published.Command)
 			}
 		})
 	}

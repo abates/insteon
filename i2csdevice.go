@@ -14,11 +14,11 @@
 
 package insteon
 
-type i2csConnection struct {
-	Connection
+type i2csbus struct {
+	Bus
 }
 
-func (i2cs i2csConnection) Send(msg *Message) (ack *Message, err error) {
+func (i2cs *i2csbus) Publish(msg *Message) (ack *Message, err error) {
 	if msg.Command.Command1() == CmdEnterLinkingMode.Command1() {
 		msg.Command = CmdEnterLinkingModeExt.SubCommand(int(msg.Command.Command2()))
 		msg.Payload = make([]byte, 14)
@@ -34,19 +34,7 @@ func (i2cs i2csConnection) Send(msg *Message) (ack *Message, err error) {
 		l := len(msg.Payload)
 		msg.Payload[l-1] = checksum(msg.Command, msg.Payload)
 	}
-	return i2cs.Connection.Send(msg)
-}
-
-type i2csDialer struct {
-	dial Dialer
-}
-
-func (dialer i2csDialer) Dial(dst Address, cmds ...Command) (conn Connection, err error) {
-	conn, err = dialer.dial.Dial(dst, cmds...)
-	if err == nil {
-		conn = i2csConnection{conn}
-	}
-	return conn, err
+	return i2cs.Bus.Publish(msg)
 }
 
 // i2CsDevice can communicate with Version 2 (checksum) Insteon Engines
@@ -56,11 +44,10 @@ type i2CsDevice struct {
 
 // newI2CsDevice will initialize a new I2CsDevice object and make
 // it ready for use
-func newI2CsDevice(dialer Dialer, info DeviceInfo) *i2CsDevice {
+func newI2CsDevice(bus Bus, info DeviceInfo) *i2CsDevice {
 	i2cs := &i2CsDevice{
-		i2Device: newI2Device(i2csDialer{dialer}, info),
+		i2Device: newI2Device(&i2csbus{bus}, info),
 	}
-	i2cs.linkdb.dialer = i2cs
 
 	return i2cs
 }

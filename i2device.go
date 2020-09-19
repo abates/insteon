@@ -26,9 +26,9 @@ type i2Device struct {
 
 // newI2Device will construct an device object that can communicate with version 2
 // Insteon engines
-func newI2Device(dial Dialer, info DeviceInfo) *i2Device {
-	i2 := &i2Device{i1Device: newI1Device(dial, info)}
-	i2.linkdb.dialer = i2
+func newI2Device(bus Bus, info DeviceInfo) *i2Device {
+	i2 := &i2Device{i1Device: newI1Device(bus, info)}
+	i2.linkdb.device = i2
 	return i2
 }
 
