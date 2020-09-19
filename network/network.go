@@ -79,13 +79,13 @@ func (network *Network) receive(buf []byte) {
 		insteon.Log.Tracef("Received Insteon Message %v", msg)
 		if msg.Broadcast() {
 			// Set Button Pressed Controller/Responder
-			if msg.Command[1] == 0x01 || msg.Command[1] == 0x02 {
+			if msg.Command.Command1() == 0x01 || msg.Command.Command1() == 0x02 {
 				network.DB.Update(msg.Src, func(info *insteon.DeviceInfo) { info.FirmwareVersion = insteon.FirmwareVersion(msg.Dst[2]) })
 				network.DB.Update(msg.Src, func(info *insteon.DeviceInfo) { info.DevCat = insteon.DevCat{msg.Dst[0], msg.Dst[1]} })
 			}
-		} else if msg.Ack() && msg.Command[1] == 0x0d {
+		} else if msg.Ack() && msg.Command.Command1() == 0x0d {
 			// Engine Version Request ACK
-			network.DB.Update(msg.Src, func(info *insteon.DeviceInfo) { info.EngineVersion = insteon.EngineVersion(msg.Command[2]) })
+			network.DB.Update(msg.Src, func(info *insteon.DeviceInfo) { info.EngineVersion = insteon.EngineVersion(msg.Command.Command2()) })
 		}
 
 	} else {
@@ -169,13 +169,13 @@ func (network *Network) IDRequest(dst insteon.Address) (info insteon.DeviceInfo,
 	return
 }
 
-func (network *Network) connect(dst insteon.Address, version insteon.EngineVersion, match ...insteon.Command) insteon.Connection {
-	/*connection := insteon.NewConnection(network.bridge, dst, version, network.timeout, match...)
-	network.connectCh <- connection
-	return connection
-	*/
-	return nil
-}
+//func (network *Network) connect(dst insteon.Address, version insteon.EngineVersion, match ...insteon.Command) insteon.Connection {
+/*connection := insteon.NewConnection(network.bridge, dst, version, network.timeout, match...)
+network.connectCh <- connection
+return connection
+*/
+//return nil
+//}
 
 // Connect will Dial the destination device and then determine the device category
 // in order to return a category specific device (dimmer, switch, etc). If, for
