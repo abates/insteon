@@ -275,3 +275,7 @@ func (plm *PLM) Close() {
 		closer.Close()
 	}
 }
+
+func (plm *PLM) LinkDatabase() (insteon.Linkable, error) {
+	return plm, nil
+}

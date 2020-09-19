@@ -47,6 +47,8 @@ type Commandable interface {
 // Device is the most basic capability that any device must implement. Devices
 // can be sent commands and can receive messages
 type Device interface {
+	Addressable
+
 	DeviceDialer
 
 	Commandable

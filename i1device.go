@@ -14,6 +14,18 @@
 
 package insteon
 
+import (
+	"html/template"
+	"strings"
+)
+
+var i1DumpTpl = template.Must(template.New("name").Parse(`
+        Device: {{.String}}
+      Category: {{ .Info.DevCat }}
+      Firmware: {{ .Info.FirmwareVersion }}
+Engine Version: {{ .Info.EngineVersion }}
+`[1:]))
+
 // i1Device provides remote communication to version 1 engines
 type i1Device struct {
 	dial Dialer
@@ -110,6 +122,12 @@ func (i1 *i1Device) Address() Address {
 // address of the device
 func (i1 *i1Device) String() string {
 	return sprintf("I1 Device (%s)", i1.info.Address)
+}
+
+func (i1 *i1Device) Dump() string {
+	builder := &strings.Builder{}
+	i1DumpTpl.Execute(builder, i1)
+	return builder.String()
 }
 
 func (i1 *i1Device) LinkDatabase() (Linkable, error) {

@@ -103,3 +103,18 @@ func TestI1DeviceLinkDatabase(t *testing.T) {
 		t.Errorf("Expected error %v got %v", want, got)
 	}
 }
+
+func TestI1DeviceDump(t *testing.T) {
+	device := &i1Device{nil, DeviceInfo{Address{1, 2, 3}, DevCat{5, 6}, FirmwareVersion(42), EngineVersion(2)}}
+	want := `
+        Device: I1 Device (01.02.03)
+      Category: 05.06
+      Firmware: 42
+Engine Version: 2
+`[1:]
+
+	got := device.Dump()
+	if want != got {
+		t.Errorf("Wanted string %q got %q", want, got)
+	}
+}

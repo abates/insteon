@@ -27,6 +27,7 @@ type testDevice struct {
 	conn Connection
 }
 
+func (td testDevice) Address() Address                         { return Address{} }
 func (td testDevice) Dial(cmds ...Command) (Connection, error) { return td.conn, nil }
 
 func (td testDevice) SendCommand(cmd Command, payload []byte) (ack Command, err error) {
