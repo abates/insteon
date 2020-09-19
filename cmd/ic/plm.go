@@ -132,7 +132,6 @@ func (p *plmCmd) link(crosslink bool) error {
 				}
 			} else {
 				fmt.Fprintf(os.Stderr, "Failed to connect to %s: %v\n", addr, err)
-				break
 			}
 		}
 		return err

@@ -174,7 +174,7 @@ func Open(dialer Dialer, dst Address) (device Device, err error) {
 			device, err = New(dialer, info)
 		}
 	} else if err == ErrNotLinked {
-		device, _ = create(dialer, DeviceInfo{EngineVersion: VerI2Cs})
+		device, _ = create(dialer, DeviceInfo{Address: dst, EngineVersion: VerI2Cs})
 	}
 	return device, err
 }

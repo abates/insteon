@@ -152,7 +152,7 @@ func (plm *PLM) WriteMessage(msg *insteon.Message) error {
 	if err == nil {
 		// slice off the source address since the PLM doesn't want it
 		buf = buf[3:]
-		_, err = RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
+		_, err = RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
 	}
 
 	return err
@@ -210,12 +210,29 @@ func (plm *PLM) Open(dst insteon.Address) (insteon.Device, error) {
 	return insteon.Open(plm.Demux, dst)
 }
 
-func (plm *PLM) Monitor() (insteon.Connection, error) {
-	return plm.Demux.Dial(insteon.Wildcard)
+func (plm *PLM) Monitor(cb func(insteon.Connection)) error {
+	config, err := plm.Config()
+	if err != nil {
+		return err
+	}
+
+	config.SetMonitorMode()
+	err = plm.SetConfig(config)
+	if err != nil {
+		return err
+	}
+
+	conn, err := plm.Demux.Dial(insteon.Wildcard)
+	if err == nil {
+		cb(conn)
+		config.clearMonitorMode()
+		err = plm.SetConfig(config)
+	}
+	return err
 }
 
 func (plm *PLM) Info() (info *Info, err error) {
-	ack, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdGetInfo})
+	ack, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdGetInfo})
 	if err == nil {
 		info = &Info{}
 		err = info.UnmarshalBinary(ack.Payload)
@@ -228,13 +245,13 @@ func (plm *PLM) Reset() error {
 	timeout := plm.timeout
 	plm.timeout = 20 * time.Second
 
-	_, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdReset})
+	_, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdReset})
 	plm.timeout = timeout
 	return err
 }
 
 func (plm *PLM) Config() (config Config, err error) {
-	ack, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdGetConfig})
+	ack, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdGetConfig})
 	if err == nil {
 		err = config.UnmarshalBinary(ack.Payload)
 	}
@@ -243,7 +260,7 @@ func (plm *PLM) Config() (config Config, err error) {
 
 func (plm *PLM) SetConfig(config Config) error {
 	payload, _ := config.MarshalBinary()
-	_, err := RetryWriter(plm, plm.retries).WritePacket(&Packet{Command: CmdSetConfig, Payload: payload})
+	_, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSetConfig, Payload: payload})
 	return err
 }
 

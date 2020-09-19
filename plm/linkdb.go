@@ -102,7 +102,7 @@ func (ldb *linkdb) refresh() error {
 		return nil
 	}
 	links := make([]*insteon.LinkRecord, 0)
-	_, err := RetryWriter(ldb.plm, ldb.retries).WritePacket(&Packet{Command: CmdGetFirstAllLink})
+	_, err := RetryWriter(ldb.plm, ldb.retries, true).WritePacket(&Packet{Command: CmdGetFirstAllLink})
 	for err == nil {
 		var pkt *Packet
 		pkt, err = ldb.plm.ReadPacket()
@@ -112,7 +112,7 @@ func (ldb *linkdb) refresh() error {
 				err = link.UnmarshalBinary(pkt.Payload)
 				if err == nil {
 					links = append(links, link)
-					_, err = ldb.plm.WritePacket(&Packet{Command: CmdGetNextAllLink})
+					_, err = RetryWriter(ldb.plm, ldb.retries, false).WritePacket(&Packet{Command: CmdGetNextAllLink})
 				}
 			}
 		}
