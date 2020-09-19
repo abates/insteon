@@ -118,6 +118,7 @@ func TestCommandGenerators(t *testing.T) {
 		{"Light Default Ramp", func() (Command, []byte) { return SetDefaultRamp(0x37) }, CmdExtendedGetSet, []byte{0x01, 0x05, 0x37}},
 		{"Light Default On Level", func() (Command, []byte) { return SetDefaultOnLevel(0x37) }, CmdExtendedGetSet, []byte{0x01, 0x06, 0x37}},
 		{"SetX10Address", func() (Command, []byte) { return SetX10Address(7, 8, 9) }, CmdExtendedGetSet, []byte{7, 4, 8, 9}},
+		{"Backlight", func() (Command, []byte) { return Backlight(true) }, CmdEnableLED, make([]byte, 14)},
 	}
 
 	for _, test := range tests {
