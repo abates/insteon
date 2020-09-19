@@ -139,8 +139,6 @@ func (plm *PLM) readLoop() {
 			break
 		}
 	}
-
-	insteon.Log.Infof("PLM Read Done")
 }
 
 // WriteMessage to the network

@@ -39,7 +39,10 @@ func TestLogWriter(t *testing.T) {
 			_, gotErr := lw.Write(test.input)
 			lines := strings.Split(buf.String(), "\n")
 			want := fmt.Sprintf("TRACE TX %s", hexDump("%02x", test.input, " "))
-			got := lines[0][strings.Index(lines[0], "TRACE"):]
+			got := ""
+			if index := strings.Index(lines[0], "TRACE"); index != -1 {
+				got = lines[0][index:]
+			}
 
 			if want != got {
 				t.Errorf("Wanted log %q got %q", want, got)
