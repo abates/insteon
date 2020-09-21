@@ -11,5 +11,5 @@ before_install:
   - go get github.com/mattn/goveralls
 
 script:
-  - go test -coverprofile=coverage.out -coverpkg=./,./plm,./util,./cmd/... ./...
+  - go test -v -coverprofile=coverage.out -coverpkg=./,./plm,./util,./cmd/... ./...
   - $HOME/gopath/bin/goveralls -coverprofile=coverage.out -service=travis-ci
