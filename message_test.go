@@ -113,8 +113,8 @@ func TestFlags(t *testing.T) {
 		expectedType     MessageType
 		expectedExtended bool
 		expectedStandard bool
-		expectedTTL      int
-		expectedMaxTTL   int
+		expectedTTL      uint8
+		expectedMaxTTL   uint8
 	}{
 		{"MsgTypeDirect", 0x0f, MsgTypeDirect, false, true, 3, 3},
 		{"MsgTypeDirectAck", 0x2f, MsgTypeDirectAck, false, true, 3, 3},

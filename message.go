@@ -115,14 +115,14 @@ func (f Flags) Extended() bool { return f&0x10 == 0x10 }
 
 // TTL is the remaining number of times an insteon message will be
 // retransmitted. This is decremented each time a message is repeated
-func (f Flags) TTL() int { return int((f & 0x0f) >> 2) }
+func (f Flags) TTL() uint8 { return uint8((f & 0x0f) >> 2) }
 
 func (f *Flags) SetTTL(ttl uint8) {
 
 }
 
 // MaxTTL is the maximum number of times a message can be repeated
-func (f Flags) MaxTTL() int { return int(f & 0x03) }
+func (f Flags) MaxTTL() uint8 { return uint8(f & 0x03) }
 
 func (f Flags) String() string {
 	msg := "S"

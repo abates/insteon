@@ -50,7 +50,7 @@ type PLM struct {
 	timeout    time.Duration
 	retries    int
 	writeDelay time.Duration
-	nextWrite  time.Time
+	lastWrite  time.Time
 	lastRead   time.Time
 
 	connOptions []insteon.ConnectionOption
@@ -153,32 +153,30 @@ func (plm *PLM) WriteMessage(msg *insteon.Message) error {
 	return err
 }
 
+func writeDelay(pkt *Packet, lastWrite time.Time, delay time.Duration) time.Duration {
+	if pkt.Command == CmdSendInsteonMsg {
+		if delay == 0 {
+			// flags is the 4th byte in an insteon message and max ttl/hops is the
+			// least significant 2 bits
+			flags := insteon.Flags(pkt.Payload[3])
+			delay = insteon.PropagationDelay(flags.TTL(), flags.Extended())
+		}
+		delay = time.Now().Sub(lastWrite.Add(delay))
+	}
+	return delay
+}
+
 // WritePacket and wait for the PLM to ack that the packet was
 // sent.  This is a blocking function. Only callers that have acquired
 // the mutex should call this function
 func (plm *PLM) WritePacket(txPacket *Packet) (ack *Packet, err error) {
-	writeDelay := time.Duration(0)
-	if txPacket.Command == CmdSendInsteonMsg {
-		writeDelay = plm.writeDelay
-		if writeDelay == 0 {
-			// flags is the 4th byte in an insteon message and max ttl/hops is the
-			// least significant 2 bits
-			flags := insteon.Flags(txPacket.Payload[3])
-			writeDelay = insteon.PropagationDelay(flags.TTL(), flags.Extended())
-		}
-	}
-
 	buf, err := txPacket.MarshalBinary()
 	if err == nil {
-		if time.Now().Before(plm.nextWrite) {
-			delay := plm.nextWrite.Sub(time.Now())
-			insteon.Log.Tracef("Delaying write for %s", delay)
-			time.Sleep(delay)
-		}
+		time.Sleep(writeDelay(txPacket, plm.lastWrite, plm.writeDelay))
 
 		insteon.Log.Tracef("Sending packet %v (write delay %v)", txPacket, writeDelay)
 		_, err = plm.writer.Write(buf)
-		plm.nextWrite = time.Now().Add(writeDelay)
+		plm.lastWrite = time.Now()
 
 		if err == nil {
 			insteon.Log.Debugf("PLM TX %v", txPacket)
