@@ -121,7 +121,7 @@ func (b *bus) run(messages <-chan *Message) {
 					select {
 					case s.ch <- msg:
 					case <-time.After(time.Second * 3): // this is just an arbitrarily long duration to wait, I don't think it need to be configurable
-						Log.Infof("Timeout attempting to deliver message to listener")
+						Log.Infof("Timeout attempting to deliver message from %v to listener", msg.Src)
 					}
 				}
 			}
@@ -184,27 +184,26 @@ func (b *bus) publishDirect(msg *Message) (ack *Message, err error) {
 		msg.Payload = tmp
 	}
 
-	retries := b.config.Retries
-	Log.Debugf("Publishing %s", msg)
 	rx := b.Subscribe(msg.Dst, CmdMatcher(msg.Command))
 	defer b.Unsubscribe(msg.Dst, rx)
-	for err == nil && retries > 0 {
-		err = b.writer.WriteMessage(msg)
 
+	err = Retry(b.config.Retries, func() error {
+		Log.Debugf("Publishing %s", msg)
+		err = b.writer.WriteMessage(msg)
 		if err == nil {
 			select {
 			case ack = <-rx:
 				if ack.Nak() {
 					err = ErrNak
 				}
-				return ack, err
 			case <-time.After(b.config.Timeout):
-				retries--
+				err = ErrReadTimeout
 			}
 		}
-	}
+		return err
+	})
 
-	if err == nil {
+	if err == ErrReadTimeout {
 		err = ErrAckTimeout
 	}
 	return ack, err
@@ -240,20 +239,43 @@ func ConnectionRetry(retries int) ConnectionOption {
 	}
 }
 
+func Retry(retries int, cb func() error) (err error) {
+	for {
+		err = cb()
+		if err == nil {
+			return nil
+		}
+
+		if err == nil || err != ErrReadTimeout {
+			return err
+		}
+		retries--
+		if retries > 0 {
+			Log.Infof("Read Timeout, retrying")
+		} else {
+			break
+		}
+	}
+	return err
+}
+
 func IDRequest(bus Bus, dst Address) (version FirmwareVersion, devCat DevCat, err error) {
 	rx := bus.Subscribe(dst, OrMatcher(CmdMatcher(CmdSetButtonPressedResponder), CmdMatcher(CmdSetButtonPressedController)))
 	defer bus.Unsubscribe(dst, rx)
 
-	_, err = bus.Publish(&Message{Dst: dst, Flags: StandardDirectMessage, Command: CmdIDRequest})
-	if err == nil {
-		select {
-		case msg := <-rx:
-			version = FirmwareVersion(msg.Dst[2])
-			devCat = DevCat{msg.Dst[0], msg.Dst[1]}
-		case <-time.After(bus.Config().Timeout):
-			err = ErrReadTimeout
+	err = Retry(bus.Config().Retries, func() error {
+		_, err := bus.Publish(&Message{Dst: dst, Flags: StandardDirectMessage, Command: CmdIDRequest})
+		if err == nil {
+			select {
+			case msg := <-rx:
+				version = FirmwareVersion(msg.Dst[2])
+				devCat = DevCat{msg.Dst[0], msg.Dst[1]}
+			case <-time.After(bus.Config().Timeout):
+				err = ErrReadTimeout
+			}
 		}
-	}
+		return err
+	})
 	return
 }
 
