@@ -80,7 +80,7 @@ func TestSwitchedDeviceConfig(t *testing.T) {
 	ch := make(chan *Message, 1)
 	b := &testBus{publishResp: []*Message{TestAck}, subscribeCh: ch}
 	ch <- msg
-	sd := NewSwitch(&i1Device{b, DeviceInfo{}, 0}, DeviceInfo{})
+	sd := NewSwitch(&i1Device{b, DeviceInfo{}}, b, DeviceInfo{})
 
 	got, err := sd.Config()
 	if err != nil {
@@ -103,7 +103,7 @@ func TestSwitchedDeviceOperatingFlags(t *testing.T) {
 		b.publishResp = append(b.publishResp, &Message{Command: cmd})
 	}
 
-	sd := NewSwitch(&i1Device{b, DeviceInfo{}, 0}, DeviceInfo{})
+	sd := NewSwitch(&i1Device{b, DeviceInfo{}}, b, DeviceInfo{})
 	want := LightFlags{3, 4, 5, 6, 7}
 	got, _ := sd.OperatingFlags()
 

@@ -62,7 +62,7 @@ func TestDeviceCreate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			device, gotErr := create(nil, DeviceInfo{EngineVersion: test.input})
+			device, gotErr := create(&testBus{}, DeviceInfo{EngineVersion: test.input})
 			gotType := reflect.TypeOf(device)
 
 			if test.wantErr != gotErr {

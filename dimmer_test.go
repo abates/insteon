@@ -62,7 +62,7 @@ func TestDimmableDeviceConfig(t *testing.T) {
 	ch := make(chan *Message, 1)
 	ch <- msg
 	b := &testBus{publishResp: []*Message{TestAck}, subscribeCh: ch}
-	dd := NewDimmer(&i1Device{b, DeviceInfo{}, 0}, DeviceInfo{FirmwareVersion: 67})
+	dd := NewDimmer(&i1Device{b, DeviceInfo{}}, b, DeviceInfo{FirmwareVersion: 67})
 	got, err := dd.Config()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -87,7 +87,7 @@ func TestDimmerSendCommand(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			b := &testBus{publishResp: []*Message{TestAck}}
-			dimmer := NewDimmer(&i1Device{b, DeviceInfo{}, 0}, DeviceInfo{FirmwareVersion: test.v})
+			dimmer := NewDimmer(&i1Device{b, DeviceInfo{}}, b, DeviceInfo{FirmwareVersion: test.v})
 			dimmer.SendCommand(test.sendCmd, nil)
 			gotCmd := b.published.Command
 			if test.wantCmd != gotCmd {

@@ -70,8 +70,8 @@ type Dimmer struct {
 // NewDimmer is a factory function that will return a dimmer switch configured
 // appropriately for the given firmware version.  All dimmers are switches, so
 // the first argument is a Switch object used to compose the new dimmer
-func NewDimmer(device Device, info DeviceInfo) *Dimmer {
-	return &Dimmer{Switch: NewSwitch(device, info), info: info}
+func NewDimmer(device Device, bus Bus, info DeviceInfo) *Dimmer {
+	return &Dimmer{Switch: NewSwitch(device, bus, info), info: info}
 }
 
 func (dd *Dimmer) SendCommand(cmd Command, payload []byte) (Command, error) {
@@ -98,7 +98,7 @@ func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 		select {
 		case msg := <-rx:
 			err = config.UnmarshalBinary(msg.Payload)
-		case <-time.After(time.Second * 3):
+		case <-time.After(dd.Switch.bus.Config().Timeout):
 			err = ErrReadTimeout
 		}
 	}

@@ -133,6 +133,7 @@ const (
 
 type linkdb struct {
 	device PubSub
+	config ConnectionConfig
 	age    time.Time
 	links  []*LinkRecord
 	index  map[LinkID]int
@@ -161,8 +162,7 @@ func (ldb *linkdb) refresh() error {
 	for err == nil {
 		select {
 		case msg = <-rx:
-		// TODO: hard coded blah
-		case <-time.After(time.Second * 3):
+		case <-time.After(ldb.config.Timeout):
 			err = ErrReadTimeout
 		}
 

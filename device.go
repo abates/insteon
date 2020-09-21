@@ -188,9 +188,9 @@ func New(bus Bus, info DeviceInfo) (Device, error) {
 	if err == nil {
 		switch info.DevCat.Domain() {
 		case DimmerDomain:
-			device = NewDimmer(device, info)
+			device = NewDimmer(device, bus, info)
 		case SwitchDomain:
-			device = NewSwitch(device, info)
+			device = NewSwitch(device, bus, info)
 		}
 	}
 	return device, err

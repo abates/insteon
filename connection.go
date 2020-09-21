@@ -29,10 +29,17 @@ type MessageWriter interface {
 	WriteMessage(*Message) error
 }
 
+type ConnectionConfig struct {
+	Timeout time.Duration
+	Retries int
+	TTL     uint8
+}
+
 type Bus interface {
 	Publish(*Message) (*Message, error)
 	Subscribe(src Address, matcher Matcher) <-chan *Message
 	Unsubscribe(src Address, ch <-chan *Message)
+	Config() ConnectionConfig
 }
 
 type Matcher interface {
@@ -75,9 +82,7 @@ type bus struct {
 	unsubscribe chan *subscriber
 	closeCh     chan chan error
 	listeners   map[Address]map[<-chan *Message]*subscriber
-	timeout     time.Duration
-	retries     int
-	ttl         uint8
+	config      ConnectionConfig
 }
 
 func NewBus(writer MessageWriter, messages <-chan *Message, options ...ConnectionOption) (Bus, error) {
@@ -87,13 +92,15 @@ func NewBus(writer MessageWriter, messages <-chan *Message, options ...Connectio
 		unsubscribe: make(chan *subscriber),
 		listeners:   make(map[Address]map[<-chan *Message]*subscriber),
 		closeCh:     make(chan chan error),
-		timeout:     time.Second * 3,
-		retries:     3,
-		ttl:         3,
+		config: ConnectionConfig{
+			Timeout: time.Second * 3,
+			Retries: 3,
+			TTL:     3,
+		},
 	}
 
 	for _, option := range options {
-		err := option(b)
+		err := option(&b.config)
 		if err != nil {
 			return b, err
 		}
@@ -113,7 +120,7 @@ func (b *bus) run(messages <-chan *Message) {
 				if s.matcher.Matches(msg) {
 					select {
 					case s.ch <- msg:
-					case <-time.After(b.timeout):
+					case <-time.After(time.Second * 3): // this is just an arbitrarily long duration to wait, I don't think it need to be configurable
 						Log.Infof("Timeout attempting to deliver message to listener")
 					}
 				}
@@ -158,6 +165,10 @@ func (b *bus) Publish(msg *Message) (*Message, error) {
 	return nil, nil
 }
 
+func (b *bus) Config() ConnectionConfig {
+	return b.config
+}
+
 func (b *bus) Close() error {
 	ch := make(chan error)
 	b.closeCh <- ch
@@ -165,7 +176,7 @@ func (b *bus) Close() error {
 }
 
 func (b *bus) publishDirect(msg *Message) (ack *Message, err error) {
-	msg.Flags = Flag(MsgTypeDirect, len(msg.Payload) > 0, b.ttl, b.ttl)
+	msg.Flags = Flag(MsgTypeDirect, len(msg.Payload) > 0, b.config.TTL, b.config.TTL)
 
 	if len(msg.Payload) > 0 && len(msg.Payload) < 14 {
 		tmp := make([]byte, 14)
@@ -173,7 +184,7 @@ func (b *bus) publishDirect(msg *Message) (ack *Message, err error) {
 		msg.Payload = tmp
 	}
 
-	retries := b.retries
+	retries := b.config.Retries
 	Log.Debugf("Publishing %s", msg)
 	rx := b.Subscribe(msg.Dst, CmdMatcher(msg.Command))
 	defer b.Unsubscribe(msg.Dst, rx)
@@ -187,7 +198,7 @@ func (b *bus) publishDirect(msg *Message) (ack *Message, err error) {
 					err = ErrNak
 				}
 				return ack, err
-			case <-time.After(b.timeout):
+			case <-time.After(b.config.Timeout):
 				retries--
 			}
 		}
@@ -199,29 +210,16 @@ func (b *bus) publishDirect(msg *Message) (ack *Message, err error) {
 	return ack, err
 }
 
-type MessageSender interface {
-	// Send will send the message to the device and wait for the
-	// device to respond with an Ack/Nak.  Send will always return
-	// but may return with a read timeout or other communication error
-	Send(*Message) (ack *Message, err error)
-}
-
-type MessageReceiver interface {
-	// Receive waits for the next message from the device.  Receive
-	// always returns, but may return with an error (such as ErrReadTimeout)
-	Receive() (*Message, error)
-}
-
 // ConnectionOption provides a means to customize the connection config
-type ConnectionOption func(*bus) error
+type ConnectionOption func(*ConnectionConfig) error
 
 // ConnectionTTL will set the connection's time to live flag
 func ConnectionTTL(ttl uint8) ConnectionOption {
-	return func(b *bus) error {
+	return func(config *ConnectionConfig) error {
 		if ttl < 0 || ttl > 3 {
 			return fmt.Errorf("invalid ttl %d, must be in range 0-3", ttl)
 		}
-		b.ttl = ttl
+		config.TTL = ttl
 		return nil
 	}
 }
@@ -229,15 +227,15 @@ func ConnectionTTL(ttl uint8) ConnectionOption {
 // ConnectionTimeout is a ConnectionOption that will set the connection's read
 // timeout
 func ConnectionTimeout(timeout time.Duration) ConnectionOption {
-	return func(b *bus) error {
-		b.timeout = timeout
+	return func(config *ConnectionConfig) error {
+		config.Timeout = timeout
 		return nil
 	}
 }
 
 func ConnectionRetry(retries int) ConnectionOption {
-	return func(b *bus) error {
-		b.retries = retries
+	return func(config *ConnectionConfig) error {
+		config.Retries = retries
 		return nil
 	}
 }
@@ -252,7 +250,7 @@ func IDRequest(bus Bus, dst Address) (version FirmwareVersion, devCat DevCat, er
 		case msg := <-rx:
 			version = FirmwareVersion(msg.Dst[2])
 			devCat = DevCat{msg.Dst[0], msg.Dst[1]}
-		case <-time.After(time.Second * 3):
+		case <-time.After(bus.Config().Timeout):
 			err = ErrReadTimeout
 		}
 	}

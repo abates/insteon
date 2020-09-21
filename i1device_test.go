@@ -2,7 +2,6 @@ package insteon
 
 import (
 	"testing"
-	"time"
 )
 
 func TestI1DeviceIsDevice(t *testing.T) {
@@ -107,7 +106,7 @@ func TestI1DeviceLinkDatabase(t *testing.T) {
 }
 
 func TestI1DeviceDump(t *testing.T) {
-	device := &i1Device{nil, DeviceInfo{Address{1, 2, 3}, DevCat{5, 6}, FirmwareVersion(42), EngineVersion(2)}, time.Second}
+	device := &i1Device{nil, DeviceInfo{Address{1, 2, 3}, DevCat{5, 6}, FirmwareVersion(42), EngineVersion(2)}}
 	want := `
         Device: I1 Device (01.02.03)
       Category: 05.06

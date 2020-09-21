@@ -15,7 +15,6 @@
 package insteon
 
 import (
-	"reflect"
 	"testing"
 	"time"
 )
@@ -52,6 +51,8 @@ func (tb *testBus) Unsubscribe(src Address, ch <-chan *Message) {
 }
 
 func (tb *testBus) Close() error { return nil }
+
+func (tb *testBus) Config() ConnectionConfig { return ConnectionConfig{} }
 
 func TestBusRun(t *testing.T) {
 	tests := []struct {
@@ -158,24 +159,24 @@ func TestConnectionOptions(t *testing.T) {
 	tests := []struct {
 		desc    string
 		input   ConnectionOption
-		want    *bus
+		want    ConnectionConfig
 		wantErr string
 	}{
-		{"Timeout Option", ConnectionTimeout(time.Hour), &bus{timeout: time.Hour}, ""},
-		{"TTL Option", ConnectionTTL(3), &bus{ttl: 3}, ""},
-		{"TTL Option (error)", ConnectionTTL(42), nil, "invalid ttl 42, must be in range 0-3"},
+		{"Timeout Option", ConnectionTimeout(time.Hour), ConnectionConfig{Timeout: time.Hour}, ""},
+		{"TTL Option", ConnectionTTL(3), ConnectionConfig{TTL: 3}, ""},
+		{"TTL Option (error)", ConnectionTTL(42), ConnectionConfig{}, "invalid ttl 42, must be in range 0-3"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			got := &bus{}
-			err := test.input(got)
+			got := ConnectionConfig{}
+			err := test.input(&got)
 			if err != nil {
 				if test.wantErr != err.Error() {
 					t.Errorf("Wanted error %s got %v", test.wantErr, err)
 				}
 			} else {
-				if !reflect.DeepEqual(test.want, got) {
+				if test.want != got {
 					t.Errorf("want connection %+v got %+v", test.want, got)
 				}
 			}

@@ -29,17 +29,15 @@ Engine Version: {{ .Info.EngineVersion }}
 
 // i1Device provides remote communication to version 1 engines
 type i1Device struct {
-	bus     Bus
-	info    DeviceInfo
-	timeout time.Duration
+	bus  Bus
+	info DeviceInfo
 }
 
 // newI1Device will construct an I1Device for the given connection
 func newI1Device(bus Bus, info DeviceInfo) *i1Device {
 	i1 := &i1Device{
-		bus:     bus,
-		info:    info,
-		timeout: time.Second * 3,
+		bus:  bus,
+		info: info,
 	}
 
 	return i1
@@ -120,7 +118,7 @@ func (i1 *i1Device) ProductData() (data *ProductData, err error) {
 		case msg := <-rx:
 			data = &ProductData{}
 			err = data.UnmarshalBinary(msg.Payload)
-		case <-time.After(i1.timeout):
+		case <-time.After(i1.bus.Config().Timeout):
 			err = ErrReadTimeout
 		}
 	}

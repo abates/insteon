@@ -29,13 +29,14 @@ type i2Device struct {
 func newI2Device(bus Bus, info DeviceInfo) *i2Device {
 	i2 := &i2Device{i1Device: newI1Device(bus, info)}
 	i2.linkdb.device = i2
+	i2.linkdb.config = bus.Config()
 	return i2
 }
 
 func (i2 *i2Device) linkingMode(cmd Command, payload []byte) (err error) {
 	_, err = i2.SendCommand(cmd, payload)
 	if err == nil {
-		<-time.After(PropagationDelay(3, len(payload) > 0))
+		<-time.After(PropagationDelay(i2.i1Device.bus.Config().TTL, len(payload) > 0))
 	}
 	return err
 }

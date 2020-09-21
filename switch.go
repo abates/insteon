@@ -88,13 +88,14 @@ func (lf LightFlags) CleanupReport() bool { return lf[4]&0x04 == 0x04 }
 
 type Switch struct {
 	Device
+	bus  Bus
 	info DeviceInfo
 }
 
 // NewSwitch is a factory function that will return the correctly
 // configured switch based on the underlying device
-func NewSwitch(device Device, info DeviceInfo) *Switch {
-	return &Switch{Device: device, info: info}
+func NewSwitch(device Device, bus Bus, info DeviceInfo) *Switch {
+	return &Switch{Device: device, bus: bus, info: info}
 }
 
 // Status sends a LightStatusRequest to determine the device's current
@@ -121,7 +122,7 @@ func (sd *Switch) Config() (config SwitchConfig, err error) {
 		select {
 		case msg := <-rx:
 			err = config.UnmarshalBinary(msg.Payload)
-		case <-time.After(time.Second * 3):
+		case <-time.After(sd.bus.Config().Timeout):
 			err = ErrReadTimeout
 		}
 	}
