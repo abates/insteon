@@ -31,11 +31,9 @@ func TestLogWriter(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			oldLog := insteon.Log
-			defer func() { insteon.Log = oldLog }()
 			buf := bytes.NewBuffer(nil)
-			insteon.Log = &insteon.Logger{Level: insteon.LevelTrace, Logger: log.New(buf, "", 0)}
-			lw := LogWriter{test.writer}
+			log := &insteon.Logger{Level: insteon.LevelTrace, Logger: log.New(buf, "", 0)}
+			lw := LogWriter{test.writer, log}
 			_, gotErr := lw.Write(test.input)
 			lines := strings.Split(buf.String(), "\n")
 			want := fmt.Sprintf("TRACE TX %s", hexDump("%02x", test.input, " "))

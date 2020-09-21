@@ -65,7 +65,7 @@ type Option func(p *PLM) error
 func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...Option) (plm *PLM, err error) {
 	plm = &PLM{
 		reader:     NewPacketReader(reader),
-		writer:     LogWriter{writer},
+		writer:     LogWriter{writer, insteon.Log},
 		timeout:    timeout,
 		retries:    3,
 		writeDelay: 0,

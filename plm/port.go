@@ -60,16 +60,17 @@ func RetryWriter(writer PacketWriter, retries int, ignoreNak bool) PacketWriter 
 // is written
 type LogWriter struct {
 	io.Writer
+	*insteon.Logger
 }
 
 // Write writes len(p) bytes from p to the underlying data stream.
 // and logs what was written. Write will return the number of bytes
 // written and any associated error
 func (lw LogWriter) Write(buf []byte) (int, error) {
-	insteon.Log.Tracef("TX %s", hexDump("%02x", buf, " "))
+	lw.Logger.Tracef("TX %s", hexDump("%02x", buf, " "))
 	n, err := lw.Writer.Write(buf)
 	if err != nil {
-		insteon.Log.Infof("Failed to write: %v", err)
+		lw.Logger.Infof("Failed to write: %v", err)
 	}
 	return n, err
 }
