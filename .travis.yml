@@ -3,7 +3,7 @@ language: go
 sudo: false
 
 go:
-  - master
+  - 1.15
 
 before_install:
   - go get ${gobuild_args} ./...
