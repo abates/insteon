@@ -68,10 +68,12 @@ func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...O
 		writer:     LogWriter{writer, insteon.Log},
 		timeout:    timeout,
 		retries:    3,
+		lastRead:   time.Now(),
+		lastWrite:  time.Now(),
 		writeDelay: 0,
 
 		plmCh:    make(chan *Packet, 1),
-		messages: make(chan *insteon.Message),
+		messages: make(chan *insteon.Message, 10),
 	}
 
 	for _, o := range options {
@@ -114,7 +116,10 @@ func ConnectionOptions(options ...insteon.ConnectionOption) Option {
 
 func (plm *PLM) readLoop() {
 	for {
+		insteon.Log.Debugf("PLM Start Read")
 		packet, err := plm.reader.ReadPacket()
+		insteon.Log.Debugf("PLM Finish Read")
+		plm.lastRead = time.Now()
 		if err == nil {
 			insteon.Log.Tracef("%v", packet)
 			if packet.Command == CmdStdMsgReceived || packet.Command == CmdExtMsgReceived {
@@ -138,6 +143,7 @@ func (plm *PLM) readLoop() {
 			}
 			break
 		}
+		insteon.Log.Debugf("PLM end of read loop")
 	}
 }
 
@@ -153,15 +159,17 @@ func (plm *PLM) WriteMessage(msg *insteon.Message) error {
 	return err
 }
 
-func writeDelay(pkt *Packet, lastWrite time.Time, delay time.Duration) time.Duration {
+func writeDelay(pkt *Packet, last time.Time, maxDelay time.Duration) (delay time.Duration) {
 	if pkt.Command == CmdSendInsteonMsg {
-		if delay == 0 {
+		if maxDelay == 0 {
 			// flags is the 4th byte in an insteon message and max ttl/hops is the
 			// least significant 2 bits
 			flags := insteon.Flags(pkt.Payload[3])
 			delay = insteon.PropagationDelay(flags.TTL(), flags.Extended())
+		} else {
+			delay = maxDelay
 		}
-		delay = time.Now().Sub(lastWrite.Add(delay))
+		delay = time.Now().Sub(last.Add(delay))
 	}
 	return delay
 }
@@ -172,7 +180,8 @@ func writeDelay(pkt *Packet, lastWrite time.Time, delay time.Duration) time.Dura
 func (plm *PLM) WritePacket(txPacket *Packet) (ack *Packet, err error) {
 	buf, err := txPacket.MarshalBinary()
 	if err == nil {
-		time.Sleep(writeDelay(txPacket, plm.lastWrite, plm.writeDelay))
+		//time.Sleep(writeDelay(txPacket, plm.lastWrite, plm.writeDelay))
+		time.Sleep(writeDelay(txPacket, plm.lastRead, plm.writeDelay))
 
 		insteon.Log.Tracef("Sending packet %v (write delay %v)", txPacket, writeDelay)
 		_, err = plm.writer.Write(buf)

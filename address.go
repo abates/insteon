@@ -60,6 +60,12 @@ func (a *Address) Set(str string) error {
 	return a.UnmarshalText([]byte(str))
 }
 
+// MarshalText fulfills the requiresments of encoding.TextMarshaler so that
+// Address can be used as a map key in other encoding
+func (a Address) MarshalText() ([]byte, error) {
+	return []byte(a.String()), nil
+}
+
 // MarshalJSON will convert the address to a JSON string
 func (a Address) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.String())

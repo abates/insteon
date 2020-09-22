@@ -164,18 +164,27 @@ type DeviceInfo struct {
 // is encountered, then the I2CsDevice is returned with an ErrNotLinked error.  This
 // allows the application to initiate linking, if desired
 func Open(bus Bus, dst Address) (device Device, err error) {
-	version, err := GetEngineVersion(bus, dst)
-	if err == nil {
-		info := DeviceInfo{
-			Address:       dst,
-			EngineVersion: version,
-		}
-		info.FirmwareVersion, info.DevCat, err = IDRequest(bus, dst)
+	if info, found := DB.Get(dst); found {
+		device, err = New(bus, info)
+	} else {
+		var version EngineVersion
+		version, err = GetEngineVersion(bus, dst)
 		if err == nil {
-			device, err = New(bus, info)
+			info := DeviceInfo{
+				Address:       dst,
+				EngineVersion: version,
+			}
+			info.FirmwareVersion, info.DevCat, err = IDRequest(bus, dst)
+			if err == nil {
+				device, err = New(bus, info)
+			}
+
+			if err == nil {
+				DB.Put(dst, info)
+			}
+		} else if err == ErrNotLinked {
+			device, _ = create(bus, DeviceInfo{Address: dst, EngineVersion: VerI2Cs})
 		}
-	} else if err == ErrNotLinked {
-		device, _ = create(bus, DeviceInfo{Address: dst, EngineVersion: VerI2Cs})
 	}
 	return device, err
 }

@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -33,6 +34,7 @@ type ConnectionConfig struct {
 	Timeout time.Duration
 	Retries int
 	TTL     uint8
+	BufSize int
 }
 
 type Bus interface {
@@ -96,6 +98,7 @@ func NewBus(writer MessageWriter, messages <-chan *Message, options ...Connectio
 			Timeout: time.Second * 3,
 			Retries: 3,
 			TTL:     3,
+			BufSize: 32,
 		},
 	}
 
@@ -112,17 +115,25 @@ func NewBus(writer MessageWriter, messages <-chan *Message, options ...Connectio
 
 func (b *bus) run(messages <-chan *Message) {
 	Log.Debugf("Starting BUS")
+	var workers sync.WaitGroup
 	for {
 		select {
 		case msg := <-messages:
 			Log.Debugf("Bus received %v", msg)
 			for _, s := range b.listeners[msg.Src] {
 				if s.matcher.Matches(msg) {
-					select {
-					case s.ch <- msg:
-					case <-time.After(time.Second * 3): // this is just an arbitrarily long duration to wait, I don't think it need to be configurable
-						Log.Infof("Timeout attempting to deliver message from %v to listener", msg.Src)
-					}
+					// run this in a go routine so a wayward listener can't block up the works
+					workers.Add(1)
+					go func(msg *Message) {
+						select {
+						case s.ch <- msg:
+						default:
+							Log.Infof("Receive buffer full for %v listener", msg.Src)
+							//case <-time.After(time.Second * 3): // this is just an arbitrarily long duration to wait, I don't think it needs to be configurable
+							//Log.Infof("Timeout attempting to deliver message from %v to listener", msg.Src)
+						}
+						workers.Done()
+					}(msg)
 				}
 			}
 
@@ -141,13 +152,14 @@ func (b *bus) run(messages <-chan *Message) {
 			}
 		case closeCh := <-b.closeCh:
 			defer func() { closeCh <- nil }()
+			workers.Wait()
 			return
 		}
 	}
 }
 
 func (b *bus) Subscribe(src Address, matcher Matcher) <-chan *Message {
-	ch := make(chan *Message, 1)
+	ch := make(chan *Message, b.config.BufSize)
 	b.subscribe <- &subscriber{src: src, matcher: matcher, ch: ch}
 	return ch
 }
@@ -212,6 +224,17 @@ func (b *bus) publishDirect(msg *Message) (ack *Message, err error) {
 // ConnectionOption provides a means to customize the connection config
 type ConnectionOption func(*ConnectionConfig) error
 
+// ConnectionBufSize sets the receive buffer size for incoming messages
+func ConnectionBufSize(size int) ConnectionOption {
+	return func(config *ConnectionConfig) error {
+		if size < 0 {
+			return fmt.Errorf("Buffer size cannot be less than zero")
+		}
+		config.BufSize = size
+		return nil
+	}
+}
+
 // ConnectionTTL will set the connection's time to live flag
 func ConnectionTTL(ttl uint8) ConnectionOption {
 	return func(config *ConnectionConfig) error {
@@ -240,19 +263,18 @@ func ConnectionRetry(retries int) ConnectionOption {
 }
 
 func Retry(retries int, cb func() error) (err error) {
+	tries := 0
 	for {
+		tries++
 		err = cb()
-		if err == nil {
-			return nil
-		}
-
 		if err == nil || err != ErrReadTimeout {
-			return err
+			break
 		}
 		retries--
 		if retries > 0 {
 			Log.Infof("Read Timeout, retrying")
 		} else {
+			Log.Infof("Retry count exceeded (%d)", tries)
 			break
 		}
 	}

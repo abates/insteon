@@ -1,5 +1,7 @@
 github.com/abates/cli v0.0.0-20200124135207-1f046a3c368e h1:e+ZD7X+Z7St5zyeNcSnLLjHz8tK2OU4Fd0I9vZY8WWM=
 github.com/abates/cli v0.0.0-20200124135207-1f046a3c368e/go.mod h1:IbI6wKYxWh1jh6mn/SWJwXvsoYzIzW1aoddwzXKhZWo=
+github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f h1:dKccXx7xA56UNqOcFIbuqFjAWPVtP688j5QMgmo6OHU=
+github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f/go.mod h1:4rEELDSfUAlBSyUjPG0JnaNGjf13JySHFeRdD/3dLP0=
 github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07 h1:UyzmZLoiDWMRywV4DUYb9Fbt8uiOSooupjTq10vpvnU=
 github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07/go.mod h1:kDXzergiv9cbyO7IOYJZWg1U88JhDg3PB6klq9Hg2pA=
 golang.org/x/sys v0.0.0-20190422165155-953cdadca894 h1:Cz4ceDQGXuKRnVBDTS23GTn/pU5OE2C0WrNTOYK1Uuc=
