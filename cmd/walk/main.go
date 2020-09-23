@@ -20,14 +20,12 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/plm"
 	"github.com/abates/insteon/util"
-	"github.com/kirsle/configdir"
 	"github.com/tarm/serial"
 )
 
@@ -35,12 +33,8 @@ var (
 	logLevelFlag   insteon.LogLevel
 	serialPortFlag string
 	modem          *plm.PLM
+	db             *insteon.MemDB
 )
-
-func init() {
-	flag.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
-	flag.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
-}
 
 func printDevInfo(device insteon.Device) {
 	/*fmt.Printf("       Device: %v\n", device)
@@ -64,7 +58,7 @@ func dump(links []*insteon.LinkRecord) {
 		log.Printf("Querying ALDB from %s", link.Address)
 		device, err := modem.Open(link.Address)
 		if err == nil {
-			saveDB()
+			util.Save("db.json", db)
 			printDevInfo(device)
 		} else {
 			log.Printf("Failed to open device %s: %v", link.Address, err)
@@ -73,54 +67,25 @@ func dump(links []*insteon.LinkRecord) {
 	}
 }
 
-var (
-	configFile string
-	db         *insteon.MemDB
-)
-
-func saveDB() {
-	file, err := os.OpenFile(configFile, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0600)
-	if err != nil {
-		log.Fatalf("Failed to open database file: %v", err)
-	}
-	err = db.Save(file)
-	if err != nil {
-		log.Fatalf("Failed to save database: %v", err)
-	}
-}
-
-func loadDB() {
-	if _, err := os.Stat(configFile); err == nil {
-		file, err := os.Open(configFile)
-		if err != nil {
-			log.Fatalf("Failed to open database file: %v", err)
-		}
-
-		err = db.Load(file)
-		if err != nil {
-			log.Fatalf("Failed to load database: %v", err)
-		}
-		file.Close()
-	}
-}
-
 func init() {
-	configPath := configdir.LocalConfig("go-insteon")
-	err := configdir.MakePath(configPath) // Ensure it exists.
-	if err != nil {
-		log.Fatalf("Failed to create config directory: %v", err)
-	}
-	configFile = filepath.Join(configPath, "db.json")
+	flag.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
+	flag.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
 
-	db = insteon.NewMemDB()
+	var err error
+	db, err = util.LoadMemDB("db.json")
 	insteon.DB = db
-	loadDB()
+	if err != nil {
+		log.Fatalf("Failed to load database: %v", err)
+	}
 
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		saveDB()
+		err := util.Save("db.json", db)
+		if err != nil {
+			log.Printf("Failed to save database: %v", err)
+		}
 		os.Exit(0)
 	}()
 }

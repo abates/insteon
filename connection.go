@@ -20,10 +20,17 @@ import (
 	"time"
 )
 
-const (
-	NumRetries = 5
-
-	Timeout = time.Second * 5
+var (
+	// See "INSTEON Message Retrying" section in Insteon Developer's Guide
+	retryTimes = []struct {
+		standard time.Duration
+		extended time.Duration
+	}{
+		{1400 * time.Millisecond, 2220 * time.Millisecond},
+		{1700 * time.Millisecond, 2690 * time.Millisecond},
+		{1900 * time.Millisecond, 3010 * time.Millisecond},
+		{2000 * time.Millisecond, 3170 * time.Millisecond},
+	}
 )
 
 type MessageWriter interface {
@@ -31,10 +38,21 @@ type MessageWriter interface {
 }
 
 type ConnectionConfig struct {
-	Timeout time.Duration
-	Retries int
-	TTL     uint8
-	BufSize int
+	DefaultTimeout time.Duration
+	Retries        int
+	TTL            uint8
+	BufSize        int
+}
+
+func (cc ConnectionConfig) Timeout(extended bool) time.Duration {
+	timeout := retryTimes[cc.TTL].standard
+	if extended {
+		timeout = retryTimes[cc.TTL].extended
+	}
+	if timeout < cc.DefaultTimeout {
+		return cc.DefaultTimeout
+	}
+	return timeout
 }
 
 type Bus interface {
@@ -54,7 +72,30 @@ func (m Matches) Matches(msg *Message) bool {
 	return m(msg)
 }
 
-func OrMatcher(matchers ...Matcher) Matcher {
+func AckMatcher() Matcher {
+	return Matches(func(msg *Message) bool {
+		return msg.Ack() || msg.Nak()
+	})
+}
+
+func Not(matcher Matcher) Matcher {
+	return Matches(func(msg *Message) bool {
+		return !matcher.Matches(msg)
+	})
+}
+
+func And(matchers ...Matcher) Matcher {
+	return Matches(func(msg *Message) bool {
+		for _, matcher := range matchers {
+			if !matcher.Matches(msg) {
+				return false
+			}
+		}
+		return true
+	})
+}
+
+func Or(matchers ...Matcher) Matcher {
 	return Matches(func(msg *Message) bool {
 		for _, matcher := range matchers {
 			if matcher.Matches(msg) {
@@ -95,10 +136,10 @@ func NewBus(writer MessageWriter, messages <-chan *Message, options ...Connectio
 		listeners:   make(map[Address]map[<-chan *Message]*subscriber),
 		closeCh:     make(chan chan error),
 		config: ConnectionConfig{
-			Timeout: time.Second * 3,
-			Retries: 3,
-			TTL:     3,
-			BufSize: 32,
+			DefaultTimeout: 0,
+			Retries:        1,
+			TTL:            3,
+			BufSize:        32,
 		},
 	}
 
@@ -109,6 +150,11 @@ func NewBus(writer MessageWriter, messages <-chan *Message, options ...Connectio
 		}
 	}
 
+	Log.Debugf("Starting bus with config:")
+	Log.Debugf("          DefaultTimeout: %s", b.config.DefaultTimeout)
+	Log.Debugf("                 Retries: %d", b.config.Retries)
+	Log.Debugf("                     TTL: %d", b.config.TTL)
+	Log.Debugf("                 BufSize: %d", b.config.BufSize)
 	go b.run(messages)
 	return b, nil
 }
@@ -129,8 +175,6 @@ func (b *bus) run(messages <-chan *Message) {
 						case s.ch <- msg:
 						default:
 							Log.Infof("Receive buffer full for %v listener", msg.Src)
-							//case <-time.After(time.Second * 3): // this is just an arbitrarily long duration to wait, I don't think it needs to be configurable
-							//Log.Infof("Timeout attempting to deliver message from %v to listener", msg.Src)
 						}
 						workers.Done()
 					}(msg)
@@ -188,7 +232,8 @@ func (b *bus) Close() error {
 }
 
 func (b *bus) publishDirect(msg *Message) (ack *Message, err error) {
-	msg.Flags = Flag(MsgTypeDirect, len(msg.Payload) > 0, b.config.TTL, b.config.TTL)
+	extended := len(msg.Payload) > 0
+	msg.Flags = Flag(MsgTypeDirect, extended, b.config.TTL, b.config.TTL)
 
 	if len(msg.Payload) > 0 && len(msg.Payload) < 14 {
 		tmp := make([]byte, 14)
@@ -196,7 +241,8 @@ func (b *bus) publishDirect(msg *Message) (ack *Message, err error) {
 		msg.Payload = tmp
 	}
 
-	rx := b.Subscribe(msg.Dst, CmdMatcher(msg.Command))
+	Log.Debugf("Subscribing to %v:%v ACK", msg.Dst, msg.Command)
+	rx := b.Subscribe(msg.Dst, And(AckMatcher(), CmdMatcher(msg.Command)))
 	defer b.Unsubscribe(msg.Dst, rx)
 
 	err = Retry(b.config.Retries, func() error {
@@ -208,7 +254,7 @@ func (b *bus) publishDirect(msg *Message) (ack *Message, err error) {
 				if ack.Nak() {
 					err = ErrNak
 				}
-			case <-time.After(b.config.Timeout):
+			case <-time.After(b.config.Timeout(extended)):
 				err = ErrReadTimeout
 			}
 		}
@@ -246,11 +292,20 @@ func ConnectionTTL(ttl uint8) ConnectionOption {
 	}
 }
 
-// ConnectionTimeout is a ConnectionOption that will set the connection's read
-// timeout
+// ConnectionTimeout is a ConnectionOption that will set the connection's default read
+// timeout.  Normally, the read timeout is based on the number of zero crossings
+// required to send and retry the message.  With each retry the Insteon engine automatically
+// increases the TTL.  The following table displays the calcualted timeouts based on
+// the message size and starting TTL:
+// Starting TTL | Standard Msg | Extended Msg
+//            0 | 1.40 Seconds | 2.22 Seconds
+//            1 | 1.70 Seconds | 2.69 Seconds
+//            2 | 1.90 Seconds | 3.01 Seconds
+//            3 | 2.00 Seconds | 3.17 Seconds
+//
 func ConnectionTimeout(timeout time.Duration) ConnectionOption {
 	return func(config *ConnectionConfig) error {
-		config.Timeout = timeout
+		config.DefaultTimeout = timeout
 		return nil
 	}
 }
@@ -270,8 +325,8 @@ func Retry(retries int, cb func() error) (err error) {
 		if err == nil || err != ErrReadTimeout {
 			break
 		}
-		retries--
 		if retries > 0 {
+			retries--
 			Log.Infof("Read Timeout, retrying")
 		} else {
 			Log.Infof("Retry count exceeded (%d)", tries)
@@ -282,7 +337,7 @@ func Retry(retries int, cb func() error) (err error) {
 }
 
 func IDRequest(bus Bus, dst Address) (version FirmwareVersion, devCat DevCat, err error) {
-	rx := bus.Subscribe(dst, OrMatcher(CmdMatcher(CmdSetButtonPressedResponder), CmdMatcher(CmdSetButtonPressedController)))
+	rx := bus.Subscribe(dst, And(Not(AckMatcher()), Or(CmdMatcher(CmdSetButtonPressedResponder), CmdMatcher(CmdSetButtonPressedController))))
 	defer bus.Unsubscribe(dst, rx)
 
 	err = Retry(bus.Config().Retries, func() error {
@@ -292,7 +347,7 @@ func IDRequest(bus Bus, dst Address) (version FirmwareVersion, devCat DevCat, er
 			case msg := <-rx:
 				version = FirmwareVersion(msg.Dst[2])
 				devCat = DevCat{msg.Dst[0], msg.Dst[1]}
-			case <-time.After(bus.Config().Timeout):
+			case <-time.After(bus.Config().Timeout(false)):
 				err = ErrReadTimeout
 			}
 		}

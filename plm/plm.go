@@ -95,6 +95,10 @@ func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...O
 		}
 	}
 
+	insteon.Log.Debugf("Staring PLM with config:")
+	insteon.Log.Debugf("                Timeout: %s", plm.timeout)
+	insteon.Log.Debugf("                Retries: %d", plm.writeDelay)
+	insteon.Log.Debugf("             WriteDelay: %s", plm.writeDelay)
 	go plm.readLoop()
 	return plm, nil
 }
@@ -116,9 +120,7 @@ func ConnectionOptions(options ...insteon.ConnectionOption) Option {
 
 func (plm *PLM) readLoop() {
 	for {
-		insteon.Log.Debugf("PLM Start Read")
 		packet, err := plm.reader.ReadPacket()
-		insteon.Log.Debugf("PLM Finish Read")
 		plm.lastRead = time.Now()
 		if err == nil {
 			insteon.Log.Tracef("%v", packet)
@@ -143,7 +145,6 @@ func (plm *PLM) readLoop() {
 			}
 			break
 		}
-		insteon.Log.Debugf("PLM end of read loop")
 	}
 }
 
@@ -161,12 +162,12 @@ func (plm *PLM) WriteMessage(msg *insteon.Message) error {
 
 func writeDelay(pkt *Packet, last time.Time, maxDelay time.Duration) (delay time.Duration) {
 	if pkt.Command == CmdSendInsteonMsg {
-		if maxDelay == 0 {
+		if maxDelay > 0 {
 			// flags is the 4th byte in an insteon message and max ttl/hops is the
 			// least significant 2 bits
-			flags := insteon.Flags(pkt.Payload[3])
-			delay = insteon.PropagationDelay(flags.TTL(), flags.Extended())
-		} else {
+			//flags := insteon.Flags(pkt.Payload[3])
+			//delay = insteon.PropagationDelay(flags.TTL(), flags.Extended())
+			//} else {
 			delay = maxDelay
 		}
 		delay = time.Now().Sub(last.Add(delay))
@@ -180,7 +181,6 @@ func writeDelay(pkt *Packet, last time.Time, maxDelay time.Duration) (delay time
 func (plm *PLM) WritePacket(txPacket *Packet) (ack *Packet, err error) {
 	buf, err := txPacket.MarshalBinary()
 	if err == nil {
-		//time.Sleep(writeDelay(txPacket, plm.lastWrite, plm.writeDelay))
 		time.Sleep(writeDelay(txPacket, plm.lastRead, plm.writeDelay))
 
 		insteon.Log.Tracef("Sending packet %v (write delay %v)", txPacket, writeDelay)

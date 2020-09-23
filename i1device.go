@@ -109,7 +109,7 @@ func errLookup(msg *Message, err error) (*Message, error) {
 
 // ProductData will retrieve the device's product data
 func (i1 *i1Device) ProductData() (data *ProductData, err error) {
-	rx := i1.Subscribe(OrMatcher(CmdMatcher(CmdProductDataReq), CmdMatcher(CmdProductDataResp)))
+	rx := i1.Subscribe(And(Not(AckMatcher()), Or(CmdMatcher(CmdProductDataReq), CmdMatcher(CmdProductDataResp))))
 	defer i1.Unsubscribe(rx)
 
 	_, err = i1.Publish(&Message{Command: CmdProductDataReq})
@@ -118,7 +118,7 @@ func (i1 *i1Device) ProductData() (data *ProductData, err error) {
 		case msg := <-rx:
 			data = &ProductData{}
 			err = data.UnmarshalBinary(msg.Payload)
-		case <-time.After(i1.bus.Config().Timeout):
+		case <-time.After(2 * i1.bus.Config().Timeout(false)):
 			err = ErrReadTimeout
 		}
 	}

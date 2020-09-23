@@ -109,10 +109,10 @@ func TestPublish(t *testing.T) {
 		wantFlags Flags
 		wantErr   error
 	}{
-		{"normal", 3, time.Second, 1, &Message{}, &Message{}, Flag(MsgTypeDirect, false, 3, 3), nil},
+		{"normal", 3, time.Second, 1, &Message{}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, false, 3, 3), nil},
 		{"nak", 3, time.Second, 1, &Message{}, &Message{Flags: StandardDirectNak}, Flag(MsgTypeDirect, false, 3, 3), ErrNak},
 		{"retries", 3, time.Millisecond, 3, &Message{}, nil, Flag(MsgTypeDirect, false, 3, 3), ErrAckTimeout},
-		{"extended", 3, time.Millisecond, 1, &Message{Payload: []byte{1, 2, 3}}, &Message{}, Flag(MsgTypeDirect, true, 3, 3), nil},
+		{"extended", 3, time.Millisecond, 1, &Message{Payload: []byte{1, 2, 3}}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, true, 3, 3), nil},
 	}
 
 	for _, test := range tests {
@@ -162,7 +162,7 @@ func TestConnectionOptions(t *testing.T) {
 		want    ConnectionConfig
 		wantErr string
 	}{
-		{"Timeout Option", ConnectionTimeout(time.Hour), ConnectionConfig{Timeout: time.Hour}, ""},
+		{"Timeout Option", ConnectionTimeout(time.Hour), ConnectionConfig{DefaultTimeout: time.Hour}, ""},
 		{"TTL Option", ConnectionTTL(3), ConnectionConfig{TTL: 3}, ""},
 		{"TTL Option (error)", ConnectionTTL(42), ConnectionConfig{}, "invalid ttl 42, must be in range 0-3"},
 	}

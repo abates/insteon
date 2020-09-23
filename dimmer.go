@@ -91,14 +91,14 @@ func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
-	rx := dd.Subscribe(CmdMatcher(CmdExtendedGetSet))
+	rx := dd.Subscribe(And(Not(AckMatcher()), CmdMatcher(CmdExtendedGetSet)))
 	defer dd.Unsubscribe(rx)
 	_, err = dd.Publish(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
 	if err == nil {
 		select {
 		case msg := <-rx:
 			err = config.UnmarshalBinary(msg.Payload)
-		case <-time.After(dd.Switch.bus.Config().Timeout):
+		case <-time.After(dd.Switch.bus.Config().Timeout(true)):
 			err = ErrReadTimeout
 		}
 	}

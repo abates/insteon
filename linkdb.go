@@ -153,7 +153,8 @@ func (ldb *linkdb) refresh() error {
 	Log.Debugf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
 
-	rx := ldb.device.Subscribe(CmdMatcher(CmdReadWriteALDB))
+	Log.Debugf("Subscribing to %v", CmdReadWriteALDB)
+	rx := ldb.device.Subscribe(And(Not(AckMatcher()), CmdMatcher(CmdReadWriteALDB)))
 	defer ldb.device.Unsubscribe(rx)
 	buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
 	_, err := ldb.device.Publish(&Message{Command: CmdReadWriteALDB, Payload: buf})
@@ -162,7 +163,7 @@ func (ldb *linkdb) refresh() error {
 	for err == nil {
 		select {
 		case msg = <-rx:
-		case <-time.After(ldb.config.Timeout):
+		case <-time.After(2 * ldb.config.Timeout(true)):
 			err = ErrReadTimeout
 		}
 
