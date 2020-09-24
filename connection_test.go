@@ -101,26 +101,25 @@ func (tw *testWriter) WriteMessage(msg *Message) error {
 func TestPublish(t *testing.T) {
 	tests := []struct {
 		name      string
-		ttl       uint8
 		timeout   time.Duration
-		retries   int
+		tries     int
 		input     *Message
 		resp      *Message
 		wantFlags Flags
 		wantErr   error
 	}{
-		{"normal", 3, time.Second, 1, &Message{}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, false, 3, 3), nil},
-		{"nak", 3, time.Second, 1, &Message{}, &Message{Flags: StandardDirectNak}, Flag(MsgTypeDirect, false, 3, 3), ErrNak},
-		{"retries", 3, time.Millisecond, 3, &Message{}, nil, Flag(MsgTypeDirect, false, 3, 3), ErrAckTimeout},
-		{"extended", 3, time.Millisecond, 1, &Message{Payload: []byte{1, 2, 3}}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, true, 3, 3), nil},
+		{"normal", time.Second, 1, &Message{}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, false, 0, 0), nil},
+		{"nak", time.Second, 1, &Message{}, &Message{Flags: StandardDirectNak}, Flag(MsgTypeDirect, false, 0, 0), ErrNak},
+		{"retries", time.Millisecond, 4, &Message{}, nil, Flag(MsgTypeDirect, false, 0, 0), ErrAckTimeout},
+		{"extended", time.Millisecond, 1, &Message{Payload: []byte{1, 2, 3}}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, true, 0, 0), nil},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			messages := make(chan *Message, 1)
-			writer := make(chan *Message, test.retries)
+			writer := make(chan *Message, test.tries)
 			done := make(chan bool)
-			bb, _ := NewBus(&testWriter{writer}, messages, ConnectionTTL(test.ttl), ConnectionTimeout(test.timeout), ConnectionRetry(test.retries))
+			bb, _ := NewBus(&testWriter{writer}, messages, ConnectionTTL(0), ConnectionTimeout(test.timeout), ConnectionRetry(3))
 			b := bb.(*bus)
 			go func() {
 				_, gotErr := b.Publish(test.input)
@@ -148,8 +147,8 @@ func TestPublish(t *testing.T) {
 				t.Errorf("Expected listener to be unsubscribed after publish")
 			}
 
-			if test.retries != len(writer)+1 {
-				t.Errorf("Expected message to be retried %d times, got %d", test.retries, len(writer)+1)
+			if test.tries != len(writer)+1 {
+				t.Errorf("Expected message to be retried %d times, got %d", test.tries, len(writer)+1)
 			}
 		})
 	}

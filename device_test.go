@@ -96,6 +96,7 @@ func TestDeviceOpen(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			DB = &DummyDB{}
 			ch := make(chan *Message, len(test.messages))
 			for _, msg := range test.messages {
 				ch <- msg
