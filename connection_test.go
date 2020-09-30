@@ -259,8 +259,8 @@ func TestMatchers(t *testing.T) {
 		{"Or (one)", Or(Matches(func(*Message) bool { return true }), Matches(func(*Message) bool { return true })), &Message{}, true},
 		{"Or (both)", Or(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return true })), &Message{}, true},
 		{"Or (neither)", Or(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return false })), &Message{}, false},
-		{"Not (true)", Not(Matches(func(*Message) bool { return true })), &Message{}, false},
-		{"Not (false)", Not(Matches(func(*Message) bool { return false })), &Message{}, true},
+		{"Not (true)", Not(AckMatcher()), TestAck, false},
+		{"Not (false)", Not(AckMatcher()), &Message{}, true},
 	}
 
 	for _, test := range tests {
