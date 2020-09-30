@@ -4,6 +4,7 @@
 *.so
 *.dylib
 cmd/ic/ic
+cmd/walk/walk
 
 # Test binary, build with `go test -c`
 *.test
