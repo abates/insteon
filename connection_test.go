@@ -255,6 +255,7 @@ func TestMatchers(t *testing.T) {
 		{"CmdMatcher (false)", CmdMatcher(CmdPing), &Message{}, false},
 		{"And (true)", And(Matches(func(*Message) bool { return true }), Matches(func(*Message) bool { return true })), &Message{}, true},
 		{"And (false)", And(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return true })), &Message{}, false},
+		{"And (false 1)", And(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return false })), &Message{}, false},
 		{"Or (one)", Or(Matches(func(*Message) bool { return true }), Matches(func(*Message) bool { return true })), &Message{}, true},
 		{"Or (both)", Or(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return true })), &Message{}, true},
 		{"Or (neither)", Or(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return false })), &Message{}, false},
