@@ -163,9 +163,11 @@ func TestLinkdbLinks(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			// Add high water mark
 			links := append(test.want, &LinkRecord{})
-			ch := make(chan *Message, len(links))
-			tps := &testPubSub{publishResp: []*Message{{Command: CmdReadWriteALDB, Flags: StandardDirectAck}}, subscribeCh: ch}
-
+			ch := make(chan *Message, len(links)+2)
+			tps := &testPubSub{publishResp: []*Message{{Command: CmdReadWriteALDB, Flags: StandardDirectAck}}, rxCh: ch}
+			// Test ignoring acks on receive channel
+			ch <- &Message{Command: CmdReadWriteALDB, Flags: StandardDirectAck}
+			ch <- &Message{Command: CmdReadWriteALDB, Flags: StandardDirectNak}
 			memAddress := BaseLinkDBAddress
 			for _, link := range links {
 				lr := &linkRequest{Type: linkResponse, MemAddress: memAddress, Link: link}
@@ -175,6 +177,7 @@ func TestLinkdbLinks(t *testing.T) {
 				ch <- msg
 				memAddress -= LinkRecordSize
 			}
+			close(ch)
 
 			MaxLinkDbAge = time.Millisecond
 			linkdb := linkdb{age: test.age, device: tps}

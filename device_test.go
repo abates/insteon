@@ -28,7 +28,7 @@ type testPubSub struct {
 	publishResp []*Message
 	publishErr  error
 
-	subscribeCh   <-chan *Message
+	rxCh          <-chan *Message
 	subscribedCh  <-chan *Message
 	unsubscribeCh <-chan *Message
 }
@@ -41,8 +41,16 @@ func (tps *testPubSub) Publish(msg *Message) (*Message, error) {
 }
 
 func (tps *testPubSub) Subscribe(matcher Matcher) <-chan *Message {
-	tps.subscribedCh = tps.subscribeCh
-	return tps.subscribeCh
+	ch := make(chan *Message, cap(tps.rxCh))
+	tps.subscribedCh = ch
+	go func() {
+		for msg := range tps.rxCh {
+			if matcher.Matches(msg) {
+				ch <- msg
+			}
+		}
+	}()
+	return ch
 }
 
 func (tps *testPubSub) Unsubscribe(ch <-chan *Message) { tps.unsubscribeCh = ch }
