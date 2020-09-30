@@ -168,17 +168,16 @@ func (b *bus) run(messages <-chan *Message) {
 			Log.Debugf("Bus received %v", msg)
 			for _, s := range b.listeners[msg.Src] {
 				if s.matcher.Matches(msg) {
-					println(fmt.Sprintf("Matched %v", msg))
 					// run this in a go routine so a wayward listener can't block up the works
 					workers.Add(1)
-					go func(msg *Message) {
+					go func(s *subscriber, msg *Message) {
 						select {
 						case s.ch <- msg:
 						default:
 							Log.Infof("Receive buffer full for %v listener", msg.Src)
 						}
 						workers.Done()
-					}(msg)
+					}(s, msg)
 				}
 			}
 
