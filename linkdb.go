@@ -161,16 +161,8 @@ func (ldb *linkdb) refresh() error {
 
 	var msg *Message
 	for err == nil {
-		select {
-		case msg = <-rx:
-		case <-time.After(2 * ldb.config.Timeout(true)):
-			err = ErrReadTimeout
-		}
-
+		msg, err = ReadWithTimeout(rx, 2*ldb.config.Timeout(true))
 		if err == nil {
-			if msg.Ack() {
-				continue
-			}
 			lr := &linkRequest{}
 			err = lr.UnmarshalBinary(msg.Payload)
 			// make sure there was no error unmarshalling, also make sure

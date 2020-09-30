@@ -101,17 +101,16 @@ func (tw *testWriter) WriteMessage(msg *Message) error {
 func TestPublish(t *testing.T) {
 	tests := []struct {
 		name      string
-		timeout   time.Duration
 		tries     int
 		input     *Message
 		resp      *Message
 		wantFlags Flags
 		wantErr   error
 	}{
-		{"normal", time.Second, 1, &Message{}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, false, 0, 0), nil},
-		{"nak", time.Second, 1, &Message{}, &Message{Flags: StandardDirectNak}, Flag(MsgTypeDirect, false, 0, 0), ErrNak},
-		{"retries", time.Millisecond, 4, &Message{}, nil, Flag(MsgTypeDirect, false, 0, 0), ErrAckTimeout},
-		{"extended", time.Millisecond, 1, &Message{Payload: []byte{1, 2, 3}}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, true, 0, 0), nil},
+		{"normal", 1, &Message{}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, false, 0, 0), nil},
+		{"nak", 1, &Message{}, &Message{Flags: StandardDirectNak}, Flag(MsgTypeDirect, false, 0, 0), ErrNak},
+		{"retries", 2, &Message{}, nil, Flag(MsgTypeDirect, false, 0, 0), ErrAckTimeout},
+		{"extended", 1, &Message{Payload: []byte{1, 2, 3}}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, true, 0, 0), nil},
 	}
 
 	for _, test := range tests {
@@ -119,7 +118,7 @@ func TestPublish(t *testing.T) {
 			messages := make(chan *Message, 1)
 			writer := make(chan *Message, test.tries)
 			done := make(chan bool)
-			bb, _ := NewBus(&testWriter{writer}, messages, ConnectionTTL(0), ConnectionTimeout(test.timeout), ConnectionRetry(3))
+			bb, _ := NewBus(&testWriter{writer}, messages, ConnectionTTL(0), ConnectionRetry(1))
 			b := bb.(*bus)
 			go func() {
 				_, gotErr := b.Publish(test.input)
@@ -164,6 +163,8 @@ func TestConnectionOptions(t *testing.T) {
 		{"Timeout Option", ConnectionTimeout(time.Hour), ConnectionConfig{DefaultTimeout: time.Hour}, ""},
 		{"TTL Option", ConnectionTTL(3), ConnectionConfig{TTL: 3}, ""},
 		{"TTL Option (error)", ConnectionTTL(42), ConnectionConfig{}, "invalid ttl 42, must be in range 0-3"},
+		{"ConnectionBufSize", ConnectionBufSize(1), ConnectionConfig{BufSize: 1}, ""},
+		{"ConnectionBufSize (error)", ConnectionBufSize(-1), ConnectionConfig{}, "Buffer size cannot be less than zero"},
 	}
 
 	for _, test := range tests {
@@ -234,6 +235,38 @@ func TestConnectionEngineVersion(t *testing.T) {
 				if gotVersion != test.wantVersion {
 					t.Errorf("Want EngineVersion %v got %v", test.wantVersion, gotVersion)
 				}
+			}
+		})
+	}
+}
+
+func TestMatchers(t *testing.T) {
+	tests := []struct {
+		name    string
+		matcher Matcher
+		input   *Message
+		want    bool
+	}{
+		{"AckMatcher (ack)", AckMatcher(), TestAck, true},
+		{"AckMatcher (ping)", AckMatcher(), TestPing, false},
+		{"AckMatcher (nak)", AckMatcher(), TestPingNak, true},
+		{"AckMatcher (nak)", AckMatcher(), TestPingNak, true},
+		{"CmdMatcher (true)", CmdMatcher(CmdPing), TestPing, true},
+		{"CmdMatcher (false)", CmdMatcher(CmdPing), &Message{}, false},
+		{"And (true)", And(Matches(func(*Message) bool { return true }), Matches(func(*Message) bool { return true })), &Message{}, true},
+		{"And (false)", And(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return true })), &Message{}, false},
+		{"Or (one)", Or(Matches(func(*Message) bool { return true }), Matches(func(*Message) bool { return true })), &Message{}, true},
+		{"Or (both)", Or(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return true })), &Message{}, true},
+		{"Or (neither)", Or(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return false })), &Message{}, false},
+		{"Not (true)", Not(Matches(func(*Message) bool { return true })), &Message{}, false},
+		{"Not (false)", Not(Matches(func(*Message) bool { return false })), &Message{}, true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.matcher.Matches(test.input)
+			if test.want != got {
+				t.Errorf("Wanted match %v got %v", test.want, got)
 			}
 		})
 	}

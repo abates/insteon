@@ -17,7 +17,6 @@ package insteon
 import (
 	"html/template"
 	"strings"
-	"time"
 )
 
 var i1DumpTpl = template.Must(template.New("name").Parse(`
@@ -112,14 +111,12 @@ func (i1 *i1Device) ProductData() (data *ProductData, err error) {
 	rx := i1.Subscribe(And(Not(AckMatcher()), Or(CmdMatcher(CmdProductDataReq), CmdMatcher(CmdProductDataResp))))
 	defer i1.Unsubscribe(rx)
 
-	_, err = i1.Publish(&Message{Command: CmdProductDataReq})
+	msg, err := i1.Publish(&Message{Command: CmdProductDataReq})
 	if err == nil {
-		select {
-		case msg := <-rx:
+		msg, err = ReadWithTimeout(rx, 2*i1.bus.Config().Timeout(false))
+		if err == nil {
 			data = &ProductData{}
 			err = data.UnmarshalBinary(msg.Payload)
-		case <-time.After(2 * i1.bus.Config().Timeout(false)):
-			err = ErrReadTimeout
 		}
 	}
 	return data, err

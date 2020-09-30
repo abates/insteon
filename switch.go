@@ -16,7 +16,6 @@ package insteon
 
 import (
 	"fmt"
-	"time"
 )
 
 // SwitchConfig contains the HouseCode and UnitCode for a switch's
@@ -117,13 +116,11 @@ func (sd *Switch) Config() (config SwitchConfig, err error) {
 	// SEE Dimmer.Config() notes for explanation of D1 and D2 (payload[0] and payload[1])
 	rx := sd.Subscribe(And(Not(AckMatcher()), CmdMatcher(CmdExtendedGetSet)))
 	defer sd.Unsubscribe(rx)
-	_, err = sd.Publish(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
+	msg, err := sd.Publish(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
 	if err == nil {
-		select {
-		case msg := <-rx:
+		msg, err = ReadWithTimeout(rx, sd.bus.Config().Timeout(true))
+		if err == nil {
 			err = config.UnmarshalBinary(msg.Payload)
-		case <-time.After(sd.bus.Config().Timeout(true)):
-			err = ErrReadTimeout
 		}
 	}
 	return config, err

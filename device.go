@@ -180,7 +180,7 @@ func Open(bus Bus, dst Address) (device Device, err error) {
 			}
 
 			if err == nil {
-				DB.Put(dst, info)
+				DB.Put(info)
 			}
 		} else if err == ErrNotLinked {
 			device, _ = create(bus, DeviceInfo{Address: dst, EngineVersion: VerI2Cs})

@@ -12,9 +12,21 @@ import (
 func PropagationDelay(ttl uint8, extended bool) (pd time.Duration) {
 	// wait 2 * ttl * message length zero crossings
 	if extended {
-		pd = time.Second * 26 * time.Duration(ttl) / 60
+		pd = time.Second * 26 * time.Duration(ttl+1) / 60
 	} else {
-		pd = time.Second * 12 * time.Duration(ttl) / 60
+		pd = time.Second * 12 * time.Duration(ttl+1) / 60
+	}
+	return
+}
+
+// ReadWithTimeout will attempt to read a message from a channel and will
+// return the read message.  If no message is received after the timeout
+// duration, then ErrReadTimeout is returned
+func ReadWithTimeout(ch <-chan *Message, timeout time.Duration) (msg *Message, err error) {
+	select {
+	case msg = <-ch:
+	case <-time.After(timeout):
+		err = ErrReadTimeout
 	}
 	return
 }

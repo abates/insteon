@@ -341,14 +341,12 @@ func IDRequest(bus Bus, dst Address) (version FirmwareVersion, devCat DevCat, er
 	defer bus.Unsubscribe(dst, rx)
 
 	err = Retry(bus.Config().Retries, func() error {
-		_, err := bus.Publish(&Message{Dst: dst, Flags: StandardDirectMessage, Command: CmdIDRequest})
+		msg, err := bus.Publish(&Message{Dst: dst, Flags: StandardDirectMessage, Command: CmdIDRequest})
 		if err == nil {
-			select {
-			case msg := <-rx:
+			msg, err = ReadWithTimeout(rx, bus.Config().Timeout(false))
+			if err == nil {
 				version = FirmwareVersion(msg.Dst[2])
 				devCat = DevCat{msg.Dst[0], msg.Dst[1]}
-			case <-time.After(bus.Config().Timeout(false)):
-				err = ErrReadTimeout
 			}
 		}
 		return err

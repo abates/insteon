@@ -19,21 +19,22 @@ import (
 	"testing"
 )
 
-func TestAddressSetUnmarshalText(t *testing.T) {
+func TestAddressMarshalUnmarshalText(t *testing.T) {
 	tests := []struct {
-		input   string
-		want    Address
-		wantErr bool
+		input       string
+		want        Address
+		wantMarshal string
+		wantErr     bool
 	}{
-		{"01.02.03", Address{1, 2, 3}, false},
-		{"a1.b2.c3", Address{0xA1, 0xB2, 0xC3}, false},
-		{"D1.E2.F3", Address{0xD1, 0xE2, 0xF3}, false},
-		{"a1b2c3", Address{0xA1, 0xB2, 0xC3}, false},
-		{"D1E2F3", Address{0xD1, 0xE2, 0xF3}, false},
-		{"abcd", Address{}, true},
-		{"abcdefg", Address{}, true},
-		{"01b.02.03", Address{}, true},
-		{"vx.02.03", Address{}, true},
+		{"01.02.03", Address{1, 2, 3}, "01.02.03", false},
+		{"a1.b2.c3", Address{0xA1, 0xB2, 0xC3}, "a1.b2.c3", false},
+		{"D1.E2.F3", Address{0xD1, 0xE2, 0xF3}, "d1.e2.f3", false},
+		{"a1b2c3", Address{0xA1, 0xB2, 0xC3}, "a1.b2.c3", false},
+		{"D1E2F3", Address{0xD1, 0xE2, 0xF3}, "d1.e2.f3", false},
+		{"abcd", Address{}, "00.00.00", true},
+		{"abcdefg", Address{}, "00.00.00", true},
+		{"01b.02.03", Address{}, "00.00.00", true},
+		{"vx.02.03", Address{}, "00.00.00", true},
 	}
 
 	for _, test := range tests {
@@ -47,6 +48,12 @@ func TestAddressSetUnmarshalText(t *testing.T) {
 			}
 			if test.want != address {
 				t.Errorf("UnmarshalText(%q) got %q, want %q", test.input, address, test.want)
+			}
+			if err == nil {
+				got, _ := address.MarshalText()
+				if test.wantMarshal != string(got) {
+					t.Errorf("Wanted marshaled text %v got %v", test.wantMarshal, string(got))
+				}
 			}
 		})
 	}

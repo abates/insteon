@@ -11,7 +11,7 @@ var DB Database
 
 type Database interface {
 	Get(addr Address) (DeviceInfo, bool)
-	Put(addr Address, info DeviceInfo)
+	Put(info DeviceInfo)
 }
 
 func init() {
@@ -25,7 +25,7 @@ func (DummyDB) Get(addr Address) (DeviceInfo, bool) {
 	return DeviceInfo{}, false
 }
 
-func (DummyDB) Put(addr Address, info DeviceInfo) {
+func (DummyDB) Put(info DeviceInfo) {
 	return
 }
 
@@ -47,10 +47,10 @@ func (db *MemDB) Get(addr Address) (DeviceInfo, bool) {
 	return info, found
 }
 
-func (db *MemDB) Put(addr Address, info DeviceInfo) {
+func (db *MemDB) Put(info DeviceInfo) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
-	db.values[addr] = info
+	db.values[info.Address] = info
 }
 
 func (db *MemDB) Load(reader io.Reader) error {

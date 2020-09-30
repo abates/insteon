@@ -16,7 +16,6 @@ package insteon
 
 import (
 	"fmt"
-	"time"
 )
 
 // DimmerConfig includes the X10 configuration as well as default ramp
@@ -93,13 +92,11 @@ func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 	// D2 is 0x00 for requests
 	rx := dd.Subscribe(And(Not(AckMatcher()), CmdMatcher(CmdExtendedGetSet)))
 	defer dd.Unsubscribe(rx)
-	_, err = dd.Publish(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
+	msg, err := dd.Publish(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
 	if err == nil {
-		select {
-		case msg := <-rx:
+		msg, err = ReadWithTimeout(rx, dd.Switch.bus.Config().Timeout(true))
+		if err == nil {
 			err = config.UnmarshalBinary(msg.Payload)
-		case <-time.After(dd.Switch.bus.Config().Timeout(true)):
-			err = ErrReadTimeout
 		}
 	}
 	return config, err
