@@ -166,18 +166,20 @@ func (b *bus) run(messages <-chan *Message) {
 		select {
 		case msg := <-messages:
 			Log.Debugf("Bus received %v", msg)
-			for _, s := range b.listeners[msg.Src] {
-				if s.matcher.Matches(msg) {
-					// run this in a go routine so a wayward listener can't block up the works
-					workers.Add(1)
-					go func(s *subscriber, msg *Message) {
-						select {
-						case s.ch <- msg:
-						default:
-							Log.Infof("Receive buffer full for %v listener", msg.Src)
-						}
-						workers.Done()
-					}(s, msg)
+			for _, src := range []Address{msg.Src, Wildcard} {
+				for _, s := range b.listeners[src] {
+					if s.matcher.Matches(msg) {
+						// run this in a go routine so a wayward listener can't block up the works
+						workers.Add(1)
+						go func(s *subscriber, msg *Message) {
+							select {
+							case s.ch <- msg:
+							default:
+								Log.Infof("Receive buffer full for %v listener", msg.Src)
+							}
+							workers.Done()
+						}(s, msg)
+					}
 				}
 			}
 
