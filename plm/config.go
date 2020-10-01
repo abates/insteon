@@ -27,17 +27,17 @@ func (config *Config) clearBit(pos uint) {
 }
 
 func (config *Config) AutomaticLinking() bool { return (*config)&0x80 == 0x80 }
-func (config *Config) setAutomaticLinking()   { config.setBit(7) }
-func (config *Config) clearAutomaticLinking() { config.clearBit(7) }
+func (config *Config) SetAutomaticLinking()   { config.setBit(7) }
+func (config *Config) ClearAutomaticLinking() { config.clearBit(7) }
 func (config *Config) MonitorMode() bool      { return (*config)&0x40 == 0x40 }
 func (config *Config) SetMonitorMode()        { config.setBit(6) }
-func (config *Config) clearMonitorMode()      { config.clearBit(6) }
+func (config *Config) ClearMonitorMode()      { config.clearBit(6) }
 func (config *Config) AutomaticLED() bool     { return (*config)&0x20 == 0x20 }
-func (config *Config) setAutomaticLED()       { config.setBit(5) }
-func (config *Config) clearAutomaticLED()     { config.clearBit(5) }
+func (config *Config) SetAutomaticLED()       { config.setBit(5) }
+func (config *Config) ClearAutomaticLED()     { config.clearBit(5) }
 func (config *Config) DeadmanMode() bool      { return (*config)&0x10 == 0x10 }
-func (config *Config) setDeadmanMode()        { config.setBit(4) }
-func (config *Config) clearDeadmanMode()      { config.clearBit(4) }
+func (config *Config) SetDeadmanMode()        { config.setBit(4) }
+func (config *Config) ClearDeadmanMode()      { config.clearBit(4) }
 
 func (config Config) String() string {
 	str := ""

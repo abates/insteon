@@ -29,10 +29,10 @@ func TestSettingConfigFlags(t *testing.T) {
 		clearer  func()
 		expected byte
 	}{
-		{"AutomaticLinking", config.AutomaticLinking, config.setAutomaticLinking, config.clearAutomaticLinking, 0x80},
-		{"MonitorMode", config.MonitorMode, config.SetMonitorMode, config.clearMonitorMode, 0x40},
-		{"AutomaticLED", config.AutomaticLED, config.setAutomaticLED, config.clearAutomaticLED, 0x20},
-		{"DeadmanMode", config.DeadmanMode, config.setDeadmanMode, config.clearDeadmanMode, 0x10},
+		{"AutomaticLinking", config.AutomaticLinking, config.SetAutomaticLinking, config.ClearAutomaticLinking, 0x80},
+		{"MonitorMode", config.MonitorMode, config.SetMonitorMode, config.ClearMonitorMode, 0x40},
+		{"AutomaticLED", config.AutomaticLED, config.SetAutomaticLED, config.ClearAutomaticLED, 0x20},
+		{"DeadmanMode", config.DeadmanMode, config.SetDeadmanMode, config.ClearDeadmanMode, 0x10},
 	}
 
 	for _, test := range tests {
