@@ -212,27 +212,6 @@ func (plm *PLM) Open(dst insteon.Address) (insteon.Device, error) {
 	return insteon.Open(plm.Bus, dst)
 }
 
-func (plm *PLM) Monitor(cb func()) error {
-	config, err := plm.Config()
-	if err != nil {
-		return err
-	}
-
-	config.SetMonitorMode()
-	err = plm.SetConfig(config)
-	if err != nil {
-		return err
-	}
-
-	/*conn, err := plm.Demux.Dial(insteon.Wildcard)
-	if err == nil {
-		cb(conn)
-		config.clearMonitorMode()
-		err = plm.SetConfig(config)
-	}*/
-	return err
-}
-
 func (plm *PLM) Info() (info *Info, err error) {
 	ack, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdGetInfo})
 	if err == nil {

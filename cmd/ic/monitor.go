@@ -26,16 +26,24 @@ func init() {
 
 func monCmd(string) (err error) {
 	log.Printf("Starting monitor...")
-	err = modem.Monitor(func() {
-		/*var msg *insteon.Message
-		for err == nil {
-			msg, err = conn.Receive()
-			if err == insteon.ErrReadTimeout {
-				err = nil
-			} else if err == nil {
-				log.Printf("%s", msg)
-			}
-		}*/
-	})
+
+	config, err := modem.Config()
+	if err != nil {
+		return err
+	}
+
+	config.SetMonitorMode()
+	err = modem.SetConfig(config)
+	if err != nil {
+		return err
+	}
+
+	ch := plm.Subscribe(insteon.Wildcard, insteon.Match(func(*insteon.Message) bool { return true }))
+	// TODO: Catch signals here for cleanup
+	for msg := range ch {
+		log.Printf("%s", msg)
+	}
+	config.clearMonitorMode()
+	err = modem.SetConfig(config)
 	return err
 }
