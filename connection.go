@@ -244,7 +244,7 @@ func (b *bus) publishDirect(msg *Message) (ack *Message, err error) {
 	}
 
 	Log.Debugf("Subscribing to %v:%v ACK", msg.Dst, msg.Command)
-	rx := b.Subscribe(msg.Dst, And(AckMatcher(), CmdMatcher(msg.Command)))
+	rx := b.Subscribe(msg.Dst, AckMatcher())
 	defer b.Unsubscribe(msg.Dst, rx)
 
 	err = Retry(b.config.Retries, func() error {
