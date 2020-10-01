@@ -106,7 +106,7 @@ var commands = []commandGroup{
 		Name:  "Lighting Standard Direct Messages",
 		Byte0: 0x00,
 		Commands: []command{
-			{"CmdLightOn", "", "Light On", 0x11, 0xff},
+			{"CmdLightOn", "", "Light On", 0x11, 0x00},
 			{"CmdLightOnFast", "", "Light On Fast", 0x12, 0x00},
 			{"CmdLightOff", "", "Light Off", 0x13, 0x00},
 			{"CmdLightOffFast", "", "Light Off Fast", 0x14, 0x00},

@@ -140,7 +140,7 @@ const (
 // Lighting Standard Direct Messages
 const (
 	// CmdLightOn
-	CmdLightOn = Command(0x0011ff) // Light On
+	CmdLightOn = Command(0x001100) // Light On
 
 	// CmdLightOnFast
 	CmdLightOnFast = Command(0x001200) // Light On Fast
