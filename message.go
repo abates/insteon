@@ -104,6 +104,12 @@ func Flag(messageType MessageType, extended bool, hopsLeft, maxHops uint8) Flags
 	return Flags(uint8(messageType) | e<<4 | hopsLeft<<2 | maxHops)
 }
 
+// Ack indicates if the message was an acknowledgement
+func (f Flags) Ack() bool { return f&0x20 == 0x20 }
+
+// Nak indicates if the message was a negative-acknowledgement
+func (f Flags) Nak() bool { return f.Ack() && (f&0x80 == 0x80) }
+
 // Type will return the MessageType of the flags
 func (f Flags) Type() MessageType { return MessageType(f & 0xe0) }
 
@@ -145,13 +151,13 @@ type Message struct {
 // Ack indicates if the message is an acknowledgement of a previously sent
 // message
 func (m *Message) Ack() bool {
-	return m.Flags&0xf0 == 0x20 || m.Flags&0xf0 == 0x30
+	return m.Flags.Ack() && !m.Flags.Nak()
 }
 
 // Nak indicates a negative acknowledgement.  This indicates the device
 // is rejecting a previously sent command
 func (m *Message) Nak() bool {
-	return m.Flags&0xf0 == 0xa0 || m.Flags&m.Flags&0xf0 == 0xb0
+	return m.Flags.Nak()
 }
 
 // Broadcast indicates if the message is a broadcast message, as
@@ -187,8 +193,18 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	copy(m.Src[:], data[0:3])
 	copy(m.Dst[:], data[3:6])
 	m.Flags = Flags(data[6])
-	if data[6]&0xe0 == 0xa0 || data[6]&0xe0 == 0xe0 {
+	// magic numbers, oh la la
+	// data[6] is the flags field of the message which contains
+	// the message flags as well as the max hops and hops left information
+	// 0xe0 masks the 3 most significant bits, which are the actual message flags
+	// 0xa0 - Direct NAK
+	// 0xe0 - All-Link Cleanup NAK
+	// The command lookup won't have the NAK bit set, so the first conditional
+	// sets the command without the NAK bit (masking it with 0x70 instead of 0xf0)
+	if m.Flags.Nak() {
 		m.Command = Command(int(0x70&data[6])<<12 | int(data[7])<<8 | int(data[8]))
+	} else if m.Flags.Type() == MsgTypeAllLinkCleanup {
+		m.Command = Command(int(data[7])<<8 | int(data[8]))
 	} else {
 		m.Command = Command(int(0xf0&data[6])<<12 | int(data[7])<<8 | int(data[8]))
 	}
@@ -204,15 +220,15 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 }
 
 func (m *Message) String() (str string) {
-	if m.Broadcast() {
-		if m.Flags.Type() == MsgTypeAllLinkBroadcast {
-			str = sprintf("%s %s -> ff.ff.ff Group(%d)", m.Flags, m.Src, m.Dst[2])
-		} else {
-			devCat := DevCat{m.Dst[0], m.Dst[1]}
-			firmware := FirmwareVersion(m.Dst[2])
+	if m.Flags.Type() == MsgTypeAllLinkBroadcast {
+		str = sprintf("%s %s -> ff.ff.ff", m.Flags, m.Src)
+	} else if m.Flags.Type() == MsgTypeBroadcast {
+		devCat := DevCat{m.Dst[0], m.Dst[1]}
+		firmware := FirmwareVersion(m.Dst[2])
 
-			str = sprintf("%s %s -> ff.ff.ff DevCat %v Firmware %v", m.Flags, m.Src, devCat, firmware)
-		}
+		str = sprintf("%s %s -> ff.ff.ff DevCat %v Firmware %v", m.Flags, m.Src, devCat, firmware)
+	} else if m.Flags.Type() == MsgTypeAllLinkCleanup {
+		str = sprintf("%s %s -> %s Cleanup", m.Flags, m.Src, m.Dst)
 	} else {
 		str = sprintf("%s %s -> %s", m.Flags, m.Src, m.Dst)
 	}
@@ -228,6 +244,10 @@ func (m *Message) String() (str string) {
 		str = sprintf("%s %d.%d", str, m.Command.Command1(), m.Command.Command2())
 	} else {
 		str = sprintf("%s %v", str, m.Command)
+	}
+
+	if m.Flags.Type() == MsgTypeAllLinkBroadcast {
+		str = sprintf("%s Group(%d)", str, m.Dst[2])
 	}
 
 	if m.Flags.Extended() {

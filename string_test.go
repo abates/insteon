@@ -32,7 +32,7 @@ func TestDeviceString(t *testing.T) {
 		{"UnavailableResponder", UnavailableResponder, "UR"},
 		{"Firmware Version", FirmwareVersion(42), "42"},
 		{"Broadcast Message", &Message{Address{1, 2, 3}, Address{4, 5, 6}, StandardBroadcast, CmdSetButtonPressedController, nil}, "SB     2:2 01.02.03 -> ff.ff.ff DevCat 04.05 Firmware 6 Set-button Pressed (controller)"},
-		{"All-Link Broadcast Message", &Message{Address{1, 2, 3}, Address{4, 5, 14}, StandardAllLinkBroadcast, CmdAllLinkRecall, nil}, "SA     2:2 01.02.03 -> ff.ff.ff Group(14) All-link recall"},
+		{"All-Link Broadcast Message", &Message{Address{1, 2, 3}, Address{4, 5, 14}, StandardAllLinkBroadcast, CmdAllLinkRecall, nil}, "SA     2:2 01.02.03 -> ff.ff.ff All-link recall Group(14)"},
 		{"Extended Direct", &Message{Address{1, 2, 3}, Address{4, 5, 6}, ExtendedDirectMessage, CmdEnterLinkingModeExt, make([]byte, 14)}, "ED     2:2 01.02.03 -> 04.05.06 Enter Linking Mode (i2cs) [00 00 00 00 00 00 00 00 00 00 00 00 00 00]"},
 	}
 
