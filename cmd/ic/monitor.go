@@ -18,6 +18,7 @@ import (
 	"log"
 
 	"github.com/abates/cli"
+	"github.com/abates/insteon"
 )
 
 func init() {
@@ -38,12 +39,12 @@ func monCmd(string) (err error) {
 		return err
 	}
 
-	ch := plm.Subscribe(insteon.Wildcard, insteon.Match(func(*insteon.Message) bool { return true }))
+	ch := modem.Subscribe(insteon.Wildcard, insteon.Matches(func(*insteon.Message) bool { return true }))
 	// TODO: Catch signals here for cleanup
 	for msg := range ch {
 		log.Printf("%s", msg)
 	}
-	config.clearMonitorMode()
+	config.ClearMonitorMode()
 	err = modem.SetConfig(config)
 	return err
 }
