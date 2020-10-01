@@ -28,7 +28,7 @@ type swtch struct {
 }
 
 var switchCommands = []Command{
-	Cmd("on", "turn light on", insteon.CmdLightOn),
+	IntCmd("on", "turn light on", "<level>", insteon.TurnLightOn),
 	Cmd("off", "turn light off", insteon.CmdLightOff),
 	BoolCmd("backlight", "turn backlight on/off", "<true|false>", insteon.Backlight),
 }
