@@ -73,7 +73,6 @@ func init() {
 
 	var err error
 	db, err = util.LoadMemDB("db.json")
-	insteon.DB = db
 	if err != nil {
 		log.Fatalf("Failed to load database: %v", err)
 	}
@@ -108,7 +107,7 @@ func main() {
 		log.Fatalf("error opening serial port: %v", err)
 	}
 
-	modem, err = plm.New(s, s, time.Second*5, plm.ConnectionOptions(insteon.ConnectionTimeout(time.Second*5)))
+	modem, err = plm.New(s, s, time.Second*5, plm.Database(db), plm.ConnectionOptions(insteon.ConnectionTimeout(time.Second*5)))
 	if err != nil {
 		log.Fatalf("failed to initialize modem: %v", err)
 	}

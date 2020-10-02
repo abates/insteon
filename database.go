@@ -12,6 +12,7 @@ var DB Database
 type Database interface {
 	Get(addr Address) (DeviceInfo, bool)
 	Put(info DeviceInfo)
+	Open(bus Bus, dst Address) (device Device, err error)
 }
 
 func init() {
@@ -27,6 +28,10 @@ func (DummyDB) Get(addr Address) (DeviceInfo, bool) {
 
 func (DummyDB) Put(info DeviceInfo) {
 	return
+}
+
+func (db DummyDB) Open(bus Bus, dst Address) (device Device, err error) {
+	return open(db, bus, dst)
 }
 
 func NewMemDB() *MemDB {
@@ -51,6 +56,10 @@ func (db *MemDB) Put(info DeviceInfo) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 	db.values[info.Address] = info
+}
+
+func (db *MemDB) Open(bus Bus, dst Address) (device Device, err error) {
+	return open(db, bus, dst)
 }
 
 func (db *MemDB) Load(reader io.Reader) error {

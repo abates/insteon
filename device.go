@@ -152,19 +152,8 @@ type DeviceInfo struct {
 	EngineVersion   EngineVersion   `json:"engineVersion"`
 }
 
-// Open will create a new device that is ready to be used. Open tries to contact
-// the device to determine the device category and firmware version.  If successful,
-// then a specific device type (dimmer, switch, thermostat, etc) is returned.  If
-// the device responds with a NAK/NotLinked error, then a basic I2CsDevice is
-// returned.  Only I2CsDevices will respond with a "Not Linked" NAK when being
-// queried for the EngineVersion.
-//
-// If no specific device type is found in the registry, then the base device (I1Device,
-// I2Device or I2CsDevice) is returned.  If, in opening the device, a "Not Linked" NAK
-// is encountered, then the I2CsDevice is returned with an ErrNotLinked error.  This
-// allows the application to initiate linking, if desired
-func Open(bus Bus, dst Address) (device Device, err error) {
-	if info, found := DB.Get(dst); found {
+func open(db Database, bus Bus, dst Address) (device Device, err error) {
+	if info, found := db.Get(dst); found {
 		device, err = New(bus, info)
 	} else {
 		var version EngineVersion
@@ -180,13 +169,28 @@ func Open(bus Bus, dst Address) (device Device, err error) {
 			}
 
 			if err == nil {
-				DB.Put(info)
+				db.Put(info)
 			}
 		} else if err == ErrNotLinked {
 			device, _ = create(bus, DeviceInfo{Address: dst, EngineVersion: VerI2Cs})
 		}
 	}
 	return device, err
+}
+
+// Open will create a new device that is ready to be used. Open tries to contact
+// the device to determine the device category and firmware version.  If successful,
+// then a specific device type (dimmer, switch, thermostat, etc) is returned.  If
+// the device responds with a NAK/NotLinked error, then a basic I2CsDevice is
+// returned.  Only I2CsDevices will respond with a "Not Linked" NAK when being
+// queried for the EngineVersion.
+//
+// If no specific device type is found in the registry, then the base device (I1Device,
+// I2Device or I2CsDevice) is returned.  If, in opening the device, a "Not Linked" NAK
+// is encountered, then the I2CsDevice is returned with an ErrNotLinked error.  This
+// allows the application to initiate linking, if desired
+func Open(bus Bus, dst Address) (device Device, err error) {
+	return DB.Open(bus, dst)
 }
 
 // New will use the supplied DeviceInfo to create a device instance for the

@@ -56,6 +56,7 @@ type PLM struct {
 	connOptions []insteon.ConnectionOption
 	plmCh       chan *Packet
 	messages    chan *insteon.Message
+	db          insteon.Database
 }
 
 // The Option mechanism is based on the method described at https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
@@ -74,6 +75,7 @@ func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...O
 
 		plmCh:    make(chan *Packet, 1),
 		messages: make(chan *insteon.Message, 10),
+		db:       insteon.NewMemDB(),
 	}
 
 	for _, o := range options {
@@ -107,6 +109,13 @@ func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...O
 func WriteDelay(d time.Duration) Option {
 	return func(p *PLM) error {
 		p.writeDelay = d
+		return nil
+	}
+}
+
+func Database(db insteon.Database) Option {
+	return func(p *PLM) error {
+		p.db = db
 		return nil
 	}
 }
@@ -209,7 +218,7 @@ func (plm *PLM) ReadPacket() (pkt *Packet, err error) {
 }
 
 func (plm *PLM) Open(dst insteon.Address) (insteon.Device, error) {
-	return insteon.Open(plm.Bus, dst)
+	return plm.db.Open(plm.Bus, dst)
 }
 
 func (plm *PLM) Info() (info *Info, err error) {
