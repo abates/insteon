@@ -199,6 +199,11 @@ func (b *bus) run(messages <-chan *Message) {
 		case closeCh := <-b.closeCh:
 			defer func() { closeCh <- nil }()
 			workers.Wait()
+			for _, listeners := range b.listeners {
+				for _, s := range listeners {
+					close(s.ch)
+				}
+			}
 			return
 		}
 	}
