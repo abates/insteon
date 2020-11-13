@@ -116,7 +116,29 @@ type subscriber struct {
 	src     Address
 	matcher Matcher
 	ch      chan *Message
+	cb      func(*Message)
 	readCh  <-chan *Message
+}
+
+func (s *subscriber) process(workers *sync.WaitGroup, msg *Message) {
+	if !s.matcher.Matches(msg) {
+		return
+	}
+
+	// run this in a go routine so a wayward listener can't block up the works
+	if s.cb != nil {
+		s.cb(msg)
+	} else {
+		workers.Add(1)
+		go func(s *subscriber, msg *Message) {
+			select {
+			case s.ch <- msg:
+			default:
+				Log.Infof("Receive buffer full for %v listener", msg.Src)
+			}
+			workers.Done()
+		}(s, msg)
+	}
 }
 
 type bus struct {
@@ -168,18 +190,7 @@ func (b *bus) run(messages <-chan *Message) {
 			Log.Debugf("Bus received %v", msg)
 			for _, src := range []Address{msg.Src, Wildcard} {
 				for _, s := range b.listeners[src] {
-					if s.matcher.Matches(msg) {
-						// run this in a go routine so a wayward listener can't block up the works
-						workers.Add(1)
-						go func(s *subscriber, msg *Message) {
-							select {
-							case s.ch <- msg:
-							default:
-								Log.Infof("Receive buffer full for %v listener", msg.Src)
-							}
-							workers.Done()
-						}(s, msg)
-					}
+					s.process(&workers, msg)
 				}
 			}
 

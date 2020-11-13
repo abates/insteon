@@ -152,52 +152,11 @@ type DeviceInfo struct {
 	EngineVersion   EngineVersion   `json:"engineVersion"`
 }
 
-func open(db Database, bus Bus, dst Address) (device Device, err error) {
-	if info, found := db.Get(dst); found {
-		device, err = New(bus, info)
-	} else {
-		var version EngineVersion
-		version, err = GetEngineVersion(bus, dst)
-		if err == nil {
-			info := DeviceInfo{
-				Address:       dst,
-				EngineVersion: version,
-			}
-			info.FirmwareVersion, info.DevCat, err = IDRequest(bus, dst)
-			if err == nil {
-				device, err = New(bus, info)
-			}
-
-			if err == nil {
-				db.Put(info)
-			}
-		} else if err == ErrNotLinked {
-			device, _ = create(bus, DeviceInfo{Address: dst, EngineVersion: VerI2Cs})
-		}
-	}
-	return device, err
-}
-
-// Open will create a new device that is ready to be used. Open tries to contact
-// the device to determine the device category and firmware version.  If successful,
-// then a specific device type (dimmer, switch, thermostat, etc) is returned.  If
-// the device responds with a NAK/NotLinked error, then a basic I2CsDevice is
-// returned.  Only I2CsDevices will respond with a "Not Linked" NAK when being
-// queried for the EngineVersion.
-//
-// If no specific device type is found in the registry, then the base device (I1Device,
-// I2Device or I2CsDevice) is returned.  If, in opening the device, a "Not Linked" NAK
-// is encountered, then the I2CsDevice is returned with an ErrNotLinked error.  This
-// allows the application to initiate linking, if desired
-func Open(bus Bus, dst Address) (device Device, err error) {
-	return DB.Open(bus, dst)
-}
-
 // New will use the supplied DeviceInfo to create a device instance for the
 // given connection.  For instance, if the DevCat is 0x01 with an I2CS
 // EngineVersion then a Dimmer with an underlying i2CsDevice will be returned
 func New(bus Bus, info DeviceInfo) (Device, error) {
-	device, err := create(bus, info)
+	device, err := Create(bus, info)
 	if err == nil {
 		switch info.DevCat.Domain() {
 		case DimmerDomain:
@@ -209,9 +168,9 @@ func New(bus Bus, info DeviceInfo) (Device, error) {
 	return device, err
 }
 
-// create will return either an I1Device, an I2Device or an I2CsDevice based on the
+// Create will return either an I1Device, an I2Device or an I2CsDevice based on the
 // supplied EngineVersion
-func create(bus Bus, info DeviceInfo) (device Device, err error) {
+func Create(bus Bus, info DeviceInfo) (device Device, err error) {
 	switch info.EngineVersion {
 	case VerI1:
 		device = newI1Device(bus, info)

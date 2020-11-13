@@ -1,11 +1,10 @@
-package util
+package db
 
 import (
 	"io"
 	"os"
 	"path/filepath"
 
-	"github.com/abates/insteon"
 	"github.com/kirsle/configdir"
 )
 
@@ -35,11 +34,11 @@ type Loadable interface {
 	Load(io.Reader) error
 }
 
-func LoadMemDB(filename string) (db *insteon.MemDB, err error) {
+func LoadMemDB(filename string) (db *MemDB, err error) {
 	configFile, err := ConfigPath(filename)
 
 	if err == nil {
-		db = insteon.NewMemDB()
+		db = NewMemDB()
 		err = Load(configFile, db)
 		if os.IsNotExist(err) {
 			err = nil

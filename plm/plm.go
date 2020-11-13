@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/db"
 )
 
 var (
@@ -56,7 +57,7 @@ type PLM struct {
 	connOptions []insteon.ConnectionOption
 	plmCh       chan *Packet
 	messages    chan *insteon.Message
-	db          insteon.Database
+	db          db.Database
 }
 
 // The Option mechanism is based on the method described at https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
@@ -75,7 +76,7 @@ func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...O
 
 		plmCh:    make(chan *Packet, 1),
 		messages: make(chan *insteon.Message, 10),
-		db:       insteon.NewMemDB(),
+		db:       db.NewMemDB(),
 	}
 
 	for _, o := range options {
@@ -113,7 +114,7 @@ func WriteDelay(d time.Duration) Option {
 	}
 }
 
-func Database(db insteon.Database) Option {
+func Database(db db.Database) Option {
 	return func(p *PLM) error {
 		p.db = db
 		return nil

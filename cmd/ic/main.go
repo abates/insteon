@@ -22,8 +22,8 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/db"
 	"github.com/abates/insteon/plm"
-	"github.com/abates/insteon/util"
 	"github.com/tarm/serial"
 )
 
@@ -44,12 +44,6 @@ func init() {
 	app.Flags.DurationVar(&timeoutFlag, "timeout", 3*time.Second, "read/write timeout duration")
 	app.Flags.DurationVar(&writeDelayFlag, "writeDelay", 0, "writeDelay duration (default of 0 indicates to compute wait time based on message length and ttl)")
 	app.Flags.UintVar(&ttlFlag, "ttl", 3, "default ttl for sending Insteon messages")
-
-	db, err := util.LoadMemDB("db.json")
-	insteon.DB = db
-	if err != nil {
-		log.Fatalf("Failed to load database: %v", err)
-	}
 }
 
 func run(string) error {
@@ -68,7 +62,12 @@ func run(string) error {
 		return fmt.Errorf("error opening serial port: %v", err)
 	}
 
-	modem, err = plm.New(s, s, timeoutFlag, plm.WriteDelay(writeDelayFlag), plm.ConnectionOptions(insteon.ConnectionTimeout(timeoutFlag), insteon.ConnectionTTL(uint8(ttlFlag))))
+	database, err := db.LoadMemDB("db.json")
+	if err != nil {
+		log.Fatalf("Failed to load database: %v", err)
+	}
+
+	modem, err = plm.New(s, s, timeoutFlag, plm.Database(database), plm.WriteDelay(writeDelayFlag), plm.ConnectionOptions(insteon.ConnectionTimeout(timeoutFlag), insteon.ConnectionTTL(uint8(ttlFlag))))
 
 	if err != nil {
 		return fmt.Errorf("error opening plm: %v", err)

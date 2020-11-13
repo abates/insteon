@@ -70,7 +70,7 @@ func TestDeviceCreate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			device, gotErr := create(&testBus{}, DeviceInfo{EngineVersion: test.input})
+			device, gotErr := Create(&testBus{}, DeviceInfo{EngineVersion: test.input})
 			gotType := reflect.TypeOf(device)
 
 			if test.wantErr != gotErr {
@@ -79,45 +79,6 @@ func TestDeviceCreate(t *testing.T) {
 				if test.wantType != gotType {
 					t.Errorf("want type %v got %v", test.wantType, gotType)
 				}
-			}
-		})
-	}
-}
-
-func TestDeviceOpen(t *testing.T) {
-	tests := []struct {
-		desc       string
-		input      []*Message
-		messages   []*Message
-		publishErr error
-		wantType   reflect.Type
-		wantErr    error
-	}{
-		{"I1Device", []*Message{TestMessageEngineVersion1, TestAck}, []*Message{SetButtonPressed(false, 0, 0, 0)}, nil, reflect.TypeOf(&i1Device{}), nil},
-		{"I2Device", []*Message{TestMessageEngineVersion2, TestAck}, []*Message{SetButtonPressed(false, 0, 0, 0)}, nil, reflect.TypeOf(&i2Device{}), nil},
-		{"I2CsDevice", []*Message{TestMessageEngineVersion2cs, TestAck}, []*Message{SetButtonPressed(false, 0, 0, 0)}, nil, reflect.TypeOf(&i2CsDevice{}), nil},
-		{"Dimmer", []*Message{TestMessageEngineVersion2cs, TestAck}, []*Message{SetButtonPressed(false, 1, 0, 0)}, nil, reflect.TypeOf(&Dimmer{}), nil},
-		{"Switch", []*Message{TestMessageEngineVersion2cs, TestAck}, []*Message{SetButtonPressed(false, 2, 0, 0)}, nil, reflect.TypeOf(&Switch{}), nil},
-		{"ErrVersion", []*Message{TestMessageEngineVersion3, TestAck}, []*Message{SetButtonPressed(false, 0, 0, 0)}, nil, reflect.TypeOf(nil), ErrVersion},
-		{"Not Linked", []*Message{Ack(false, 0, 255), SetButtonPressed(false, 0, 0, 0)}, nil, ErrNak, reflect.TypeOf(&i2CsDevice{}), ErrNotLinked},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			DB = &DummyDB{}
-			ch := make(chan *Message, len(test.messages))
-			for _, msg := range test.messages {
-				ch <- msg
-			}
-			tb := &testBus{subscribeCh: ch, publishResp: test.input, publishErr: test.publishErr}
-			device, gotErr := Open(tb, Address{})
-			gotType := reflect.TypeOf(device)
-
-			if test.wantErr != gotErr {
-				t.Errorf("want err %v got %v", test.wantErr, gotErr)
-			}
-			if test.wantType != gotType {
-				t.Errorf("want type %v got %v", test.wantType, gotType)
 			}
 		})
 	}
