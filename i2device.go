@@ -36,7 +36,8 @@ func newI2Device(bus Bus, info DeviceInfo) *i2Device {
 func (i2 *i2Device) linkingMode(cmd Command, payload []byte) (err error) {
 	_, err = i2.SendCommand(cmd, payload)
 	if err == nil {
-		<-time.After(PropagationDelay(i2.i1Device.bus.Config().TTL, len(payload) > 0))
+		// allow linking mode to activate
+		time.Sleep(PropagationDelay(i2.i1Device.bus.Config().TTL, len(payload) > 0))
 	}
 	return err
 }

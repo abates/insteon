@@ -44,8 +44,9 @@ func hexDump(format string, buf []byte, sep string) string {
 
 type PLM struct {
 	insteon.Bus
-	reader PacketReader
-	writer io.Writer
+	address insteon.Address
+	reader  PacketReader
+	writer  io.Writer
 
 	linkdb
 	timeout    time.Duration
@@ -103,6 +104,10 @@ func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...O
 	insteon.Log.Debugf("                Retries: %d", plm.writeDelay)
 	insteon.Log.Debugf("             WriteDelay: %s", plm.writeDelay)
 	go plm.readLoop()
+
+	address := plm.Address()
+	insteon.Log.Debugf("         PLM Address is: %v", address)
+
 	return plm, nil
 }
 
@@ -143,6 +148,9 @@ func (plm *PLM) readLoop() {
 				}
 			} else {
 				insteon.Log.Debugf("PLM CMD RX %v", packet)
+				if packet.Command == CmdAllLinkComplete {
+					continue
+				}
 				select {
 				case plm.plmCh <- packet:
 				default:
@@ -162,6 +170,7 @@ func (plm *PLM) readLoop() {
 func (plm *PLM) WriteMessage(msg *insteon.Message) error {
 	buf, err := msg.MarshalBinary()
 	if err == nil {
+		insteon.Log.Debugf("PLM Insteon TX %v", msg)
 		// slice off the source address since the PLM doesn't want it
 		buf = buf[3:]
 		_, err = RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
@@ -198,7 +207,7 @@ func (plm *PLM) WritePacket(txPacket *Packet) (ack *Packet, err error) {
 		plm.lastWrite = time.Now()
 
 		if err == nil {
-			insteon.Log.Debugf("PLM TX %v", txPacket)
+			insteon.Log.Tracef("PLM TX %v", txPacket)
 			ack, err = plm.ReadPacket()
 		}
 	}
@@ -266,11 +275,14 @@ func (plm *PLM) RFSleep() error {
 }
 
 func (plm *PLM) Address() insteon.Address {
-	info, err := plm.Info()
-	if err == nil {
-		return info.Address
+	address := insteon.Address{}
+	if plm.address == address {
+		info, err := plm.Info()
+		if err == nil {
+			plm.address = info.Address
+		}
 	}
-	return insteon.Address([3]byte{})
+	return plm.address
 }
 
 func (plm *PLM) String() string {
