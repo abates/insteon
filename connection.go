@@ -184,9 +184,15 @@ func NewBus(writer MessageWriter, messages <-chan *Message, options ...Connectio
 func (b *bus) run(messages <-chan *Message) {
 	Log.Debugf("Starting BUS")
 	var workers sync.WaitGroup
+	lastMsg := &Message{}
 	for {
 		select {
 		case msg := <-messages:
+			// discard duplicates
+			if msg.Equals(lastMsg) {
+				continue
+			}
+			lastMsg = msg
 			Log.Debugf("Bus received %v", msg)
 			for _, src := range []Address{msg.Src, Wildcard} {
 				for _, s := range b.listeners[src] {
@@ -208,13 +214,13 @@ func (b *bus) run(messages <-chan *Message) {
 				delete(m, s.readCh)
 			}
 		case closeCh := <-b.closeCh:
-			defer func() { closeCh <- nil }()
 			workers.Wait()
 			for _, listeners := range b.listeners {
 				for _, s := range listeners {
 					close(s.ch)
 				}
 			}
+			closeCh <- nil
 			return
 		}
 	}

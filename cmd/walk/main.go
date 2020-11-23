@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/abates/insteon"
+	insteondb "github.com/abates/insteon/db"
 	"github.com/abates/insteon/plm"
 	"github.com/abates/insteon/util"
 	"github.com/tarm/serial"
@@ -33,7 +34,7 @@ var (
 	logLevelFlag   insteon.LogLevel
 	serialPortFlag string
 	modem          *plm.PLM
-	db             *insteon.MemDB
+	db             *insteondb.MemDB
 )
 
 func printDevInfo(device insteon.Device) {
@@ -58,7 +59,7 @@ func dump(links []*insteon.LinkRecord) {
 		log.Printf("Querying ALDB from %s", link.Address)
 		device, err := modem.Open(link.Address)
 		if err == nil {
-			util.Save("db.json", db)
+			insteondb.Save("db.json", db)
 			printDevInfo(device)
 		} else {
 			log.Printf("Failed to open device %s: %v", link.Address, err)
@@ -72,7 +73,7 @@ func init() {
 	flag.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
 
 	var err error
-	db, err = util.LoadMemDB("db.json")
+	db, err = insteondb.LoadMemDB("db.json")
 	if err != nil {
 		log.Fatalf("Failed to load database: %v", err)
 	}
@@ -81,7 +82,7 @@ func init() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		err := util.Save("db.json", db)
+		err := insteondb.Save("db.json", db)
 		if err != nil {
 			log.Printf("Failed to save database: %v", err)
 		}

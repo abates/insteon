@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 )
@@ -217,6 +218,14 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 		copy(m.Payload, data[9:])
 	}
 	return err
+}
+
+func (m *Message) Equals(other *Message) bool {
+	return m.Src == other.Src &&
+		m.Dst == other.Dst &&
+		m.Flags == other.Flags &&
+		m.Command == other.Command &&
+		bytes.Equal(m.Payload, other.Payload)
 }
 
 func (m *Message) String() (str string) {

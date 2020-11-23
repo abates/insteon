@@ -136,13 +136,13 @@ func ForceLink(group insteon.Group, controller, responder insteon.Linkable) (err
 	err = controller.EnterLinkingMode(group)
 
 	if err == nil {
-		defer controller.ExitLinkingMode()
-
 		// responder pushes the set button responder and
 		// waits for the set-button message
 		insteon.Log.Debugf("Assigning responder to group")
 		err = responder.EnterLinkingMode(group)
-		defer responder.ExitLinkingMode()
+
+		controller.ExitLinkingMode()
+		responder.ExitLinkingMode()
 	}
 	return
 }
@@ -169,14 +169,15 @@ func Unlink(group insteon.Group, controller, responder insteon.Linkable) (err er
 	// controller enters all-linking mode
 	insteon.Log.Debugf("Putting controller %v into unlinking mode", controller)
 	err = controller.EnterUnlinkingMode(group)
-	defer controller.ExitLinkingMode()
 
 	// responder pushes the set button responder
 	if err == nil {
 		insteon.Log.Debugf("Instructing responder %v to unlink", responder)
 		err = responder.EnterLinkingMode(group)
 		time.Sleep(2 * time.Second)
-		defer responder.ExitLinkingMode()
+
+		controller.ExitLinkingMode()
+		responder.ExitLinkingMode()
 	}
 
 	return

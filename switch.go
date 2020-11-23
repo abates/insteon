@@ -94,7 +94,9 @@ type Switch struct {
 // NewSwitch is a factory function that will return the correctly
 // configured switch based on the underlying device
 func NewSwitch(device Device, bus Bus, info DeviceInfo) *Switch {
-	return &Switch{Device: device, bus: bus, info: info}
+	sd := &Switch{Device: device, bus: bus, info: info}
+
+	return sd
 }
 
 // Status sends a LightStatusRequest to determine the device's current
