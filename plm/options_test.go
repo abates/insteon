@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestPlmOption(t *testing.T) {
+func TestOptions(t *testing.T) {
 	want := 1234 * time.Millisecond
 	buf := bytes.NewBuffer(nil)
 

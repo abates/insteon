@@ -61,9 +61,6 @@ type PLM struct {
 	db          db.Database
 }
 
-// The Option mechanism is based on the method described at https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
-type Option func(p *PLM) error
-
 // New creates a new PLM instance.
 func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...Option) (plm *PLM, err error) {
 	plm = &PLM{
@@ -109,28 +106,6 @@ func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...O
 	insteon.Log.Debugf("         PLM Address is: %v", address)
 
 	return plm, nil
-}
-
-// WriteDelay can be passed as a parameter to New to change the delay used after writing a command before reading the response.
-func WriteDelay(d time.Duration) Option {
-	return func(p *PLM) error {
-		p.writeDelay = d
-		return nil
-	}
-}
-
-func Database(db db.Database) Option {
-	return func(p *PLM) error {
-		p.db = db
-		return nil
-	}
-}
-
-func ConnectionOptions(options ...insteon.ConnectionOption) Option {
-	return func(p *PLM) error {
-		p.connOptions = options
-		return nil
-	}
 }
 
 func (plm *PLM) readLoop() {
