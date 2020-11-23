@@ -19,7 +19,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/abates/cli"
 	"github.com/abates/insteon"
 )
 
@@ -63,90 +62,4 @@ func (cmd *cmdVar) Set(str string) error {
 	}
 	cmd.Command = insteon.Command((c1&0xff)<<8 | c2&0xff)
 	return nil
-}
-
-type Command interface {
-	Name() string
-	Desc() string
-	Usage() string
-	Setup(*cli.Arguments)
-	Command() (insteon.Command, []byte)
-}
-
-type command struct {
-	name  string
-	desc  string
-	usage string
-}
-
-func (c *command) Name() string         { return c.name }
-func (c *command) Desc() string         { return c.desc }
-func (c *command) Usage() string        { return c.usage }
-func (c *command) Setup(*cli.Arguments) {}
-
-type voidCmd struct {
-	*command
-	cmd insteon.Command
-}
-
-func Cmd(name, desc string, cmd insteon.Command) Command {
-	return &voidCmd{&command{name, desc, ""}, cmd}
-}
-
-func (c *voidCmd) Command() (insteon.Command, []byte) { return c.cmd, nil }
-
-type intCmd struct {
-	*command
-	arg int
-	cmd func(int) (insteon.Command, []byte)
-}
-
-func IntCmd(name, desc, usage string, cmd func(int) (insteon.Command, []byte)) Command {
-	return &intCmd{&command{name, desc, usage}, 0, cmd}
-}
-
-func (ic *intCmd) Setup(args *cli.Arguments) {
-	args.Int(&ic.arg, "")
-}
-
-func (ic *intCmd) Command() (insteon.Command, []byte) {
-	return ic.cmd(ic.arg)
-}
-
-type twintCmd struct {
-	*command
-	arg1 int
-	arg2 int
-	cmd  func(int, int) (insteon.Command, []byte)
-}
-
-func TwintCmd(name, desc, usage string, cmd func(int, int) (insteon.Command, []byte)) Command {
-	return &twintCmd{&command{name, desc, usage}, 0, 0, cmd}
-}
-
-func (tc *twintCmd) Setup(args *cli.Arguments) {
-	args.Int(&tc.arg1, "")
-	args.Int(&tc.arg2, "")
-}
-
-func (tc *twintCmd) Command() (insteon.Command, []byte) {
-	return tc.cmd(tc.arg1, tc.arg2)
-}
-
-type boolCmd struct {
-	*command
-	arg bool
-	cmd func(bool) (insteon.Command, []byte)
-}
-
-func BoolCmd(name, desc, usage string, cmd func(bool) (insteon.Command, []byte)) Command {
-	return &boolCmd{&command{name, desc, usage}, false, cmd}
-}
-
-func (bc *boolCmd) Setup(args *cli.Arguments) {
-	args.Bool(&bc.arg, "")
-}
-
-func (bc *boolCmd) Command() (insteon.Command, []byte) {
-	return bc.cmd(bc.arg)
 }

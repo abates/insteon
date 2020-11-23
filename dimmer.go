@@ -73,17 +73,6 @@ func NewDimmer(device Device, bus Bus, info DeviceInfo) *Dimmer {
 	return &Dimmer{Switch: NewSwitch(device, bus, info), info: info}
 }
 
-func (dd *Dimmer) SendCommand(cmd Command, payload []byte) (Command, error) {
-	if dd.info.FirmwareVersion >= 0x43 {
-		if cmd.Command1() == CmdLightOnAtRamp.Command1() {
-			cmd = CmdLightOnAtRampV67.SubCommand(int(cmd.Command2()))
-		} else if cmd.Command1() == CmdLightOffAtRamp.Command1() {
-			cmd = CmdLightOffAtRampV67.SubCommand(int(cmd.Command2()))
-		}
-	}
-	return dd.Switch.SendCommand(cmd, payload)
-}
-
 func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 	// The documentation talks about D1 (payload[0]) being the button/group number, but my
 	// SwitchLinc dimmers all return the same information regardless of
@@ -100,6 +89,57 @@ func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 		}
 	}
 	return config, err
+}
+
+func (dd *Dimmer) Brighten() error {
+	return dd.SendCommand(CmdLightBrighten, nil)
+}
+
+func (dd *Dimmer) Dim() error {
+	return dd.SendCommand(CmdLightDim, nil)
+}
+
+func (dd *Dimmer) StartBrighten() error {
+	return dd.SendCommand(CmdStartBrighten, nil)
+}
+
+func (dd *Dimmer) StartDim() error {
+	return dd.SendCommand(CmdStartDim, nil)
+}
+
+func (dd *Dimmer) StopManualChange() error {
+	return dd.SendCommand(CmdLightStopManual, nil)
+}
+
+func (dd *Dimmer) OnFast() error {
+	return dd.SendCommand(CmdLightOnFast, nil)
+}
+
+func (dd *Dimmer) InstantChange(level int) error {
+	return dd.SendCommand(CmdLightInstantChange.SubCommand(level), nil)
+}
+
+func (dd *Dimmer) SetStatus(level int) error {
+	return dd.SendCommand(CmdLightSetStatus.SubCommand(level), nil)
+}
+
+func (dd *Dimmer) OnAtRamp(level, rate int) error {
+	levelRate := byte(level) << 4
+	levelRate |= byte(rate) & 0x0f
+
+	cmd := CmdLightOnAtRamp
+	if dd.info.FirmwareVersion >= 0x43 {
+		cmd = CmdLightOnAtRampV67
+	}
+	return dd.SendCommand(cmd.SubCommand(int(levelRate)), nil)
+}
+
+func (dd *Dimmer) OffAtRamp(rate int) error {
+	cmd := CmdLightOffAtRamp
+	if dd.info.FirmwareVersion >= 0x43 {
+		cmd = CmdLightOffAtRampV67
+	}
+	return dd.SendCommand(cmd.SubCommand(0x0f&rate), nil)
 }
 
 func (dd *Dimmer) String() string {

@@ -71,7 +71,7 @@ func TestDimmableDeviceConfig(t *testing.T) {
 	}
 }
 
-func TestDimmerSendCommand(t *testing.T) {
+/*func TestDimmerSendCommand(t *testing.T) {
 	tests := []struct {
 		name    string
 		v       FirmwareVersion
@@ -95,4 +95,4 @@ func TestDimmerSendCommand(t *testing.T) {
 			}
 		})
 	}
-}
+}*/

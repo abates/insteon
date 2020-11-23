@@ -178,6 +178,5 @@ func (dev *device) editCmd(string) error {
 }
 
 func (dev *device) sendCmd(string) error {
-	_, err := (dev.SendCommand(dev.cmd.Command, dev.data))
-	return err
+	return dev.SendCommand(dev.cmd.Command, dev.data)
 }

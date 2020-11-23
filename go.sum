@@ -1,5 +1,7 @@
 github.com/abates/cli v0.0.0-20200124135207-1f046a3c368e h1:e+ZD7X+Z7St5zyeNcSnLLjHz8tK2OU4Fd0I9vZY8WWM=
 github.com/abates/cli v0.0.0-20200124135207-1f046a3c368e/go.mod h1:IbI6wKYxWh1jh6mn/SWJwXvsoYzIzW1aoddwzXKhZWo=
+github.com/abates/cli v0.0.0-20201116025054-9bf98d4abd15 h1:tBUYP6XlVUm/aoCA+ejoOV1j0WJkoBUQoqwQ9Qd4qU4=
+github.com/abates/cli v0.0.0-20201116025054-9bf98d4abd15/go.mod h1:IbI6wKYxWh1jh6mn/SWJwXvsoYzIzW1aoddwzXKhZWo=
 github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f h1:dKccXx7xA56UNqOcFIbuqFjAWPVtP688j5QMgmo6OHU=
 github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f/go.mod h1:4rEELDSfUAlBSyUjPG0JnaNGjf13JySHFeRdD/3dLP0=
 github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07 h1:UyzmZLoiDWMRywV4DUYb9Fbt8uiOSooupjTq10vpvnU=

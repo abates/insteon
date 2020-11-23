@@ -34,7 +34,7 @@ func newI2Device(bus Bus, info DeviceInfo) *i2Device {
 }
 
 func (i2 *i2Device) linkingMode(cmd Command, payload []byte) (err error) {
-	_, err = i2.SendCommand(cmd, payload)
+	err = i2.SendCommand(cmd, payload)
 	if err == nil {
 		<-time.After(PropagationDelay(i2.i1Device.bus.Config().TTL, len(payload) > 0))
 	}
@@ -56,8 +56,7 @@ func (i2 *i2Device) EnterUnlinkingMode(group Group) error {
 }
 
 func (i2 *i2Device) ExitLinkingMode() error {
-	_, err := i2.SendCommand(CmdExitLinkingMode, nil)
-	return err
+	return i2.SendCommand(CmdExitLinkingMode, nil)
 }
 
 func (i2 *i2Device) LinkDatabase() (Linkable, error) {

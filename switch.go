@@ -101,7 +101,7 @@ func NewSwitch(device Device, bus Bus, info DeviceInfo) *Switch {
 // level. For switched devices this is either 0 or 255, dimmable devices
 // will be the current dim level between 0 and 255
 func (sd *Switch) Status() (level int, err error) {
-	ack, err := sd.SendCommand(CmdLightStatusRequest, nil)
+	ack, err := sd.Send(CmdLightStatusRequest, nil)
 	if err == nil {
 		level = ack.Command2()
 	}
@@ -143,6 +143,21 @@ func (sd *Switch) OperatingFlags() (flags LightFlags, err error) {
 		}
 	}
 	return
+}
+
+func (sd *Switch) SetBacklight(light bool) error {
+	if light {
+		return sd.SendCommand(CmdEnableLED, make([]byte, 14))
+	}
+	return sd.SendCommand(CmdDisableLED, make([]byte, 14))
+}
+
+func (sd *Switch) TurnOff() error {
+	return sd.SendCommand(CmdLightOff, nil)
+}
+
+func (sd *Switch) TurnOn(level int) error {
+	return sd.SendCommand(CmdLightOn.SubCommand(level), nil)
 }
 
 func (sd *Switch) Address() Address {

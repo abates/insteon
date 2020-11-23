@@ -65,11 +65,16 @@ func (i1 *i1Device) Unsubscribe(ch <-chan *Message) {
 	i1.bus.Unsubscribe(i1.info.Address, ch)
 }
 
-// SendCommand will send the given command bytes to the device including
+func (i1 *i1Device) SendCommand(command Command, payload []byte) error {
+	_, err := i1.Send(command, payload)
+	return err
+}
+
+// Send will send the given command bytes to the device including
 // a payload (for extended messages). If payload length is zero then a standard
 // length message is used to deliver the commands. Any error encountered sending
 // the command is returned (eg. ack timeout, etc)
-func (i1 *i1Device) SendCommand(command Command, payload []byte) (Command, error) {
+func (i1 *i1Device) Send(command Command, payload []byte) (Command, error) {
 	return i1.sendCommand(command, payload, errLookup)
 }
 
