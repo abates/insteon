@@ -27,12 +27,6 @@ type swtch struct {
 	led  bool
 }
 
-var switchCommands = []Command{
-	IntCmd("on", "turn light on", "<level>", insteon.TurnLightOn),
-	Cmd("off", "turn light off", insteon.CmdLightOff),
-	BoolCmd("backlight", "turn backlight on/off", "<true|false>", insteon.Backlight),
-}
-
 func init() {
 	sw := swtch{}
 
@@ -42,13 +36,9 @@ func init() {
 	swCmd.SubCommand("config", cli.DescOption("retrieve switch configuration information"), cli.CallbackOption(sw.switchConfigCmd))
 	swCmd.SubCommand("status", cli.DescOption("get the switch status"), cli.CallbackOption(sw.switchStatusCmd))
 
-	for _, cmd := range switchCommands {
-		cb := func(cmd Command) func(string) error {
-			return func(string) error { return sw.runCmd(cmd) }
-		}(cmd)
-		c := swCmd.SubCommand(cmd.Name(), cli.DescOption(cmd.Desc()), cli.UsageOption(cmd.Usage()), cli.CallbackOption(cb))
-		cmd.Setup(&c.Arguments)
-	}
+	swCmd.SubCommand("on", cli.DescOption("turn light on"), cli.UsageOption("<level>"), cli.ArgCallbackOption(sw.TurnOn))
+	swCmd.SubCommand("off", cli.DescOption("turn light off"), cli.ArgCallbackOption(sw.TurnOff))
+	swCmd.SubCommand("backlight", cli.DescOption("turn backlight on/off"), cli.UsageOption("<true|false>"), cli.ArgCallbackOption(sw.SetBacklight))
 }
 
 func (sw *swtch) init(string) error {
@@ -60,11 +50,6 @@ func (sw *swtch) init(string) error {
 			err = fmt.Errorf("Device at %s is a %T not a switch", sw.addr, device)
 		}
 	}
-	return err
-}
-
-func (sw *swtch) runCmd(cmd Command) error {
-	_, err := sw.SendCommand(cmd.Command())
 	return err
 }
 

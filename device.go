@@ -37,7 +37,9 @@ type Commandable interface {
 	// SendCommand will send the given command bytes to the device including
 	// a payload (for extended messages). If payload length is zero then a standard
 	// length message is used to deliver the commands.
-	SendCommand(cmd Command, payload []byte) (ack Command, err error)
+	SendCommand(cmd Command, payload []byte) (err error)
+
+	Send(cmd Command, payload []byte) (ack Command, err error)
 }
 
 type PubSub interface {

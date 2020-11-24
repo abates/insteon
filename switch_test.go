@@ -111,3 +111,16 @@ func TestSwitchedDeviceOperatingFlags(t *testing.T) {
 		t.Errorf("want flags %v got %v", want, got)
 	}
 }
+
+func TestSwitchStatus(t *testing.T) {
+	td := &testDevice{sendAck: CmdLightStatusRequest.SubCommand(43)}
+	sw := &Switch{Device: td}
+	level, err := sw.Status()
+	if err == nil {
+		if level != 43 {
+			t.Errorf("Wanted level 43 got %d", level)
+		}
+	} else {
+		t.Errorf("Unexpected error %v", err)
+	}
+}
