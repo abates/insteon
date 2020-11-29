@@ -28,8 +28,7 @@ type dimmer struct {
 
 func init() {
 	dim := &dimmer{
-
-		Dimmer: &insteon.Dimmer{},
+		Dimmer: &insteon.Dimmer{Switch: &insteon.Switch{}},
 	}
 
 	dimCmd := app.SubCommand("dimmer", cli.UsageOption("<device id> <command>"), cli.DescOption("Interact with a specific dimmer"), cli.CallbackOption(dim.init))
@@ -41,6 +40,7 @@ func init() {
 	dimCmd.SubCommand("on", cli.DescOption("turn light on"), cli.UsageOption("<level>"), cli.ArgCallbackOption(dim.TurnOn))
 	dimCmd.SubCommand("off", cli.DescOption("turn light off"), cli.ArgCallbackOption(dim.TurnOff))
 	dimCmd.SubCommand("backlight", cli.DescOption("turn backlight on/off"), cli.UsageOption("<true|false>"), cli.ArgCallbackOption(dim.SetBacklight))
+	dimCmd.SubCommand("loadsense", cli.DescOption("turn load sense on/off"), cli.UsageOption("<true|false>"), cli.ArgCallbackOption(dim.SetLoadSense))
 
 	dimCmd.SubCommand("brighten", cli.DescOption("brighten light one step"), cli.ArgCallbackOption(dim.Brighten))
 	dimCmd.SubCommand("dim", cli.DescOption("dim light one step"), cli.ArgCallbackOption(dim.Dim))
@@ -58,7 +58,7 @@ func (dim *dimmer) init(string) (err error) {
 	device, err := connect(modem, dim.addr)
 	if err == nil {
 		if d, ok := device.(*insteon.Dimmer); ok {
-			dim.Dimmer = d
+			*dim.Dimmer.Switch = *d.Switch
 		} else {
 			err = fmt.Errorf("Device %s is not a dimmer", dim.addr)
 		}

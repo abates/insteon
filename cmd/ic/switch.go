@@ -39,6 +39,7 @@ func init() {
 	swCmd.SubCommand("on", cli.DescOption("turn light on"), cli.UsageOption("<level>"), cli.ArgCallbackOption(sw.TurnOn))
 	swCmd.SubCommand("off", cli.DescOption("turn light off"), cli.ArgCallbackOption(sw.TurnOff))
 	swCmd.SubCommand("backlight", cli.DescOption("turn backlight on/off"), cli.UsageOption("<true|false>"), cli.ArgCallbackOption(sw.SetBacklight))
+	swCmd.SubCommand("loadsense", cli.DescOption("turn load sense on/off"), cli.UsageOption("<true|false>"), cli.ArgCallbackOption(sw.SetLoadSense))
 }
 
 func (sw *swtch) init(string) error {
