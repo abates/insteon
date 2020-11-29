@@ -32,8 +32,9 @@ func init() {
 	cmd := app.SubCommand("device", cli.UsageOption("<device id> <command>"), cli.DescOption("Interact with a specific device"), cli.CallbackOption(d.init))
 	cmd.Arguments.Var(&d.addr, "<device id>")
 	cmd.SubCommand("info", cli.DescOption("retrieve device info"), cli.CallbackOption(d.infoCmd))
-	cmd.SubCommand("link", cli.DescOption("enter linking mode"), cli.CallbackOption(d.linkCmd))
-	cmd.SubCommand("unlink", cli.DescOption("enter unlinking mode"), cli.CallbackOption(d.unlinkCmd))
+	linkCmd := cmd.SubCommand("link", cli.UsageOption("<group>"), cli.DescOption("enter linking mode"), cli.CallbackOption(d.linkCmd))
+	linkCmd.Arguments.Int(&d.group, "<group id>")
+	cmd.SubCommand("unlink", cli.UsageOption("<group>"), cli.DescOption("enter unlinking mode"), cli.CallbackOption(d.unlinkCmd))
 	cmd.SubCommand("exitlink", cli.DescOption("exit linking mode"), cli.CallbackOption(d.exitLinkCmd))
 	cmd.SubCommand("dump", cli.DescOption("dump the device all-link database"), cli.CallbackOption(d.dumpCmd))
 	cmd.SubCommand("edit", cli.DescOption("edit the device all-link database"), cli.CallbackOption(d.editCmd))
@@ -47,9 +48,10 @@ func init() {
 
 type device struct {
 	insteon.Device
-	addr insteon.Address
-	data dataVar
-	cmd  cmdVar
+	addr  insteon.Address
+	group int
+	data  dataVar
+	cmd   cmdVar
 }
 
 func (dev *device) init(string) (err error) {
@@ -63,7 +65,7 @@ func connect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 	if err == insteon.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
-			pc := &plmCmd{addresses: []insteon.Address{addr}}
+			pc := &plmCmd{group: 0x01, addresses: []insteon.Address{addr}}
 			err = pc.linkCmd("link")
 		}
 	}
@@ -72,13 +74,13 @@ func connect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 
 func (dev *device) linkCmd(string) error {
 	return util.IfLinkable(dev.Device, func(linkable insteon.Linkable) error {
-		return linkable.EnterLinkingMode(insteon.Group(0x01))
+		return linkable.EnterLinkingMode(insteon.Group(dev.group))
 	})
 }
 
 func (dev *device) unlinkCmd(string) error {
 	return util.IfLinkable(dev.Device, func(linkable insteon.Linkable) error {
-		return linkable.EnterUnlinkingMode(insteon.Group(0x01))
+		return linkable.EnterUnlinkingMode(insteon.Group(dev.group))
 	})
 }
 
