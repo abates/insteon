@@ -24,7 +24,7 @@ import (
 
 var (
 	// Log is the global log object. The default level is set to Info
-	Log = &Logger{Level: LevelInfo, Logger: log.New(os.Stderr, "", log.LstdFlags)}
+	Log = &Logger{Level: LevelNone, Logger: log.New(os.Stderr, "", log.LstdFlags)}
 )
 
 // LogLevel indicates verbosity of logging
