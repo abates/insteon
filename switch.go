@@ -147,6 +147,13 @@ func (sd *Switch) OperatingFlags() (flags LightFlags, err error) {
 	return
 }
 
+func (sd *Switch) SetLoadSense(loadsense bool) error {
+	if loadsense {
+		return sd.SendCommand(CmdEnableLoadSense, make([]byte, 14))
+	}
+	return sd.SendCommand(CmdDisableLoadSense, make([]byte, 14))
+}
+
 func (sd *Switch) SetBacklight(light bool) error {
 	if light {
 		return sd.SendCommand(CmdEnableLED, make([]byte, 14))
