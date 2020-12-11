@@ -271,7 +271,16 @@ func PrintLinks(out io.Writer, linkable Linkable) error {
 			sort.Strings(linkAddresses)
 
 			for _, linkAddress := range linkAddresses {
+				groups := make(map[int]*insteon.LinkRecord)
+				groupIds := []int{}
+
 				for _, link := range links[linkAddress] {
+					groups[int(link.Group)] = link
+					groupIds = append(groupIds, int(link.Group))
+				}
+				sort.Ints(groupIds)
+				for _, id := range groupIds {
+					link := groups[id]
 					fmt.Fprintf(out, "    %-5s %5s %8s   %02x %02x %02x\n", link.Flags, link.Group, link.Address, link.Data[0], link.Data[1], link.Data[2])
 				}
 			}
