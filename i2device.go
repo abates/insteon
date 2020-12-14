@@ -37,7 +37,7 @@ func (i2 *i2Device) linkingMode(cmd Command, payload []byte) (err error) {
 	err = i2.SendCommand(cmd, payload)
 	if err == nil {
 		// allow linking mode to activate
-		time.Sleep(PropagationDelay(i2.i1Device.bus.Config().TTL, len(payload) > 0))
+		time.Sleep((500 * time.Millisecond) + PropagationDelay(i2.i1Device.bus.Config().TTL, len(payload) > 0))
 	}
 	return err
 }

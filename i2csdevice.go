@@ -52,6 +52,14 @@ func newI2CsDevice(bus Bus, info DeviceInfo) *i2CsDevice {
 	return i2cs
 }
 
+func (i2cs *i2CsDevice) LinkDatabase() (Linkable, error) {
+	return i2cs, nil
+}
+
+func (i2cs *i2CsDevice) EnterUnlinkingMode(group Group) error {
+	return i2cs.linkingMode(CmdEnterUnlinkingMode.SubCommand(int(group)), make([]byte, 14))
+}
+
 // String returns the string "I2CS Device (<address>)" where <address> is the destination
 // address of the device
 func (i2cs *i2CsDevice) String() string {

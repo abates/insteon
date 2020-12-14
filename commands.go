@@ -82,6 +82,9 @@ const (
 	// CmdEnterUnlinkingModeExt Enter Unlinking Mode (extended command for I2CS devices)
 	CmdEnterUnlinkingModeExt = Command(0x010a00) // Enter Unlinking Mode (i2cs)
 
+	// CmdSetOperatingFlags is used to set a given operating flag
+	CmdSetOperatingFlags = Command(0x012000) // Set Operating Flags
+
 	// CmdExtendedGetSet is used to get and set extended data (ha ha)
 	CmdExtendedGetSet = Command(0x012e00) // Extended Get/Set
 
@@ -239,6 +242,105 @@ const (
 	CmdClearKeyBeep = Command(0x00200b) // Disable Key Beep
 )
 
+// Thermostat Standard Direct Messages
+const (
+	// CmdDecreaseTemp Decrease Temperature
+	CmdDecreaseTemp = Command(0x006800) // Decrease Temp
+
+	// CmdIncreaseTemp Increase Temperature
+	CmdIncreaseTemp = Command(0x006900) // Increase Temp
+
+	// CmdGetZoneInfo Get Zone Information
+	CmdGetZoneInfo = Command(0x006a00) // Get Zone Info
+
+	// CmdGetThermostatMode Get Mode
+	CmdGetThermostatMode = Command(0x006b02) // Get Mode
+
+	// CmdGetAmbientTemp Get Ambient Temperature
+	CmdGetAmbientTemp = Command(0x006b03) // Get Ambient Temp
+
+	// CmdSetHeat Set Heat
+	CmdSetHeat = Command(0x006b04) // Set Heat
+
+	// CmdSetCool Set Cool
+	CmdSetCool = Command(0x006b05) // Set Cool
+
+	// CmdSetModeAuto Set Mode Auto
+	CmdSetModeAuto = Command(0x006b06) // Set Auto
+
+	// CmdSetFan Turn Fan On
+	CmdSetFan = Command(0x006b07) // Turn Fan On
+
+	// CmdClearFan Turn Fan Off
+	CmdClearFan = Command(0x006b08) // Turn Fan Off
+
+	// CmdThermOff Turn Thermostat Off
+	CmdThermOff = Command(0x006b09) // Turn Thermostat Off
+
+	// CmdSetProgramHeat Set mode to Program Heat
+	CmdSetProgramHeat = Command(0x006b0a) // Set Program Heat
+
+	// CmdSetProgramCool Set mode to Program Cool
+	CmdSetProgramCool = Command(0x006b0b) // Set Program Cool
+
+	// CmdSetProgramAuto Set mode to Program Auto
+	CmdSetProgramAuto = Command(0x006b0c) // Set Program Auto
+
+	// CmdGetEquipmentState Get Equipment State
+	CmdGetEquipmentState = Command(0x006b0d) // Get State
+
+	// CmdSetEquipmentState Set Equipment State
+	CmdSetEquipmentState = Command(0x006b0e) // Set State
+
+	// CmdGetTempUnits Get Temperature Units
+	CmdGetTempUnits = Command(0x006b0f) // Get Temp Units
+
+	// CmdSetFahrenheit Set Units to Fahrenheit
+	CmdSetFahrenheit = Command(0x006b10) // Set Units Fahrenheit
+
+	// CmdSetCelsius Set Units to Celsius
+	CmdSetCelsius = Command(0x006b11) // Set Units Celsius
+
+	// CmdGetFanOnSpeed Get Fan On-Speed
+	CmdGetFanOnSpeed = Command(0x006b12) // Get Fan On-Speed
+
+	// CmdSetFanOnLow Set Fan On-Speed to Low
+	CmdSetFanOnLow = Command(0x006b13) // Set Fan-Speed Low
+
+	// CmdSetFanOnMed Set Fan On-Speed to Med
+	CmdSetFanOnMed = Command(0x006b14) // Set Fan-Speed Med
+
+	// CmdSetFanOnHigh Set Fan On-Speed to High
+	CmdSetFanOnHigh = Command(0x006b15) // Set Fan-Speed High
+
+	// CmdEnableStatusMessage Enable Status Change Messages
+	CmdEnableStatusMessage = Command(0x006b16) // Enable Status Change
+
+	// CmdDisableStatusMessage Disable Status Change Messages
+	CmdDisableStatusMessage = Command(0x006b17) // Disable Status Change
+
+	// CmdSetCoolSetpoint Set Cool Set-Point
+	CmdSetCoolSetpoint = Command(0x006c00) // Set Cool Set-Point
+
+	// CmdSetHeatSetpoint Set Heat Set-Point
+	CmdSetHeatSetpoint = Command(0x006d00) // Set Heat Set-Point
+)
+
+// Thermostat Extended Direct Messages
+const (
+	// CmdZoneTempUp Increase Zone Temp
+	CmdZoneTempUp = Command(0x016800) // Increase Zone Temp
+
+	// CmdZoneTempDown Decrease Zone Temp
+	CmdZoneTempDown = Command(0x016900) // Decrease Zone Temp
+
+	// CmdSetZoneCoolSetpoint Set Zone Cooling Set Point
+	CmdSetZoneCoolSetpoint = Command(0x016c00) // Set Zone Cool Set-Point
+
+	// CmdSetZoneHeatSetpoint Set Zone Heating Set Point
+	CmdSetZoneHeatSetpoint = Command(0x016d00) // Set Zone Heat Set-Point
+)
+
 var cmdStrings = map[Command]string{
 	CmdAssignToAllLinkGroup:       "Assign to All-Link Group",
 	CmdDeleteFromAllLinkGroup:     "Delete from All-Link Group",
@@ -261,6 +363,7 @@ var cmdStrings = map[Command]string{
 	CmdExitLinkingModeExt:         "Exit Linking Mode (i2cs)",
 	CmdEnterLinkingModeExt:        "Enter Linking Mode (i2cs)",
 	CmdEnterUnlinkingModeExt:      "Enter Unlinking Mode (i2cs)",
+	CmdSetOperatingFlags:          "Set Operating Flags",
 	CmdExtendedGetSet:             "Extended Get/Set",
 	CmdReadWriteALDB:              "Read/Write ALDB",
 	CmdAllLinkRecall:              "All-link recall",
@@ -309,4 +412,35 @@ var cmdStrings = map[Command]string{
 	CmdEnableLED:                  "Enable Backlight",
 	CmdSetKeyBeep:                 "Enable Key Beep",
 	CmdClearKeyBeep:               "Disable Key Beep",
+	CmdDecreaseTemp:               "Decrease Temp",
+	CmdIncreaseTemp:               "Increase Temp",
+	CmdGetZoneInfo:                "Get Zone Info",
+	CmdGetThermostatMode:          "Get Mode",
+	CmdGetAmbientTemp:             "Get Ambient Temp",
+	CmdSetHeat:                    "Set Heat",
+	CmdSetCool:                    "Set Cool",
+	CmdSetModeAuto:                "Set Auto",
+	CmdSetFan:                     "Turn Fan On",
+	CmdClearFan:                   "Turn Fan Off",
+	CmdThermOff:                   "Turn Thermostat Off",
+	CmdSetProgramHeat:             "Set Program Heat",
+	CmdSetProgramCool:             "Set Program Cool",
+	CmdSetProgramAuto:             "Set Program Auto",
+	CmdGetEquipmentState:          "Get State",
+	CmdSetEquipmentState:          "Set State",
+	CmdGetTempUnits:               "Get Temp Units",
+	CmdSetFahrenheit:              "Set Units Fahrenheit",
+	CmdSetCelsius:                 "Set Units Celsius",
+	CmdGetFanOnSpeed:              "Get Fan On-Speed",
+	CmdSetFanOnLow:                "Set Fan-Speed Low",
+	CmdSetFanOnMed:                "Set Fan-Speed Med",
+	CmdSetFanOnHigh:               "Set Fan-Speed High",
+	CmdEnableStatusMessage:        "Enable Status Change",
+	CmdDisableStatusMessage:       "Disable Status Change",
+	CmdSetCoolSetpoint:            "Set Cool Set-Point",
+	CmdSetHeatSetpoint:            "Set Heat Set-Point",
+	CmdZoneTempUp:                 "Increase Zone Temp",
+	CmdZoneTempDown:               "Decrease Zone Temp",
+	CmdSetZoneCoolSetpoint:        "Set Zone Cool Set-Point",
+	CmdSetZoneHeatSetpoint:        "Set Zone Heat Set-Point",
 }

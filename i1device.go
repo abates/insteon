@@ -127,6 +127,20 @@ func (i1 *i1Device) ProductData() (data *ProductData, err error) {
 	return data, err
 }
 
+func (i1 *i1Device) ExtendedGet(data []byte) ([]byte, error) {
+	rx := i1.Subscribe(And(Not(AckMatcher()), CmdMatcher(CmdExtendedGetSet)))
+	defer i1.Unsubscribe(rx)
+	msg, err := i1.Publish(&Message{Command: CmdExtendedGetSet, Payload: data})
+	buf := []byte{}
+	//for err == nil {
+	msg, err = ReadWithTimeout(rx, i1.bus.Config().Timeout(true))
+	if err == nil {
+		buf = append(buf, msg.Payload...)
+	}
+	//}
+	return buf, err
+}
+
 func (i1 *i1Device) Address() Address {
 	return i1.info.Address
 }

@@ -176,7 +176,7 @@ func (ldb *linkdb) refresh() error {
 						break
 					} else {
 						ldb.links = append(ldb.links, lr.Link)
-						ldb.index[lr.Link.id()] = len(ldb.links) - 1
+						ldb.index[lr.Link.ID()] = len(ldb.links) - 1
 					}
 				}
 			}
@@ -250,7 +250,7 @@ func (ldb *linkdb) UpdateLinks(links ...*LinkRecord) (err error) {
 
 	if err == nil {
 		for i := 0; err == nil && i < len(links); i++ {
-			if j, found := ldb.index[links[i].id()]; found {
+			if j, found := ldb.index[links[i].ID()]; found {
 				if ldb.links[j].Flags != links[i].Flags {
 					err = ldb.writeLink(i, links[i])
 				}

@@ -71,7 +71,12 @@ func init() {
 	pc.SubCommand("info", cli.DescOption("display information (device id, link database, etc)"), cli.CallbackOption(p.infoCmd))
 	pc.SubCommand("reset", cli.DescOption("Factory reset the IM"), cli.CallbackOption(p.resetCmd))
 
-	cmd := pc.SubCommand("link", cli.UsageOption("<group> <device id>,..."), cli.DescOption("Link (as a controller) the PLM to one or more devices. Device IDs must be comma separated"), cli.CallbackOption(p.linkCmd))
+	linkCmd := pc.SubCommand("link", cli.DescOption("Link the PLM to a device"))
+	cmd := linkCmd.SubCommand("controller", cli.UsageOption("<group> <device id>,..."), cli.DescOption("Link (as a controller) the PLM to one or more devices. Device IDs must be comma separated"), cli.CallbackOption(p.controllerLinkCmd))
+	cmd.Arguments.Int(&p.group, "<group id>")
+	cmd.Arguments.VarSlice((*addrList)(&p.addresses), "<device id>,...")
+
+	cmd = linkCmd.SubCommand("responder", cli.UsageOption("<group> <device id>,..."), cli.DescOption("Link (as a responder) the PLM to one or more devices. Device IDs must be comma separated"), cli.CallbackOption(p.responderLinkCmd))
 	cmd.Arguments.Int(&p.group, "<group id>")
 	cmd.Arguments.VarSlice((*addrList)(&p.addresses), "<device id>,...")
 
@@ -108,10 +113,11 @@ func (p *plmCmd) infoCmd(string) (err error) {
 	return err
 }
 
-func (p *plmCmd) linkCmd(string) error      { return p.link(false) }
-func (p *plmCmd) crossLinkCmd(string) error { return p.link(true) }
+func (p *plmCmd) controllerLinkCmd(string) error { return p.link(true, false) }
+func (p *plmCmd) responderLinkCmd(string) error  { return p.link(false, true) }
+func (p *plmCmd) crossLinkCmd(string) error      { return p.link(true, true) }
 
-func (p *plmCmd) link(crosslink bool) error {
+func (p *plmCmd) link(controller, responder bool) error {
 	return util.IfLinkable(modem, func(lmodem insteon.Linkable) (err error) {
 		for _, addr := range p.addresses {
 			group := insteon.Group(p.group)
@@ -123,8 +129,11 @@ func (p *plmCmd) link(crosslink bool) error {
 
 			if err == nil {
 				err = util.IfLinkable(device, func(ldevice insteon.Linkable) (err error) {
-					err = util.ForceLink(group, lmodem, ldevice)
-					if err == nil && crosslink {
+					if controller {
+						err = util.ForceLink(group, lmodem, ldevice)
+					}
+
+					if err == nil && responder {
 						err = util.ForceLink(group, ldevice, lmodem)
 					}
 					return err
@@ -155,10 +164,10 @@ func (p *plmCmd) unlinkCmd(string) (err error) {
 	return util.IfLinkable(modem, func(lmodem insteon.Linkable) (err error) {
 		for _, addr := range p.addresses {
 			var device insteon.Device
-			fmt.Printf("Unlinking from %s...", addr)
 			device, err = modem.Open(addr)
 
 			if err == nil {
+				fmt.Printf("Unlinking from %s:%s...", device, addr)
 				err = util.IfLinkable(device, func(ldevice insteon.Linkable) (err error) {
 					if err == nil {
 						err = util.Unlink(group, ldevice, lmodem)

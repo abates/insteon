@@ -66,7 +66,7 @@ func connect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
 			pc := &plmCmd{group: 0x01, addresses: []insteon.Address{addr}}
-			err = pc.linkCmd("link")
+			err = pc.controllerLinkCmd("link")
 		}
 	}
 	return device, err

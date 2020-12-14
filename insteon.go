@@ -100,6 +100,16 @@ var (
 	// wants to continue receiving it will return this error.  This causes the Receive() function
 	// to update the timeout and wait for a new message
 	ErrReceiveContinue = errors.New("Continue receiving")
+
+	// ErrInvalidThermostatMode indicates an unknown mode was supplied to the SetMode function
+	ErrInvalidThermostatMode = errors.New("invalid mode")
+
+	// ErrInvalidUnit indicates the given value for Unit is not either Fahrenheit or Celsius
+	ErrInvalidUnit = errors.New("Invalid temperature unit")
+
+	// ErrInvalidFanSpeed indicates the value provided for FanSpeed is either unsupported or
+	// unknown
+	ErrInvalidFanSpeed = errors.New("Invalid fan speed")
 )
 
 var sprintf = fmt.Sprintf
@@ -148,8 +158,9 @@ func (dc DevCat) String() string {
 type Domain byte
 
 const (
-	DimmerDomain Domain = 0x01
-	SwitchDomain        = 0x02
+	DimmerDomain     Domain = 0x01
+	SwitchDomain            = 0x02
+	ThermostatDomain        = 0x05
 )
 
 // Category indicates the specific kind of device within a domain.  For instance, a LampLing and

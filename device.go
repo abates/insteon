@@ -56,6 +56,8 @@ type Device interface {
 	Commandable
 	PubSub
 
+	ExtendedGet([]byte) ([]byte, error)
+
 	// LinkDatabase will return a LinkDatabase if the underlying device
 	// supports it.  If the underlying device (namely I1 devices) does
 	// not support the All-Link database then an ErrNotSupported will
@@ -165,6 +167,8 @@ func New(bus Bus, info DeviceInfo) (Device, error) {
 			device = NewDimmer(device, bus, info)
 		case SwitchDomain:
 			device = NewSwitch(device, bus, info)
+		case ThermostatDomain:
+			device = NewThermostat(device, bus, info)
 		}
 	}
 	return device, err

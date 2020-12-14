@@ -33,24 +33,26 @@ const (
 )
 
 type manageRecordRequest struct {
-	command recordRequestCommand
-	link    *insteon.LinkRecord
+	cmd        recordRequestCommand
+	matchGroup insteon.Group
+	matchAddr  insteon.Address
+	link       *insteon.LinkRecord
 }
 
 func (mrr *manageRecordRequest) String() string {
-	return fmt.Sprintf("%02x %s", mrr.command, mrr.link)
+	return fmt.Sprintf("%02x %s", mrr.cmd, mrr.link)
 }
 
 func (mrr *manageRecordRequest) MarshalBinary() ([]byte, error) {
 	payload, err := mrr.link.MarshalBinary()
 	buf := make([]byte, len(payload)+1)
-	buf[0] = byte(mrr.command)
+	buf[0] = byte(mrr.cmd)
 	copy(buf[1:], payload)
 	return buf, err
 }
 
 func (mrr *manageRecordRequest) UnmarshalBinary(buf []byte) error {
-	mrr.command = recordRequestCommand(buf[0])
+	mrr.cmd = recordRequestCommand(buf[0])
 	mrr.link = &insteon.LinkRecord{}
 	return mrr.link.UnmarshalBinary(buf[1:])
 }
@@ -130,8 +132,34 @@ func (ldb *linkdb) Links() ([]*insteon.LinkRecord, error) {
 	return ldb.links, err
 }
 
-func (ldb *linkdb) WriteLinks(...*insteon.LinkRecord) error {
-	return insteon.ErrNotImplemented
+func (ldb *linkdb) WriteLinks(newLinks ...*insteon.LinkRecord) error {
+	err := ldb.refresh()
+	if err == nil {
+		// blow away the database and pray something doesn't go wrong, it's really
+		// too bad that the PLM doesn't support some form of transactions
+		link := ldb.links[0]
+		link.Flags = 0x00
+		mrr := &manageRecordRequest{
+			cmd:        LinkCmdModFirst,
+			matchGroup: link.Group,
+			matchAddr:  link.Address,
+			link:       link,
+		}
+
+		payload, _ := mrr.MarshalBinary()
+		_, err = ldb.plm.WritePacket(&Packet{Command: CmdStartAllLink, Payload: payload})
+
+		for i := 0; i < len(newLinks) && err == nil; i++ {
+			newLink := newLinks[i]
+			mrr.matchGroup = newLink.Group
+			mrr.matchAddr = newLink.Address
+			mrr.link = newLink
+
+			payload, _ := mrr.MarshalBinary()
+			_, err = ldb.plm.WritePacket(&Packet{Command: CmdStartAllLink, Payload: payload})
+		}
+	}
+	return err
 }
 
 func (ldb *linkdb) UpdateLinks(...*insteon.LinkRecord) error {

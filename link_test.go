@@ -258,8 +258,8 @@ func TestGroupUnmarshalText(t *testing.T) {
 	}{
 		{"1", "", Group(1)},
 		{"wxyz", "invalid number format", Group(0)},
-		{"256", "valid groups are between 1 and 255 (inclusive)", Group(0)},
-		{"-1", "valid groups are between 1 and 255 (inclusive)", Group(0)},
+		{"256", "valid groups are between 0 and 255 (inclusive)", Group(0)},
+		{"-1", "valid groups are between 0 and 255 (inclusive)", Group(0)},
 	}
 
 	for _, test := range tests {

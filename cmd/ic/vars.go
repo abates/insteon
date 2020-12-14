@@ -51,12 +51,14 @@ func (cmd *cmdVar) Set(str string) error {
 		return &strconv.NumError{"cmdVar.Set", str, strconv.ErrSyntax}
 	}
 
-	c1, err := strconv.Atoi(str[0:2])
+	c1, err := strconv.ParseInt(str[0:2], 16, 8)
+	//c1, err := strconv.Atoi(str[0:2])
 	if err != nil {
 		return err
 	}
 
-	c2, err := strconv.Atoi(str[2:])
+	c2, err := strconv.ParseInt(str[2:], 16, 8)
+	//c2, err := strconv.Atoi(str[2:])
 	if err != nil {
 		return err
 	}

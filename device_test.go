@@ -31,6 +31,10 @@ type testDevice struct {
 	sendErr     error
 }
 
+func (td *testDevice) ExtendedGet([]byte) ([]byte, error) {
+	return nil, nil
+}
+
 func (td *testDevice) SendCommand(cmd Command, payload []byte) (err error) {
 	_, err = td.Send(cmd, payload)
 	return err

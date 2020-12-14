@@ -341,7 +341,7 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 			}
 			index := make(map[LinkID]int)
 			for i, link := range test.existingLinks {
-				index[link.id()] = i
+				index[link.ID()] = i
 			}
 			MaxLinkDbAge = time.Second
 			ldb := &linkdb{age: time.Now().Add(time.Hour), links: test.existingLinks, index: index, device: tps}

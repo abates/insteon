@@ -144,10 +144,10 @@ func (g Group) String() string { return sprintf("%d", byte(g)) }
 func (g *Group) UnmarshalText(text []byte) error {
 	value, err := strconv.Atoi(string(text))
 	if err == nil {
-		if 0 < value && value < 256 {
+		if 0 <= value && value <= 255 {
 			*g = Group(byte(value))
 		} else {
-			err = errors.New("valid groups are between 1 and 255 (inclusive)")
+			err = errors.New("valid groups are between 0 and 255 (inclusive)")
 		}
 	} else {
 		err = errors.New("invalid number format")
@@ -185,14 +185,14 @@ func (l *LinkRecord) String() string {
 // equivalent if they both have the same availability, type (controller/responder)
 // and address
 func (l *LinkRecord) Equal(other *LinkRecord) bool {
-	return l.id() == other.id()
+	return l.ID() == other.ID()
 }
 
 // LinkID is the combination of bit 6 of the record control flags (controller/responder), the
 // group ID and the 3 byte address
 type LinkID [5]byte
 
-func (l *LinkRecord) id() LinkID {
+func (l *LinkRecord) ID() LinkID {
 	if l == nil {
 		return LinkID{}
 	}
