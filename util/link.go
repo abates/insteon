@@ -37,6 +37,52 @@ type Linkable interface {
 	LinkDatabase() (insteon.Linkable, error)
 }
 
+var linkTextHeader = `#
+# Lines beginning with a # are ignored
+# DO NOT delete lines, this will cause the entries to
+# shift up and then the last entry will be in the database twice
+# To delete a record simply mark it 'Available' by changing the
+# first letter of the Flags to 'A'
+#
+# Flags Group Address    Data
+`
+
+// LinksToText will take a list of links and marshal them
+// to text for editing
+func LinksToText(links []*insteon.LinkRecord) string {
+	builder := &strings.Builder{}
+	builder.WriteString(linkTextHeader)
+	for _, link := range links {
+		output, _ := link.MarshalText()
+		builder.Write(output)
+		builder.WriteString("\n")
+	}
+	return builder.String()
+}
+
+// TextToLinks will take an input string and parse it into a list
+// of link records.  This is useful for manually editing link databases
+func TextToLinks(input string) (links []*insteon.LinkRecord, err error) {
+	lines := strings.Split(input, "\n")
+	for i := 0; i < len(lines) && err == nil; i++ {
+		line := lines[i]
+		line = strings.TrimSpace(line)
+		if len(line) == 0 || strings.Index(line, "#") == 0 {
+			continue
+		}
+		link := &insteon.LinkRecord{}
+		err = link.UnmarshalText([]byte(line))
+		if err == nil {
+			links = append(links, link)
+		}
+	}
+	return
+}
+
+// IfLinkable will execute the callback function if the given device returns
+// a link database without error.  If the device returns an error (such as
+// insteon.ErrNotSupported from an I1 device) then IfLinkable returns
+// insteon.ErrNotLinkable
 func IfLinkable(thing Linkable, cb func(linkable insteon.Linkable) error) error {
 	linkdb, err := thing.LinkDatabase()
 	if err == nil {
@@ -271,17 +317,19 @@ func PrintLinks(out io.Writer, linkable Linkable) error {
 			sort.Strings(linkAddresses)
 
 			for _, linkAddress := range linkAddresses {
-				groups := make(map[int]*insteon.LinkRecord)
+				groups := make(map[int][]*insteon.LinkRecord)
 				groupIds := []int{}
 
 				for _, link := range links[linkAddress] {
-					groups[int(link.Group)] = link
+					groups[int(link.Group)] = append(groups[int(link.Group)], link)
 					groupIds = append(groupIds, int(link.Group))
 				}
 				sort.Ints(groupIds)
 				for _, id := range groupIds {
-					link := groups[id]
-					fmt.Fprintf(out, "    %-5s %5s %8s   %02x %02x %02x\n", link.Flags, link.Group, link.Address, link.Data[0], link.Data[1], link.Data[2])
+					for _, link := range groups[id] {
+						fmt.Fprintf(out, "    %-5s %5s %8s   %02x %02x %02x\n", link.Flags, link.Group, link.Address, link.Data[0], link.Data[1], link.Data[2])
+					}
+					delete(groups, id)
 				}
 			}
 		} else {
