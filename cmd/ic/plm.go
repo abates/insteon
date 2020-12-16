@@ -68,6 +68,7 @@ func init() {
 	p := &plmCmd{PLM: modem}
 
 	pc := app.SubCommand("plm", cli.DescOption("Interact with the PLM"))
+	pc.SubCommand("edit", cli.DescOption("edit the PLM all-link database"), cli.CallbackOption(p.editCmd))
 	pc.SubCommand("info", cli.DescOption("display information (device id, link database, etc)"), cli.CallbackOption(p.infoCmd))
 	pc.SubCommand("reset", cli.DescOption("Factory reset the IM"), cli.CallbackOption(p.resetCmd))
 
@@ -91,6 +92,10 @@ func init() {
 	cmd = pc.SubCommand("alllink", cli.UsageOption("<group> <device id>,..."), cli.DescOption("Put the PLM into linking mode for manual linking. Device IDs must be comma separated"), cli.CallbackOption(p.allLinkCmd))
 	cmd.Arguments.Int(&p.group, "<group id>")
 	cmd.Arguments.VarSlice((*addrList)(&p.addresses), "<device id>,...")
+}
+
+func (p *plmCmd) editCmd(string) error {
+	return editLinks(modem)
 }
 
 func (p *plmCmd) resetCmd(string) (err error) {
