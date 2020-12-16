@@ -33,10 +33,8 @@ const (
 )
 
 type manageRecordRequest struct {
-	cmd        recordRequestCommand
-	matchGroup insteon.Group
-	matchAddr  insteon.Address
-	link       *insteon.LinkRecord
+	cmd  recordRequestCommand
+	link *insteon.LinkRecord
 }
 
 func (mrr *manageRecordRequest) String() string {
@@ -132,31 +130,35 @@ func (ldb *linkdb) Links() ([]*insteon.LinkRecord, error) {
 	return ldb.links, err
 }
 
-func (ldb *linkdb) WriteLinks(newLinks ...*insteon.LinkRecord) error {
-	err := ldb.refresh()
+func (ldb *linkdb) WriteLinks(newLinks ...*insteon.LinkRecord) (err error) {
+	//err = ldb.refresh()
 	if err == nil {
 		// blow away the database and pray something doesn't go wrong, it's really
 		// too bad that the PLM doesn't support some form of transactions
-		link := ldb.links[0]
-		link.Flags = 0x00
-		mrr := &manageRecordRequest{
-			cmd:        LinkCmdModFirst,
-			matchGroup: link.Group,
-			matchAddr:  link.Address,
-			link:       link,
+		mrr := &manageRecordRequest{}
+		for _, link := range ldb.links {
+			mrr.cmd = LinkCmdDeleteFirst
+			mrr.link = link
+			payload, _ := mrr.MarshalBinary()
+			_, err = ldb.plm.WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
 		}
 
-		payload, _ := mrr.MarshalBinary()
-		_, err = ldb.plm.WritePacket(&Packet{Command: CmdStartAllLink, Payload: payload})
+		if err == nil {
+			ldb.links = nil
+		}
 
 		for i := 0; i < len(newLinks) && err == nil; i++ {
-			newLink := newLinks[i]
-			mrr.matchGroup = newLink.Group
-			mrr.matchAddr = newLink.Address
-			mrr.link = newLink
-
+			mrr.link = newLinks[i]
+			mrr.cmd = LinkCmdModFirstResp
+			if mrr.link.Flags.Controller() {
+				mrr.cmd = LinkCmdModFirstCtrl
+			}
 			payload, _ := mrr.MarshalBinary()
-			_, err = ldb.plm.WritePacket(&Packet{Command: CmdStartAllLink, Payload: payload})
+			//_, err = RetryWriter(ldb.plm, 3, true).WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
+			_, err = ldb.plm.WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
+			if err == nil {
+				ldb.links = append(ldb.links, mrr.link)
+			}
 		}
 	}
 	return err

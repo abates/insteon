@@ -1,6 +1,7 @@
 package plm
 
 import (
+	"bytes"
 	"encoding"
 	"errors"
 	"reflect"
@@ -15,7 +16,7 @@ type marshalUnmarshal interface {
 	UnmarshalBinary(data []byte) error
 }
 
-/*func TestMarshalUnmarshalBinary(t *testing.T) {
+func TestMarshalUnmarshalBinary(t *testing.T) {
 	tests := []struct {
 		desc    string
 		input   []byte
@@ -45,7 +46,7 @@ type marshalUnmarshal interface {
 			}
 		})
 	}
-}*/
+}
 
 func TestLinkDBOld(t *testing.T) {
 	ldb := linkdb{

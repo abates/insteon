@@ -178,6 +178,9 @@ func (plm *PLM) WritePacket(txPacket *Packet) (ack *Packet, err error) {
 		time.Sleep(writeDelay(txPacket, plm.lastRead, plm.writeDelay))
 
 		insteon.Log.Tracef("Sending packet %v (write delay %v)", txPacket, writeDelay)
+		if txPacket.Command != CmdSendInsteonMsg {
+			insteon.Log.Debugf("PLM CMD TX %v", txPacket)
+		}
 		_, err = plm.writer.Write(buf)
 		plm.lastWrite = time.Now()
 
