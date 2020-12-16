@@ -22,6 +22,30 @@ import (
 	"strings"
 )
 
+type LinkError struct {
+	Link  *LinkRecord
+	Cause error
+}
+
+func (le *LinkError) Error() string {
+	return fmt.Sprintf("Modification of %v failed: %v", le.Link, le.Cause)
+}
+
+func (le *LinkError) Unwrap() error {
+	return le.Cause
+}
+
+type LinkTransactionError struct {
+	Errors []*LinkError
+}
+
+func (lte *LinkTransactionError) Error() string {
+	if len(lte.Errors) > 1 {
+		return fmt.Sprintf("%d errors occurred while processing the links", len(lte.Errors))
+	}
+	return "An error occurred while processing the links"
+}
+
 // RecordControlFlags indicate whether a link record is a
 // controller or responder and whether it is available or in
 // use

@@ -15,6 +15,7 @@
 package plm
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +32,9 @@ var (
 	ErrNotImplemented     = errors.New("IM command not implemented")
 	ErrAckTimeout         = errors.New("Timeout waiting for Ack from the PLM")
 	ErrRetryCountExceeded = errors.New("Retry count exceeded sending command")
+	ErrNoAck              = errors.New("Received non-ack packet after transmit")
+	ErrWrongAck           = errors.New("Command in ACK does not match TX packet")
+	ErrWrongPayload       = errors.New("Payload in ACK does not match TX packet")
 	ErrNak                = errors.New("PLM responded with a NAK.  Resend command")
 )
 
@@ -187,6 +191,18 @@ func (plm *PLM) WritePacket(txPacket *Packet) (ack *Packet, err error) {
 		if err == nil {
 			insteon.Log.Tracef("PLM TX %v", txPacket)
 			ack, err = plm.ReadPacket()
+
+			if err == nil {
+				// these things happen rarely, but we can (a least in the
+				// case of ErrWrongAck) usually do something about it
+				if !ack.ACK() {
+					err = ErrNoAck
+				} else if ack.Command != txPacket.Command {
+					err = ErrWrongAck
+				} else if ack.Command != CmdGetInfo && ack.Command != CmdGetConfig && !bytes.Equal(ack.Payload, txPacket.Payload) {
+					err = ErrWrongPayload
+				}
+			}
 		}
 	}
 	return

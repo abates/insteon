@@ -130,37 +130,76 @@ func (ldb *linkdb) Links() ([]*insteon.LinkRecord, error) {
 	return ldb.links, err
 }
 
+func (ldb *linkdb) deleteLink(link *insteon.LinkRecord) (*Packet, error) {
+	mrr := &manageRecordRequest{
+		cmd:  LinkCmdDeleteFirst,
+		link: link,
+	}
+	payload, _ := mrr.MarshalBinary()
+	return RetryWriter(ldb.plm, 3, true).WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
+}
+
+func (ldb *linkdb) writeLink(link *insteon.LinkRecord) (*Packet, error) {
+	mrr := &manageRecordRequest{
+		cmd:  LinkCmdModFirstResp,
+		link: link,
+	}
+	if link.Flags.Controller() {
+		mrr.cmd = LinkCmdModFirstCtrl
+	}
+	payload, _ := mrr.MarshalBinary()
+	return RetryWriter(ldb.plm, 3, true).WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
+}
+
 func (ldb *linkdb) WriteLinks(newLinks ...*insteon.LinkRecord) (err error) {
 	//err = ldb.refresh()
+	lte := &insteon.LinkTransactionError{}
 	if err == nil {
 		// blow away the database and pray something doesn't go wrong, it's really
-		// too bad that the PLM doesn't support some form of transactions
-		mrr := &manageRecordRequest{}
-		for _, link := range ldb.links {
-			mrr.cmd = LinkCmdDeleteFirst
-			mrr.link = link
-			payload, _ := mrr.MarshalBinary()
-			_, err = ldb.plm.WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
+		// too bad that the PLM doesn't support some form of transactions or modifying
+		// ALDB records by address
+		for i := 0; i < len(ldb.links) && err == nil; i++ {
+			_, err = ldb.deleteLink(ldb.links[i])
 		}
+	}
 
-		if err == nil {
-			ldb.links = nil
-		}
+	if err == nil {
+		ldb.links = nil
 
-		for i := 0; i < len(newLinks) && err == nil; i++ {
-			mrr.link = newLinks[i]
-			mrr.cmd = LinkCmdModFirstResp
-			if mrr.link.Flags.Controller() {
-				mrr.cmd = LinkCmdModFirstCtrl
-			}
-			payload, _ := mrr.MarshalBinary()
-			//_, err = RetryWriter(ldb.plm, 3, true).WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
-			_, err = ldb.plm.WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
+		for _, link := range newLinks {
+			var ack *Packet
+			ack, err = ldb.writeLink(link)
+			//_, err = ldb.plm.WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
 			if err == nil {
-				ldb.links = append(ldb.links, mrr.link)
+				ldb.links = append(ldb.links, link)
+			} else if err == ErrWrongPayload {
+				// For some reason (at least with my PLM) it is common for
+				// a link record to be shifted over a few bytes after sending
+				// it to the PLM.  This can be detected because the ACK payload
+				// won't match the transmitted packet.  We try to fix this by
+				// deleting the corrupted record and re-adding it
+				delLink := &insteon.LinkRecord{}
+				delLink.UnmarshalBinary(ack.Payload)
+				_, err = ldb.deleteLink(delLink)
+				if err == nil {
+					// try again
+					_, err = ldb.writeLink(link)
+					if err == nil {
+						ldb.links = append(ldb.links, link)
+					}
+				}
+			}
+
+			if err != nil {
+				lte.Errors = append(lte.Errors, &insteon.LinkError{Link: link, Cause: err})
 			}
 		}
 	}
+
+	if len(lte.Errors) > 0 {
+		err = lte
+	}
+
 	return err
 }
 

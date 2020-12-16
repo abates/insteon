@@ -110,10 +110,15 @@ func (p *plmCmd) infoCmd(string) (err error) {
 	fmt.Printf("PLM Info\n")
 	info, err := modem.Info()
 	if err == nil {
-		fmt.Printf("   Address: %s\n", info.Address)
-		fmt.Printf("  Category: %02x Sub-Category: %02x\n", info.DevCat.Domain(), info.DevCat.Category())
-		fmt.Printf("  Firmware: %d\n", info.Firmware)
-		err = util.PrintLinks(os.Stdout, modem)
+		fmt.Printf("      Address: %s\n", info.Address)
+		fmt.Printf("     Category: %02x Sub-Category: %02x\n", info.DevCat.Domain(), info.DevCat.Category())
+		fmt.Printf("     Firmware: %d\n", info.Firmware)
+		var config plm.Config
+		config, err = modem.Config()
+		if err == nil {
+			fmt.Printf("       Config: %v\n", config)
+			err = util.PrintLinks(os.Stdout, modem)
+		}
 	}
 	return err
 }
