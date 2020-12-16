@@ -1,6 +1,7 @@
 package util
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -51,6 +52,42 @@ func TestFindDuplicateLinks(t *testing.T) {
 
 	if !reflect.DeepEqual(want, got) {
 		t.Errorf("want duplicate links %v got %v", want, got)
+	}
+}
+
+func TestLinksToText(t *testing.T) {
+	links := []*insteon.LinkRecord{
+		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address{1, 2, 3}},
+		{Flags: insteon.UnavailableResponder, Group: 1, Address: insteon.Address{1, 2, 3}},
+		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address{4, 5, 6}},
+		{Flags: insteon.UnavailableResponder, Group: 1, Address: insteon.Address{4, 5, 6}},
+	}
+
+	want := `UC        1 01.02.03   00 00 00
+UR        1 01.02.03   00 00 00
+UC        1 04.05.06   00 00 00
+UR        1 04.05.06   00 00 00
+`
+
+	want = fmt.Sprintf("%s%s", linkTextHeader, want)
+	got := LinksToText(links)
+	if want != got {
+		t.Errorf("Wanted %q got %q", want, got)
+	}
+
+	gotLinks, err := TextToLinks(got)
+	if err == nil {
+		if len(gotLinks) == len(links) {
+			for i, wantLink := range links {
+				if !wantLink.Equal(gotLinks[i]) {
+					t.Errorf("Wanted link: %v got %v", wantLink, gotLinks[i])
+				}
+			}
+		} else {
+			t.Errorf("Expected %d links got %d", len(links), len(gotLinks))
+		}
+	} else {
+		t.Errorf("Unexpected error: %v", err)
 	}
 }
 
