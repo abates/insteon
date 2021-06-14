@@ -199,8 +199,14 @@ func (plm *PLM) WritePacket(txPacket *Packet) (ack *Packet, err error) {
 					err = ErrNoAck
 				} else if ack.Command != txPacket.Command {
 					err = ErrWrongAck
-				} else if ack.Command != CmdGetInfo && ack.Command != CmdGetConfig && !bytes.Equal(ack.Payload, txPacket.Payload) {
-					err = ErrWrongPayload
+				} else if ack.Command != CmdGetInfo && ack.Command != CmdGetConfig {
+					payload := ack.Payload
+					if ack.Command == CmdSendInsteonMsg {
+						payload = payload[3:]
+					}
+					if !bytes.Equal(payload, txPacket.Payload) {
+						err = ErrWrongPayload
+					}
 				}
 			}
 		}
