@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/abates/insteon"
@@ -48,15 +49,15 @@ func hexDump(format string, buf []byte, sep string) string {
 
 type PLM struct {
 	insteon.Bus
-	address insteon.Address
-	reader  PacketReader
-	writer  io.Writer
+	address   insteon.Address
+	reader    PacketReader
+	writer    io.Writer
+	writeLock sync.Mutex
 
 	linkdb
 	timeout          time.Duration
 	retries          int
 	writeDelay       time.Duration
-	lastWrite        time.Time
 	lastRead         time.Time
 	lastInsteonRead  time.Time
 	lastInsteonFlags insteon.Flags
@@ -76,8 +77,6 @@ func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...O
 		retries:         3,
 		lastRead:        time.Now(),
 		lastInsteonRead: time.Now(),
-		lastWrite:       time.Now(),
-		writeDelay:      0,
 
 		plmCh:    make(chan *Packet, 1),
 		messages: make(chan *insteon.Message, 10),
@@ -103,14 +102,18 @@ func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...O
 		}
 	}
 
-	insteon.Log.Debugf("Staring PLM with config:")
-	insteon.Log.Debugf("                Timeout: %s", plm.timeout)
-	insteon.Log.Debugf("                Retries: %d", plm.writeDelay)
-	insteon.Log.Debugf("             WriteDelay: %s", plm.writeDelay)
+	if insteon.Log.Level >= insteon.LevelDebug {
+		insteon.Log.Debugf("Staring PLM with config:")
+		insteon.Log.Debugf("                Timeout: %s", plm.timeout)
+		insteon.Log.Debugf("                Retries: %d", plm.retries)
+		insteon.Log.Debugf("             WriteDelay: %s", plm.writeDelay)
+	}
 	go plm.readLoop()
 
-	address := plm.Address()
-	insteon.Log.Debugf("         PLM Address is: %v", address)
+	if insteon.Log.Level >= insteon.LevelDebug {
+		address := plm.Address()
+		insteon.Log.Debugf("         PLM Address is: %v", address)
+	}
 
 	return plm, nil
 }
@@ -125,8 +128,10 @@ func (plm *PLM) readLoop() {
 				msg := &insteon.Message{}
 				err = msg.UnmarshalBinary(packet.Payload)
 				if err == nil {
+					plm.writeLock.Lock()
 					plm.lastInsteonRead = time.Now()
 					plm.lastInsteonFlags = msg.Flags
+					plm.writeLock.Unlock()
 					insteon.Log.Debugf("PLM Insteon RX %v", msg)
 					plm.messages <- msg
 				}
@@ -164,11 +169,14 @@ func (plm *PLM) WriteMessage(msg *insteon.Message) error {
 }
 
 //func writeDelay(pkt *Packet, last time.Time, maxDelay time.Duration) (delay time.Duration) {
-func writeDelay(pkt *Packet, lastFlags insteon.Flags, lastRead time.Time) (delay time.Duration) {
+func writeDelay(pkt *Packet, lastFlags insteon.Flags, minDelay time.Duration, lastRead time.Time) (delay time.Duration) {
 	if pkt.Command == CmdSendInsteonMsg {
 		delay = insteon.PropagationDelay(lastFlags.TTL(), lastFlags.Extended())
 		delay = time.Now().Sub(lastRead.Add(delay))
 		delay = time.Now().Sub(lastRead.Add(delay))
+	}
+	if delay < minDelay {
+		delay = minDelay
 	}
 	return delay
 }
@@ -179,14 +187,15 @@ func writeDelay(pkt *Packet, lastFlags insteon.Flags, lastRead time.Time) (delay
 func (plm *PLM) WritePacket(txPacket *Packet) (ack *Packet, err error) {
 	buf, err := txPacket.MarshalBinary()
 	if err == nil {
-		time.Sleep(writeDelay(txPacket, plm.lastInsteonFlags, plm.lastInsteonRead))
+		plm.writeLock.Lock()
+		time.Sleep(writeDelay(txPacket, plm.lastInsteonFlags, plm.writeDelay, plm.lastInsteonRead))
 
 		insteon.Log.Tracef("Sending packet %v (write delay %v)", txPacket, writeDelay)
 		if txPacket.Command != CmdSendInsteonMsg {
 			insteon.Log.Debugf("PLM CMD TX %v", txPacket)
 		}
 		_, err = plm.writer.Write(buf)
-		plm.lastWrite = time.Now()
+		plm.writeLock.Unlock()
 
 		if err == nil {
 			insteon.Log.Tracef("PLM TX %v", txPacket)
