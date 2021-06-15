@@ -1,7 +1,6 @@
 package plm
 
 import (
-	"bufio"
 	"bytes"
 	"testing"
 	"time"
@@ -9,17 +8,19 @@ import (
 
 func TestOptions(t *testing.T) {
 	want := 1234 * time.Millisecond
-	buf := bytes.NewBuffer(nil)
+	reader := bytes.NewReader(nil)
+	writer := bytes.NewBuffer(nil)
 
-	without, err := New(bufio.NewReader(buf), buf, 5*time.Second)
+	without, err := New(reader, writer, 5*time.Second)
 	if err != nil {
 		t.Errorf("unexpected error from plm.New(): %v", err)
 	}
+
 	if without.writeDelay == want {
 		t.Errorf("writeDelay is %v, expected anything else", without.writeDelay)
 	}
 
-	with, err := New(bufio.NewReader(buf), buf, 5*time.Second, WriteDelay(want))
+	with, err := New(reader, writer, 5*time.Second, WriteDelay(want))
 	if err != nil {
 		t.Errorf("unexpected error from plm.New(): %v", err)
 	}
