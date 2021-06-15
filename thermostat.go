@@ -311,7 +311,6 @@ func (therm *Thermostat) GetInfo() (ti ThermostatInfo, err error) {
 
 func (therm *Thermostat) GetTempUnit() (Unit, error) {
 	ti, err := therm.GetInfo()
-	println(ti.String())
 	return ti.Flags.TempFormat(), err
 }
 

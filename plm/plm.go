@@ -53,11 +53,13 @@ type PLM struct {
 	writer  io.Writer
 
 	linkdb
-	timeout    time.Duration
-	retries    int
-	writeDelay time.Duration
-	lastWrite  time.Time
-	lastRead   time.Time
+	timeout          time.Duration
+	retries          int
+	writeDelay       time.Duration
+	lastWrite        time.Time
+	lastRead         time.Time
+	lastInsteonRead  time.Time
+	lastInsteonFlags insteon.Flags
 
 	connOptions []insteon.ConnectionOption
 	plmCh       chan *Packet
@@ -68,13 +70,14 @@ type PLM struct {
 // New creates a new PLM instance.
 func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...Option) (plm *PLM, err error) {
 	plm = &PLM{
-		reader:     NewPacketReader(reader),
-		writer:     LogWriter{writer, insteon.Log},
-		timeout:    timeout,
-		retries:    3,
-		lastRead:   time.Now(),
-		lastWrite:  time.Now(),
-		writeDelay: 0,
+		reader:          NewPacketReader(reader),
+		writer:          LogWriter{writer, insteon.Log},
+		timeout:         timeout,
+		retries:         3,
+		lastRead:        time.Now(),
+		lastInsteonRead: time.Now(),
+		lastWrite:       time.Now(),
+		writeDelay:      0,
 
 		plmCh:    make(chan *Packet, 1),
 		messages: make(chan *insteon.Message, 10),
@@ -122,6 +125,8 @@ func (plm *PLM) readLoop() {
 				msg := &insteon.Message{}
 				err = msg.UnmarshalBinary(packet.Payload)
 				if err == nil {
+					plm.lastInsteonRead = time.Now()
+					plm.lastInsteonFlags = msg.Flags
 					insteon.Log.Debugf("PLM Insteon RX %v", msg)
 					plm.messages <- msg
 				}
@@ -158,17 +163,12 @@ func (plm *PLM) WriteMessage(msg *insteon.Message) error {
 	return err
 }
 
-func writeDelay(pkt *Packet, last time.Time, maxDelay time.Duration) (delay time.Duration) {
+//func writeDelay(pkt *Packet, last time.Time, maxDelay time.Duration) (delay time.Duration) {
+func writeDelay(pkt *Packet, lastFlags insteon.Flags, lastRead time.Time) (delay time.Duration) {
 	if pkt.Command == CmdSendInsteonMsg {
-		if maxDelay > 0 {
-			// flags is the 4th byte in an insteon message and max ttl/hops is the
-			// least significant 2 bits
-			//flags := insteon.Flags(pkt.Payload[3])
-			//delay = insteon.PropagationDelay(flags.TTL(), flags.Extended())
-			//} else {
-			delay = maxDelay
-		}
-		delay = time.Now().Sub(last.Add(delay))
+		delay = insteon.PropagationDelay(lastFlags.TTL(), lastFlags.Extended())
+		delay = time.Now().Sub(lastRead.Add(delay))
+		delay = time.Now().Sub(lastRead.Add(delay))
 	}
 	return delay
 }
@@ -179,7 +179,7 @@ func writeDelay(pkt *Packet, last time.Time, maxDelay time.Duration) (delay time
 func (plm *PLM) WritePacket(txPacket *Packet) (ack *Packet, err error) {
 	buf, err := txPacket.MarshalBinary()
 	if err == nil {
-		time.Sleep(writeDelay(txPacket, plm.lastRead, plm.writeDelay))
+		time.Sleep(writeDelay(txPacket, plm.lastInsteonFlags, plm.lastInsteonRead))
 
 		insteon.Log.Tracef("Sending packet %v (write delay %v)", txPacket, writeDelay)
 		if txPacket.Command != CmdSendInsteonMsg {
