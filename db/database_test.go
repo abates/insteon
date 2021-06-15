@@ -9,7 +9,7 @@ import (
 )
 
 func TestMemDB(t *testing.T) {
-	db := NewMemDB()
+	db := NewMemDB().(*memDB)
 
 	addr := insteon.Address{5, 6, 7}
 	want := insteon.DeviceInfo{}
@@ -46,7 +46,7 @@ func TestMemDB(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	db1 := NewMemDB()
+	db1 := NewMemDB().(*memDB)
 	err = db1.Load(buf)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)

@@ -35,46 +35,75 @@ func open(db Database, bus insteon.Bus, dst insteon.Address) (device insteon.Dev
 	return device, err
 }
 
+// Database is the interface representing a collection of
+// Insteon devices.  This provides a way to collect and store
+// data about linked devices thus reducing the need to perform
+// common first time queries (namely EngineVersion request and
+// ID Request) every time you want to interact with an Insteon
+// network.  EngineVersion requests and ID Requests can actually
+// take longer than the intended direct message (such as turning
+// on a light) therefore using a database for a long running
+// process that interacts with many devices can significantly
+// reduce Insteon network load
 type Database interface {
-	Get(addr insteon.Address) (insteon.DeviceInfo, bool)
+	// Get will look up the Address in the database and return the
+	// matching DeviceInfo object.  If no entry is found, then
+	// found returns false
+	Get(addr insteon.Address) (info insteon.DeviceInfo, found bool)
+
+	// Put will store the DeviceInfo object in the Database overwriting
+	// any existing object
 	Put(info insteon.DeviceInfo)
+
+	// Open will return an initialized Insteon device object.  If the
+	// DeviceInfo object does not exist in the database, then the database
+	// will query the device for its engine version and device category
+	// and store the responses.  Once the information has been gathered (either
+	// from an existing entry in the database, or by querying the device)
+	// Open will open a connection to the device and return the
+	// correct device type (Light, Thermostat, etc).  See insteon.New and
+	// insteon.Create for additional details
 	Open(bus insteon.Bus, dst insteon.Address) (device insteon.Device, err error)
 }
 
-type DummyDB struct{}
+// Saveable is any database that can be written to an io.Writer
+type Saveable interface {
+	// Save will write the current database state to the given writer
+	Save(io.Writer) error
 
-func (DummyDB) Get(addr insteon.Address) (insteon.DeviceInfo, bool) {
-	return insteon.DeviceInfo{}, false
+	// NeedsSaving indicates whether the database has changed since the
+	// last save
+	NeedsSaving() bool
 }
 
-func (DummyDB) Put(info insteon.DeviceInfo) {
-	return
+// Loadable is any database that can be loaded from an io.Reader
+type Loadable interface {
+	// Load will replace the current database content with that
+	// provided from the io.Reader
+	Load(io.Reader) error
 }
 
-func (db DummyDB) Open(bus insteon.Bus, dst insteon.Address) (device insteon.Device, err error) {
-	return open(db, bus, dst)
-}
-
-func NewMemDB() *MemDB {
-	return &MemDB{
+// NewMemDB returns a memory-backed database
+func NewMemDB() Database {
+	return &memDB{
 		values: make(map[insteon.Address]insteon.DeviceInfo),
 	}
 }
 
-type MemDB struct {
+type memDB struct {
 	lock   sync.Mutex
 	values map[insteon.Address]insteon.DeviceInfo
 	dirty  bool
 }
 
-func (db *MemDB) Get(addr insteon.Address) (insteon.DeviceInfo, bool) {
+func (db *memDB) Get(addr insteon.Address) (insteon.DeviceInfo, bool) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 	info, found := db.values[addr]
 	return info, found
 }
 
-func (db *MemDB) Put(info insteon.DeviceInfo) {
+func (db *memDB) Put(info insteon.DeviceInfo) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 	if old := db.values[info.Address]; old != info {
@@ -83,11 +112,11 @@ func (db *MemDB) Put(info insteon.DeviceInfo) {
 	}
 }
 
-func (db *MemDB) Open(bus insteon.Bus, dst insteon.Address) (device insteon.Device, err error) {
+func (db *memDB) Open(bus insteon.Bus, dst insteon.Address) (device insteon.Device, err error) {
 	return open(db, bus, dst)
 }
 
-func (db *MemDB) Load(reader io.Reader) error {
+func (db *memDB) Load(reader io.Reader) error {
 	buf, err := ioutil.ReadAll(reader)
 	if err == nil {
 		err = db.UnmarshalJSON(buf)
@@ -95,14 +124,13 @@ func (db *MemDB) Load(reader io.Reader) error {
 	return err
 }
 
-func (db *MemDB) Save(writer io.Writer) error {
+func (db *memDB) NeedsSaving() bool {
 	db.lock.Lock()
-	dirty := db.dirty
-	db.lock.Unlock()
-	if !dirty {
-		return nil
-	}
+	defer db.lock.Unlock()
+	return db.dirty
+}
 
+func (db *memDB) Save(writer io.Writer) error {
 	buf, err := db.MarshalJSON()
 	if err == nil {
 		_, err = writer.Write(buf)
@@ -115,13 +143,13 @@ func (db *MemDB) Save(writer io.Writer) error {
 	return err
 }
 
-func (db *MemDB) MarshalJSON() ([]byte, error) {
+func (db *memDB) MarshalJSON() ([]byte, error) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 	return json.Marshal(db.values)
 }
 
-func (db *MemDB) UnmarshalJSON(data []byte) error {
+func (db *memDB) UnmarshalJSON(data []byte) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 	db.values = make(map[insteon.Address]insteon.DeviceInfo)
