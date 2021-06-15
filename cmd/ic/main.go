@@ -18,12 +18,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/db"
 	"github.com/abates/insteon/plm"
+	"github.com/kirsle/configdir"
 	"github.com/tarm/serial"
 )
 
@@ -51,6 +53,13 @@ func run(string) error {
 		insteon.Log.Level = logLevelFlag
 	}
 
+	dir := configdir.LocalConfig("go-insteon")
+	dbfile := filepath.Join(dir, "db.json")
+	err := configdir.MakePath(dir)
+	if err != nil {
+		return err
+	}
+
 	c := &serial.Config{
 		Name: serialPortFlag,
 		Baud: 19200,
@@ -62,7 +71,8 @@ func run(string) error {
 		return fmt.Errorf("error opening serial port: %v", err)
 	}
 
-	database, err := db.LoadMemDB("db.json")
+	database := db.NewMemDB()
+	err = db.Load(dbfile, database)
 	if err != nil {
 		log.Fatalf("Failed to load database: %v", err)
 	}
