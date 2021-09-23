@@ -39,6 +39,10 @@ func (tb *testBus) Publish(msg *Message) (*Message, error) {
 	return msg, tb.publishErr
 }
 
+func (tb *testBus) On(src Address, matcher Matcher, cb func(*Message)) func() {
+	return nil
+}
+
 func (tb *testBus) Subscribe(src Address, matcher Matcher) <-chan *Message {
 	tb.subscribeSrc = src
 	tb.subscribeMatcher = matcher

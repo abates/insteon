@@ -46,6 +46,8 @@ func (td *testDevice) Send(cmd Command, payload []byte) (ack Command, err error)
 	return td.sendAck, td.sendErr
 }
 
+func (td *testDevice) On(Matcher, func(*Message)) func() { return nil }
+
 func (td *testDevice) Publish(*Message) (*Message, error) {
 	return nil, ErrNotSupported
 }
@@ -81,6 +83,8 @@ func (tps *testPubSub) Publish(msg *Message) (*Message, error) {
 	tps.publishResp = tps.publishResp[1:]
 	return msg, tps.publishErr
 }
+
+func (tps *testPubSub) On(matcher Matcher, cb func(*Message)) func() { return nil }
 
 func (tps *testPubSub) Subscribe(matcher Matcher) <-chan *Message {
 	ch := make(chan *Message, cap(tps.rxCh))
