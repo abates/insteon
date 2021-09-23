@@ -61,6 +61,10 @@ func (i1 *i1Device) Subscribe(matcher Matcher) <-chan *Message {
 	return ch
 }
 
+func (i1 *i1Device) On(matcher Matcher, cb func(*Message)) func() {
+	return i1.bus.On(i1.info.Address, matcher, cb)
+}
+
 func (i1 *i1Device) Unsubscribe(ch <-chan *Message) {
 	i1.bus.Unsubscribe(i1.info.Address, ch)
 }
