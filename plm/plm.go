@@ -59,9 +59,13 @@ type PLM struct {
 	retries          int
 	writeDelay       time.Duration
 	lastRead         time.Time
-	lastInsteonRead  time.Time
-	lastInsteonFlags insteon.Flags
+	lastInsteonRead  time.Time     // lastInsteonRead is set for each Insteon packet that is received
+	                               // and it is used to determine if we should wait before transmitting
+				       // additional Insteon messages
 
+	lastInsteonFlags insteon.Flags // lastInsteonFlags is stored for each Insteon message received
+                                       // and it is used to calculate write delay based on standard or
+				       // extended messages
 	connOptions []insteon.ConnectionOption
 	plmCh       chan *Packet
 	messages    chan *insteon.Message
