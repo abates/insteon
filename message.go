@@ -72,6 +72,10 @@ func (m MessageType) Direct() bool {
 	return !m.Broadcast()
 }
 
+func (m MessageType) AllLink() bool {
+	return m&0x40 > 0
+}
+
 // Broadcast will indicate whether the MessageType represents a broadcast message
 func (m MessageType) Broadcast() bool {
 	return m&0x80 > 0 && m&0x20 == 0
