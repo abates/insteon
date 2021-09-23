@@ -56,6 +56,7 @@ func (cc ConnectionConfig) Timeout(extended bool) time.Duration {
 }
 
 type Bus interface {
+	On(Address, Matcher, func(*Message)) (unsubscribe func())
 	Publish(*Message) (*Message, error)
 	Subscribe(src Address, matcher Matcher) <-chan *Message
 	Unsubscribe(src Address, ch <-chan *Message)
@@ -75,6 +76,12 @@ func (m Matches) Matches(msg *Message) bool {
 func AckMatcher() Matcher {
 	return Matches(func(msg *Message) bool {
 		return msg.Ack() || msg.Nak()
+	})
+}
+
+func AllLinkMatcher() Matcher {
+	return Matches(func(msg *Message) bool {
+		return msg.Flags.Type().AllLink()
 	})
 }
 
@@ -116,6 +123,7 @@ type subscriber struct {
 	src     Address
 	matcher Matcher
 	ch      chan *Message
+	cb      func(*Message)
 	readCh  <-chan *Message
 }
 
@@ -127,10 +135,14 @@ func (s *subscriber) process(workers *sync.WaitGroup, msg *Message) {
 	// run this in a go routine so a wayward listener can't block up the works
 	workers.Add(1)
 	go func(s *subscriber, msg *Message) {
-		select {
-		case s.ch <- msg:
-		default:
-			Log.Infof("Receive buffer full for %v listener", msg.Src)
+		if s.cb != nil {
+			s.cb(msg)
+		} else {
+			select {
+			case s.ch <- msg:
+			default:
+				Log.Infof("Receive buffer full for %v listener", msg.Src)
+			}
 		}
 		workers.Done()
 	}(s, msg)
@@ -219,6 +231,14 @@ func (b *bus) run(messages <-chan *Message) {
 			closeCh <- nil
 			return
 		}
+	}
+}
+
+func (b *bus) On(src Address, matcher Matcher, cb func(*Message)) func() {
+	ch := make(chan *Message, 0)
+	b.subscribe <- &subscriber{src: src, matcher: matcher, ch: ch, cb: cb}
+	return func() {
+		b.unsubscribe <- &subscriber{src: src, readCh: ch}
 	}
 }
 
