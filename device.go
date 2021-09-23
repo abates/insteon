@@ -48,6 +48,8 @@ type PubSub interface {
 	Subscribe(matcher Matcher) <-chan *Message
 
 	Unsubscribe(ch <-chan *Message)
+
+	On(matcher Matcher, cb func(*Message)) (unsubscribe func())
 }
 
 // Device is the most basic capability that any device must implement. Devices
@@ -166,7 +168,11 @@ func New(bus Bus, info DeviceInfo) (Device, error) {
 		case DimmerDomain:
 			device = NewDimmer(device, bus, info)
 		case SwitchDomain:
-			device = NewSwitch(device, bus, info)
+			if info.DevCat.Category() == 0x08 {
+				device = NewOutlet(device, bus, info)
+			} else {
+				device = NewSwitch(device, bus, info)
+			}
 		case ThermostatDomain:
 			device = NewThermostat(device, bus, info)
 		}
