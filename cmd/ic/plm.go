@@ -62,22 +62,25 @@ type plmCmd struct {
 	*plm.PLM
 	group     int
 	addresses addresses
+	flag      string
 }
 
 func init() {
 	p := &plmCmd{PLM: modem}
 
 	pc := app.SubCommand("plm", cli.DescOption("Interact with the PLM"))
-	pc.SubCommand("setflag", cli.UsageOption("<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)"), cli.DescOption("set a config flag on the PLM"), cli.CallbackOption(p.flag(true)))
+	cmd := pc.SubCommand("setflag", cli.UsageOption("<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)"), cli.DescOption("set a config flag on the PLM"), cli.CallbackOption(p.flagCmd(true)))
+	cmd.Arguments.String(&p.flag, "[L|M|A|D]")
 
-	pc.SubCommand("clearflag", cli.UsageOption("<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)"), cli.DescOption("clear a config flag on the PLM"), cli.CallbackOption(p.flag(false)))
+	cmd = pc.SubCommand("clearflag", cli.UsageOption("<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)"), cli.DescOption("clear a config flag on the PLM"), cli.CallbackOption(p.flagCmd(false)))
+	cmd.Arguments.String(&p.flag, "[L|M|A|D]")
 
 	pc.SubCommand("edit", cli.DescOption("edit the PLM all-link database"), cli.CallbackOption(p.editCmd))
 	pc.SubCommand("info", cli.DescOption("display information (device id, link database, etc)"), cli.CallbackOption(p.infoCmd))
 	pc.SubCommand("reset", cli.DescOption("Factory reset the IM"), cli.CallbackOption(p.resetCmd))
 
 	linkCmd := pc.SubCommand("link", cli.DescOption("Link the PLM to a device"))
-	cmd := linkCmd.SubCommand("controller", cli.UsageOption("<group> <device id>,..."), cli.DescOption("Link (as a controller) the PLM to one or more devices. Device IDs must be comma separated"), cli.CallbackOption(p.controllerLinkCmd))
+	cmd = linkCmd.SubCommand("controller", cli.UsageOption("<group> <device id>,..."), cli.DescOption("Link (as a controller) the PLM to one or more devices. Device IDs must be comma separated"), cli.CallbackOption(p.controllerLinkCmd))
 	cmd.Arguments.Int(&p.group, "<group id>")
 	cmd.Arguments.VarSlice((*addrList)(&p.addresses), "<device id>,...")
 
@@ -207,14 +210,14 @@ func (p *plmCmd) unlinkCmd(string) (err error) {
 	})
 }
 
-func (p *plmCmd) flag(set bool) func(string) error {
-	return func(flag string) error {
+func (p *plmCmd) flagCmd(set bool) func(string) error {
+	return func(string) error {
 		config, err := modem.Config()
 		if err != nil {
 			return err
 		}
 
-		switch flag {
+		switch p.flag {
 		case "L":
 			if set {
 				config.SetAutomaticLinking()
@@ -240,7 +243,7 @@ func (p *plmCmd) flag(set bool) func(string) error {
 				config.ClearDeadmanMode()
 			}
 		default:
-			return fmt.Errorf("Unrecognized flag %q", flag)
+			return fmt.Errorf("Unrecognized flag %q", p.flag)
 		}
 
 		return p.SetConfig(config)
