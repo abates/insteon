@@ -68,6 +68,10 @@ func init() {
 	p := &plmCmd{PLM: modem}
 
 	pc := app.SubCommand("plm", cli.DescOption("Interact with the PLM"))
+	pc.SubCommand("setflag", cli.UsageOption("<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)"), cli.DescOption("set a config flag on the PLM"), cli.CallbackOption(p.flag(true)))
+
+	pc.SubCommand("clearflag", cli.UsageOption("<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)"), cli.DescOption("clear a config flag on the PLM"), cli.CallbackOption(p.flag(false)))
+
 	pc.SubCommand("edit", cli.DescOption("edit the PLM all-link database"), cli.CallbackOption(p.editCmd))
 	pc.SubCommand("info", cli.DescOption("display information (device id, link database, etc)"), cli.CallbackOption(p.infoCmd))
 	pc.SubCommand("reset", cli.DescOption("Factory reset the IM"), cli.CallbackOption(p.resetCmd))
@@ -201,4 +205,44 @@ func (p *plmCmd) unlinkCmd(string) (err error) {
 		}
 		return err
 	})
+}
+
+func (p *plmCmd) flag(set bool) func(string) error {
+	return func(flag string) error {
+		config, err := modem.Config()
+		if err != nil {
+			return err
+		}
+
+		switch flag {
+		case "L":
+			if set {
+				config.SetAutomaticLinking()
+			} else {
+				config.ClearAutomaticLinking()
+			}
+		case "M":
+			if set {
+				config.SetMonitorMode()
+			} else {
+				config.ClearMonitorMode()
+			}
+		case "A":
+			if set {
+				config.SetAutomaticLED()
+			} else {
+				config.ClearAutomaticLED()
+			}
+		case "D":
+			if set {
+				config.SetDeadmanMode()
+			} else {
+				config.ClearDeadmanMode()
+			}
+		default:
+			return fmt.Errorf("Unrecognized flag %q", flag)
+		}
+
+		return p.SetConfig(config)
+	}
 }
