@@ -1,0 +1,13 @@
+{{template "license.tmpl" .}}
+
+package {{ .Package }}
+
+const(
+  {{(index .Data 0).Var}} Domain = {{(index .Data 0).ID}}
+  {{range slice .Data 1}}{{.Var}} = {{.ID}}
+{{end}}
+)
+
+var devcatStrings = map[DevCat]string { {{range .Data}}{{range .Categories}}
+  {{.DevCat}}: "{{.Name}}",{{end}}{{end}}
+}

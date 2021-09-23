@@ -1,0 +1,15 @@
+{{template "license.tmpl" .}}
+
+package {{ .Package }}
+
+{{range .Data}}
+{{$byte0 := .Byte0}}// {{.Name}}
+const({{range .Commands}}
+// {{ .Name }} {{ .Comment }}
+{{.Name}} = Command(0x{{$byte0 | printf "%02x"}}{{.Byte1 | printf "%02x"}}{{.Byte2 | printf "%02x"}}) // {{.String}}
+{{end}})
+{{end}}
+
+var cmdStrings = map[Command]string { {{range .Data}}{{range .Commands}}
+  {{.Name}}: "{{.String}}",{{end}}{{end}}
+}
