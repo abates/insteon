@@ -1,4 +1,4 @@
-//go:generate go run internal/autogen_commands.go
+//go:generate go run ./internal/ commands
 // Copyright 2018 Andrew Bates
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

@@ -1,3 +1,4 @@
+//go:generate go run ./internal/ devcats
 // Copyright 2018 Andrew Bates
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -154,14 +155,18 @@ func (dc DevCat) String() string {
 	return sprintf("%02x.%02x", dc[0], dc[1])
 }
 
+// In determines if the DevCat domain is found in the list
+func (dc DevCat) In(domains ...Domain) bool {
+	for _, domain := range domains {
+		if Domain(dc[0]) == domain {
+			return true
+		}
+	}
+	return false
+}
+
 // Domain represents an entire domain of similar devices (dimmers, switches, thermostats, etc)
 type Domain byte
-
-const (
-	DimmerDomain     Domain = 0x01
-	SwitchDomain            = 0x02
-	ThermostatDomain        = 0x05
-)
 
 // Category indicates the specific kind of device within a domain.  For instance, a LampLing and
 // a SwitchLinc Dimmer are both within the Dimmable device domain
