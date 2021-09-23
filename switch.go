@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"fmt"
+	"sync"
 )
 
 // SwitchConfig contains the HouseCode and UnitCode for a switch's
@@ -85,17 +86,25 @@ func (lf LightFlags) ErrorBlink() bool { return lf[4]&0x02 == 0x02 }
 // TODO: Confirm this description is correct
 func (lf LightFlags) CleanupReport() bool { return lf[4]&0x04 == 0x04 }
 
-type Switch struct {
-	Device
-	bus  Bus
-	info DeviceInfo
+type LightState struct {
+	Level int
 }
 
-// NewSwitch is a factory function that will return the correctly
-// configured switch based on the underlying device
+type Switch struct {
+	Device
+	bus   Bus
+	info  DeviceInfo
+	state LightState
+	mu    sync.Mutex
+}
+
+// NewSwitch will return an initialize switch object that controls
+// a physical switch on the netork
 func NewSwitch(device Device, bus Bus, info DeviceInfo) *Switch {
 	sd := &Switch{Device: device, bus: bus, info: info}
 
+	sd.On(And(AllLinkMatcher(), CmdMatcher(CmdLightOn)), sd.onTurnOn)
+	sd.On(And(AllLinkMatcher(), CmdMatcher(CmdLightOff)), sd.onTurnOff)
 	return sd
 }
 
@@ -161,8 +170,22 @@ func (sd *Switch) SetBacklight(light bool) error {
 	return sd.SendCommand(CmdDisableLED, make([]byte, 14))
 }
 
+func (sd *Switch) onTurnOff(msg *Message) {
+	sd.mu.Lock()
+	defer sd.mu.Unlock()
+	Log.Debugf("%s turned off", sd.info.Address)
+	sd.state.Level = 0
+}
+
 func (sd *Switch) TurnOff() error {
 	return sd.SendCommand(CmdLightOff, nil)
+}
+
+func (sd *Switch) onTurnOn(msg *Message) {
+	sd.mu.Lock()
+	defer sd.mu.Unlock()
+	sd.state.Level = int(msg.Command.Command2())
+	Log.Debugf("%s turned on to level %d", sd.info.Address, sd.state.Level)
 }
 
 func (sd *Switch) TurnOn(level int) error {
