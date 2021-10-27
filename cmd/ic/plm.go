@@ -246,6 +246,6 @@ func (p *plmCmd) flagCmd(set bool) func(string) error {
 			return fmt.Errorf("Unrecognized flag %q", p.flag)
 		}
 
-		return p.SetConfig(config)
+		return modem.SetConfig(config)
 	}
 }
