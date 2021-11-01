@@ -209,14 +209,13 @@ func (ti *ThermostatInfo) String() string {
 }
 
 type Thermostat struct {
-	Device
-	bus  Bus
+	*device
 	info DeviceInfo
 }
 
 // NewThermostat will return a configured Thermostat object
-func NewThermostat(device Device, bus Bus, info DeviceInfo) *Thermostat {
-	therm := &Thermostat{Device: device, bus: bus, info: info}
+func NewThermostat(d *device, info DeviceInfo) *Thermostat {
+	therm := &Thermostat{device: d, info: info}
 
 	return therm
 }
@@ -241,7 +240,7 @@ func (therm *Thermostat) GetZoneInfo(zone int) (zi ZoneInfo, err error) {
 
 	var ack *Message
 	for i := 0; i < len(commands) && err == nil; i++ {
-		ack, err = therm.Publish(&Message{Command: commands[i]})
+		ack, err = therm.Write(&Message{Command: commands[i]})
 		if err == nil {
 			zi[i] = ack.Command.Command2()
 		}
@@ -298,6 +297,7 @@ func (therm *Thermostat) GetEquipmentState() (EquipmentState, error) {
 }
 
 func (therm *Thermostat) GetInfo() (ti ThermostatInfo, err error) {
+	//if therm, ok := therm.Device.(ExtendedGetSet); ok {
 	var buf []byte
 	for i := 0; i < 2 && err == nil; i++ {
 		buf, err = therm.ExtendedGet([]byte{0x00, 0x00, byte(i)})
@@ -305,6 +305,9 @@ func (therm *Thermostat) GetInfo() (ti ThermostatInfo, err error) {
 			err = ti.UnmarshalBinary(buf)
 		}
 	}
+	//} else {
+	//err = ErrNotSupported
+	//}
 
 	return ti, err
 }

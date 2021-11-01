@@ -17,12 +17,13 @@ package insteon
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"testing"
 )
 
 func init() {
 	// turn off logging for tests
-	Log.Level = LevelNone
+	SetLogLevel(LevelNone, io.Discard)
 }
 
 func TestAddress(t *testing.T) {
@@ -85,6 +86,28 @@ func TestDevCat(t *testing.T) {
 
 			if devCat.String() != test.expectedString {
 				t.Errorf("got String %q, want %q", devCat.String(), test.expectedString)
+			}
+		})
+	}
+}
+
+func TestDevCatIn(t *testing.T) {
+	tests := []struct {
+		name  string
+		input DevCat
+		in    []Domain
+		want  bool
+	}{
+		{"single in", DevCat{byte(DimmerDomain), 0}, []Domain{DimmerDomain}, true},
+		{"double in", DevCat{byte(DimmerDomain), 0}, []Domain{SwitchDomain, DimmerDomain}, true},
+		{"not in", DevCat{byte(DimmerDomain), 0}, []Domain{ThermostatDomain}, false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.input.In(test.in...)
+			if test.want != got {
+				t.Errorf("Expected %v in %v to be %v", test.input, test.in, test.want)
 			}
 		})
 	}

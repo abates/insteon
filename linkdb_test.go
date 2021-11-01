@@ -86,6 +86,14 @@ func TestLinkRequestUnmarshalBinary(t *testing.T) {
 			&linkRequest{0x02, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
 			nil,
 		},
+		// this message caused an error, so I wrote a test for it
+		// 1:0 46.d1.b2 -> 49.f7.51 Read/Write ALDB(7) [ff f9 e7 8b 20 aa 01 b6 d5 1a 07 e3 fd b8]
+		{
+			desc:    "",
+			input:   []byte{0xff, 0xf9, 0xe7, 0x8b, 0x20, 0xaa, 0x01, 0xb6, 0xd5, 0x1a, 0x07, 0xe3, 0xfd, 0xb8},
+			want:    &linkRequest{},
+			wantErr: ErrInvalidResponse,
+		},
 	}
 
 	for _, test := range tests {
@@ -163,24 +171,23 @@ func TestLinkdbLinks(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			// Add high water mark
 			links := append(test.want, &LinkRecord{})
-			ch := make(chan *Message, len(links)+2)
-			tps := &testPubSub{publishResp: []*Message{{Command: CmdReadWriteALDB, Flags: StandardDirectAck}}, rxCh: ch}
+			tw := &testWriter{}
+
 			// Test ignoring acks on receive channel
-			ch <- &Message{Command: CmdReadWriteALDB, Flags: StandardDirectAck}
-			ch <- &Message{Command: CmdReadWriteALDB, Flags: StandardDirectNak}
+			tw.acks = append(tw.acks, &Message{Command: CmdReadWriteALDB, Flags: StandardDirectAck})
+			tw.acks = append(tw.acks, &Message{Command: CmdReadWriteALDB, Flags: StandardDirectNak})
 			memAddress := BaseLinkDBAddress
 			for _, link := range links {
 				lr := &linkRequest{Type: linkResponse, MemAddress: memAddress, Link: link}
 				msg := &Message{Command: CmdReadWriteALDB, Flags: ExtendedDirectMessage, Payload: make([]byte, 14)}
 				buf, _ := lr.MarshalBinary()
 				copy(msg.Payload, buf)
-				ch <- msg
+				tw.read = append(tw.read, msg)
 				memAddress -= LinkRecordSize
 			}
-			close(ch)
 
 			MaxLinkDbAge = time.Millisecond
-			linkdb := linkdb{age: test.age, device: tps}
+			linkdb := linkdb{age: test.age, MessageWriter: tw}
 			got, err := linkdb.Links()
 			if err == nil {
 				if len(got) == len(test.want) {
@@ -190,10 +197,6 @@ func TestLinkdbLinks(t *testing.T) {
 			} else {
 				t.Errorf("Unexpected error %v", err)
 			}
-
-			if tps.unsubscribeCh != tps.subscribedCh {
-				t.Errorf("Expected listeners to be unsubscribed!")
-			}
 		})
 	}
 }
@@ -201,7 +204,7 @@ func TestLinkdbLinks(t *testing.T) {
 func TestLinkdbWriteLink(t *testing.T) {
 	tests := []struct {
 		desc           string
-		links          []*LinkRecord
+		links          []LinkRecord
 		inputIndex     int
 		inputRecord    *LinkRecord
 		wantLinksSize  int
@@ -210,20 +213,20 @@ func TestLinkdbWriteLink(t *testing.T) {
 	}{
 		{"Invalid Index", nil, 1, nil, 0, BaseLinkDBAddress, ErrLinkIndexOutOfRange},
 		{"Base Address", nil, 0, ControllerLink(1, Address{1, 2, 3}), 1, BaseLinkDBAddress, nil},
-		{"Truncate existing links", []*LinkRecord{ControllerLink(1, Address{1, 2, 3}), ResponderLink(1, Address{1, 2, 3}), ControllerLink(1, Address{4, 5, 6})}, 2, &LinkRecord{Flags: 0xfc}, 2, BaseLinkDBAddress - LinkRecordSize*2, nil},
-		{"Replace existing link", []*LinkRecord{ControllerLink(1, Address{1, 2, 3}), ResponderLink(1, Address{1, 2, 3}), ControllerLink(1, Address{4, 5, 6})}, 1, ResponderLink(43, Address{11, 12, 13}), 3, BaseLinkDBAddress - LinkRecordSize, nil},
+		{"Truncate existing links", []LinkRecord{*ControllerLink(1, Address{1, 2, 3}), *ResponderLink(1, Address{1, 2, 3}), *ControllerLink(1, Address{4, 5, 6})}, 2, &LinkRecord{Flags: 0xfc}, 2, BaseLinkDBAddress - LinkRecordSize*2, nil},
+		{"Replace existing link", []LinkRecord{*ControllerLink(1, Address{1, 2, 3}), *ResponderLink(1, Address{1, 2, 3}), *ControllerLink(1, Address{4, 5, 6})}, 1, ResponderLink(43, Address{11, 12, 13}), 3, BaseLinkDBAddress - LinkRecordSize, nil},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			tps := &testPubSub{publishResp: []*Message{TestAck}}
-			linkdb := linkdb{device: tps, links: test.links}
+			tw := &testWriter{}
+			linkdb := linkdb{MessageWriter: tw, links: test.links}
 			gotErr := linkdb.writeLink(test.inputIndex, test.inputRecord)
 			if test.wantErr != gotErr {
 				t.Errorf("Want err %v got %v", test.wantErr, gotErr)
 			} else if gotErr == nil {
 				lr := &linkRequest{}
-				lr.UnmarshalBinary(tps.published[0].Payload)
+				lr.UnmarshalBinary(tw.written[0].Payload)
 				if lr.Type != writeLink {
 					t.Errorf("Expected %v got %v", writeLink, lr.Type)
 				}
@@ -237,7 +240,7 @@ func TestLinkdbWriteLink(t *testing.T) {
 				}
 
 				if test.inputIndex < test.wantLinksSize {
-					if *linkdb.links[test.inputIndex] != *test.inputRecord {
+					if linkdb.links[test.inputIndex] != *test.inputRecord {
 						t.Errorf("Wanted link %+v got %+v", test.inputRecord, linkdb.links[test.inputIndex])
 					}
 				}
@@ -249,25 +252,22 @@ func TestLinkdbWriteLink(t *testing.T) {
 func TestLinkdbWriteLinks(t *testing.T) {
 	tests := []struct {
 		desc           string
-		input          []*LinkRecord
+		input          []LinkRecord
 		wantMemAddress []MemAddress
 	}{
-		{"nothing", []*LinkRecord{}, []MemAddress{BaseLinkDBAddress}},
-		{"one link", []*LinkRecord{ControllerLink(1, Address{1, 2, 3})}, []MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - LinkRecordSize}},
-		{"two links", []*LinkRecord{ControllerLink(1, Address{1, 2, 3}), ControllerLink(1, Address{4, 5, 6})}, []MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - LinkRecordSize, BaseLinkDBAddress - LinkRecordSize*2}},
+		{"nothing", []LinkRecord{}, []MemAddress{BaseLinkDBAddress}},
+		{"one link", []LinkRecord{*ControllerLink(1, Address{1, 2, 3})}, []MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - LinkRecordSize}},
+		{"two links", []LinkRecord{*ControllerLink(1, Address{1, 2, 3}), *ControllerLink(1, Address{4, 5, 6})}, []MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - LinkRecordSize, BaseLinkDBAddress - LinkRecordSize*2}},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			tps := &testPubSub{}
-			for i := 0; i < len(test.wantMemAddress); i++ {
-				tps.publishResp = append(tps.publishResp, TestAck)
-			}
-			linkdb := linkdb{device: tps}
+			tw := &testWriter{}
+			linkdb := linkdb{MessageWriter: tw}
 			linkdb.WriteLinks(test.input...)
 			gotMemAddress := []MemAddress{}
 			gotLinks := []*LinkRecord{}
-			for _, msg := range tps.published {
+			for _, msg := range tw.written {
 				lr := &linkRequest{}
 				lr.UnmarshalBinary(msg.Payload)
 				gotLinks = append(gotLinks, lr.Link)
@@ -286,7 +286,7 @@ func TestLinkdbWriteLinks(t *testing.T) {
 				t.Errorf("Expected links to be set")
 			} else {
 				for i, link := range linkdb.links {
-					if !test.input[i].Equal(link) {
+					if !test.input[i].Equal(&link) {
 						t.Errorf("Expected %+v got %+v", test.input[i], link)
 					}
 				}
@@ -303,51 +303,48 @@ func TestLinkdbWriteLinks(t *testing.T) {
 func TestLinkdbUpdateLinks(t *testing.T) {
 	tests := []struct {
 		desc          string
-		existingLinks []*LinkRecord
-		input         []*LinkRecord
+		existingLinks []LinkRecord
+		input         []LinkRecord
 		want          []MemAddress
 	}{
 		{
 			"no existing links",
 			nil,
-			[]*LinkRecord{ControllerLink(1, Address{1, 2, 3})},
+			[]LinkRecord{*ControllerLink(1, Address{1, 2, 3})},
 			[]MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - LinkRecordSize},
 		},
 		{
 			"duplicate links",
-			[]*LinkRecord{ControllerLink(1, Address{1, 2, 3})},
-			[]*LinkRecord{ControllerLink(1, Address{1, 2, 3})},
+			[]LinkRecord{*ControllerLink(1, Address{1, 2, 3})},
+			[]LinkRecord{*ControllerLink(1, Address{1, 2, 3})},
 			nil,
 		},
 		{
 			"duplicate link (update flags)",
-			[]*LinkRecord{{AvailableController, 1, Address{1, 2, 3}, [3]byte{}}},
-			[]*LinkRecord{ControllerLink(1, Address{1, 2, 3})},
+			[]LinkRecord{{AvailableController, 1, Address{1, 2, 3}, [3]byte{}}},
+			[]LinkRecord{*ControllerLink(1, Address{1, 2, 3})},
 			[]MemAddress{BaseLinkDBAddress},
 		},
 		{
 			"available and append links",
-			[]*LinkRecord{{AvailableController, 1, Address{1, 2, 3}, [3]byte{}}, ControllerLink(1, Address{4, 5, 6})},
-			[]*LinkRecord{ControllerLink(1, Address{6, 7, 8}), ResponderLink(1, Address{5, 6, 7})},
+			[]LinkRecord{{AvailableController, 1, Address{1, 2, 3}, [3]byte{}}, *ControllerLink(1, Address{4, 5, 6})},
+			[]LinkRecord{*ControllerLink(1, Address{6, 7, 8}), *ResponderLink(1, Address{5, 6, 7})},
 			[]MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - 2*LinkRecordSize, BaseLinkDBAddress - 3*LinkRecordSize},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			tps := &testPubSub{}
-			for i := 0; i < len(test.want); i++ {
-				tps.publishResp = append(tps.publishResp, TestAck)
-			}
+			tw := &testWriter{}
 			index := make(map[LinkID]int)
 			for i, link := range test.existingLinks {
 				index[link.ID()] = i
 			}
 			MaxLinkDbAge = time.Second
-			ldb := &linkdb{age: time.Now().Add(time.Hour), links: test.existingLinks, index: index, device: tps}
+			ldb := &linkdb{age: time.Now().Add(time.Hour), links: test.existingLinks, index: index, MessageWriter: tw}
 			ldb.UpdateLinks(test.input...)
 
-			for i, msg := range tps.published {
+			for i, msg := range tw.written {
 				want := test.want[i]
 				lr := &linkRequest{}
 				lr.UnmarshalBinary(msg.Payload)
@@ -358,8 +355,8 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 				i++
 			}
 
-			if len(tps.published) < len(test.want) {
-				t.Errorf("Wanted %d addresses got %d", len(test.want), len(tps.published))
+			if len(tw.written) < len(test.want) {
+				t.Errorf("Wanted %d addresses got %d", len(test.want), len(tw.written))
 			}
 		})
 	}

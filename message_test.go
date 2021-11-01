@@ -249,6 +249,17 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			wantAck:   true,
 			wantCmd:   Command(0x020100),
 		},
+		// Test 8
+		{
+			desc:      "All-Link Cleanup",
+			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x4a, 0x11, 0x03},
+			version:   VerI1,
+			wantSrc:   Address{0x01, 0x02, 0x03},
+			wantDst:   Address{0x04, 0x05, 0x06},
+			wantFlags: MsgTypeAllLinkCleanup | 0x0a,
+			wantAck:   false,
+			wantCmd:   CmdAllLinkRecall.SubCommand(3),
+		},
 	}
 
 	for _, test := range tests {
@@ -318,5 +329,34 @@ func TestCommonTypeConsts(t *testing.T) {
 		if got != test.want {
 			t.Errorf("Got %v, wanted %v", got, test.want)
 		}
+	}
+}
+
+func TestMessageEqualsDuplicate(t *testing.T) {
+	tests := []struct {
+		name          string
+		m1            *Message
+		m2            *Message
+		wantEqual     bool
+		wantDuplicate bool
+	}{
+		{"both equal and duplicate", &Message{}, &Message{}, true, true},
+		{"duplicate", &Message{Flags: Flag(MsgTypeDirect, false, 3, 3)}, &Message{Flags: Flag(MsgTypeDirect, false, 2, 3)}, false, true},
+		{"extended duplicate", &Message{Flags: Flag(MsgTypeDirect, true, 3, 3), Payload: mkPayload(42, 53, 64)}, &Message{Flags: Flag(MsgTypeDirect, true, 3, 3), Payload: mkPayload(42, 53, 64)}, true, true},
+		{"extended garbled data", &Message{Flags: Flag(MsgTypeDirect, true, 3, 3), Payload: mkPayload(42, 53, 64)}, &Message{Flags: Flag(MsgTypeDirect, true, 3, 3), Payload: mkPayload(42, 64)}, false, false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gotEqual := test.m1.Equals(test.m2)
+			if test.wantEqual != gotEqual {
+				t.Errorf("Wanted equal %v got %v", test.wantEqual, gotEqual)
+			}
+
+			gotDuplicate := test.m1.Duplicate(test.m2)
+			if test.wantDuplicate != gotDuplicate {
+				t.Errorf("Wanted duplicate %v got %v", test.wantDuplicate, gotDuplicate)
+			}
+		})
 	}
 }

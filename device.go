@@ -25,11 +25,35 @@ const (
 // device is running
 type EngineVersion int
 
+func (ev EngineVersion) String() string {
+	switch ev {
+	case VerI1:
+		return "I1"
+	case VerI2:
+		return "I2"
+	case VerI2Cs:
+		return "I2Cs"
+	}
+	return "unknown"
+}
+
 // Addressable is any receiver that can be queried for its address
 type Addressable interface {
 	// Address will return the 3 byte destination address of the device.
 	// All device implemtaions must be able to return their address
 	Address() Address
+}
+
+type Device interface {
+	MessageWriter
+	Addressable
+	Commandable
+	// Info will return the device's information
+	Info() DeviceInfo
+}
+
+type ExtendedGetSet interface {
+	ExtendedGet([]byte) ([]byte, error)
 }
 
 // Commandable indicates that the implementation exists to send commands
@@ -40,34 +64,6 @@ type Commandable interface {
 	SendCommand(cmd Command, payload []byte) (err error)
 
 	Send(cmd Command, payload []byte) (ack Command, err error)
-}
-
-type PubSub interface {
-	Publish(*Message) (*Message, error)
-
-	Subscribe(matcher Matcher) <-chan *Message
-
-	Unsubscribe(ch <-chan *Message)
-
-	On(matcher Matcher, cb func(*Message)) (unsubscribe func())
-}
-
-// Device is the most basic capability that any device must implement. Devices
-// can be sent commands and can receive messages
-type Device interface {
-	Commandable
-	PubSub
-
-	ExtendedGet([]byte) ([]byte, error)
-
-	// LinkDatabase will return a LinkDatabase if the underlying device
-	// supports it.  If the underlying device (namely I1 devices) does
-	// not support the All-Link database then an ErrNotSupported will
-	// be returned
-	LinkDatabase() (Linkable, error)
-
-	// Info will return the device's information
-	Info() DeviceInfo
 }
 
 // PingableDevice is any device that implements the Ping method
@@ -128,9 +124,15 @@ type Linkable interface {
 	// ExitLinkingMode takes a controller out of linking/unlinking mode.
 	ExitLinkingMode() error
 
+	// LinkDatabase will return a LinkDatabase if the underlying device
+	// supports it.  If the underlying device (namely I1 devices) does
+	// not support the All-Link database then an ErrNotSupported will
+	// be returned
+	//LinkDatabase() (Linkable, error)
+
 	// Links will return a list of LinkRecords that are present in
 	// the All-Link database
-	Links() ([]*LinkRecord, error)
+	Links() ([]LinkRecord, error)
 
 	// UpdateLinks will write the given links to the device's all-link
 	// database.  Links will be written to available records
@@ -140,13 +142,13 @@ type Linkable interface {
 	// the appropriate error is returned (ErrReadTimeout, ErrAckTimeout, etc.)
 	// If an existing link is found that has different flags then the existing
 	// record is updated to reflect the new flags
-	UpdateLinks(...*LinkRecord) error
+	UpdateLinks(...LinkRecord) error
 
 	// WriteLinks will overwrite the entire device all-link database
 	// with the list of links provided.  If a communication failure occurs
 	// then the appropriate error is returned (ErrReadTimeout, ErrAckTimeout,
 	// etc).
-	WriteLinks(...*LinkRecord) error
+	WriteLinks(...LinkRecord) error
 }
 
 // DeviceInfo is a record of information about known
@@ -158,40 +160,40 @@ type DeviceInfo struct {
 	EngineVersion   EngineVersion   `json:"engineVersion"`
 }
 
+// Open will try to establish communication with the remote device.
+// If the device responds, Open will request its engine version as
+// well as device info in order to return the correct device type
+// (Dimmer, switch, thermostat, etc).  Open requires a MessageWriter,
+// such as a PLM to use to communicate with the Insteon network
+func Open(mw MessageWriter, dst Address) (device Device, info DeviceInfo, err error) {
+	info.Address = dst
+	info.EngineVersion, err = GetEngineVersion(mw, dst)
+	if err == nil {
+		info.FirmwareVersion, info.DevCat, err = IDRequest(mw, dst)
+	}
+
+	if err == nil {
+		device = New(mw, info)
+	}
+	return
+}
+
 // New will use the supplied DeviceInfo to create a device instance for the
 // given connection.  For instance, if the DevCat is 0x01 with an I2CS
 // EngineVersion then a Dimmer with an underlying i2CsDevice will be returned
-func New(bus Bus, info DeviceInfo) (Device, error) {
-	device, err := Create(bus, info)
-	if err == nil {
-		switch info.DevCat.Domain() {
-		case DimmerDomain:
-			device = NewDimmer(device, bus, info)
-		case SwitchDomain:
-			if info.DevCat.Category() == 0x08 {
-				device = NewOutlet(device, bus, info)
-			} else {
-				device = NewSwitch(device, bus, info)
-			}
-		case ThermostatDomain:
-			device = NewThermostat(device, bus, info)
+func New(mw MessageWriter, info DeviceInfo) (device Device) {
+	d := newDevice(mw, info)
+	switch info.DevCat.Domain() {
+	case DimmerDomain:
+		device = NewDimmer(d, info)
+	case SwitchDomain:
+		if info.DevCat.Category() == 0x08 {
+			device = NewOutlet(d, info)
+		} else {
+			device = NewSwitch(d, info)
 		}
+	case ThermostatDomain:
+		device = NewThermostat(d, info)
 	}
-	return device, err
-}
-
-// Create will return either an I1Device, an I2Device or an I2CsDevice based on the
-// supplied EngineVersion
-func Create(bus Bus, info DeviceInfo) (device Device, err error) {
-	switch info.EngineVersion {
-	case VerI1:
-		device = newI1Device(bus, info)
-	case VerI2:
-		device = newI2Device(bus, info)
-	case VerI2Cs:
-		device = newI2CsDevice(bus, info)
-	default:
-		err = ErrVersion
-	}
-	return
+	return device
 }

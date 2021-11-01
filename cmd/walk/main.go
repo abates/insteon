@@ -15,8 +15,9 @@
 package main
 
 import (
-	"bytes"
+	"errors"
 	"flag"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -25,7 +26,6 @@ import (
 	"time"
 
 	"github.com/abates/insteon"
-	insteondb "github.com/abates/insteon/db"
 	"github.com/abates/insteon/plm"
 	"github.com/abates/insteon/util"
 	"github.com/kirsle/configdir"
@@ -35,8 +35,9 @@ import (
 var (
 	logLevelFlag   insteon.LogLevel
 	serialPortFlag string
+	ttlFlag        int
 	modem          *plm.PLM
-	db             insteondb.Database
+	db             util.Database
 	dbfile         string
 )
 
@@ -45,14 +46,18 @@ func printDevInfo(device insteon.Device) {
 	fmt.Printf("     Category: %v\n", device.Info().DevCat)
 	fmt.Printf("     Firmware: %v\n", device.Info().FirmwareVersion)*/
 
-	//err := util.PrintLinks(os.Stdout, device)
-	err := util.PrintLinks(bytes.NewBuffer(nil), device)
+	err := util.PrintLinkDatabase(io.Discard, device)
+	if errors.Is(err, insteon.ErrReadTimeout) {
+		// try again
+		err = util.PrintLinkDatabase(io.Discard, device)
+	}
+
 	if err != nil {
 		log.Printf("Failed to retrieve links from %v: %v", device, err)
 	}
 }
 
-func dump(links []*insteon.LinkRecord) {
+func dump(links []insteon.LinkRecord) {
 	read := make(map[insteon.Address]bool)
 	for _, link := range links {
 		if _, found := read[link.Address]; found {
@@ -60,9 +65,14 @@ func dump(links []*insteon.LinkRecord) {
 		}
 		read[link.Address] = true
 		log.Printf("Querying ALDB from %s", link.Address)
-		device, err := modem.Open(link.Address)
+		device, err := util.Open(insteon.TTL(ttlFlag)(modem), link.Address, db, dbfile)
+		if errors.Is(err, insteon.ErrReadTimeout) {
+			// retry
+			device, err = util.Open(insteon.TTL(ttlFlag)(modem), link.Address, db, dbfile)
+		}
+
 		if err == nil {
-			insteondb.Save(dbfile, db)
+			util.SaveDB(dbfile, db)
 			printDevInfo(device)
 		} else {
 			log.Printf("Failed to open device %s: %v", link.Address, err)
@@ -81,9 +91,10 @@ func init() {
 
 	flag.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
 	flag.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
+	flag.IntVar(&ttlFlag, "ttl", 3, "default ttl for sending Insteon messages")
 
-	db = insteondb.NewMemDB()
-	err = insteondb.Load(dbfile, db)
+	db = util.NewMemDB()
+	err = util.LoadDB(dbfile, db)
 	if err != nil {
 		log.Fatalf("Failed to load database: %v", err)
 	}
@@ -92,7 +103,7 @@ func init() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		err := insteondb.Save(dbfile, db)
+		err := util.SaveDB(dbfile, db)
 		if err != nil {
 			log.Printf("Failed to save database: %v", err)
 		}
@@ -104,7 +115,7 @@ func main() {
 	flag.Parse()
 
 	if logLevelFlag > insteon.LevelNone {
-		insteon.Log.Level = logLevelFlag
+		insteon.SetLogLevel(logLevelFlag, os.Stderr)
 	}
 
 	c := &serial.Config{
@@ -118,12 +129,13 @@ func main() {
 		log.Fatalf("error opening serial port: %v", err)
 	}
 
-	modem, err = plm.New(s, s, time.Second*5, plm.Database(db), plm.ConnectionOptions(insteon.ConnectionTimeout(time.Second*5)))
+	modem, err = plm.New(s, plm.Timeout(time.Second*5))
 	if err != nil {
 		log.Fatalf("failed to initialize modem: %v", err)
 	}
 
 	if links, err := modem.Links(); err == nil {
+		util.PrintLinks(os.Stdout, links)
 		//time.Sleep(time.Millisecond * 100)
 		dump(links)
 	} else {

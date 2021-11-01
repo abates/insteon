@@ -124,7 +124,7 @@ func (p *plmCmd) infoCmd(string) (err error) {
 		config, err = modem.Config()
 		if err == nil {
 			fmt.Printf("       Config: %v\n", config)
-			err = util.PrintLinks(os.Stdout, modem)
+			err = util.PrintLinkDatabase(os.Stdout, modem)
 		}
 	}
 	return err
@@ -139,7 +139,7 @@ func (p *plmCmd) link(controller, responder bool) error {
 		for _, addr := range p.addresses {
 			group := insteon.Group(p.group)
 			fmt.Printf("Linking to %s...", addr)
-			device, err := modem.Open(addr)
+			device, err := util.Open(modem, addr, db, dbfile)
 			if err == insteon.ErrNotLinked {
 				err = nil
 			}
@@ -181,7 +181,7 @@ func (p *plmCmd) unlinkCmd(string) (err error) {
 	return util.IfLinkable(modem, func(lmodem insteon.Linkable) (err error) {
 		for _, addr := range p.addresses {
 			var device insteon.Device
-			device, err = modem.Open(addr)
+			device, err = util.Open(modem, addr, db, dbfile)
 
 			if err == nil {
 				fmt.Printf("Unlinking from %s:%s...", device, addr)

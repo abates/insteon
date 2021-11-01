@@ -21,7 +21,6 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
-	"github.com/abates/insteon/plm"
 	"github.com/abates/insteon/util"
 )
 
@@ -53,21 +52,8 @@ type device struct {
 }
 
 func (dev *device) init(string) (err error) {
-	dev.Device, err = connect(modem, dev.addr)
+	dev.Device, err = open(modem, dev.addr)
 	return err
-}
-
-func connect(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
-	device, err := modem.Open(addr)
-
-	if err == insteon.ErrNotLinked {
-		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
-		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
-			pc := &plmCmd{group: 0x01, addresses: []insteon.Address{addr}}
-			err = pc.controllerLinkCmd("link")
-		}
-	}
-	return device, err
 }
 
 func (dev *device) linkCmd(string) error {
@@ -99,6 +85,7 @@ func (dev *device) infoCmd(string) (err error) {
 func printDevInfo(device insteon.Device, extra string) (err error) {
 	fmt.Printf("       Device: %v\n", device)
 	if err == nil {
+		fmt.Printf("       Engine: %v\n", device.Info().EngineVersion)
 		fmt.Printf("     Category: %v\n", device.Info().DevCat)
 		fmt.Printf("     Firmware: %v\n", device.Info().FirmwareVersion)
 
@@ -106,7 +93,7 @@ func printDevInfo(device insteon.Device, extra string) (err error) {
 			fmt.Printf("%s\n", extra)
 		}
 
-		err = util.PrintLinks(os.Stdout, device)
+		err = util.PrintLinkDatabase(os.Stdout, device)
 	}
 	return err
 }
@@ -120,8 +107,8 @@ func (dev *device) editCmd(string) error {
 	return editLinks(dev.Device)
 }
 
-func editLinks(linkable util.Linkable) error {
-	return util.IfLinkable(linkable, func(linkable insteon.Linkable) error {
+func editLinks(device insteon.Addressable) error {
+	return util.IfLinkable(device, func(linkable insteon.Linkable) error {
 		dbLinks, _ := linkable.Links()
 		if len(dbLinks) == 0 {
 			return fmt.Errorf("No links to edit")

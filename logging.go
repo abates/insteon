@@ -16,15 +16,15 @@ package insteon
 
 import (
 	"errors"
+	"io"
 	"log"
 	"os"
-	"path"
-	"runtime"
 )
 
 var (
-	// Log is the global log object. The default level is set to Info
-	Log = &Logger{Level: LevelNone, Logger: log.New(os.Stderr, "", log.LstdFlags)}
+	Log      = log.New(os.Stderr, "", log.LstdFlags)
+	LogDebug = log.New(io.Discard, "DEBUG ", log.LstdFlags)
+	LogTrace = log.New(io.Discard, "TRACE ", log.LstdFlags|log.Llongfile)
 )
 
 // LogLevel indicates verbosity of logging
@@ -81,48 +81,20 @@ const (
 	LevelTrace
 )
 
-// Logger is a struct that keeps track of a log level and only
-// prints messages of that level or lower
-type Logger struct {
-	Level  LogLevel
-	Logger *log.Logger
-}
+func SetLogLevel(ll LogLevel, writer io.Writer) {
+	Log.SetOutput(io.Discard)
+	LogDebug.SetOutput(io.Discard)
+	LogTrace.SetOutput(io.Discard)
 
-func (s *Logger) logf(level LogLevel, format string, v ...interface{}) {
-	if s.Level >= level {
-		format = sprintf("%5s %s", level, format)
-		if level == LevelTrace {
-			pc := make([]uintptr, 10)
-			runtime.Callers(3, pc)
-			frames := runtime.CallersFrames(pc)
-			frame, _ := frames.Next()
-			function := path.Base(frame.Function)
-
-			format = sprintf("%s:%d %s", function, frame.Line, format)
-		}
-		s.Logger.Printf(format, v...)
+	if LevelInfo <= ll {
+		Log.SetOutput(writer)
 	}
-}
 
-// Infof will print a message at the Info level
-func (s *Logger) Infof(format string, v ...interface{}) {
-	s.logf(LevelInfo, format, v...)
-}
-
-// Errorf will print a message at the Info level if the supplied error is
-// non-nil
-func (s *Logger) Errorf(err error, format string, v ...interface{}) {
-	if err != nil {
-		s.logf(LevelInfo, format, v...)
+	if LevelDebug <= ll {
+		LogDebug.SetOutput(writer)
 	}
-}
 
-// Debugf will print a message at the Debug level
-func (s *Logger) Debugf(format string, v ...interface{}) {
-	s.logf(LevelDebug, format, v...)
-}
-
-// Tracef will print a message at the Trace level
-func (s *Logger) Tracef(format string, v ...interface{}) {
-	s.logf(LevelTrace, format, v...)
+	if LevelTrace <= ll {
+		LogTrace.SetOutput(writer)
+	}
 }

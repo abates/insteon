@@ -9,14 +9,9 @@ import (
 // the network.  This is based on the number of AC zero crossings, the
 // number of times a message can be repeated (ttl) and whether or not
 // the message is an extended message
-func PropagationDelay(ttl uint8, extended bool) (pd time.Duration) {
+func PropagationDelay(ttl uint8, l int) (pd time.Duration) {
 	// wait 2 * ttl * message length zero crossings
-	if extended {
-		pd = time.Second * 26 * time.Duration(ttl+1) / 60
-	} else {
-		pd = time.Second * 12 * time.Duration(ttl+1) / 60
-	}
-	return
+	return time.Second * time.Duration(l) * time.Duration(ttl+1) / 60
 }
 
 // ReadWithTimeout will attempt to read a message from a channel and will
@@ -29,4 +24,16 @@ func ReadWithTimeout(ch <-chan *Message, timeout time.Duration) (msg *Message, e
 		err = ErrReadTimeout
 	}
 	return
+}
+
+func setChecksum(cmd Command, buf []byte) {
+	buf[len(buf)-1] = checksum(cmd, buf)
+}
+
+func checksum(cmd Command, buf []byte) byte {
+	sum := byte(cmd.Command1() + cmd.Command2())
+	for _, b := range buf {
+		sum += b
+	}
+	return ^sum + 1
 }

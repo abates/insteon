@@ -91,8 +91,7 @@ type LightState struct {
 }
 
 type Switch struct {
-	Device
-	bus   Bus
+	*device
 	info  DeviceInfo
 	state LightState
 	mu    sync.Mutex
@@ -100,11 +99,9 @@ type Switch struct {
 
 // NewSwitch will return an initialize switch object that controls
 // a physical switch on the netork
-func NewSwitch(device Device, bus Bus, info DeviceInfo) *Switch {
-	sd := &Switch{Device: device, bus: bus, info: info}
+func NewSwitch(d *device, info DeviceInfo) *Switch {
+	sd := &Switch{device: d, info: info}
 
-	sd.On(And(AllLinkMatcher(), CmdMatcher(CmdLightOn)), sd.onTurnOn)
-	sd.On(And(AllLinkMatcher(), CmdMatcher(CmdLightOff)), sd.onTurnOff)
 	return sd
 }
 
@@ -125,11 +122,9 @@ func (sd *Switch) String() string {
 
 func (sd *Switch) Config() (config SwitchConfig, err error) {
 	// SEE Dimmer.Config() notes for explanation of D1 and D2 (payload[0] and payload[1])
-	rx := sd.Subscribe(And(Not(AckMatcher()), CmdMatcher(CmdExtendedGetSet)))
-	defer sd.Unsubscribe(rx)
-	msg, err := sd.Publish(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
+	msg, err := sd.Write(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
 	if err == nil {
-		msg, err = ReadWithTimeout(rx, sd.bus.Config().Timeout(true))
+		msg, err = Read(sd, CmdMatcher(CmdExtendedGetSet))
 		if err == nil {
 			err = config.UnmarshalBinary(msg.Payload)
 		}
@@ -148,7 +143,7 @@ func (sd *Switch) OperatingFlags() (flags LightFlags, err error) {
 
 	var ack *Message
 	for i := 0; i < len(commands) && err == nil; i++ {
-		ack, err = sd.Publish(&Message{Command: commands[i]})
+		ack, err = sd.Write(&Message{Command: commands[i]})
 		if err == nil {
 			flags[i] = byte(ack.Command.Command2())
 		}
@@ -170,22 +165,8 @@ func (sd *Switch) SetBacklight(light bool) error {
 	return sd.SendCommand(CmdDisableLED, make([]byte, 14))
 }
 
-func (sd *Switch) onTurnOff(msg *Message) {
-	sd.mu.Lock()
-	defer sd.mu.Unlock()
-	Log.Debugf("%s turned off", sd.info.Address)
-	sd.state.Level = 0
-}
-
 func (sd *Switch) TurnOff() error {
 	return sd.SendCommand(CmdLightOff, nil)
-}
-
-func (sd *Switch) onTurnOn(msg *Message) {
-	sd.mu.Lock()
-	defer sd.mu.Unlock()
-	sd.state.Level = int(msg.Command.Command2())
-	Log.Debugf("%s turned on to level %d", sd.info.Address, sd.state.Level)
 }
 
 func (sd *Switch) TurnOn(level int) error {

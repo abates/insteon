@@ -61,8 +61,10 @@ func TestDimmableDeviceConfig(t *testing.T) {
 
 	ch := make(chan *Message, 1)
 	ch <- msg
-	b := &testBus{publishResp: []*Message{TestAck}, subscribeCh: ch}
-	dd := NewDimmer(&i1Device{b, DeviceInfo{}}, b, DeviceInfo{FirmwareVersion: 67})
+
+	tw := &testWriter{}
+	tw.read = []*Message{msg}
+	dd := NewDimmer(&device{MessageWriter: tw}, DeviceInfo{FirmwareVersion: 67})
 	got, err := dd.Config()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -70,29 +72,3 @@ func TestDimmableDeviceConfig(t *testing.T) {
 		t.Errorf("Want config %v got %v", want, got)
 	}
 }
-
-/*func TestDimmerSendCommand(t *testing.T) {
-	tests := []struct {
-		name    string
-		v       FirmwareVersion
-		sendCmd Command
-		wantCmd Command
-	}{
-		{"On", 0x01, CmdLightOnAtRamp, CmdLightOnAtRamp},
-		{"On (v67)", 0x43, CmdLightOnAtRamp, CmdLightOnAtRampV67},
-		{"Off", 0x01, CmdLightOffAtRamp, CmdLightOffAtRamp},
-		{"Off (v67)", 0x43, CmdLightOffAtRamp, CmdLightOffAtRampV67},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			b := &testBus{publishResp: []*Message{TestAck}}
-			dimmer := NewDimmer(&i1Device{b, DeviceInfo{}}, b, DeviceInfo{FirmwareVersion: test.v})
-			dimmer.SendCommand(test.sendCmd, nil)
-			gotCmd := b.published.Command
-			if test.wantCmd != gotCmd {
-				t.Errorf("Wanted command %v got %v", test.wantCmd, gotCmd)
-			}
-		})
-	}
-}*/

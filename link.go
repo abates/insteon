@@ -23,7 +23,7 @@ import (
 )
 
 type LinkError struct {
-	Link  *LinkRecord
+	Link  LinkRecord
 	Cause error
 }
 
@@ -181,10 +181,10 @@ func (g *Group) UnmarshalText(text []byte) error {
 
 // LinkRecord is a single All-Link record in an All-Link database
 type LinkRecord struct {
-	Flags   RecordControlFlags
-	Group   Group
-	Address Address
-	Data    [3]byte
+	Flags   RecordControlFlags `json:"flags"`
+	Group   Group              `json:"group"`
+	Address Address            `json:"address"`
+	Data    [3]byte            `json:"data"`
 }
 
 // ControllerLink creates a LinkRecord that is set as a controller record with the

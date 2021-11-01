@@ -39,7 +39,7 @@ func init() {
 }
 
 func (therm *thermostat) init(string) error {
-	device, err := connect(modem, therm.addr)
+	device, err := open(modem, therm.addr)
 	if err == nil {
 		if t, ok := device.(*insteon.Thermostat); ok {
 			*therm.Thermostat = *t

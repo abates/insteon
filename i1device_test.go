@@ -1,35 +1,79 @@
 package insteon
 
 import (
+	"bytes"
 	"testing"
 )
 
 func TestI1DeviceIsDevice(t *testing.T) {
-	var device interface{}
-	device = &i1Device{}
+	var d interface{}
+	d = &device{}
 
-	if _, ok := device.(Device); !ok {
+	if _, ok := d.(Device); !ok {
 		t.Error("Expected I1Device to be Device")
+	}
+
+	if _, ok := d.(Linkable); !ok {
+		t.Error("Expected I1Device to be Linkable")
+	}
+}
+
+func TestI1DeviceWrite(t *testing.T) {
+	tests := []struct {
+		desc    string
+		version EngineVersion
+		input   *Message
+		want    []byte
+	}{
+		{"VerI1", VerI1, &Message{Payload: []byte{}}, []byte{}},
+		{"VerI1 Extended", VerI1, &Message{Payload: make([]byte, 14)}, make([]byte, 14)},
+		{"VerI2Cs", VerI2Cs, &Message{Payload: []byte{}}, []byte{}},
+		{"VerI2Cs Extended", VerI2Cs, &Message{Payload: []byte{0x2F, 0x00, 0x00, 0x00, 0x0F, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}}, []byte{0x2F, 0x00, 0x00, 0x00, 0x0F, 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC2}},
+		{"VerI2Cs Extended (truncated)", VerI2Cs, &Message{Payload: []byte{0x2e, 0x00, 0x01}}, []byte{0x2E, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd1}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			tw := &testWriter{}
+			d := newDevice(tw, DeviceInfo{EngineVersion: test.version})
+			_, err := d.Write(test.input)
+			if err == nil {
+				if !bytes.Equal(test.want, tw.written[0].Payload) {
+					t.Errorf("Wanted bytes %v got %v", test.want, tw.written[0].Payload)
+				}
+			} else {
+				t.Errorf("unexpected error %v", err)
+			}
+		})
 	}
 }
 
 func TestI1DeviceErrLookup(t *testing.T) {
 	tests := []struct {
 		desc     string
+		ver      EngineVersion
 		input    *Message
 		inputErr error
 		want     error
 	}{
-		{"nil error", &Message{}, nil, nil},
-		{"ErrUnknownCommand", &Message{Command: Command(0x0000fd), Flags: StandardDirectNak}, ErrNak, ErrUnknownCommand},
-		{"ErrNoLoadDetected", &Message{Command: Command(0x0000fe), Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
-		{"ErrNotLinked", &Message{Command: Command(0x0000ff), Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
-		{"ErrUnexpectedResponse", &Message{Command: Command(0x0000fc), Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
+		{"nil error", VerI1, &Message{}, nil, nil},
+		{"ErrUnknownCommand", VerI1, &Message{Command: Command(0x0000fd), Flags: StandardDirectNak}, ErrNak, ErrUnknownCommand},
+		{"ErrNoLoadDetected", VerI1, &Message{Command: Command(0x0000fe), Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
+		{"ErrNotLinked", VerI1, &Message{Command: Command(0x0000ff), Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
+		{"ErrUnexpectedResponse", VerI1, &Message{Command: Command(0x0000fc), Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
+		{"nil error", VerI2Cs, &Message{}, nil, nil},
+		{"ErrIllegalValue", VerI2Cs, &Message{Command: Command(0x0000fb), Flags: StandardDirectNak}, ErrNak, ErrIllegalValue},
+		{"ErrPreNak", VerI2Cs, &Message{Command: Command(0x0000fc), Flags: StandardDirectNak}, ErrNak, ErrPreNak},
+		{"ErrIncorrectChecksum", VerI2Cs, &Message{Command: Command(0x0000fd), Flags: StandardDirectNak}, ErrNak, ErrIncorrectChecksum},
+		{"ErrNoLoadDetected", VerI2Cs, &Message{Command: Command(0x0000fe), Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
+		{"ErrNotLinked", VerI2Cs, &Message{Command: Command(0x0000ff), Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
+		{"ErrUnexpectedResponse", VerI2Cs, &Message{Command: Command(0x0000fa), Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			_, got := errLookup(test.input, test.inputErr)
+			d := &device{info: DeviceInfo{EngineVersion: test.ver}}
+			_, got := d.errLookup(test.input, test.inputErr)
 			if !IsError(got, test.want) {
 				t.Errorf("want error %v got %v", test.want, got)
 			}
@@ -47,11 +91,11 @@ func TestI1DeviceSendCommand(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			b := &testBus{publishResp: []*Message{TestAck}}
-			device := newI1Device(b, DeviceInfo{})
+			tw := &testWriter{}
+			device := newDevice(tw, DeviceInfo{})
 			device.SendCommand(test.wantCmd, nil)
 
-			gotCmd := b.published.Command
+			gotCmd := tw.written[0].Command
 
 			if test.wantCmd != gotCmd {
 				t.Errorf("want command %v got %v", test.wantCmd, gotCmd)
@@ -71,19 +115,16 @@ func TestI1DeviceProductData(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			ch := make(chan *Message, 1)
-			b := &testBus{publishResp: []*Message{TestAck}, subscribeCh: ch}
+			tw := &testWriter{}
 			if test.wantErr == nil {
 				msg := *TestProductDataResponse
 				buf, _ := test.want.MarshalBinary()
 				msg.Payload = make([]byte, 14)
 				copy(msg.Payload, buf)
-				ch <- &msg
-			} else {
-				ch <- TestAck
+				tw.read = append(tw.read, &msg)
 			}
 
-			device := newI1Device(b, DeviceInfo{})
+			device := newDevice(tw, DeviceInfo{})
 			pd, err := device.ProductData()
 			if err != test.wantErr {
 				t.Errorf("want error %v got %v", test.wantErr, err)
@@ -96,26 +137,72 @@ func TestI1DeviceProductData(t *testing.T) {
 	}
 }
 
-func TestI1DeviceLinkDatabase(t *testing.T) {
-	device := &i1Device{}
-	want := ErrNotSupported
-	_, got := device.LinkDatabase()
-	if want != got {
-		t.Errorf("Expected error %v got %v", want, got)
-	}
-}
-
 func TestI1DeviceDump(t *testing.T) {
-	device := &i1Device{nil, DeviceInfo{Address{1, 2, 3}, DevCat{5, 6}, FirmwareVersion(42), EngineVersion(2)}}
+	device := newDevice(nil, DeviceInfo{Address{1, 2, 3}, DevCat{5, 6}, FirmwareVersion(42), EngineVersion(2)})
 	want := `
-        Device: I1 Device (01.02.03)
+        Device: I2Cs Device (01.02.03)
       Category: 05.06
       Firmware: 42
-Engine Version: 2
+Engine Version: I2Cs
 `[1:]
 
 	got := device.Dump()
 	if want != got {
 		t.Errorf("Wanted string %q got %q", want, got)
+	}
+}
+
+func TestI1DeviceCommands(t *testing.T) {
+	tests := []struct {
+		name        string
+		version     EngineVersion
+		run         func(*device)
+		want        Command
+		wantPayload []byte
+	}{
+		{"EnterLinkingMode", VerI2, func(d *device) { d.EnterLinkingMode(40) }, CmdEnterLinkingMode.SubCommand(40), []byte{}},
+		{"EnterLinkingMode Ver2Cs", VerI2Cs, func(d *device) { d.EnterLinkingMode(40) }, CmdEnterLinkingModeExt.SubCommand(40), make([]byte, 14)},
+		{"EnterUnlinkingMode", VerI2, func(d *device) { d.EnterUnlinkingMode(41) }, CmdEnterUnlinkingMode.SubCommand(41), []byte{}},
+		{"EnterUnlinkingMode Ver2Cs", VerI2Cs, func(d *device) { d.EnterUnlinkingMode(41) }, CmdEnterUnlinkingMode.SubCommand(41), make([]byte, 14)},
+		{"ExitLinkingMode", VerI2, func(d *device) { d.ExitLinkingMode() }, CmdExitLinkingMode, []byte{}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if len(test.wantPayload) > 0 {
+				setChecksum(test.want, test.wantPayload)
+			}
+
+			tw := &testWriter{}
+			device := &device{MessageWriter: tw, info: DeviceInfo{EngineVersion: test.version}}
+			test.run(device)
+			if test.want != tw.written[0].Command {
+				t.Errorf("Wanted command %v got %v", test.want, tw.written[0].Command)
+			}
+
+			if !bytes.Equal(test.wantPayload, tw.written[0].Payload) {
+				t.Errorf("Wanted payload %v got %v", test.wantPayload, tw.written[0].Payload)
+			}
+		})
+	}
+}
+
+func TestI1DeviceExtendedGet(t *testing.T) {
+	wantPayload := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
+	tw := &testWriter{
+		read: []*Message{&Message{Command: CmdExtendedGetSet, Payload: wantPayload}},
+	}
+	d := newDevice(tw, DeviceInfo{})
+	gotPayload, err := d.ExtendedGet(make([]byte, 14))
+	if err == nil {
+		if tw.written[0].Command != CmdExtendedGetSet {
+			t.Errorf("Wanted command %v got %v", CmdExtendedGetSet, tw.written[0].Command)
+		}
+
+		if !bytes.Equal(wantPayload, gotPayload) {
+			t.Errorf("Wanted bytes %v got %v", wantPayload, gotPayload)
+		}
+	} else {
+		t.Errorf("Unexpected error: %v", err)
 	}
 }

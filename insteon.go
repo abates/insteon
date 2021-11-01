@@ -37,10 +37,6 @@ var (
 	// write a message
 	ErrWriteTimeout = errors.New("Write Timeout")
 
-	// ErrSendTimeout indicates the timeout period expired while trying to
-	// send a message
-	ErrSendTimeout = errors.New("Send Timeout")
-
 	// ErrNotSupported indicates some feature (namely an updateable All-Link database) is
 	// not supported by the underyling Insteon device
 	ErrNotSupported = errors.New("Feature is not supported by the device")
@@ -93,15 +89,6 @@ var (
 	// ErrLinkIndexOutOfRange indicates that the index exceeds the length of the all-link database
 	ErrLinkIndexOutOfRange = errors.New("Link index is beyond the bounds of the link database")
 
-	// ErrReceiveComplete is used when calling the Receive() utility function.  If the callback is finished
-	// receiving then it returns ErrReceiveComplete to indicate the Receive() function can return
-	ErrReceiveComplete = errors.New("Completed receiving")
-
-	// ErrReceiveContinue is used when calling the Receive() utility function.  If the callback
-	// wants to continue receiving it will return this error.  This causes the Receive() function
-	// to update the timeout and wait for a new message
-	ErrReceiveContinue = errors.New("Continue receiving")
-
 	// ErrInvalidThermostatMode indicates an unknown mode was supplied to the SetMode function
 	ErrInvalidThermostatMode = errors.New("invalid mode")
 
@@ -111,6 +98,10 @@ var (
 	// ErrInvalidFanSpeed indicates the value provided for FanSpeed is either unsupported or
 	// unknown
 	ErrInvalidFanSpeed = errors.New("Invalid fan speed")
+
+	// ErrInvalidResponse indicates the device responded in a way that the system
+	// doesn't understand
+	ErrInvalidResponse = errors.New("Invalid response received")
 )
 
 var sprintf = fmt.Sprintf
@@ -148,13 +139,6 @@ func (dc DevCat) Category() Category {
 	return Category(dc[1])
 }
 
-// String returns a string representation of the DevCat in the
-// form of category.subcategory where those fields are the 2 digit
-// hex representation of their corresponding values
-func (dc DevCat) String() string {
-	return sprintf("%02x.%02x", dc[0], dc[1])
-}
-
 // In determines if the DevCat domain is found in the list
 func (dc DevCat) In(domains ...Domain) bool {
 	for _, domain := range domains {
@@ -163,6 +147,13 @@ func (dc DevCat) In(domains ...Domain) bool {
 		}
 	}
 	return false
+}
+
+// String returns a string representation of the DevCat in the
+// form of category.subcategory where those fields are the 2 digit
+// hex representation of their corresponding values
+func (dc DevCat) String() string {
+	return sprintf("%02x.%02x", dc[0], dc[1])
 }
 
 // Domain represents an entire domain of similar devices (dimmers, switches, thermostats, etc)

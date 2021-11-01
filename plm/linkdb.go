@@ -80,15 +80,10 @@ func (alr *allLinkReq) String() string {
 	return fmt.Sprintf("%02x %d", alr.Mode, alr.Group)
 }
 
-type modem interface {
-	WritePacket(*Packet) (*Packet, error)
-	ReadPacket() (*Packet, error)
-}
-
 type linkdb struct {
 	age     time.Time
-	links   []*insteon.LinkRecord
-	plm     modem
+	links   []insteon.LinkRecord
+	plm     PacketWriter
 	retries int
 	timeout time.Duration
 }
@@ -101,14 +96,14 @@ func (ldb *linkdb) refresh() error {
 	if !ldb.old() {
 		return nil
 	}
-	links := make([]*insteon.LinkRecord, 0)
+	links := make([]insteon.LinkRecord, 0)
 	_, err := RetryWriter(ldb.plm, ldb.retries, true).WritePacket(&Packet{Command: CmdGetFirstAllLink})
 	for err == nil {
 		var pkt *Packet
 		pkt, err = ldb.plm.ReadPacket()
 		if err == nil {
 			if pkt.Command == CmdAllLinkRecordResp {
-				link := &insteon.LinkRecord{}
+				link := insteon.LinkRecord{}
 				err = link.UnmarshalBinary(pkt.Payload)
 				if err == nil {
 					links = append(links, link)
@@ -125,9 +120,11 @@ func (ldb *linkdb) refresh() error {
 	return err
 }
 
-func (ldb *linkdb) Links() ([]*insteon.LinkRecord, error) {
+func (ldb *linkdb) Links() ([]insteon.LinkRecord, error) {
 	err := ldb.refresh()
-	return ldb.links, err
+	links := make([]insteon.LinkRecord, len(ldb.links))
+	copy(links, ldb.links)
+	return links, err
 }
 
 func (ldb *linkdb) deleteLink(link *insteon.LinkRecord) (*Packet, error) {
@@ -151,7 +148,7 @@ func (ldb *linkdb) writeLink(link *insteon.LinkRecord) (*Packet, error) {
 	return RetryWriter(ldb.plm, 3, true).WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
 }
 
-func (ldb *linkdb) WriteLinks(newLinks ...*insteon.LinkRecord) (err error) {
+func (ldb *linkdb) WriteLinks(newLinks ...insteon.LinkRecord) (err error) {
 	//err = ldb.refresh()
 	lte := &insteon.LinkTransactionError{}
 	if err == nil {
@@ -159,7 +156,7 @@ func (ldb *linkdb) WriteLinks(newLinks ...*insteon.LinkRecord) (err error) {
 		// too bad that the PLM doesn't support some form of transactions or modifying
 		// ALDB records by address
 		for i := 0; i < len(ldb.links) && err == nil; i++ {
-			_, err = ldb.deleteLink(ldb.links[i])
+			_, err = ldb.deleteLink(&ldb.links[i])
 		}
 	}
 
@@ -168,8 +165,8 @@ func (ldb *linkdb) WriteLinks(newLinks ...*insteon.LinkRecord) (err error) {
 
 		for _, link := range newLinks {
 			var ack *Packet
-			ack, err = ldb.writeLink(link)
-			//_, err = ldb.plm.WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
+			ack, err = ldb.writeLink(&link)
+			//_, err = ldb.plm.Write(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
 			if err == nil {
 				ldb.links = append(ldb.links, link)
 			} else if err == ErrWrongPayload {
@@ -183,7 +180,7 @@ func (ldb *linkdb) WriteLinks(newLinks ...*insteon.LinkRecord) (err error) {
 				_, err = ldb.deleteLink(delLink)
 				if err == nil {
 					// try again
-					_, err = ldb.writeLink(link)
+					_, err = ldb.writeLink(&link)
 					if err == nil {
 						ldb.links = append(ldb.links, link)
 					}
@@ -203,7 +200,7 @@ func (ldb *linkdb) WriteLinks(newLinks ...*insteon.LinkRecord) (err error) {
 	return err
 }
 
-func (ldb *linkdb) UpdateLinks(...*insteon.LinkRecord) error {
+func (ldb *linkdb) UpdateLinks(...insteon.LinkRecord) error {
 	return insteon.ErrNotImplemented
 }
 
@@ -211,9 +208,6 @@ func (ldb *linkdb) EnterLinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0x03), Group: group}
 	payload, _ := lr.MarshalBinary()
 	_, err := ldb.plm.WritePacket(&Packet{Command: CmdStartAllLink, Payload: payload})
-	if err == nil {
-		time.Sleep(insteon.PropagationDelay(3, true))
-	}
 	return err
 }
 
@@ -226,8 +220,5 @@ func (ldb *linkdb) EnterUnlinkingMode(group insteon.Group) error {
 	lr := &allLinkReq{Mode: linkingMode(0xff), Group: group}
 	payload, _ := lr.MarshalBinary()
 	_, err := ldb.plm.WritePacket(&Packet{Command: CmdStartAllLink, Payload: payload})
-	if err == nil {
-		time.Sleep(insteon.PropagationDelay(3, true))
-	}
 	return err
 }

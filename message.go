@@ -106,14 +106,18 @@ func Flag(messageType MessageType, extended bool, hopsLeft, maxHops uint8) Flags
 		e = 1
 	}
 
-	return Flags(uint8(messageType) | e<<4 | hopsLeft<<2 | maxHops)
+	flags := Flags(uint8(messageType) | e<<4)
+	flags.SetTTL(hopsLeft)
+	flags.SetMaxTTL(maxHops)
+	return flags
+	//return Flags(uint8(messageType) | e<<4 | hopsLeft<<2 | maxHops)
 }
 
 // Ack indicates if the message was an acknowledgement
-func (f Flags) Ack() bool { return f&0x20 == 0x20 }
+func (f Flags) Ack() bool { return (f&0x20 == 0x20) && !(f&0x80 == 0x80) }
 
 // Nak indicates if the message was a negative-acknowledgement
-func (f Flags) Nak() bool { return f.Ack() && (f&0x80 == 0x80) }
+func (f Flags) Nak() bool { return (f&0x20 == 0x20) && (f&0x80 == 0x80) }
 
 // Type will return the MessageType of the flags
 func (f Flags) Type() MessageType { return MessageType(f & 0xe0) }
@@ -129,7 +133,11 @@ func (f Flags) Extended() bool { return f&0x10 == 0x10 }
 func (f Flags) TTL() uint8 { return uint8((f & 0x0f) >> 2) }
 
 func (f *Flags) SetTTL(ttl uint8) {
+	*f = (*f & 0xf3) | (0x03 & Flags(ttl) << 2)
+}
 
+func (f *Flags) SetMaxTTL(ttl uint8) {
+	*f = (*f & 0xfc) | (Flags(ttl) & 0x03)
 }
 
 // MaxTTL is the maximum number of times a message can be repeated
@@ -146,29 +154,11 @@ func (f Flags) String() string {
 
 // Message is a single insteon message
 type Message struct {
-	Src     Address
-	Dst     Address
-	Flags   Flags
+	Src Address
+	Dst Address
+	Flags
 	Command Command
 	Payload []byte
-}
-
-// Ack indicates if the message is an acknowledgement of a previously sent
-// message
-func (m *Message) Ack() bool {
-	return m.Flags.Ack() && !m.Flags.Nak()
-}
-
-// Nak indicates a negative acknowledgement.  This indicates the device
-// is rejecting a previously sent command
-func (m *Message) Nak() bool {
-	return m.Flags.Nak()
-}
-
-// Broadcast indicates if the message is a broadcast message, as
-// opposed to a direct message (sent directly to the local device)
-func (m *Message) Broadcast() bool {
-	return m.Flags.Type().Broadcast()
 }
 
 // MarshalBinary will convert the Message to a byte slice appropriate for
@@ -180,7 +170,7 @@ func (m *Message) MarshalBinary() (data []byte, err error) {
 	data[6] = byte(m.Flags)
 	data[7] = byte(m.Command.Command1())
 	data[8] = byte(m.Command.Command2())
-	if m.Flags.Extended() {
+	if m.Extended() {
 		data = append(data, make([]byte, 14)...)
 		copy(data[9:23], m.Payload)
 	}
@@ -206,15 +196,15 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	// 0xe0 - All-Link Cleanup NAK
 	// The command lookup won't have the NAK bit set, so the first conditional
 	// sets the command without the NAK bit (masking it with 0x70 instead of 0xf0)
-	if m.Flags.Nak() {
+	if m.Nak() {
 		m.Command = Command(int(0x70&data[6])<<12 | int(data[7])<<8 | int(data[8]))
-	} else if m.Flags.Type() == MsgTypeAllLinkCleanup {
-		m.Command = Command(int(data[7])<<8 | int(data[8]))
+	} else if m.Type() == MsgTypeAllLinkCleanup {
+		m.Command = Command(0x0c0000 | int(data[7])<<8 | int(data[8]))
 	} else {
 		m.Command = Command(int(0xf0&data[6])<<12 | int(data[7])<<8 | int(data[8]))
 	}
 
-	if m.Flags.Extended() {
+	if m.Extended() {
 		if len(data) < ExtendedMsgLen {
 			return newBufError(ErrBufferTooShort, ExtendedMsgLen, len(data))
 		}
@@ -222,6 +212,18 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 		copy(m.Payload, data[9:])
 	}
 	return err
+}
+
+// Duplicate indicates whether everything except the
+// ttl matches the other message.  This is usefule for
+// detecting re-transmitted messages where the ttl
+// is decremented
+func (m *Message) Duplicate(other *Message) bool {
+	return m.Src == other.Src &&
+		m.Dst == other.Dst &&
+		m.Command == other.Command &&
+		m.MaxTTL() == other.MaxTTL() &&
+		bytes.Equal(m.Payload, other.Payload)
 }
 
 func (m *Message) Equals(other *Message) bool {
@@ -233,14 +235,14 @@ func (m *Message) Equals(other *Message) bool {
 }
 
 func (m *Message) String() (str string) {
-	if m.Flags.Type() == MsgTypeAllLinkBroadcast {
+	if m.Type() == MsgTypeAllLinkBroadcast {
 		str = sprintf("%s %s -> ff.ff.ff", m.Flags, m.Src)
-	} else if m.Flags.Type() == MsgTypeBroadcast {
+	} else if m.Type() == MsgTypeBroadcast {
 		devCat := DevCat{m.Dst[0], m.Dst[1]}
 		firmware := FirmwareVersion(m.Dst[2])
 
 		str = sprintf("%s %s -> ff.ff.ff DevCat %v Firmware %v", m.Flags, m.Src, devCat, firmware)
-	} else if m.Flags.Type() == MsgTypeAllLinkCleanup {
+	} else if m.Type() == MsgTypeAllLinkCleanup {
 		str = sprintf("%s %s -> %s Cleanup", m.Flags, m.Src, m.Dst)
 	} else {
 		str = sprintf("%s %s -> %s", m.Flags, m.Src, m.Dst)
@@ -259,11 +261,11 @@ func (m *Message) String() (str string) {
 		str = sprintf("%s %v", str, m.Command)
 	}
 
-	if m.Flags.Type() == MsgTypeAllLinkBroadcast {
+	if m.Type() == MsgTypeAllLinkBroadcast {
 		str = sprintf("%s Group(%d)", str, m.Dst[2])
 	}
 
-	if m.Flags.Extended() {
+	if m.Extended() {
 		payloadStr := make([]string, len(m.Payload))
 		for i, value := range m.Payload {
 			payloadStr[i] = fmt.Sprintf("%02x", value)

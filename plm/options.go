@@ -16,34 +16,20 @@ package plm
 
 import (
 	"time"
-
-	"github.com/abates/insteon"
-	"github.com/abates/insteon/db"
 )
 
 // The Option mechanism is based on the method described at https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
-type Option func(p *PLM) error
+type Option func(p *PLM)
+
+func Timeout(timeout time.Duration) Option {
+	return func(p *PLM) {
+		p.timeout = timeout
+	}
+}
 
 // WriteDelay can be passed as a parameter to New to change the delay used after writing a command before reading the response.
 func WriteDelay(d time.Duration) Option {
-	return func(p *PLM) error {
+	return func(p *PLM) {
 		p.writeDelay = d
-		return nil
-	}
-}
-
-// Database sets the insteoen database that the PLM will use for device category lookups
-func Database(db db.Database) Option {
-	return func(p *PLM) error {
-		p.db = db
-		return nil
-	}
-}
-
-// ConnectionOptions specifies options to be set for each new device connection
-func ConnectionOptions(options ...insteon.ConnectionOption) Option {
-	return func(p *PLM) error {
-		p.connOptions = options
-		return nil
 	}
 }

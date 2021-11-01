@@ -111,7 +111,7 @@ func TestLinkDBRefresh(t *testing.T) {
 		ack       []*Packet
 		txErr     error
 		wantTx    []*Packet
-		wantLinks []*insteon.LinkRecord
+		wantLinks []insteon.LinkRecord
 		wantErr   error
 	}{
 		{
@@ -119,18 +119,19 @@ func TestLinkDBRefresh(t *testing.T) {
 			rx:        []*Packet{pkt(CmdAllLinkRecordResp, insteon.ControllerLink(42, insteon.Address{1, 2, 3}))},
 			ack:       []*Packet{{Command: CmdGetFirstAllLink, Ack: 0x06}, {Command: CmdGetNextAllLink, Ack: 0x15}},
 			wantTx:    []*Packet{{Command: CmdGetFirstAllLink}, {Command: CmdGetNextAllLink}},
-			wantLinks: []*insteon.LinkRecord{insteon.ControllerLink(42, insteon.Address{1, 2, 3})},
+			wantLinks: []insteon.LinkRecord{*insteon.ControllerLink(42, insteon.Address{1, 2, 3})},
 		},
 		{
 			name:      "Happy Path 1",
 			rx:        []*Packet{pkt(CmdAllLinkRecordResp, insteon.ControllerLink(42, insteon.Address{1, 2, 3})), pkt(CmdAllLinkRecordResp, insteon.ControllerLink(35, insteon.Address{4, 5, 6}))},
 			ack:       []*Packet{{Command: CmdGetFirstAllLink, Ack: 0x06}, {Command: CmdGetNextAllLink, Ack: 0x06}, {Command: CmdGetNextAllLink, Ack: 0x15}},
 			wantTx:    []*Packet{{Command: CmdGetFirstAllLink}, {Command: CmdGetNextAllLink}, {Command: CmdGetNextAllLink}},
-			wantLinks: []*insteon.LinkRecord{insteon.ControllerLink(42, insteon.Address{1, 2, 3}), insteon.ControllerLink(35, insteon.Address{4, 5, 6})},
+			wantLinks: []insteon.LinkRecord{*insteon.ControllerLink(42, insteon.Address{1, 2, 3}), *insteon.ControllerLink(35, insteon.Address{4, 5, 6})},
 		},
 		{
-			name: "New",
-			age:  time.Now().Add(42 * time.Hour),
+			name:      "New",
+			age:       time.Now().Add(42 * time.Hour),
+			wantLinks: []insteon.LinkRecord{},
 		},
 		{
 			name:    "Read Timeout",

@@ -8,8 +8,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/abates/insteon"
 )
 
 type ErrWriter struct {
@@ -32,8 +30,10 @@ func TestLogWriter(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			buf := bytes.NewBuffer(nil)
-			log := &insteon.Logger{Level: insteon.LevelTrace, Logger: log.New(buf, "", 0)}
-			lw := LogWriter{test.writer, log}
+			l := log.New(buf, "", 0)
+			ld := log.New(buf, "DEBUG ", 0)
+			lt := log.New(buf, "TRACE ", 0)
+			lw := logWriter{Writer: test.writer, Log: l, LogDebug: ld, LogTrace: lt}
 			_, gotErr := lw.Write(test.input)
 			lines := strings.Split(buf.String(), "\n")
 			want := fmt.Sprintf("TRACE TX %s", hexDump("%02x", test.input, " "))
@@ -93,35 +93,18 @@ func TestPacketReaderRead(t *testing.T) {
 	tests := []struct {
 		name  string
 		input []byte
-		wantN int
-	}{
-		{"simple packet", []byte{0x02, 0x6a, 0x15}, 3},
-		{"insteon send extended packet ack", []byte{0x02, 0x62, 0x54, 0x88, 0x55, 0x1f, 0x2f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd1, 0x06}, 23},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			reader := NewPacketReader(bytes.NewReader(test.input)).(*packetReader)
-			gotN, _ := reader.read()
-			if test.wantN != gotN {
-				t.Errorf("Wanted N %d got %d", test.wantN, gotN)
-			}
-
-			if !bytes.Equal(test.input, reader.buf[0:test.wantN]) {
-				t.Errorf("Wanted bytes %x got %x", test.input, reader.buf[0:test.wantN])
-			}
-		})
-	}
-}
-
-func TestPacketReaderReadPacket(t *testing.T) {
-	tests := []struct {
-		name  string
-		input []byte
 		want  Packet
 	}{
-		{"NAK packet", []byte{0x02, 0x6a, 0x15}, Packet{CmdGetNextAllLink, nil, 0x15}},
-		{"insteon send extended packet ack", []byte{0x02, 0x62, 0x54, 0x88, 0x55, 0x1f, 0x2f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd1, 0x06}, Packet{CmdSendInsteonMsg, []byte{0, 0, 0, 0x54, 0x88, 0x55, 0x1f, 0x2f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd1}, 0x06}},
+		{
+			name:  "NAK packet",
+			input: []byte{0x02, 0x6a, 0x15},
+			want:  Packet{CmdGetNextAllLink, nil, 0x15},
+		},
+		{
+			name:  "insteon send extended packet ack",
+			input: []byte{0x02, 0x62, 0x54, 0x88, 0x55, 0x1f, 0x2f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd1, 0x06},
+			want:  Packet{CmdSendInsteonMsg, []byte{0, 0, 0, 0x54, 0x88, 0x55, 0x1f, 0x2f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xd1}, 0x06},
+		},
 	}
 
 	for _, test := range tests {

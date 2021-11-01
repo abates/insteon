@@ -8,19 +8,17 @@ import (
 
 func TestOptions(t *testing.T) {
 	want := 1234 * time.Millisecond
-	reader := bytes.NewReader(nil)
-	writer := bytes.NewBuffer(nil)
 
-	without, err := New(reader, writer, 5*time.Second)
+	without, err := New(&bytes.Buffer{})
 	if err != nil {
 		t.Errorf("unexpected error from plm.New(): %v", err)
 	}
 
-	if without.writeDelay == want {
-		t.Errorf("writeDelay is %v, expected anything else", without.writeDelay)
+	if without.writeDelay != 0 {
+		t.Errorf("writeDelay is %v, expected %v", without.writeDelay, time.Duration(0))
 	}
 
-	with, err := New(reader, writer, 5*time.Second, WriteDelay(want))
+	with, err := New(&bytes.Buffer{}, WriteDelay(want))
 	if err != nil {
 		t.Errorf("unexpected error from plm.New(): %v", err)
 	}

@@ -20,11 +20,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/abates/insteon"
-	"github.com/abates/insteon/db"
 )
 
 var (
@@ -48,200 +46,150 @@ func hexDump(format string, buf []byte, sep string) string {
 }
 
 type PLM struct {
-	insteon.Bus
-	address   insteon.Address
-	reader    PacketReader
-	writer    io.Writer
-	writeLock sync.Mutex
+	writer  io.Writer
+	reader  PacketReader
+	address insteon.Address
 
 	linkdb
-	timeout          time.Duration
-	retries          int
-	writeDelay       time.Duration
-	lastRead         time.Time
-	lastInsteonRead  time.Time     // lastInsteonRead is set for each Insteon packet that is received
-	                               // and it is used to determine if we should wait before transmitting
-				       // additional Insteon messages
+	timeout    time.Duration
+	retries    int
+	writeDelay time.Duration
 
-	lastInsteonFlags insteon.Flags // lastInsteonFlags is stored for each Insteon message received
-                                       // and it is used to calculate write delay based on standard or
-				       // extended messages
-	connOptions []insteon.ConnectionOption
-	plmCh       chan *Packet
-	messages    chan *insteon.Message
-	db          db.Database
+	msgBuf    chan *Packet
+	packetBuf chan *Packet
 }
 
 // New creates a new PLM instance.
-func New(reader io.Reader, writer io.Writer, timeout time.Duration, options ...Option) (plm *PLM, err error) {
+func New(rw io.ReadWriter, options ...Option) (plm *PLM, err error) {
 	plm = &PLM{
-		reader:          NewPacketReader(reader),
-		writer:          LogWriter{writer, insteon.Log},
-		timeout:         timeout,
-		retries:         3,
-		lastRead:        time.Now(),
-		lastInsteonRead: time.Now(),
+		writer: rw,
+		reader: NewPacketReader(rw),
 
-		plmCh:    make(chan *Packet, 1),
-		messages: make(chan *insteon.Message, 10),
-		db:       db.NewMemDB(),
+		timeout:   3 * time.Second,
+		retries:   3,
+		msgBuf:    make(chan *Packet, 10),
+		packetBuf: make(chan *Packet, 10),
 	}
 
 	for _, o := range options {
-		err := o(plm)
-		if err != nil {
-			insteon.Log.Infof("error setting plm option: %v", err)
-			return nil, err
-		}
+		o(plm)
 	}
 
+	//plm.writer = defaultPacketWriter(rw, plm.writeDelay)
 	plm.linkdb.plm = plm
 	plm.linkdb.retries = plm.retries
 	plm.linkdb.timeout = plm.timeout
-
-	if plm.Bus == nil {
-		plm.Bus, err = insteon.NewBus(plm, plm.messages, plm.connOptions...)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if insteon.Log.Level >= insteon.LevelDebug {
-		insteon.Log.Debugf("Staring PLM with config:")
-		insteon.Log.Debugf("                Timeout: %s", plm.timeout)
-		insteon.Log.Debugf("                Retries: %d", plm.retries)
-		insteon.Log.Debugf("             WriteDelay: %s", plm.writeDelay)
-	}
 	go plm.readLoop()
-
-	if insteon.Log.Level >= insteon.LevelDebug {
-		address := plm.Address()
-		insteon.Log.Debugf("         PLM Address is: %v", address)
-	}
-
 	return plm, nil
 }
 
 func (plm *PLM) readLoop() {
 	for {
-		packet, err := plm.reader.ReadPacket()
-		plm.lastRead = time.Now()
-		if err == nil {
-			insteon.Log.Tracef("%v", packet)
-			if packet.Command == CmdStdMsgReceived || packet.Command == CmdExtMsgReceived {
-				msg := &insteon.Message{}
-				err = msg.UnmarshalBinary(packet.Payload)
-				if err == nil {
-					plm.writeLock.Lock()
-					plm.lastInsteonRead = time.Now()
-					plm.lastInsteonFlags = msg.Flags
-					plm.writeLock.Unlock()
-					insteon.Log.Debugf("PLM Insteon RX %v", msg)
-					plm.messages <- msg
-				}
-			} else {
-				insteon.Log.Debugf("PLM CMD RX %v", packet)
-				if packet.Command == CmdAllLinkComplete {
-					continue
-				}
-				select {
-				case plm.plmCh <- packet:
-				default:
-					insteon.Log.Infof("Nothing listening on PLM channel")
-				}
+		pkt, err := plm.reader.ReadPacket()
+		if err != nil {
+			insteon.Log.Printf("Read error: %v", err)
+			close(plm.msgBuf)
+			close(plm.packetBuf)
+			return
+		}
+
+		insteon.LogDebug.Printf("PLM RX %v", pkt)
+		if pkt.Command == CmdStdMsgReceived || pkt.Command == CmdExtMsgReceived {
+			select {
+			case plm.msgBuf <- pkt:
+			default:
+				insteon.Log.Printf("PLM Packet dropped, no one listening")
 			}
 		} else {
-			if err != io.EOF {
-				insteon.Log.Infof("PLM Read Error: %v", err)
+			select {
+			case plm.packetBuf <- pkt:
+			default:
+				insteon.Log.Printf("PLM Packet dropped, no one listening")
 			}
-			break
 		}
 	}
 }
 
-// WriteMessage to the network
-func (plm *PLM) WriteMessage(msg *insteon.Message) error {
+// Write insteon message
+func (plm *PLM) Write(msg *insteon.Message) (ack *insteon.Message, err error) {
 	buf, err := msg.MarshalBinary()
 	if err == nil {
-		insteon.Log.Debugf("PLM Insteon TX %v", msg)
+		insteon.LogDebug.Printf("TX Insteon Message %v", msg)
 		// slice off the source address since the PLM doesn't want it
 		buf = buf[3:]
 		_, err = RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
-	}
-
-	return err
-}
-
-//func writeDelay(pkt *Packet, last time.Time, maxDelay time.Duration) (delay time.Duration) {
-func writeDelay(pkt *Packet, lastFlags insteon.Flags, minDelay time.Duration, lastRead time.Time) (delay time.Duration) {
-	if pkt.Command == CmdSendInsteonMsg {
-		delay = insteon.PropagationDelay(lastFlags.TTL(), lastFlags.Extended())
-		delay = time.Now().Sub(lastRead.Add(delay))
-		delay = time.Now().Sub(lastRead.Add(delay))
-	}
-	if delay < minDelay {
-		delay = minDelay
-	}
-	return delay
-}
-
-// WritePacket and wait for the PLM to ack that the packet was
-// sent.  This is a blocking function. Only callers that have acquired
-// the mutex should call this function
-func (plm *PLM) WritePacket(txPacket *Packet) (ack *Packet, err error) {
-	buf, err := txPacket.MarshalBinary()
-	if err == nil {
-		plm.writeLock.Lock()
-		time.Sleep(writeDelay(txPacket, plm.lastInsteonFlags, plm.writeDelay, plm.lastInsteonRead))
-
-		insteon.Log.Tracef("Sending packet %v (write delay %v)", txPacket, writeDelay)
-		if txPacket.Command != CmdSendInsteonMsg {
-			insteon.Log.Debugf("PLM CMD TX %v", txPacket)
-		}
-		_, err = plm.writer.Write(buf)
-		plm.writeLock.Unlock()
 
 		if err == nil {
-			insteon.Log.Tracef("PLM TX %v", txPacket)
-			ack, err = plm.ReadPacket()
+			// get the ACK
+			ack, err = plm.Read()
+			for ; err == nil; ack, err = plm.Read() {
+				if ack.Src == msg.Dst && ack.Ack() {
+					break
+				}
+			}
+		}
+	}
 
+	return ack, err
+}
+
+func (plm *PLM) WritePacket(pkt *Packet) (ack *Packet, err error) {
+	buf, err := pkt.MarshalBinary()
+	if err == nil {
+		insteon.LogTrace.Printf("Sending packet %v", pkt)
+		insteon.LogDebug.Printf("PLM TX %v", pkt)
+		_, err = plm.writer.Write(buf)
+
+		if err == nil {
+			ack, err = plm.ReadPacket()
 			if err == nil {
 				// these things happen rarely, but we can (a least in the
 				// case of ErrWrongAck) usually do something about it
-				if !ack.ACK() {
+				if !ack.ACK() && !ack.NAK() {
 					err = ErrNoAck
-				} else if ack.Command != txPacket.Command {
+				} else if ack.Command != pkt.Command {
 					err = ErrWrongAck
 				} else if ack.Command != CmdGetInfo && ack.Command != CmdGetConfig {
 					payload := ack.Payload
 					if ack.Command == CmdSendInsteonMsg {
 						payload = payload[3:]
 					}
-					if !bytes.Equal(payload, txPacket.Payload) {
+					if !bytes.Equal(payload, pkt.Payload) {
 						err = ErrWrongPayload
 					}
 				}
 			}
 		}
 	}
+	if ack.NAK() {
+		err = ErrNak
+	}
+
 	return
 }
 
 func (plm *PLM) ReadPacket() (pkt *Packet, err error) {
 	select {
-	case pkt = <-plm.plmCh:
+	case pkt = <-plm.packetBuf:
 	case <-time.After(plm.timeout):
-		return nil, ErrReadTimeout
+		err = ErrReadTimeout
 	}
-
-	if pkt.NAK() {
-		err = ErrNak
-	}
-	return pkt, err
+	return
 }
 
-func (plm *PLM) Open(dst insteon.Address) (insteon.Device, error) {
-	return plm.db.Open(plm.Bus, dst)
+func (plm *PLM) Read() (msg *insteon.Message, err error) {
+	select {
+	case pkt := <-plm.msgBuf:
+		msg = &insteon.Message{}
+		err = msg.UnmarshalBinary(pkt.Payload)
+		if err == nil {
+			insteon.LogDebug.Printf("RX Insteon Message %v", msg)
+		}
+	case <-time.After(plm.timeout):
+		err = insteon.ErrReadTimeout
+	}
+
+	return msg, err
 }
 
 func (plm *PLM) Info() (info *Info, err error) {
@@ -300,13 +248,6 @@ func (plm *PLM) Address() insteon.Address {
 
 func (plm *PLM) String() string {
 	return fmt.Sprintf("PLM (%s)", plm.Address())
-}
-
-func (plm *PLM) Close() {
-	//close(plm.insteonTxCh)
-	if closer, ok := plm.writer.(io.Closer); ok {
-		closer.Close()
-	}
 }
 
 func (plm *PLM) LinkDatabase() (insteon.Linkable, error) {

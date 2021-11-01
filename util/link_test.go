@@ -9,31 +9,31 @@ import (
 )
 
 type testLinkable struct {
-	links []*insteon.LinkRecord
+	links []insteon.LinkRecord
 }
 
 func (tl *testLinkable) Address() insteon.Address {
 	return insteon.Address{1, 2, 3}
 }
 
-func (tl *testLinkable) Links() ([]*insteon.LinkRecord, error) {
+func (tl *testLinkable) Links() ([]insteon.LinkRecord, error) {
 	return tl.links, nil
 }
 func (tl *testLinkable) WriteLink(int, *insteon.LinkRecord) error { return nil }
-func (tl *testLinkable) WriteLinks(...*insteon.LinkRecord) error  { return nil }
-func (tl *testLinkable) UpdateLinks(...*insteon.LinkRecord) error { return nil }
+func (tl *testLinkable) WriteLinks(...insteon.LinkRecord) error   { return nil }
+func (tl *testLinkable) UpdateLinks(...insteon.LinkRecord) error  { return nil }
 func (tl *testLinkable) EnterLinkingMode(insteon.Group) error     { return nil }
 func (tl *testLinkable) EnterUnlinkingMode(insteon.Group) error   { return nil }
 func (tl *testLinkable) ExitLinkingMode() error                   { return nil }
 
 func TestFindDuplicateLinks(t *testing.T) {
-	links := []*insteon.LinkRecord{
+	links := []insteon.LinkRecord{
 		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address{1, 2, 3}},
 		{Flags: insteon.UnavailableResponder, Group: 1, Address: insteon.Address{1, 2, 3}},
 		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address{4, 5, 6}},
 		{Flags: insteon.UnavailableResponder, Group: 1, Address: insteon.Address{4, 5, 6}},
 	}
-	want := []*insteon.LinkRecord{}
+	want := []insteon.LinkRecord{}
 
 	tl := &testLinkable{links: links}
 	got, _ := FindDuplicateLinks(tl)
@@ -43,8 +43,7 @@ func TestFindDuplicateLinks(t *testing.T) {
 	}
 
 	// create a duplicate
-	dup := &insteon.LinkRecord{}
-	*dup = *links[0]
+	dup := links[0]
 	want = append(want, dup)
 	tl.links = append(tl.links, dup)
 
@@ -56,7 +55,7 @@ func TestFindDuplicateLinks(t *testing.T) {
 }
 
 func TestLinksToText(t *testing.T) {
-	links := []*insteon.LinkRecord{
+	links := []insteon.LinkRecord{
 		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address{1, 2, 3}},
 		{Flags: insteon.UnavailableResponder, Group: 1, Address: insteon.Address{1, 2, 3}},
 		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address{4, 5, 6}},
@@ -79,7 +78,7 @@ UR        1 04.05.06   00 00 00
 	if err == nil {
 		if len(gotLinks) == len(links) {
 			for i, wantLink := range links {
-				if !wantLink.Equal(gotLinks[i]) {
+				if !wantLink.Equal(&gotLinks[i]) {
 					t.Errorf("Wanted link: %v got %v", wantLink, gotLinks[i])
 				}
 			}
@@ -92,7 +91,7 @@ UR        1 04.05.06   00 00 00
 }
 
 func TestFindLinkRecord(t *testing.T) {
-	links := []*insteon.LinkRecord{
+	links := []insteon.LinkRecord{
 		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address{1, 2, 3}},
 		{Flags: insteon.UnavailableResponder, Group: 1, Address: insteon.Address{1, 2, 3}},
 		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address{4, 5, 6}},
@@ -105,17 +104,22 @@ func TestFindLinkRecord(t *testing.T) {
 		inputController bool
 		inputAddress    insteon.Address
 		inputGroup      insteon.Group
-		want            *insteon.LinkRecord
+		want            insteon.LinkRecord
+		wantErr         error
 	}{
-		{"found", true, insteon.Address{1, 2, 3}, 1, links[0]},
-		{"not found", true, insteon.Address{7, 8, 9}, 1, nil},
+		{"found", true, insteon.Address{1, 2, 3}, 1, links[0], nil},
+		{"not found", true, insteon.Address{7, 8, 9}, 1, insteon.LinkRecord{}, ErrLinkNotFound},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			got, _ := FindLinkRecord(tl, test.inputController, test.inputAddress, test.inputGroup)
-			if test.want != got {
-				t.Errorf("want link %v got %v", test.want, got)
+			got, err := FindLinkRecord(tl, test.inputController, test.inputAddress, test.inputGroup)
+			if err == test.wantErr {
+				if test.want != got {
+					t.Errorf("want link %v got %v", test.want, got)
+				}
+			} else {
+				t.Errorf("Wanted error %v got %v", test.wantErr, err)
 			}
 		})
 	}

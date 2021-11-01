@@ -16,38 +16,33 @@ package insteon
 
 import (
 	"bytes"
-	"fmt"
+	"io"
 	"log"
-	"strings"
 	"testing"
 )
 
-func TestLogging(t *testing.T) {
-	levels := []LogLevel{LevelNone, LevelInfo, LevelDebug}
-	for _, level := range levels {
-		messages := []string{}
-		for _, l := range levels {
-			if l == LevelNone {
-				continue
+func TestSetLogLevel(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  LogLevel
+		writer io.Writer
+		want   []*log.Logger
+	}{
+		{"none", LevelNone, io.Discard, []*log.Logger{Log, LogDebug, LogTrace}},
+		{"info", LevelInfo, bytes.NewBuffer(nil), []*log.Logger{Log}},
+		{"debug", LevelDebug, bytes.NewBuffer(nil), []*log.Logger{Log, LogDebug}},
+		{"trace", LevelTrace, bytes.NewBuffer(nil), []*log.Logger{Log, LogDebug, LogTrace}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			SetLogLevel(test.input, test.writer)
+			for i, logger := range test.want {
+				if logger.Writer() != test.writer {
+					t.Errorf("Logger %d has an incorrect output writer", i)
+				}
 			}
-			messages = append(messages, fmt.Sprintf("%5s message", l))
-		}
-
-		buffer := bytes.NewBuffer([]byte{})
-		testLogger := log.New(buffer, "", 0)
-		logger := &Logger{Logger: testLogger, Level: level}
-
-		logger.Infof("message")
-		logger.Debugf("message")
-		logger.Tracef("message")
-
-		expected := strings.Join(messages[0:int(level)], "\n")
-		if expected != "" {
-			expected += "\n"
-		}
-		if expected != buffer.String() {
-			t.Errorf("got %q, want %q", buffer.String(), expected)
-		}
+		})
 	}
 }
 
@@ -82,46 +77,6 @@ func TestLogLevelSet(t *testing.T) {
 
 			if got.Get() != test.want {
 				t.Errorf("want LogLevel %v got %v", test.want, got)
-			}
-		})
-	}
-}
-
-func TestLog(t *testing.T) {
-	tests := []struct {
-		desc  string
-		level LogLevel
-		tf    func(*Logger)
-		want  string
-	}{
-		// LevelInfo
-		{"Infof", LevelInfo, func(l *Logger) { l.Infof("test") }, "INFO test"},
-		{"Errorf", LevelInfo, func(l *Logger) { l.Errorf(nil, "test") }, ""},
-		{"Errorf", LevelInfo, func(l *Logger) { l.Errorf(ErrReadTimeout, "test") }, "INFO test"},
-		{"Debugf", LevelInfo, func(l *Logger) { l.Debugf("test") }, ""},
-		{"Tracef", LevelInfo, func(l *Logger) { l.Tracef("test") }, ""},
-		// LevelDebug
-		{"Infof", LevelDebug, func(l *Logger) { l.Infof("test") }, "INFO test"},
-		{"Errorf", LevelDebug, func(l *Logger) { l.Errorf(nil, "test") }, ""},
-		{"Errorf", LevelDebug, func(l *Logger) { l.Errorf(ErrReadTimeout, "test") }, "INFO test"},
-		{"Debugf", LevelDebug, func(l *Logger) { l.Debugf("test") }, "DEBUG test"},
-		{"Tracef", LevelDebug, func(l *Logger) { l.Tracef("test") }, ""},
-		// LevelTrace
-		{"Infof", LevelTrace, func(l *Logger) { l.Infof("test") }, "INFO test"},
-		{"Errorf", LevelTrace, func(l *Logger) { l.Errorf(nil, "test") }, ""},
-		{"Errorf", LevelTrace, func(l *Logger) { l.Errorf(ErrReadTimeout, "test") }, "INFO test"},
-		{"Debugf", LevelTrace, func(l *Logger) { l.Debugf("test") }, "DEBUG test"},
-		{"Tracef", LevelTrace, func(l *Logger) { l.Tracef("test") }, "TRACE test"},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			builder := &strings.Builder{}
-			logger := &Logger{Level: test.level, Logger: log.New(builder, "", 0)}
-			test.tf(logger)
-			got := strings.TrimSpace(builder.String())
-			if !strings.HasSuffix(got, test.want) {
-				t.Errorf("want string %v got %v", test.want, got)
 			}
 		})
 	}

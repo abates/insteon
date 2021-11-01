@@ -55,7 +55,7 @@ func init() {
 }
 
 func (dim *dimmer) init(string) (err error) {
-	device, err := connect(modem, dim.addr)
+	device, err := open(modem, dim.addr)
 	if err == nil {
 		if d, ok := device.(*insteon.Dimmer); ok {
 			*dim.Dimmer.Switch = *d.Switch

@@ -69,8 +69,8 @@ type Dimmer struct {
 // NewDimmer is a factory function that will return a dimmer switch configured
 // appropriately for the given firmware version.  All dimmers are switches, so
 // the first argument is a Switch object used to compose the new dimmer
-func NewDimmer(device Device, bus Bus, info DeviceInfo) *Dimmer {
-	return &Dimmer{Switch: NewSwitch(device, bus, info), info: info}
+func NewDimmer(d *device, info DeviceInfo) *Dimmer {
+	return &Dimmer{Switch: NewSwitch(d, info), info: info}
 }
 
 func (dd *Dimmer) Config() (config DimmerConfig, err error) {
@@ -79,11 +79,9 @@ func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
-	rx := dd.Subscribe(And(Not(AckMatcher()), CmdMatcher(CmdExtendedGetSet)))
-	defer dd.Unsubscribe(rx)
-	msg, err := dd.Publish(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
+	msg, err := dd.Write(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
 	if err == nil {
-		msg, err = ReadWithTimeout(rx, dd.Switch.bus.Config().Timeout(true))
+		msg, err = Read(dd, CmdMatcher(CmdExtendedGetSet))
 		if err == nil {
 			err = config.UnmarshalBinary(msg.Payload)
 		}

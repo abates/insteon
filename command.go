@@ -50,6 +50,10 @@ func (cmd Command) Command2() int {
 	return int(cmd & 0xff)
 }
 
+func (cmd Command) Matches(other Command) bool {
+	return cmd.Command1() == other.Command1()
+}
+
 func (cmd Command) String() string {
 	if str, found := cmdStrings[cmd]; found {
 		return str

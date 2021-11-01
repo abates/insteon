@@ -1,36 +1,14 @@
-package db
+package util
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
+	"os"
 
 	"github.com/abates/insteon"
 )
-
-func open(db Database, bus insteon.Bus, dst insteon.Address) (device insteon.Device, err error) {
-	if info, found := db.Get(dst); found {
-		device, err = insteon.New(bus, info)
-	} else {
-		var version insteon.EngineVersion
-		version, err = insteon.GetEngineVersion(bus, dst)
-		if err == nil {
-			info := insteon.DeviceInfo{
-				Address:       dst,
-				EngineVersion: version,
-			}
-			info.FirmwareVersion, info.DevCat, err = insteon.IDRequest(bus, dst)
-			if err == nil {
-				device, err = insteon.New(bus, info)
-			}
-
-			if err == nil {
-				db.Put(info)
-			}
-		}
-	}
-	return device, err
-}
 
 // Database is the interface representing a collection of
 // Insteon devices.  This provides a way to collect and store
@@ -55,20 +33,12 @@ type Database interface {
 	// Filter will return a list of addresses that match the
 	// given device categories
 	Filter(domains ...insteon.Domain) []insteon.Address
-
-	// Open will return an initialized Insteon device object.  If the
-	// DeviceInfo object does not exist in the database, then the database
-	// will query the device for its engine version and device category
-	// and store the responses.  Once the information has been gathered (either
-	// from an existing entry in the database, or by querying the device)
-	// Open will open a connection to the device and return the
-	// correct device type (Light, Thermostat, etc).  See insteon.New and
-	// insteon.Create for additional details
-	Open(bus insteon.Bus, dst insteon.Address) (device insteon.Device, err error)
 }
 
 // Saveable is any database that can be written to an io.Writer
 type Saveable interface {
+	Database
+
 	// Save will write the current database state to the given writer
 	Save(io.Writer) error
 
@@ -85,7 +55,7 @@ type Loadable interface {
 }
 
 // NewMemDB returns a memory-backed database
-func NewMemDB() Database {
+func NewMemDB() Saveable {
 	return &memDB{
 		values: make(map[insteon.Address]insteon.DeviceInfo),
 	}
@@ -115,10 +85,6 @@ func (db *memDB) Put(info insteon.DeviceInfo) {
 		db.dirty = true
 		db.values[info.Address] = info
 	}
-}
-
-func (db *memDB) Open(bus insteon.Bus, dst insteon.Address) (device insteon.Device, err error) {
-	return open(db, bus, dst)
 }
 
 func (db *memDB) Load(reader io.Reader) error {
@@ -151,4 +117,66 @@ func (db *memDB) MarshalJSON() ([]byte, error) {
 func (db *memDB) UnmarshalJSON(data []byte) error {
 	db.values = make(map[insteon.Address]insteon.DeviceInfo)
 	return json.Unmarshal(data, &db.values)
+}
+
+var (
+	ErrNotSaveable = errors.New("Database is not saveable")
+	ErrNotLoadable = errors.New("Database is not loadable")
+)
+
+// Open will look for the device info in the database and return
+// an initialized device if found.  If not found, Open will call
+// insteon.Open and store the info upon success.  If dbfile is
+// not an empty string, SaveDB will be called at the end
+func Open(mw insteon.MessageWriter, addr insteon.Address, db Database, dbfile string) (insteon.Device, error) {
+	info, found := db.Get(addr)
+	if found {
+		return insteon.New(mw, info), nil
+	}
+
+	device, info, err := insteon.Open(mw, addr)
+	if err == nil {
+		db.Put(info)
+		if dbfile != "" {
+			err = SaveDB(dbfile, db)
+		}
+	}
+	return device, err
+}
+
+// SaveDB will attemt to save the database to the named file.  If
+// the database is not saveable (does not implement the Saveable
+// interface) then ErrNotSaveable is returned
+func SaveDB(filename string, db Database) (err error) {
+	if saveable, ok := db.(Saveable); ok {
+		if saveable.NeedsSaving() {
+			var file *os.File
+			file, err = os.OpenFile(filename, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0600)
+			if err == nil {
+				err = saveable.Save(file)
+			}
+		}
+	} else {
+		err = ErrNotSaveable
+	}
+	return err
+}
+
+// LoadDB will attempt to load db from the named file.  If
+// db does not implement the Loadable interface, then nothing
+// is done and ErrNotLoadable is returned
+func LoadDB(filename string, db Database) (err error) {
+	if loadable, ok := db.(Loadable); ok {
+		_, err := os.Stat(filename)
+		if err == nil {
+			file, err := os.Open(filename)
+			if err == nil {
+				err = loadable.Load(file)
+				file.Close()
+			}
+		}
+	} else {
+		err = ErrNotLoadable
+	}
+	return err
 }

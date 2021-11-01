@@ -15,177 +15,36 @@
 package insteon
 
 import (
+	"errors"
+	"io"
 	"testing"
-	"time"
 )
 
-type testBus struct {
-	published   *Message
-	publishResp []*Message
-	publishErr  error
-
-	subscribeSrc     Address
-	subscribeMatcher Matcher
-	subscribeCh      <-chan *Message
-
-	unsubscribeSrc Address
-	unsubscribeCh  <-chan *Message
-}
-
-func (tb *testBus) Publish(msg *Message) (*Message, error) {
-	tb.published = msg
-	msg = tb.publishResp[0]
-	tb.publishResp = tb.publishResp[1:]
-	return msg, tb.publishErr
-}
-
-func (tb *testBus) On(src Address, matcher Matcher, cb func(*Message)) func() {
-	return nil
-}
-
-func (tb *testBus) Subscribe(src Address, matcher Matcher) <-chan *Message {
-	tb.subscribeSrc = src
-	tb.subscribeMatcher = matcher
-	return tb.subscribeCh
-}
-
-func (tb *testBus) Unsubscribe(src Address, ch <-chan *Message) {
-	tb.unsubscribeSrc = src
-	tb.unsubscribeCh = ch
-}
-
-func (tb *testBus) Close() error { return nil }
-
-func (tb *testBus) Config() ConnectionConfig { return ConnectionConfig{} }
-
-func TestBusRun(t *testing.T) {
-	tests := []struct {
-		name   string
-		pubSrc Address
-		input  *Message
-		want   bool
-	}{
-		{"receive msg", Address{1, 2, 3}, &Message{Src: Address{1, 2, 3}}, true},
-		{"reject msg", Address{1, 2, 3}, &Message{Src: Address{4, 5, 6}}, false},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			messages := make(chan *Message)
-			bb, _ := NewBus(nil, messages)
-			b := bb.(*bus)
-			ch := b.Subscribe(test.pubSrc, Matches(func(*Message) bool { return true }))
-			messages <- test.input
-			b.Unsubscribe(test.pubSrc, ch)
-			b.Close()
-			if test.want {
-				if len(ch) != 1 {
-					t.Errorf("Wanted subcriber to receive message")
-				}
-			} else if len(ch) != 0 {
-				t.Errorf("Wanted subscriber to not receive message")
-			}
-
-			if len(b.listeners[test.pubSrc]) > 0 {
-				t.Errorf("Run did not remove subscriber")
-			}
-		})
-	}
-}
-
 type testWriter struct {
-	ch chan *Message
+	read    []*Message
+	readErr error
+	written []*Message
+	acks    []*Message
+	ackErr  error
 }
 
-func (tw *testWriter) WriteMessage(msg *Message) error {
-	tw.ch <- msg
-	return nil
+func (tw *testWriter) Write(msg *Message) (*Message, error) {
+	tw.written = append(tw.written, msg)
+	if len(tw.acks) > 0 {
+		ack := tw.acks[0]
+		tw.acks = tw.acks[1:]
+		return ack, tw.ackErr
+	}
+	return TestAck, tw.ackErr
 }
 
-func TestPublish(t *testing.T) {
-	tests := []struct {
-		name      string
-		tries     int
-		input     *Message
-		resp      *Message
-		wantFlags Flags
-		wantErr   error
-	}{
-		{"normal", 1, &Message{}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, false, 0, 0), nil},
-		{"nak", 1, &Message{}, &Message{Flags: StandardDirectNak}, Flag(MsgTypeDirect, false, 0, 0), ErrNak},
-		{"retries", 2, &Message{}, nil, Flag(MsgTypeDirect, false, 0, 0), ErrAckTimeout},
-		{"extended", 1, &Message{Payload: []byte{1, 2, 3}}, &Message{Flags: StandardDirectAck}, Flag(MsgTypeDirect, true, 0, 0), nil},
+func (tw *testWriter) Read() (*Message, error) {
+	if len(tw.read) > 0 {
+		msg := tw.read[0]
+		tw.read = tw.read[1:]
+		return msg, tw.readErr
 	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			messages := make(chan *Message, 1)
-			writer := make(chan *Message, test.tries)
-			done := make(chan bool)
-			bb, _ := NewBus(&testWriter{writer}, messages, ConnectionTTL(0), ConnectionRetry(1))
-			b := bb.(*bus)
-			go func() {
-				_, gotErr := b.Publish(test.input)
-				if test.wantErr != gotErr {
-					t.Errorf("Wanted err %v got %v", test.wantErr, gotErr)
-				}
-				done <- true
-			}()
-			msg := <-writer
-			if test.resp != nil {
-				messages <- test.resp
-			}
-
-			if test.wantFlags != msg.Flags {
-				t.Errorf("Wanted flags %v got %v", test.wantFlags, msg.Flags)
-			}
-
-			if msg.Flags.Extended() && len(msg.Payload) != 14 {
-				t.Errorf("Wanted 14 byte payload, got %d", len(msg.Payload))
-			}
-
-			<-done
-			b.Close()
-			if len(b.listeners[test.input.Src]) != 0 {
-				t.Errorf("Expected listener to be unsubscribed after publish")
-			}
-
-			if test.tries != len(writer)+1 {
-				t.Errorf("Expected message to be retried %d times, got %d", test.tries, len(writer)+1)
-			}
-		})
-	}
-}
-
-func TestConnectionOptions(t *testing.T) {
-	tests := []struct {
-		desc    string
-		input   ConnectionOption
-		want    ConnectionConfig
-		wantErr string
-	}{
-		{"Timeout Option", ConnectionTimeout(time.Hour), ConnectionConfig{DefaultTimeout: time.Hour}, ""},
-		{"TTL Option", ConnectionTTL(3), ConnectionConfig{TTL: 3}, ""},
-		{"TTL Option (error)", ConnectionTTL(42), ConnectionConfig{}, "invalid ttl 42, must be in range 0-3"},
-		{"ConnectionBufSize", ConnectionBufSize(1), ConnectionConfig{BufSize: 1}, ""},
-		{"ConnectionBufSize (error)", ConnectionBufSize(-1), ConnectionConfig{}, "Buffer size cannot be less than zero"},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			got := ConnectionConfig{}
-			err := test.input(&got)
-			if err != nil {
-				if test.wantErr != err.Error() {
-					t.Errorf("Wanted error %s got %v", test.wantErr, err)
-				}
-			} else {
-				if test.want != got {
-					t.Errorf("want connection %+v got %+v", test.want, got)
-				}
-			}
-		})
-	}
+	return nil, io.EOF
 }
 
 func TestConnectionIDRequest(t *testing.T) {
@@ -199,18 +58,13 @@ func TestConnectionIDRequest(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			ch := make(chan *Message, 1)
-			ch <- test.input
-			tb := &testBus{subscribeCh: ch, publishResp: []*Message{{}}}
-			gotVersion, gotDevCat, _ := IDRequest(tb, Address{})
+			tw := &testWriter{read: []*Message{test.input}}
+			gotVersion, gotDevCat, _ := IDRequest(tw, Address{})
 			if gotVersion != test.wantVersion {
 				t.Errorf("Want FirmwareVersion %v got %v", test.wantVersion, gotVersion)
 			}
 			if gotDevCat != test.wantDevCat {
 				t.Errorf("Want DevCat %v got %v", test.wantDevCat, gotDevCat)
-			}
-			if tb.unsubscribeCh != tb.subscribeCh {
-				t.Errorf("IDRequest never unsubscribed from the bus")
 			}
 		})
 	}
@@ -220,7 +74,7 @@ func TestConnectionEngineVersion(t *testing.T) {
 	tests := []struct {
 		desc        string
 		input       *Message
-		publishErr  error
+		ackErr      error
 		wantVersion EngineVersion
 		wantErr     error
 	}{
@@ -231,8 +85,8 @@ func TestConnectionEngineVersion(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			tb := &testBus{publishResp: []*Message{test.input}, publishErr: test.publishErr}
-			gotVersion, err := GetEngineVersion(tb, Address{})
+			tw := &testWriter{acks: []*Message{test.input}, ackErr: test.ackErr}
+			gotVersion, err := GetEngineVersion(tw, Address{})
 			if err != test.wantErr {
 				t.Errorf("want error %v got %v", test.wantErr, err)
 			} else if err == nil {
@@ -265,6 +119,12 @@ func TestMatchers(t *testing.T) {
 		{"Or (neither)", Or(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return false })), &Message{}, false},
 		{"Not (true)", Not(AckMatcher()), TestAck, false},
 		{"Not (false)", Not(AckMatcher()), &Message{}, true},
+		{"Src Matcher (true)", SrcMatcher(Address{1, 2, 3}), &Message{Src: Address{1, 2, 3}}, true},
+		{"Src Matcher (false)", SrcMatcher(Address{3, 4, 5}), &Message{Src: Address{1, 2, 3}}, false},
+		{"All-Link Matcher (true)", AllLinkMatcher(), &Message{Flags: StandardAllLinkBroadcast}, true},
+		{"All-Link Matcher (false)", AllLinkMatcher(), &Message{Flags: StandardDirectMessage}, false},
+		{"duplicate matcher (true)", DuplicateMatcher(&Message{Flags: Flag(MsgTypeDirect, false, 3, 3)}), &Message{Flags: Flag(MsgTypeDirect, false, 2, 3)}, true},
+		{"duplicate matcher (false)", DuplicateMatcher(&Message{Flags: Flag(MsgTypeDirect, false, 3, 3)}), &Message{Flags: Flag(MsgTypeDirect, true, 2, 3)}, true},
 	}
 
 	for _, test := range tests {
@@ -272,6 +132,75 @@ func TestMatchers(t *testing.T) {
 			got := test.matcher.Matches(test.input)
 			if test.want != got {
 				t.Errorf("Wanted match %v got %v", test.want, got)
+			}
+		})
+	}
+}
+
+func TestRead(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   []Command
+		matcher Matcher
+		want    []Command
+	}{
+		{
+			name:    "Simple",
+			input:   []Command{Command(1), Command(2), Command(3), Command(4)},
+			matcher: Matches(func(msg *Message) bool { return int(msg.Command)%2 == 0 }),
+			want:    []Command{Command(2), Command(4)},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := []Command{}
+			input := []*Message{}
+			for _, c := range test.input {
+				input = append(input, &Message{Command: c})
+			}
+			tw := &testWriter{read: input}
+			for m, err := Read(tw, test.matcher); err == nil; m, err = Read(tw, test.matcher) {
+				got = append(got, m.Command)
+			}
+
+			if len(test.want) != len(got) {
+				t.Errorf("Wanted to receive %d messages got %d", len(test.want), len(got))
+			} else {
+				for i, w := range test.want {
+					if w != got[i] {
+						t.Errorf("Wanted command %d to be %v got %v", i, w, got[i])
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestRetry(t *testing.T) {
+	tests := []struct {
+		name    string
+		errors  []error
+		retries int
+		want    error
+	}{
+		{"happy path", []error{nil}, 1, nil},
+		{"retry success", []error{ErrReadTimeout, nil}, 2, nil},
+		{"retry timeout", []error{ErrReadTimeout, ErrReadTimeout}, 2, ErrReadTimeout},
+		{"third time's a charm", []error{ErrReadTimeout, ErrReadTimeout, nil}, 3, nil},
+		{"third time sometimes fails too", []error{ErrReadTimeout, ErrReadTimeout, ErrReadTimeout}, 3, ErrReadTimeout},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			i := 0
+			cb := func() error {
+				i++
+				return test.errors[i-1]
+			}
+			got := Retry(test.retries, cb)
+			if !errors.Is(test.want, got) {
+				t.Errorf("Wanted error %v got %v", test.want, got)
 			}
 		})
 	}

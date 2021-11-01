@@ -23,20 +23,25 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
-	"github.com/abates/insteon/db"
 	"github.com/abates/insteon/plm"
+	"github.com/abates/insteon/util"
 	"github.com/kirsle/configdir"
 	"github.com/tarm/serial"
 )
 
 var (
-	modem          *plm.PLM
+	modem *plm.PLM
+	db    util.Database
+
 	logLevelFlag   insteon.LogLevel
 	serialPortFlag string
 	timeoutFlag    time.Duration
 	writeDelayFlag time.Duration
-	ttlFlag        uint
-	app            = cli.New(os.Args[0], cli.CallbackOption(run))
+	ttlFlag        int
+
+	app       = cli.New(os.Args[0], cli.CallbackOption(run))
+	configDir string
+	dbfile    string
 )
 
 func init() {
@@ -45,17 +50,18 @@ func init() {
 	app.Flags.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
 	app.Flags.DurationVar(&timeoutFlag, "timeout", 3*time.Second, "read/write timeout duration")
 	app.Flags.DurationVar(&writeDelayFlag, "writeDelay", 0, "writeDelay duration (default of 0 indicates to compute wait time based on message length and ttl)")
-	app.Flags.UintVar(&ttlFlag, "ttl", 3, "default ttl for sending Insteon messages")
+	app.Flags.IntVar(&ttlFlag, "ttl", 3, "default ttl for sending Insteon messages")
+
+	configDir = configdir.LocalConfig("go-insteon")
+	dbfile = filepath.Join(configDir, "db.json")
 }
 
 func run(string) error {
 	if logLevelFlag > insteon.LevelNone {
-		insteon.Log.Level = logLevelFlag
+		insteon.SetLogLevel(logLevelFlag, os.Stderr)
 	}
 
-	dir := configdir.LocalConfig("go-insteon")
-	dbfile := filepath.Join(dir, "db.json")
-	err := configdir.MakePath(dir)
+	err := configdir.MakePath(configDir)
 	if err != nil {
 		return err
 	}
@@ -71,19 +77,32 @@ func run(string) error {
 		return fmt.Errorf("error opening serial port: %v", err)
 	}
 
-	database := db.NewMemDB()
-	err = db.Load(dbfile, database)
+	db = util.NewMemDB()
+	err = util.LoadDB(dbfile, db)
 	if err != nil {
 		log.Fatalf("Failed to load database: %v", err)
 	}
 
-	modem, err = plm.New(s, s, timeoutFlag, plm.Database(database), plm.WriteDelay(writeDelayFlag), plm.ConnectionOptions(insteon.ConnectionTimeout(timeoutFlag), insteon.ConnectionTTL(uint8(ttlFlag))))
+	modem, err = plm.New(s, plm.Timeout(timeoutFlag), plm.WriteDelay(writeDelayFlag))
 
 	if err != nil {
 		return fmt.Errorf("error opening plm: %v", err)
 	}
 
 	return nil
+}
+
+func open(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
+	device, err := util.Open(insteon.TTL(ttlFlag)(modem), addr, db, dbfile)
+
+	if err == insteon.ErrNotLinked {
+		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
+		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
+			pc := &plmCmd{group: 0x01, addresses: []insteon.Address{addr}}
+			err = pc.controllerLinkCmd("link")
+		}
+	}
+	return device, err
 }
 
 func main() {

@@ -43,7 +43,7 @@ func init() {
 }
 
 func (sw *swtch) init(string) error {
-	device, err := connect(modem, sw.addr)
+	device, err := open(modem, sw.addr)
 	if err == nil {
 		if s, ok := device.(*insteon.Switch); ok {
 			sw.Switch = s
