@@ -44,6 +44,10 @@ type Addressable interface {
 	Address() Address
 }
 
+type Database interface {
+	Get(addr Address) (info DeviceInfo, found bool)
+}
+
 type Device interface {
 	MessageWriter
 	Addressable

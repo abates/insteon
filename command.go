@@ -1,4 +1,3 @@
-//go:generate go run ./internal/ commands
 // Copyright 2018 Andrew Bates
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:generate go run ./internal/ commands
 package insteon
 
 import (

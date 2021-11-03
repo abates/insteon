@@ -30,7 +30,7 @@ var Wildcard = Address{0, 0, 0}
 // is represented in hexadecimal form (e.g. 01.b4.a5) the
 // string will always be 8 characters long, bytes are zero
 // padded
-func (a Address) String() string { return sprintf("%02x.%02x.%02x", a[0], a[1], a[2]) }
+func (a Address) String() string { return fmt.Sprintf("%02x.%02x.%02x", a[0], a[1], a[2]) }
 
 // UnmarshalText converts a human readable string into an
 // Insteon address. If the address cannot be parsed then

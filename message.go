@@ -33,14 +33,14 @@ type MessageType int
 
 // All of the valid message types
 const (
-	MsgTypeDirect            MessageType = 0    // D
-	MsgTypeDirectAck                     = 0x20 // D (Ack)
-	MsgTypeDirectNak                     = 0xA0 // D (Nak)
-	MsgTypeAllLinkCleanup                = 0x40 // C
-	MsgTypeAllLinkCleanupAck             = 0x60 // C (Ack)
-	MsgTypeAllLinkCleanupNak             = 0xE0 // C (Nak)
-	MsgTypeBroadcast                     = 0x80 // B
-	MsgTypeAllLinkBroadcast              = 0xC0 // A
+	MsgTypeDirect            MessageType = 0    // D       0b0000 0000
+	MsgTypeDirectAck                     = 0x20 // D (Ack) 0b0010 0000
+	MsgTypeDirectNak                     = 0xA0 // D (Nak) 0b1010 0000
+	MsgTypeAllLinkCleanup                = 0x40 // C       0b0100 0000
+	MsgTypeAllLinkCleanupAck             = 0x60 // C (Ack) 0b0110 0000
+	MsgTypeAllLinkCleanupNak             = 0xE0 // C (Nak) 0b1110 0000
+	MsgTypeBroadcast                     = 0x80 // B       0b1000 0000
+	MsgTypeAllLinkBroadcast              = 0xC0 // A       0b1100 0000
 )
 
 func (m MessageType) String() string {
@@ -149,7 +149,7 @@ func (f Flags) String() string {
 		msg = "E"
 	}
 
-	return sprintf("%s%-5s %d:%d", msg, f.Type(), f.MaxTTL(), f.TTL())
+	return fmt.Sprintf("%s%-5s %d:%d", msg, f.Type(), f.MaxTTL(), f.TTL())
 }
 
 // Message is a single insteon message
@@ -236,16 +236,16 @@ func (m *Message) Equals(other *Message) bool {
 
 func (m *Message) String() (str string) {
 	if m.Type() == MsgTypeAllLinkBroadcast {
-		str = sprintf("%s %s -> ff.ff.ff", m.Flags, m.Src)
+		str = fmt.Sprintf("%s %s -> ff.ff.ff", m.Flags, m.Src)
 	} else if m.Type() == MsgTypeBroadcast {
 		devCat := DevCat{m.Dst[0], m.Dst[1]}
 		firmware := FirmwareVersion(m.Dst[2])
 
-		str = sprintf("%s %s -> ff.ff.ff DevCat %v Firmware %v", m.Flags, m.Src, devCat, firmware)
+		str = fmt.Sprintf("%s %s -> ff.ff.ff DevCat %v Firmware %v", m.Flags, m.Src, devCat, firmware)
 	} else if m.Type() == MsgTypeAllLinkCleanup {
-		str = sprintf("%s %s -> %s Cleanup", m.Flags, m.Src, m.Dst)
+		str = fmt.Sprintf("%s %s -> %s Cleanup", m.Flags, m.Src, m.Dst)
 	} else {
-		str = sprintf("%s %s -> %s", m.Flags, m.Src, m.Dst)
+		str = fmt.Sprintf("%s %s -> %s", m.Flags, m.Src, m.Dst)
 	}
 
 	// don't print the command in an ACK message because it doesn't
@@ -256,13 +256,13 @@ func (m *Message) String() (str string) {
 	// much of the time, the command lookup on an ack message may
 	// return a CommandByte that has an incorrect command name
 	if m.Ack() {
-		str = sprintf("%s %d.%d", str, m.Command.Command1(), m.Command.Command2())
+		str = fmt.Sprintf("%s %d.%d", str, m.Command.Command1(), m.Command.Command2())
 	} else {
-		str = sprintf("%s %v", str, m.Command)
+		str = fmt.Sprintf("%s %v", str, m.Command)
 	}
 
 	if m.Type() == MsgTypeAllLinkBroadcast {
-		str = sprintf("%s Group(%d)", str, m.Dst[2])
+		str = fmt.Sprintf("%s Group(%d)", str, m.Dst[2])
 	}
 
 	if m.Extended() {
@@ -270,7 +270,7 @@ func (m *Message) String() (str string) {
 		for i, value := range m.Payload {
 			payloadStr[i] = fmt.Sprintf("%02x", value)
 		}
-		str = sprintf("%s [%v]", str, strings.Join(payloadStr, " "))
+		str = fmt.Sprintf("%s [%v]", str, strings.Join(payloadStr, " "))
 	}
 	return str
 }

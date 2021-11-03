@@ -98,45 +98,6 @@ func TestConnectionEngineVersion(t *testing.T) {
 	}
 }
 
-func TestMatchers(t *testing.T) {
-	tests := []struct {
-		name    string
-		matcher Matcher
-		input   *Message
-		want    bool
-	}{
-		{"AckMatcher (ack)", AckMatcher(), TestAck, true},
-		{"AckMatcher (ping)", AckMatcher(), TestPing, false},
-		{"AckMatcher (nak)", AckMatcher(), TestPingNak, true},
-		{"AckMatcher (nak)", AckMatcher(), TestPingNak, true},
-		{"CmdMatcher (true)", CmdMatcher(CmdPing), TestPing, true},
-		{"CmdMatcher (false)", CmdMatcher(CmdPing), &Message{}, false},
-		{"And (true)", And(Matches(func(*Message) bool { return true }), Matches(func(*Message) bool { return true })), &Message{}, true},
-		{"And (false)", And(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return true })), &Message{}, false},
-		{"And (false 1)", And(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return false })), &Message{}, false},
-		{"Or (one)", Or(Matches(func(*Message) bool { return true }), Matches(func(*Message) bool { return true })), &Message{}, true},
-		{"Or (both)", Or(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return true })), &Message{}, true},
-		{"Or (neither)", Or(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return false })), &Message{}, false},
-		{"Not (true)", Not(AckMatcher()), TestAck, false},
-		{"Not (false)", Not(AckMatcher()), &Message{}, true},
-		{"Src Matcher (true)", SrcMatcher(Address{1, 2, 3}), &Message{Src: Address{1, 2, 3}}, true},
-		{"Src Matcher (false)", SrcMatcher(Address{3, 4, 5}), &Message{Src: Address{1, 2, 3}}, false},
-		{"All-Link Matcher (true)", AllLinkMatcher(), &Message{Flags: StandardAllLinkBroadcast}, true},
-		{"All-Link Matcher (false)", AllLinkMatcher(), &Message{Flags: StandardDirectMessage}, false},
-		{"duplicate matcher (true)", DuplicateMatcher(&Message{Flags: Flag(MsgTypeDirect, false, 3, 3)}), &Message{Flags: Flag(MsgTypeDirect, false, 2, 3)}, true},
-		{"duplicate matcher (false)", DuplicateMatcher(&Message{Flags: Flag(MsgTypeDirect, false, 3, 3)}), &Message{Flags: Flag(MsgTypeDirect, true, 2, 3)}, true},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			got := test.matcher.Matches(test.input)
-			if test.want != got {
-				t.Errorf("Wanted match %v got %v", test.want, got)
-			}
-		})
-	}
-}
-
 func TestRead(t *testing.T) {
 	tests := []struct {
 		name    string

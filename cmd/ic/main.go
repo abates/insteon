@@ -83,11 +83,7 @@ func run(string) error {
 		log.Fatalf("Failed to load database: %v", err)
 	}
 
-	modem, err = plm.New(s, plm.Timeout(timeoutFlag), plm.WriteDelay(writeDelayFlag))
-
-	if err != nil {
-		return fmt.Errorf("error opening plm: %v", err)
-	}
+	modem = plm.New(s, plm.Timeout(timeoutFlag), plm.WriteDelay(writeDelayFlag))
 
 	return nil
 }

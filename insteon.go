@@ -1,4 +1,3 @@
-//go:generate go run ./internal/ devcats
 // Copyright 2018 Andrew Bates
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:generate go run ./internal/ devcats
 package insteon
 
 import (
@@ -104,8 +104,6 @@ var (
 	ErrInvalidResponse = errors.New("Invalid response received")
 )
 
-var sprintf = fmt.Sprintf
-
 // FirmwareVersion indicates the software/firmware revision number of a device
 type FirmwareVersion int
 
@@ -119,7 +117,7 @@ type ProductKey [3]byte
 
 // String returns the hexadecimal string for the product key
 func (p ProductKey) String() string {
-	return sprintf("0x%02x%02x%02x", p[0], p[1], p[2])
+	return fmt.Sprintf("0x%02x%02x%02x", p[0], p[1], p[2])
 }
 
 // DevCat is a 2 byte value including a device category and
@@ -153,7 +151,7 @@ func (dc DevCat) In(domains ...Domain) bool {
 // form of category.subcategory where those fields are the 2 digit
 // hex representation of their corresponding values
 func (dc DevCat) String() string {
-	return sprintf("%02x.%02x", dc[0], dc[1])
+	return fmt.Sprintf("%02x.%02x", dc[0], dc[1])
 }
 
 // Domain represents an entire domain of similar devices (dimmers, switches, thermostats, etc)
@@ -165,7 +163,7 @@ type Category byte
 
 // MarshalJSON will convert the DevCat to a valid JSON byte string
 func (dc DevCat) MarshalJSON() ([]byte, error) {
-	return json.Marshal(sprintf("%02x.%02x", dc[0], dc[1]))
+	return json.Marshal(fmt.Sprintf("%02x.%02x", dc[0], dc[1]))
 }
 
 // UnmarshalJSON will unmarshal the input json byte string into the

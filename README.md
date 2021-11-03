@@ -24,3 +24,7 @@ TODO: A client application to the Insteon Network Daemon
 The package can be used directly from other go programs by means of the
 github.com/abates/insteon package.  See the
 [godocs](https://godoc.org/github.com/abates/insteon) for more information.
+
+## Documentation/Notes
+
+* [Known Insteon Commands][COMMANDS.md]

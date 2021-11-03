@@ -18,17 +18,22 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
+	"html/template"
 	"log"
 	"os"
 	"path/filepath"
-	"text/template"
+	"strings"
 	"time"
 )
 
+type autogenTemplate struct {
+	input  string
+	output string
+	data   func() interface{}
+}
+
 type autogenCommand struct {
-	inputFilename  string
-	outputFilename string
-	data           func() interface{}
+	templates []autogenTemplate
 }
 
 var autogenCommands = make(map[string]autogenCommand)
@@ -40,40 +45,43 @@ func main() {
 
 	command, found := autogenCommands[os.Args[1]]
 	if !found {
-		log.Fatalf("Command %q not found", command)
+		log.Fatalf("Command %q not found", os.Args[1])
 	}
 
-	cmdsTmpl := template.Must(template.New("").ParseFiles("internal/license.tmpl", command.inputFilename))
+	for _, tmpl := range command.templates {
+		cmdsTmpl := template.Must(template.New("").ParseFiles("internal/license.tmpl", tmpl.input))
 
-	buf := bytes.NewBuffer(make([]byte, 0))
+		buf := bytes.NewBuffer(make([]byte, 0))
+		err := cmdsTmpl.ExecuteTemplate(buf, filepath.Base(tmpl.input), struct {
+			Copyright string
+			Owner     string
+			Package   string
+			Data      interface{}
+		}{
+			Copyright: fmt.Sprintf("%4d", time.Now().Year()),
+			Owner:     "Andrew Bates",
+			Package:   "insteon",
+			Data:      tmpl.data(),
+		})
 
-	err := cmdsTmpl.ExecuteTemplate(buf, filepath.Base(command.inputFilename), struct {
-		Copyright string
-		Owner     string
-		Package   string
-		Data      interface{}
-	}{
-		Copyright: fmt.Sprintf("%4d", time.Now().Year()),
-		Owner:     "Andrew Bates",
-		Package:   "insteon",
-		Data:      command.data(),
-	})
+		if err != nil {
+			log.Fatalf("%s: Failed to execute template: %v", tmpl.input, err)
+		}
 
-	if err != nil {
-		log.Fatalf("Failed to execute template: %v", err)
+		f, err := os.Create(tmpl.output)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+
+		b := buf.Bytes()
+		if strings.HasSuffix(tmpl.input, ".go") {
+			b, err = format.Source(b)
+			if err != nil {
+				f.Write(buf.Bytes()) // This is here to debug bad format
+				log.Fatalf("%s: error formatting: %s", tmpl.output, err)
+			}
+		}
+		f.Write(b)
 	}
-
-	f, err := os.Create(command.outputFilename)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
-	b, err := format.Source(buf.Bytes())
-	if err != nil {
-		f.Write(buf.Bytes()) // This is here to debug bad format
-		log.Fatalf("error formatting: %s", err)
-	}
-
-	f.Write(b)
 }

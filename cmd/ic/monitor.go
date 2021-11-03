@@ -15,9 +15,12 @@
 package main
 
 import (
+	"errors"
 	"log"
+	"os"
 
 	"github.com/abates/cli"
+	"github.com/abates/insteon"
 )
 
 func init() {
@@ -38,12 +41,8 @@ func monCmd(string) (err error) {
 		return err
 	}
 
-	/*ch := modem.Subscribe(insteon.Wildcard, insteon.Matches(func(*insteon.Message) bool { return true }))
-	// TODO: Catch signals here for cleanup
-	for msg := range ch {
-		log.Printf("%s", msg)
+	mon := insteon.Snoop(os.Stdout, db)(modem)
+	for _, err = mon.Read(); err == nil || errors.Is(err, insteon.ErrReadTimeout); _, err = mon.Read() {
 	}
-	config.ClearMonitorMode()
-	err = modem.SetConfig(config)*/
 	return err
 }

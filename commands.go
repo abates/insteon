@@ -1,446 +1,453 @@
 // Copyright 2021 Andrew Bates
-//
+// 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-//
+// 
 // http://www.apache.org/licenses/LICENSE-2.0
-//
+// 
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
 package insteon
 
+
 // Standard Direct Commands
-const (
-	// CmdAssignToAllLinkGroup Assign to ALL-Link Group
-	CmdAssignToAllLinkGroup = Command(0x000100) // Assign to All-Link Group
+const(
+// CmdAssignToAllLinkGroup Assign to ALL-Link Group
+CmdAssignToAllLinkGroup = Command(0x000100) // Assign to All-Link Group
 
-	// CmdDeleteFromAllLinkGroup Delete from All-Link Group
-	CmdDeleteFromAllLinkGroup = Command(0x000200) // Delete from All-Link Group
+// CmdDeleteFromAllLinkGroup Delete from All-Link Group
+CmdDeleteFromAllLinkGroup = Command(0x000200) // Delete from All-Link Group
 
-	// CmdProductDataReq Product Data Request
-	CmdProductDataReq = Command(0x000300) // Product Data Request
+// CmdProductDataReq Product Data Request
+CmdProductDataReq = Command(0x000300) // Product Data Request
 
-	// CmdFxUsernameReq FX Username Request
-	CmdFxUsernameReq = Command(0x000301) // Fx Username Request
+// CmdFxUsernameReq FX Username Request
+CmdFxUsernameReq = Command(0x000301) // Fx Username Request
 
-	// CmdDeviceTextStringReq Device Text String Request
-	CmdDeviceTextStringReq = Command(0x000302) // Text String Request
+// CmdDeviceTextStringReq Device Text String Request
+CmdDeviceTextStringReq = Command(0x000302) // Text String Request
 
-	// CmdExitLinkingMode Exit Linking Mode
-	CmdExitLinkingMode = Command(0x000800) // Exit Linking Mode
+// CmdExitLinkingMode Exit Linking Mode
+CmdExitLinkingMode = Command(0x000800) // Exit Linking Mode
 
-	// CmdEnterLinkingMode Enter Linking Mode
-	CmdEnterLinkingMode = Command(0x000900) // Enter Linking Mode
+// CmdEnterLinkingMode Enter Linking Mode
+CmdEnterLinkingMode = Command(0x000900) // Enter Linking Mode
 
-	// CmdEnterUnlinkingMode Enter Unlinking Mode
-	CmdEnterUnlinkingMode = Command(0x000a00) // Enter Unlinking Mode
+// CmdEnterUnlinkingMode Enter Unlinking Mode
+CmdEnterUnlinkingMode = Command(0x000a00) // Enter Unlinking Mode
 
-	// CmdGetEngineVersion Get Insteon Engine Version
-	CmdGetEngineVersion = Command(0x000d00) // Engine Version
+// CmdGetEngineVersion Get Insteon Engine Version
+CmdGetEngineVersion = Command(0x000d00) // Engine Version
 
-	// CmdPing Ping Request
-	CmdPing = Command(0x000f00) // Ping Request
+// CmdPing Ping Request
+CmdPing = Command(0x000f00) // Ping Request
 
-	// CmdIDRequest Send ID Request which will prompt the device to respond with a Set Button Pressed Controller/Responder
-	CmdIDRequest = Command(0x001000) // ID Request
+// CmdIDRequest Send ID Request which will prompt the device to respond with a Set Button Pressed Controller/Responder
+CmdIDRequest = Command(0x001000) // ID Request
 
-	// CmdGetOperatingFlags is used to request a given operating flag
-	CmdGetOperatingFlags = Command(0x001f00) // Get Operating Flags
+// CmdGetOperatingFlags is used to request a given operating flag
+CmdGetOperatingFlags = Command(0x001f00) // Get Operating Flags
 )
 
 // Extended Direct Commands
-const (
-	// CmdProductDataResp Product Data Response
-	CmdProductDataResp = Command(0x010300) // Product Data Response
+const(
+// CmdProductDataResp Product Data Response
+CmdProductDataResp = Command(0x010300) // Product Data Response
 
-	// CmdFxUsernameResp FX Username Response
-	CmdFxUsernameResp = Command(0x010301) // Fx Username Response
+// CmdFxUsernameResp FX Username Response
+CmdFxUsernameResp = Command(0x010301) // Fx Username Response
 
-	// CmdDeviceTextStringResp Device Text String Response
-	CmdDeviceTextStringResp = Command(0x010302) // Text String Response
+// CmdDeviceTextStringResp Device Text String Response
+CmdDeviceTextStringResp = Command(0x010302) // Text String Response
 
-	// CmdSetDeviceTextString sets the device text string
-	CmdSetDeviceTextString = Command(0x010303) // Set Text String
+// CmdSetDeviceTextString sets the device text string
+CmdSetDeviceTextString = Command(0x010303) // Set Text String
 
-	// CmdSetAllLinkCommandAlias sets the command alias to use for all-linking
-	CmdSetAllLinkCommandAlias = Command(0x010304) // Set All-Link Command Alias
+// CmdSetAllLinkCommandAlias sets the command alias to use for all-linking
+CmdSetAllLinkCommandAlias = Command(0x010304) // Set All-Link Command Alias
 
-	// CmdSetAllLinkCommandAliasData sets the extended data to be used if the command alias is an extended command
-	CmdSetAllLinkCommandAliasData = Command(0x010305) // Set All-Link Command Alias Data
+// CmdSetAllLinkCommandAliasData sets the extended data to be used if the command alias is an extended command
+CmdSetAllLinkCommandAliasData = Command(0x010305) // Set All-Link Command Alias Data
 
-	// CmdExitLinkingModeExt Exit Linking Mode
-	CmdExitLinkingModeExt = Command(0x010800) // Exit Linking Mode (i2cs)
+// CmdExitLinkingModeExt Exit Linking Mode
+CmdExitLinkingModeExt = Command(0x010800) // Exit Linking Mode (i2cs)
 
-	// CmdEnterLinkingModeExt Enter Linking Mode (extended command for I2CS devices)
-	CmdEnterLinkingModeExt = Command(0x010900) // Enter Linking Mode (i2cs)
+// CmdEnterLinkingModeExt Enter Linking Mode (extended command for I2CS devices)
+CmdEnterLinkingModeExt = Command(0x010900) // Enter Linking Mode (i2cs)
 
-	// CmdEnterUnlinkingModeExt Enter Unlinking Mode (extended command for I2CS devices)
-	CmdEnterUnlinkingModeExt = Command(0x010a00) // Enter Unlinking Mode (i2cs)
+// CmdEnterUnlinkingModeExt Enter Unlinking Mode (extended command for I2CS devices)
+CmdEnterUnlinkingModeExt = Command(0x010a00) // Enter Unlinking Mode (i2cs)
 
-	// CmdSetOperatingFlags is used to set a given operating flag
-	CmdSetOperatingFlags = Command(0x012000) // Set Operating Flags
+// CmdSetOperatingFlags is used to set a given operating flag
+CmdSetOperatingFlags = Command(0x012000) // Set Operating Flags
 
-	// CmdExtendedGetSet is used to get and set extended data (ha ha)
-	CmdExtendedGetSet = Command(0x012e00) // Extended Get/Set
+// CmdExtendedGetSet is used to get and set extended data (ha ha)
+CmdExtendedGetSet = Command(0x012e00) // Extended Get/Set
 
-	// CmdReadWriteALDB Read/Write ALDB
-	CmdReadWriteALDB = Command(0x012f00) // Read/Write ALDB
+// CmdReadWriteALDB Read/Write ALDB
+CmdReadWriteALDB = Command(0x012f00) // Read/Write ALDB
 )
 
 // All-Link Messages
-const (
-	// CmdAllLinkRecall is an all-link command to recall the state assigned to the entry in the all-link database
-	CmdAllLinkRecall = Command(0x0c1100) // All-link recall
+const(
+// CmdAllLinkSuccessReport is an all-link command to report the number of failed cleanups
+CmdAllLinkSuccessReport = Command(0x0c0600) // All-link Success Report
 
-	// CmdAllLinkAlias2High will execute substitute Direct Command
-	CmdAllLinkAlias2High = Command(0x0c1200) // All-link Alias 2 High
+// CmdAllLinkRecall is an all-link command to recall the state assigned to the entry in the all-link database
+CmdAllLinkRecall = Command(0x0c1100) // All-link recall
 
-	// CmdAllLinkAlias1Low will execute substitute Direct Command
-	CmdAllLinkAlias1Low = Command(0x0c1300) // All-link Alias 1 Low
+// CmdAllLinkAlias2High will execute substitute Direct Command
+CmdAllLinkAlias2High = Command(0x0c1200) // All-link Alias 2 High
 
-	// CmdAllLinkAlias2Low will execute substitute Direct Command
-	CmdAllLinkAlias2Low = Command(0x0c1400) // All-link Alias 2 Low
+// CmdAllLinkAlias1Low will execute substitute Direct Command
+CmdAllLinkAlias1Low = Command(0x0c1300) // All-link Alias 1 Low
 
-	// CmdAllLinkAlias3High will execute substitute Direct Command
-	CmdAllLinkAlias3High = Command(0x0c1500) // All-link Alias 3 High
+// CmdAllLinkAlias2Low will execute substitute Direct Command
+CmdAllLinkAlias2Low = Command(0x0c1400) // All-link Alias 2 Low
 
-	// CmdAllLinkAlias3Low will execute substitute Direct Command
-	CmdAllLinkAlias3Low = Command(0x0c1600) // All-link Alias 3 Low
+// CmdAllLinkAlias3High will execute substitute Direct Command
+CmdAllLinkAlias3High = Command(0x0c1500) // All-link Alias 3 High
 
-	// CmdAllLinkAlias4High will execute substitute Direct Command
-	CmdAllLinkAlias4High = Command(0x0c1700) // All-link Alias 4 High
+// CmdAllLinkAlias3Low will execute substitute Direct Command
+CmdAllLinkAlias3Low = Command(0x0c1600) // All-link Alias 3 Low
 
-	// CmdAllLinkAlias4Low will execute substitute Direct Command
-	CmdAllLinkAlias4Low = Command(0x0c1800) // All-link Alias 4 Low
+// CmdAllLinkAlias4High will execute substitute Direct Command
+CmdAllLinkAlias4High = Command(0x0c1700) // All-link Alias 4 High
 
-	// CmdAllLinkAlias5 will execute substitute Direct Command
-	CmdAllLinkAlias5 = Command(0x0c2100) // All-link Alias 5
+// CmdAllLinkAlias4Low will execute substitute Direct Command
+CmdAllLinkAlias4Low = Command(0x0c1800) // All-link Alias 4 Low
+
+// CmdAllLinkAlias5 will execute substitute Direct Command
+CmdAllLinkAlias5 = Command(0x0c2100) // All-link Alias 5
 )
 
 // Standard Broadcast Messages
-const (
-	// CmdSetButtonPressedResponder Broadcast command indicating the set button has been pressed
-	CmdSetButtonPressedResponder = Command(0x080100) // Set-button Pressed (responder)
+const(
+// CmdSetButtonPressedResponder Broadcast command indicating the set button has been pressed
+CmdSetButtonPressedResponder = Command(0x080100) // Set-button Pressed (responder)
 
-	// CmdSetButtonPressedController Broadcast command indicating the set button has been pressed
-	CmdSetButtonPressedController = Command(0x080200) // Set-button Pressed (controller)
+// CmdSetButtonPressedController Broadcast command indicating the set button has been pressed
+CmdSetButtonPressedController = Command(0x080200) // Set-button Pressed (controller)
 
-	// CmdTestPowerlinePhase is used for determining which powerline phase (A/B) to which the device is attached
-	CmdTestPowerlinePhase = Command(0x080300) // Test Powerline Phase
+// CmdTestPowerlinePhase is used for determining which powerline phase (A/B) to which the device is attached
+CmdTestPowerlinePhase = Command(0x080300) // Test Powerline Phase
 
-	// CmdHeartbeat is a broadcast command that is received periodically if it has been set up using the extended get/set command
-	CmdHeartbeat = Command(0x080400) // Heartbeat
+// CmdHeartbeat is a broadcast command that is received periodically if it has been set up using the extended get/set command
+CmdHeartbeat = Command(0x080400) // Heartbeat
 
-	// CmdBroadCastStatusChange is sent by a device when its status changes
-	CmdBroadCastStatusChange = Command(0x082700) // Broadcast Status Change
+// CmdBroadCastStatusChange is sent by a device when its status changes
+CmdBroadCastStatusChange = Command(0x082700) // Broadcast Status Change
 )
 
 // Lighting Standard Direct Messages
-const (
-	// CmdLightOn
-	CmdLightOn = Command(0x001100) // Light On
+const(
+// CmdLightOn 
+CmdLightOn = Command(0x001100) // Light On
 
-	// CmdLightOnFast
-	CmdLightOnFast = Command(0x001200) // Light On Fast
+// CmdLightOnFast 
+CmdLightOnFast = Command(0x001200) // Light On Fast
 
-	// CmdLightOff
-	CmdLightOff = Command(0x001300) // Light Off
+// CmdLightOff 
+CmdLightOff = Command(0x001300) // Light Off
 
-	// CmdLightOffFast
-	CmdLightOffFast = Command(0x001400) // Light Off Fast
+// CmdLightOffFast 
+CmdLightOffFast = Command(0x001400) // Light Off Fast
 
-	// CmdLightBrighten
-	CmdLightBrighten = Command(0x001500) // Brighten Light
+// CmdLightBrighten 
+CmdLightBrighten = Command(0x001500) // Brighten Light
 
-	// CmdLightDim
-	CmdLightDim = Command(0x001600) // Dim Light
+// CmdLightDim 
+CmdLightDim = Command(0x001600) // Dim Light
 
-	// CmdLightStopManual
-	CmdLightStopManual = Command(0x001800) // Manual Light Change Stop
+// CmdLightStopManual 
+CmdLightStopManual = Command(0x001800) // Manual Light Change Stop
 
-	// CmdLightStatusRequest
-	CmdLightStatusRequest = Command(0x001900) // Status Request
+// CmdLightStatusRequest 
+CmdLightStatusRequest = Command(0x001900) // Status Request
 
-	// CmdLightInstantChange
-	CmdLightInstantChange = Command(0x002100) // Light Instant Change
+// CmdLightInstantChange 
+CmdLightInstantChange = Command(0x002100) // Light Instant Change
 
-	// CmdLightManualOn
-	CmdLightManualOn = Command(0x002201) // Manual On
+// CmdLightManualOn 
+CmdLightManualOn = Command(0x002201) // Manual On
 
-	// CmdLightManualOff
-	CmdLightManualOff = Command(0x002301) // Manual Off
+// CmdLightManualOff 
+CmdLightManualOff = Command(0x002301) // Manual Off
 
-	// CmdTapSetButtonOnce
-	CmdTapSetButtonOnce = Command(0x002501) // Set Button Tap
+// CmdTapSetButtonOnce 
+CmdTapSetButtonOnce = Command(0x002501) // Set Button Tap
 
-	// CmdTapSetButtonTwice
-	CmdTapSetButtonTwice = Command(0x002502) // Set Button Tap Twice
+// CmdTapSetButtonTwice 
+CmdTapSetButtonTwice = Command(0x002502) // Set Button Tap Twice
 
-	// CmdLightSetStatus
-	CmdLightSetStatus = Command(0x002700) // Set Status
+// CmdLightSetStatus 
+CmdLightSetStatus = Command(0x002700) // Set Status
 
-	// CmdLightOnAtRamp
-	CmdLightOnAtRamp = Command(0x002e00) // Light On At Ramp
+// CmdLightOnAtRamp 
+CmdLightOnAtRamp = Command(0x002e00) // Light On At Ramp
 
-	// CmdLightOnAtRampV67
-	CmdLightOnAtRampV67 = Command(0x003400) // Light On At Ramp
+// CmdLightOnAtRampV67 
+CmdLightOnAtRampV67 = Command(0x003400) // Light On At Ramp
 
-	// CmdLightOffAtRamp
-	CmdLightOffAtRamp = Command(0x002f00) // Light Off At Ramp
+// CmdLightOffAtRamp 
+CmdLightOffAtRamp = Command(0x002f00) // Light Off At Ramp
 
-	// CmdLightOffAtRampV67
-	CmdLightOffAtRampV67 = Command(0x003500) // Light Off At Ramp
+// CmdLightOffAtRampV67 
+CmdLightOffAtRampV67 = Command(0x003500) // Light Off At Ramp
 )
 
 // Dimmer Convenience Commands
-const (
-	// CmdStartBrighten
-	CmdStartBrighten = Command(0x001701) // Manual Start Brighten
+const(
+// CmdStartBrighten 
+CmdStartBrighten = Command(0x001701) // Manual Start Brighten
 
-	// CmdStartDim
-	CmdStartDim = Command(0x001700) // Manual Start Dim
+// CmdStartDim 
+CmdStartDim = Command(0x001700) // Manual Start Dim
 
-	// CmdEnableProgramLock
-	CmdEnableProgramLock = Command(0x002000) // Enable Program Lock
+// CmdEnableProgramLock 
+CmdEnableProgramLock = Command(0x002000) // Enable Program Lock
 
-	// CmdDisableProgramLock
-	CmdDisableProgramLock = Command(0x002001) // Disable Program Lock
+// CmdDisableProgramLock 
+CmdDisableProgramLock = Command(0x002001) // Disable Program Lock
 
-	// CmdEnableTxLED
-	CmdEnableTxLED = Command(0x002002) // Enable Tx LED
+// CmdEnableTxLED 
+CmdEnableTxLED = Command(0x002002) // Enable Tx LED
 
-	// CmdDisableTxLED
-	CmdDisableTxLED = Command(0x002003) // Disable Tx LED
+// CmdDisableTxLED 
+CmdDisableTxLED = Command(0x002003) // Disable Tx LED
 
-	// CmdEnableResumeDim
-	CmdEnableResumeDim = Command(0x002004) // Enable Resume Dim
+// CmdEnableResumeDim 
+CmdEnableResumeDim = Command(0x002004) // Enable Resume Dim
 
-	// CmdDisableResumeDim
-	CmdDisableResumeDim = Command(0x002005) // Disable Resume Dim
+// CmdDisableResumeDim 
+CmdDisableResumeDim = Command(0x002005) // Disable Resume Dim
 
-	// CmdEnableLoadSense
-	CmdEnableLoadSense = Command(0x002006) // Enable Load Sense
+// CmdEnableLoadSense 
+CmdEnableLoadSense = Command(0x002006) // Enable Load Sense
 
-	// CmdDisableLoadSense
-	CmdDisableLoadSense = Command(0x002007) // Disable Load Sense
+// CmdDisableLoadSense 
+CmdDisableLoadSense = Command(0x002007) // Disable Load Sense
 
-	// CmdDisableLED
-	CmdDisableLED = Command(0x002008) // Disable Backlight
+// CmdDisableLED 
+CmdDisableLED = Command(0x002008) // Disable Backlight
 
-	// CmdEnableLED
-	CmdEnableLED = Command(0x002009) // Enable Backlight
+// CmdEnableLED 
+CmdEnableLED = Command(0x002009) // Enable Backlight
 
-	// CmdSetKeyBeep
-	CmdSetKeyBeep = Command(0x00200a) // Enable Key Beep
+// CmdSetKeyBeep 
+CmdSetKeyBeep = Command(0x00200a) // Enable Key Beep
 
-	// CmdClearKeyBeep
-	CmdClearKeyBeep = Command(0x00200b) // Disable Key Beep
+// CmdClearKeyBeep 
+CmdClearKeyBeep = Command(0x00200b) // Disable Key Beep
 )
 
 // Thermostat Standard Direct Messages
-const (
-	// CmdDecreaseTemp Decrease Temperature
-	CmdDecreaseTemp = Command(0x006800) // Decrease Temp
+const(
+// CmdDecreaseTemp Decrease Temperature
+CmdDecreaseTemp = Command(0x006800) // Decrease Temp
 
-	// CmdIncreaseTemp Increase Temperature
-	CmdIncreaseTemp = Command(0x006900) // Increase Temp
+// CmdIncreaseTemp Increase Temperature
+CmdIncreaseTemp = Command(0x006900) // Increase Temp
 
-	// CmdGetZoneInfo Get Zone Information
-	CmdGetZoneInfo = Command(0x006a00) // Get Zone Info
+// CmdGetZoneInfo Get Zone Information
+CmdGetZoneInfo = Command(0x006a00) // Get Zone Info
 
-	// CmdGetThermostatMode Get Mode
-	CmdGetThermostatMode = Command(0x006b02) // Get Mode
+// CmdGetThermostatMode Get Mode
+CmdGetThermostatMode = Command(0x006b02) // Get Mode
 
-	// CmdGetAmbientTemp Get Ambient Temperature
-	CmdGetAmbientTemp = Command(0x006b03) // Get Ambient Temp
+// CmdGetAmbientTemp Get Ambient Temperature
+CmdGetAmbientTemp = Command(0x006b03) // Get Ambient Temp
 
-	// CmdSetHeat Set Heat
-	CmdSetHeat = Command(0x006b04) // Set Heat
+// CmdSetHeat Set Heat
+CmdSetHeat = Command(0x006b04) // Set Heat
 
-	// CmdSetCool Set Cool
-	CmdSetCool = Command(0x006b05) // Set Cool
+// CmdSetCool Set Cool
+CmdSetCool = Command(0x006b05) // Set Cool
 
-	// CmdSetModeAuto Set Mode Auto
-	CmdSetModeAuto = Command(0x006b06) // Set Auto
+// CmdSetModeAuto Set Mode Auto
+CmdSetModeAuto = Command(0x006b06) // Set Auto
 
-	// CmdSetFan Turn Fan On
-	CmdSetFan = Command(0x006b07) // Turn Fan On
+// CmdSetFan Turn Fan On
+CmdSetFan = Command(0x006b07) // Turn Fan On
 
-	// CmdClearFan Turn Fan Off
-	CmdClearFan = Command(0x006b08) // Turn Fan Off
+// CmdClearFan Turn Fan Off
+CmdClearFan = Command(0x006b08) // Turn Fan Off
 
-	// CmdThermOff Turn Thermostat Off
-	CmdThermOff = Command(0x006b09) // Turn Thermostat Off
+// CmdThermOff Turn Thermostat Off
+CmdThermOff = Command(0x006b09) // Turn Thermostat Off
 
-	// CmdSetProgramHeat Set mode to Program Heat
-	CmdSetProgramHeat = Command(0x006b0a) // Set Program Heat
+// CmdSetProgramHeat Set mode to Program Heat
+CmdSetProgramHeat = Command(0x006b0a) // Set Program Heat
 
-	// CmdSetProgramCool Set mode to Program Cool
-	CmdSetProgramCool = Command(0x006b0b) // Set Program Cool
+// CmdSetProgramCool Set mode to Program Cool
+CmdSetProgramCool = Command(0x006b0b) // Set Program Cool
 
-	// CmdSetProgramAuto Set mode to Program Auto
-	CmdSetProgramAuto = Command(0x006b0c) // Set Program Auto
+// CmdSetProgramAuto Set mode to Program Auto
+CmdSetProgramAuto = Command(0x006b0c) // Set Program Auto
 
-	// CmdGetEquipmentState Get Equipment State
-	CmdGetEquipmentState = Command(0x006b0d) // Get State
+// CmdGetEquipmentState Get Equipment State
+CmdGetEquipmentState = Command(0x006b0d) // Get State
 
-	// CmdSetEquipmentState Set Equipment State
-	CmdSetEquipmentState = Command(0x006b0e) // Set State
+// CmdSetEquipmentState Set Equipment State
+CmdSetEquipmentState = Command(0x006b0e) // Set State
 
-	// CmdGetTempUnits Get Temperature Units
-	CmdGetTempUnits = Command(0x006b0f) // Get Temp Units
+// CmdGetTempUnits Get Temperature Units
+CmdGetTempUnits = Command(0x006b0f) // Get Temp Units
 
-	// CmdSetFahrenheit Set Units to Fahrenheit
-	CmdSetFahrenheit = Command(0x006b10) // Set Units Fahrenheit
+// CmdSetFahrenheit Set Units to Fahrenheit
+CmdSetFahrenheit = Command(0x006b10) // Set Units Fahrenheit
 
-	// CmdSetCelsius Set Units to Celsius
-	CmdSetCelsius = Command(0x006b11) // Set Units Celsius
+// CmdSetCelsius Set Units to Celsius
+CmdSetCelsius = Command(0x006b11) // Set Units Celsius
 
-	// CmdGetFanOnSpeed Get Fan On-Speed
-	CmdGetFanOnSpeed = Command(0x006b12) // Get Fan On-Speed
+// CmdGetFanOnSpeed Get Fan On-Speed
+CmdGetFanOnSpeed = Command(0x006b12) // Get Fan On-Speed
 
-	// CmdSetFanOnLow Set Fan On-Speed to Low
-	CmdSetFanOnLow = Command(0x006b13) // Set Fan-Speed Low
+// CmdSetFanOnLow Set Fan On-Speed to Low
+CmdSetFanOnLow = Command(0x006b13) // Set Fan-Speed Low
 
-	// CmdSetFanOnMed Set Fan On-Speed to Med
-	CmdSetFanOnMed = Command(0x006b14) // Set Fan-Speed Med
+// CmdSetFanOnMed Set Fan On-Speed to Med
+CmdSetFanOnMed = Command(0x006b14) // Set Fan-Speed Med
 
-	// CmdSetFanOnHigh Set Fan On-Speed to High
-	CmdSetFanOnHigh = Command(0x006b15) // Set Fan-Speed High
+// CmdSetFanOnHigh Set Fan On-Speed to High
+CmdSetFanOnHigh = Command(0x006b15) // Set Fan-Speed High
 
-	// CmdEnableStatusMessage Enable Status Change Messages
-	CmdEnableStatusMessage = Command(0x006b16) // Enable Status Change
+// CmdEnableStatusMessage Enable Status Change Messages
+CmdEnableStatusMessage = Command(0x006b16) // Enable Status Change
 
-	// CmdDisableStatusMessage Disable Status Change Messages
-	CmdDisableStatusMessage = Command(0x006b17) // Disable Status Change
+// CmdDisableStatusMessage Disable Status Change Messages
+CmdDisableStatusMessage = Command(0x006b17) // Disable Status Change
 
-	// CmdSetCoolSetpoint Set Cool Set-Point
-	CmdSetCoolSetpoint = Command(0x006c00) // Set Cool Set-Point
+// CmdSetCoolSetpoint Set Cool Set-Point
+CmdSetCoolSetpoint = Command(0x006c00) // Set Cool Set-Point
 
-	// CmdSetHeatSetpoint Set Heat Set-Point
-	CmdSetHeatSetpoint = Command(0x006d00) // Set Heat Set-Point
+// CmdSetHeatSetpoint Set Heat Set-Point
+CmdSetHeatSetpoint = Command(0x006d00) // Set Heat Set-Point
 )
 
 // Thermostat Extended Direct Messages
-const (
-	// CmdZoneTempUp Increase Zone Temp
-	CmdZoneTempUp = Command(0x016800) // Increase Zone Temp
+const(
+// CmdZoneTempUp Increase Zone Temp
+CmdZoneTempUp = Command(0x016800) // Increase Zone Temp
 
-	// CmdZoneTempDown Decrease Zone Temp
-	CmdZoneTempDown = Command(0x016900) // Decrease Zone Temp
+// CmdZoneTempDown Decrease Zone Temp
+CmdZoneTempDown = Command(0x016900) // Decrease Zone Temp
 
-	// CmdSetZoneCoolSetpoint Set Zone Cooling Set Point
-	CmdSetZoneCoolSetpoint = Command(0x016c00) // Set Zone Cool Set-Point
+// CmdSetZoneCoolSetpoint Set Zone Cooling Set Point
+CmdSetZoneCoolSetpoint = Command(0x016c00) // Set Zone Cool Set-Point
 
-	// CmdSetZoneHeatSetpoint Set Zone Heating Set Point
-	CmdSetZoneHeatSetpoint = Command(0x016d00) // Set Zone Heat Set-Point
+// CmdSetZoneHeatSetpoint Set Zone Heating Set Point
+CmdSetZoneHeatSetpoint = Command(0x016d00) // Set Zone Heat Set-Point
 )
 
-var cmdStrings = map[Command]string{
-	CmdAssignToAllLinkGroup:       "Assign to All-Link Group",
-	CmdDeleteFromAllLinkGroup:     "Delete from All-Link Group",
-	CmdProductDataReq:             "Product Data Request",
-	CmdFxUsernameReq:              "Fx Username Request",
-	CmdDeviceTextStringReq:        "Text String Request",
-	CmdExitLinkingMode:            "Exit Linking Mode",
-	CmdEnterLinkingMode:           "Enter Linking Mode",
-	CmdEnterUnlinkingMode:         "Enter Unlinking Mode",
-	CmdGetEngineVersion:           "Engine Version",
-	CmdPing:                       "Ping Request",
-	CmdIDRequest:                  "ID Request",
-	CmdGetOperatingFlags:          "Get Operating Flags",
-	CmdProductDataResp:            "Product Data Response",
-	CmdFxUsernameResp:             "Fx Username Response",
-	CmdDeviceTextStringResp:       "Text String Response",
-	CmdSetDeviceTextString:        "Set Text String",
-	CmdSetAllLinkCommandAlias:     "Set All-Link Command Alias",
-	CmdSetAllLinkCommandAliasData: "Set All-Link Command Alias Data",
-	CmdExitLinkingModeExt:         "Exit Linking Mode (i2cs)",
-	CmdEnterLinkingModeExt:        "Enter Linking Mode (i2cs)",
-	CmdEnterUnlinkingModeExt:      "Enter Unlinking Mode (i2cs)",
-	CmdSetOperatingFlags:          "Set Operating Flags",
-	CmdExtendedGetSet:             "Extended Get/Set",
-	CmdReadWriteALDB:              "Read/Write ALDB",
-	CmdAllLinkRecall:              "All-link recall",
-	CmdAllLinkAlias2High:          "All-link Alias 2 High",
-	CmdAllLinkAlias1Low:           "All-link Alias 1 Low",
-	CmdAllLinkAlias2Low:           "All-link Alias 2 Low",
-	CmdAllLinkAlias3High:          "All-link Alias 3 High",
-	CmdAllLinkAlias3Low:           "All-link Alias 3 Low",
-	CmdAllLinkAlias4High:          "All-link Alias 4 High",
-	CmdAllLinkAlias4Low:           "All-link Alias 4 Low",
-	CmdAllLinkAlias5:              "All-link Alias 5",
-	CmdSetButtonPressedResponder:  "Set-button Pressed (responder)",
-	CmdSetButtonPressedController: "Set-button Pressed (controller)",
-	CmdTestPowerlinePhase:         "Test Powerline Phase",
-	CmdHeartbeat:                  "Heartbeat",
-	CmdBroadCastStatusChange:      "Broadcast Status Change",
-	CmdLightOn:                    "Light On",
-	CmdLightOnFast:                "Light On Fast",
-	CmdLightOff:                   "Light Off",
-	CmdLightOffFast:               "Light Off Fast",
-	CmdLightBrighten:              "Brighten Light",
-	CmdLightDim:                   "Dim Light",
-	CmdLightStopManual:            "Manual Light Change Stop",
-	CmdLightStatusRequest:         "Status Request",
-	CmdLightInstantChange:         "Light Instant Change",
-	CmdLightManualOn:              "Manual On",
-	CmdLightManualOff:             "Manual Off",
-	CmdTapSetButtonOnce:           "Set Button Tap",
-	CmdTapSetButtonTwice:          "Set Button Tap Twice",
-	CmdLightSetStatus:             "Set Status",
-	CmdLightOnAtRamp:              "Light On At Ramp",
-	CmdLightOnAtRampV67:           "Light On At Ramp",
-	CmdLightOffAtRamp:             "Light Off At Ramp",
-	CmdLightOffAtRampV67:          "Light Off At Ramp",
-	CmdStartBrighten:              "Manual Start Brighten",
-	CmdStartDim:                   "Manual Start Dim",
-	CmdEnableProgramLock:          "Enable Program Lock",
-	CmdDisableProgramLock:         "Disable Program Lock",
-	CmdEnableTxLED:                "Enable Tx LED",
-	CmdDisableTxLED:               "Disable Tx LED",
-	CmdEnableResumeDim:            "Enable Resume Dim",
-	CmdDisableResumeDim:           "Disable Resume Dim",
-	CmdEnableLoadSense:            "Enable Load Sense",
-	CmdDisableLoadSense:           "Disable Load Sense",
-	CmdDisableLED:                 "Disable Backlight",
-	CmdEnableLED:                  "Enable Backlight",
-	CmdSetKeyBeep:                 "Enable Key Beep",
-	CmdClearKeyBeep:               "Disable Key Beep",
-	CmdDecreaseTemp:               "Decrease Temp",
-	CmdIncreaseTemp:               "Increase Temp",
-	CmdGetZoneInfo:                "Get Zone Info",
-	CmdGetThermostatMode:          "Get Mode",
-	CmdGetAmbientTemp:             "Get Ambient Temp",
-	CmdSetHeat:                    "Set Heat",
-	CmdSetCool:                    "Set Cool",
-	CmdSetModeAuto:                "Set Auto",
-	CmdSetFan:                     "Turn Fan On",
-	CmdClearFan:                   "Turn Fan Off",
-	CmdThermOff:                   "Turn Thermostat Off",
-	CmdSetProgramHeat:             "Set Program Heat",
-	CmdSetProgramCool:             "Set Program Cool",
-	CmdSetProgramAuto:             "Set Program Auto",
-	CmdGetEquipmentState:          "Get State",
-	CmdSetEquipmentState:          "Set State",
-	CmdGetTempUnits:               "Get Temp Units",
-	CmdSetFahrenheit:              "Set Units Fahrenheit",
-	CmdSetCelsius:                 "Set Units Celsius",
-	CmdGetFanOnSpeed:              "Get Fan On-Speed",
-	CmdSetFanOnLow:                "Set Fan-Speed Low",
-	CmdSetFanOnMed:                "Set Fan-Speed Med",
-	CmdSetFanOnHigh:               "Set Fan-Speed High",
-	CmdEnableStatusMessage:        "Enable Status Change",
-	CmdDisableStatusMessage:       "Disable Status Change",
-	CmdSetCoolSetpoint:            "Set Cool Set-Point",
-	CmdSetHeatSetpoint:            "Set Heat Set-Point",
-	CmdZoneTempUp:                 "Increase Zone Temp",
-	CmdZoneTempDown:               "Decrease Zone Temp",
-	CmdSetZoneCoolSetpoint:        "Set Zone Cool Set-Point",
-	CmdSetZoneHeatSetpoint:        "Set Zone Heat Set-Point",
+
+var cmdStrings = map[Command]string { 
+  CmdAssignToAllLinkGroup: "Assign to All-Link Group",
+  CmdDeleteFromAllLinkGroup: "Delete from All-Link Group",
+  CmdProductDataReq: "Product Data Request",
+  CmdFxUsernameReq: "Fx Username Request",
+  CmdDeviceTextStringReq: "Text String Request",
+  CmdExitLinkingMode: "Exit Linking Mode",
+  CmdEnterLinkingMode: "Enter Linking Mode",
+  CmdEnterUnlinkingMode: "Enter Unlinking Mode",
+  CmdGetEngineVersion: "Engine Version",
+  CmdPing: "Ping Request",
+  CmdIDRequest: "ID Request",
+  CmdGetOperatingFlags: "Get Operating Flags",
+  CmdProductDataResp: "Product Data Response",
+  CmdFxUsernameResp: "Fx Username Response",
+  CmdDeviceTextStringResp: "Text String Response",
+  CmdSetDeviceTextString: "Set Text String",
+  CmdSetAllLinkCommandAlias: "Set All-Link Command Alias",
+  CmdSetAllLinkCommandAliasData: "Set All-Link Command Alias Data",
+  CmdExitLinkingModeExt: "Exit Linking Mode (i2cs)",
+  CmdEnterLinkingModeExt: "Enter Linking Mode (i2cs)",
+  CmdEnterUnlinkingModeExt: "Enter Unlinking Mode (i2cs)",
+  CmdSetOperatingFlags: "Set Operating Flags",
+  CmdExtendedGetSet: "Extended Get/Set",
+  CmdReadWriteALDB: "Read/Write ALDB",
+  CmdAllLinkSuccessReport: "All-link Success Report",
+  CmdAllLinkRecall: "All-link recall",
+  CmdAllLinkAlias2High: "All-link Alias 2 High",
+  CmdAllLinkAlias1Low: "All-link Alias 1 Low",
+  CmdAllLinkAlias2Low: "All-link Alias 2 Low",
+  CmdAllLinkAlias3High: "All-link Alias 3 High",
+  CmdAllLinkAlias3Low: "All-link Alias 3 Low",
+  CmdAllLinkAlias4High: "All-link Alias 4 High",
+  CmdAllLinkAlias4Low: "All-link Alias 4 Low",
+  CmdAllLinkAlias5: "All-link Alias 5",
+  CmdSetButtonPressedResponder: "Set-button Pressed (responder)",
+  CmdSetButtonPressedController: "Set-button Pressed (controller)",
+  CmdTestPowerlinePhase: "Test Powerline Phase",
+  CmdHeartbeat: "Heartbeat",
+  CmdBroadCastStatusChange: "Broadcast Status Change",
+  CmdLightOn: "Light On",
+  CmdLightOnFast: "Light On Fast",
+  CmdLightOff: "Light Off",
+  CmdLightOffFast: "Light Off Fast",
+  CmdLightBrighten: "Brighten Light",
+  CmdLightDim: "Dim Light",
+  CmdLightStopManual: "Manual Light Change Stop",
+  CmdLightStatusRequest: "Status Request",
+  CmdLightInstantChange: "Light Instant Change",
+  CmdLightManualOn: "Manual On",
+  CmdLightManualOff: "Manual Off",
+  CmdTapSetButtonOnce: "Set Button Tap",
+  CmdTapSetButtonTwice: "Set Button Tap Twice",
+  CmdLightSetStatus: "Set Status",
+  CmdLightOnAtRamp: "Light On At Ramp",
+  CmdLightOnAtRampV67: "Light On At Ramp",
+  CmdLightOffAtRamp: "Light Off At Ramp",
+  CmdLightOffAtRampV67: "Light Off At Ramp",
+  CmdStartBrighten: "Manual Start Brighten",
+  CmdStartDim: "Manual Start Dim",
+  CmdEnableProgramLock: "Enable Program Lock",
+  CmdDisableProgramLock: "Disable Program Lock",
+  CmdEnableTxLED: "Enable Tx LED",
+  CmdDisableTxLED: "Disable Tx LED",
+  CmdEnableResumeDim: "Enable Resume Dim",
+  CmdDisableResumeDim: "Disable Resume Dim",
+  CmdEnableLoadSense: "Enable Load Sense",
+  CmdDisableLoadSense: "Disable Load Sense",
+  CmdDisableLED: "Disable Backlight",
+  CmdEnableLED: "Enable Backlight",
+  CmdSetKeyBeep: "Enable Key Beep",
+  CmdClearKeyBeep: "Disable Key Beep",
+  CmdDecreaseTemp: "Decrease Temp",
+  CmdIncreaseTemp: "Increase Temp",
+  CmdGetZoneInfo: "Get Zone Info",
+  CmdGetThermostatMode: "Get Mode",
+  CmdGetAmbientTemp: "Get Ambient Temp",
+  CmdSetHeat: "Set Heat",
+  CmdSetCool: "Set Cool",
+  CmdSetModeAuto: "Set Auto",
+  CmdSetFan: "Turn Fan On",
+  CmdClearFan: "Turn Fan Off",
+  CmdThermOff: "Turn Thermostat Off",
+  CmdSetProgramHeat: "Set Program Heat",
+  CmdSetProgramCool: "Set Program Cool",
+  CmdSetProgramAuto: "Set Program Auto",
+  CmdGetEquipmentState: "Get State",
+  CmdSetEquipmentState: "Set State",
+  CmdGetTempUnits: "Get Temp Units",
+  CmdSetFahrenheit: "Set Units Fahrenheit",
+  CmdSetCelsius: "Set Units Celsius",
+  CmdGetFanOnSpeed: "Get Fan On-Speed",
+  CmdSetFanOnLow: "Set Fan-Speed Low",
+  CmdSetFanOnMed: "Set Fan-Speed Med",
+  CmdSetFanOnHigh: "Set Fan-Speed High",
+  CmdEnableStatusMessage: "Enable Status Change",
+  CmdDisableStatusMessage: "Disable Status Change",
+  CmdSetCoolSetpoint: "Set Cool Set-Point",
+  CmdSetHeatSetpoint: "Set Heat Set-Point",
+  CmdZoneTempUp: "Increase Zone Temp",
+  CmdZoneTempDown: "Decrease Zone Temp",
+  CmdSetZoneCoolSetpoint: "Set Zone Cool Set-Point",
+  CmdSetZoneHeatSetpoint: "Set Zone Heat Set-Point",
 }

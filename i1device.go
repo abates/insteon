@@ -15,6 +15,7 @@
 package insteon
 
 import (
+	"fmt"
 	"html/template"
 	"strings"
 )
@@ -142,7 +143,7 @@ func (d *device) errLookup(msg *Message, err error) (*Message, error) {
 func (d *device) ProductData() (data *ProductData, err error) {
 	msg, err := d.Write(&Message{Command: CmdProductDataReq})
 	if err == nil {
-		msg, err = Read(d, Or(CmdMatcher(CmdProductDataReq), CmdMatcher(CmdProductDataResp)))
+		msg, err = Read(d, CmdMatcher(CmdProductDataResp))
 		if err == nil {
 			data = &ProductData{}
 			err = data.UnmarshalBinary(msg.Payload)
@@ -170,7 +171,7 @@ func (d *device) Address() Address {
 // String returns the string "<engine version> Device (<address>)" where <address> is the destination
 // address of the device
 func (d *device) String() string {
-	return sprintf("%s Device (%s)", d.info.EngineVersion, d.info.Address)
+	return fmt.Sprintf("%s Device (%s)", d.info.EngineVersion, d.info.Address)
 }
 
 func (d *device) Dump() string {

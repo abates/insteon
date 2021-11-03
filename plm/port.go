@@ -16,7 +16,6 @@ package plm
 
 import (
 	"bufio"
-	"bytes"
 	"io"
 	"log"
 	"time"
@@ -31,50 +30,6 @@ type PacketReader interface {
 type PacketWriter interface {
 	PacketReader
 	WritePacket(*Packet) (ack *Packet, err error)
-}
-
-type packetWriter struct {
-	PacketReader
-	writer io.Writer
-}
-
-func (w *packetWriter) WritePacket(txPacket *Packet) (ack *Packet, err error) {
-	buf, err := txPacket.MarshalBinary()
-	if err == nil {
-		insteon.LogTrace.Printf("Sending packet %v", txPacket)
-		if txPacket.Command != CmdSendInsteonMsg {
-			insteon.LogDebug.Printf("CMD TX %v", txPacket)
-		}
-		_, err = w.writer.Write(buf)
-
-		if err == nil {
-			insteon.LogTrace.Printf("TX %v", txPacket)
-			ack, err = w.ReadPacket()
-
-			if err == nil {
-				// these things happen rarely, but we can (a least in the
-				// case of ErrWrongAck) usually do something about it
-				if !ack.ACK() && !ack.NAK() {
-					err = ErrNoAck
-				} else if ack.Command != txPacket.Command {
-					err = ErrWrongAck
-				} else if ack.Command != CmdGetInfo && ack.Command != CmdGetConfig {
-					payload := ack.Payload
-					if ack.Command == CmdSendInsteonMsg {
-						payload = payload[3:]
-					}
-					if !bytes.Equal(payload, txPacket.Payload) {
-						err = ErrWrongPayload
-					}
-				}
-			}
-		}
-	}
-	if ack.NAK() {
-		err = ErrNak
-	}
-
-	return
 }
 
 type delayWriter struct {
@@ -105,7 +60,7 @@ func (dw *delayWriter) writeDelay(pkt *Packet) (delay time.Duration) {
 		return 0
 	}
 
-	if pkt.Command == CmdSendInsteonMsg || dw.lastPkt.Command == CmdStartAllLink {
+	if dw.lastPkt.Command == CmdSendInsteonMsg || dw.lastPkt.Command == CmdStartAllLink {
 		delay = insteon.PropagationDelay(dw.lastTTL, dw.lastLen)
 		delay = time.Now().Sub(dw.lastRead.Add(delay))
 		delay = time.Now().Sub(dw.lastRead.Add(delay))
@@ -122,9 +77,6 @@ func (dw *delayWriter) Write(pkt *Packet) (ack *Packet, err error) {
 	insteon.LogTrace.Printf("Write delay %v)", delay)
 	time.Sleep(delay)
 
-	if pkt.Command != CmdSendInsteonMsg {
-		insteon.LogDebug.Printf("PLM CMD TX %v", pkt)
-	}
 	dw.lastPkt = pkt
 	return dw.PacketWriter.WritePacket(pkt)
 }
@@ -250,15 +202,4 @@ func (pr *packetReader) ReadPacket() (packet *Packet, err error) {
 		err = packet.UnmarshalBinary(pr.buf[0:n])
 	}
 	return packet, err
-}
-
-func defaultPacketWriter(rw io.ReadWriter, minDelay time.Duration) PacketWriter {
-	return &delayWriter{
-		minDelay: minDelay,
-		lastRead: time.Now(),
-		PacketWriter: &packetWriter{
-			PacketReader: NewPacketReader(rw),
-			writer:       logWriter{Writer: rw, Log: insteon.Log, LogDebug: insteon.LogDebug, LogTrace: insteon.LogTrace},
-		},
-	}
 }

@@ -60,7 +60,7 @@ type PLM struct {
 }
 
 // New creates a new PLM instance.
-func New(rw io.ReadWriter, options ...Option) (plm *PLM, err error) {
+func New(rw io.ReadWriter, options ...Option) (plm *PLM) {
 	plm = &PLM{
 		writer: rw,
 		reader: NewPacketReader(rw),
@@ -75,19 +75,20 @@ func New(rw io.ReadWriter, options ...Option) (plm *PLM, err error) {
 		o(plm)
 	}
 
-	//plm.writer = defaultPacketWriter(rw, plm.writeDelay)
 	plm.linkdb.plm = plm
 	plm.linkdb.retries = plm.retries
 	plm.linkdb.timeout = plm.timeout
 	go plm.readLoop()
-	return plm, nil
+	return plm
 }
 
 func (plm *PLM) readLoop() {
 	for {
 		pkt, err := plm.reader.ReadPacket()
 		if err != nil {
-			insteon.Log.Printf("Read error: %v", err)
+			if !errors.Is(err, io.EOF) {
+				insteon.Log.Printf("Read error: %v", err)
+			}
 			close(plm.msgBuf)
 			close(plm.packetBuf)
 			return
