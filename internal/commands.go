@@ -24,15 +24,17 @@ type command struct {
 }
 
 type commandGroup struct {
-	Name     string
-	Byte0    byte
-	Commands []command
+	Name        string
+	Byte0       byte
+	Convenience bool
+	Commands    []command
 }
 
 var commands = []commandGroup{
 	{
-		Name:  "Standard Direct Commands",
-		Byte0: 0x00,
+		Name:        "Standard Direct Commands",
+		Byte0:       0x00,
+		Convenience: false,
 		Commands: []command{
 			{"CmdAssignToAllLinkGroup", "Assign to ALL-Link Group", "Assign to All-Link Group", 0x01, 0x00, ""},
 			{"CmdDeleteFromAllLinkGroup", "Delete from All-Link Group", "Delete from All-Link Group", 0x02, 0x00, ""},
@@ -49,8 +51,9 @@ var commands = []commandGroup{
 		},
 	},
 	{
-		Name:  "Extended Direct Commands",
-		Byte0: 0x01,
+		Name:        "Extended Direct Commands",
+		Byte0:       0x01,
+		Convenience: false,
 		Commands: []command{
 			{"CmdProductDataResp", "Product Data Response", "Product Data Response", 0x03, 0x00, ""},
 			{"CmdFxUsernameResp", "FX Username Response", "Fx Username Response", 0x03, 0x01, ""},
@@ -67,8 +70,9 @@ var commands = []commandGroup{
 		},
 	},
 	{
-		Name:  "All-Link Messages",
-		Byte0: 0x0c,
+		Name:        "All-Link Messages",
+		Byte0:       0x0c,
+		Convenience: false,
 		Commands: []command{
 			{"CmdAllLinkSuccessReport", "is an all-link command to report the number of failed cleanups", "All-link Success Report", 0x06, 0x00, ""},
 			{"CmdAllLinkRecall", "is an all-link command to recall the state assigned to the entry in the all-link database", "All-link recall", 0x11, 0x00, ""},
@@ -83,8 +87,9 @@ var commands = []commandGroup{
 		},
 	},
 	{
-		Name:  "Standard Broadcast Messages",
-		Byte0: 0x08,
+		Name:        "Standard Broadcast Messages",
+		Byte0:       0x08,
+		Convenience: false,
 		Commands: []command{
 			{"CmdSetButtonPressedResponder", "Broadcast command indicating the set button has been pressed", "Set-button Pressed (responder)", 0x01, 0x00, ""},
 			{"CmdSetButtonPressedController", "Broadcast command indicating the set button has been pressed", "Set-button Pressed (controller)", 0x02, 0x00, ""},
@@ -94,8 +99,9 @@ var commands = []commandGroup{
 		},
 	},
 	{
-		Name:  "Lighting Standard Direct Messages",
-		Byte0: 0x00,
+		Name:        "Lighting Standard Direct Messages",
+		Byte0:       0x00,
+		Convenience: false,
 		Commands: []command{
 			{"CmdLightOn", "", "Light On", 0x11, 0x00, ""},
 			{"CmdLightOnFast", "", "Light On Fast", 0x12, 0x00, ""},
@@ -118,8 +124,9 @@ var commands = []commandGroup{
 		},
 	},
 	{
-		Name:  "Dimmer Convenience Commands",
-		Byte0: 0x00,
+		Name:        "Dimmer Convenience Commands",
+		Byte0:       0x00,
+		Convenience: true,
 		Commands: []command{
 			{"CmdStartBrighten", "", "Manual Start Brighten", 0x17, 0x01, ""},
 			{"CmdStartDim", "", "Manual Start Dim", 0x17, 0x00, ""},
@@ -138,8 +145,9 @@ var commands = []commandGroup{
 		},
 	},
 	{
-		Name:  "Thermostat Standard Direct Messages",
-		Byte0: 0x00,
+		Name:        "Thermostat Standard Direct Messages",
+		Byte0:       0x00,
+		Convenience: false,
 		Commands: []command{
 			{"CmdDecreaseTemp", "Decrease Temperature", "Decrease Temp", 0x68, 0x00, ""},
 			{"CmdIncreaseTemp", "Increase Temperature", "Increase Temp", 0x69, 0x00, ""},
@@ -171,8 +179,9 @@ var commands = []commandGroup{
 		},
 	},
 	{
-		Name:  "Thermostat Extended Direct Messages",
-		Byte0: 0x01,
+		Name:        "Thermostat Extended Direct Messages",
+		Byte0:       0x01,
+		Convenience: false,
 		Commands: []command{
 			{"CmdZoneTempUp", "Increase Zone Temp", "Increase Zone Temp", 0x68, 0x00, ""},
 			{"CmdZoneTempDown", "Decrease Zone Temp", "Decrease Zone Temp", 0x69, 0x00, ""},

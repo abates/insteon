@@ -4,9 +4,7 @@
 The following tables outline all the Insteon command combinations that are
 known in this project.
 
-
 ## Standard Direct Commands
-
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
 0x01|0x00|Assign to All-Link Group|
@@ -23,7 +21,6 @@ Command 1 | Command 2 | Name | Notes
 0x1f|0x00|Get Operating Flags|
 
 ## Extended Direct Commands
-
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
 0x03|0x00|Product Data Response|
@@ -40,7 +37,6 @@ Command 1 | Command 2 | Name | Notes
 0x2f|0x00|Read/Write ALDB|
 
 ## All-Link Messages
-
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
 0x06|0x00|All-link Success Report|
@@ -55,7 +51,6 @@ Command 1 | Command 2 | Name | Notes
 0x21|0x00|All-link Alias 5|
 
 ## Standard Broadcast Messages
-
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
 0x01|0x00|Set-button Pressed (responder)|
@@ -65,7 +60,6 @@ Command 1 | Command 2 | Name | Notes
 0x27|0x00|Broadcast Status Change|
 
 ## Lighting Standard Direct Messages
-
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
 0x11|0x00|Light On|
@@ -87,27 +81,7 @@ Command 1 | Command 2 | Name | Notes
 0x2f|0x00|Light Off At Ramp|
 0x35|0x00|Light Off At Ramp|
 
-## Dimmer Convenience Commands
-
-Command 1 | Command 2 | Name | Notes
-----------|-----------|------|------
-0x17|0x01|Manual Start Brighten|
-0x17|0x00|Manual Start Dim|
-0x20|0x00|Enable Program Lock|
-0x20|0x01|Disable Program Lock|
-0x20|0x02|Enable Tx LED|
-0x20|0x03|Disable Tx LED|
-0x20|0x04|Enable Resume Dim|
-0x20|0x05|Disable Resume Dim|
-0x20|0x06|Enable Load Sense|
-0x20|0x07|Disable Load Sense|
-0x20|0x08|Disable Backlight|
-0x20|0x09|Enable Backlight|
-0x20|0x0a|Enable Key Beep|
-0x20|0x0b|Disable Key Beep|
-
 ## Thermostat Standard Direct Messages
-
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
 0x68|0x00|Decrease Temp|
@@ -139,7 +113,6 @@ Command 1 | Command 2 | Name | Notes
 0x6d|0x00|Set Heat Set-Point|
 
 ## Thermostat Extended Direct Messages
-
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
 0x68|0x00|Increase Zone Temp|
