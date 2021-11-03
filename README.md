@@ -27,4 +27,4 @@ github.com/abates/insteon package.  See the
 
 ## Documentation/Notes
 
-* [Known Insteon Commands][COMMANDS.md]
+* [Known Insteon Commands](COMMANDS.md)
