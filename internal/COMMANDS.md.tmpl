@@ -3,14 +3,14 @@
 
 The following tables outline all the Insteon command combinations that are
 known in this project.
+{{range .Data }}
 
-{{range .Data -}}
 ## {{ .Name }}
 
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
 {{- range .Commands}}
 {{.Byte1| printf "0x%02x"}}|{{.Byte2 | printf "0x%02x"}}|{{.String}}|{{.Notes}}
-{{- end}}
-{{- end}}
+{{- end -}}
+{{end}}
 

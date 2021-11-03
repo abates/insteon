@@ -4,6 +4,7 @@
 The following tables outline all the Insteon command combinations that are
 known in this project.
 
+
 ## Standard Direct Commands
 
 Command 1 | Command 2 | Name | Notes
@@ -19,7 +20,9 @@ Command 1 | Command 2 | Name | Notes
 0x0d|0x00|Engine Version|
 0x0f|0x00|Ping Request|
 0x10|0x00|ID Request|
-0x1f|0x00|Get Operating Flags|## Extended Direct Commands
+0x1f|0x00|Get Operating Flags|
+
+## Extended Direct Commands
 
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
@@ -34,7 +37,9 @@ Command 1 | Command 2 | Name | Notes
 0x0a|0x00|Enter Unlinking Mode (i2cs)|Insteon version 2 with checksum devices only respond to extended linking commands
 0x20|0x00|Set Operating Flags|
 0x2e|0x00|Extended Get/Set|
-0x2f|0x00|Read/Write ALDB|## All-Link Messages
+0x2f|0x00|Read/Write ALDB|
+
+## All-Link Messages
 
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
@@ -47,7 +52,9 @@ Command 1 | Command 2 | Name | Notes
 0x16|0x00|All-link Alias 3 Low|
 0x17|0x00|All-link Alias 4 High|
 0x18|0x00|All-link Alias 4 Low|
-0x21|0x00|All-link Alias 5|## Standard Broadcast Messages
+0x21|0x00|All-link Alias 5|
+
+## Standard Broadcast Messages
 
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
@@ -55,7 +62,9 @@ Command 1 | Command 2 | Name | Notes
 0x02|0x00|Set-button Pressed (controller)|
 0x03|0x00|Test Powerline Phase|
 0x04|0x00|Heartbeat|
-0x27|0x00|Broadcast Status Change|## Lighting Standard Direct Messages
+0x27|0x00|Broadcast Status Change|
+
+## Lighting Standard Direct Messages
 
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
@@ -76,7 +85,9 @@ Command 1 | Command 2 | Name | Notes
 0x2e|0x00|Light On At Ramp|This command is for dimmers with firmware version less than version 67
 0x34|0x00|Light On At Ramp|Dimmers running firmware version 67 and higher
 0x2f|0x00|Light Off At Ramp|
-0x35|0x00|Light Off At Ramp|## Dimmer Convenience Commands
+0x35|0x00|Light Off At Ramp|
+
+## Dimmer Convenience Commands
 
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
@@ -93,7 +104,9 @@ Command 1 | Command 2 | Name | Notes
 0x20|0x08|Disable Backlight|
 0x20|0x09|Enable Backlight|
 0x20|0x0a|Enable Key Beep|
-0x20|0x0b|Disable Key Beep|## Thermostat Standard Direct Messages
+0x20|0x0b|Disable Key Beep|
+
+## Thermostat Standard Direct Messages
 
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
@@ -123,7 +136,9 @@ Command 1 | Command 2 | Name | Notes
 0x6b|0x16|Enable Status Change|
 0x6b|0x17|Disable Status Change|
 0x6c|0x00|Set Cool Set-Point|
-0x6d|0x00|Set Heat Set-Point|## Thermostat Extended Direct Messages
+0x6d|0x00|Set Heat Set-Point|
+
+## Thermostat Extended Direct Messages
 
 Command 1 | Command 2 | Name | Notes
 ----------|-----------|------|------
