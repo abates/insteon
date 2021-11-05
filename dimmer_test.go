@@ -64,7 +64,7 @@ func TestDimmableDeviceConfig(t *testing.T) {
 
 	tw := &testWriter{}
 	tw.read = []*Message{msg}
-	dd := NewDimmer(&device{MessageWriter: tw}, DeviceInfo{FirmwareVersion: 67})
+	dd := NewDimmer(&BasicDevice{MessageWriter: tw, DeviceInfo: DeviceInfo{FirmwareVersion: 67}})
 	got, err := dd.Config()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)

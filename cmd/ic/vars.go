@@ -22,15 +22,36 @@ import (
 	"github.com/abates/insteon"
 )
 
+type addrSlice []insteon.Address
+
+func (a *addrSlice) Set(str []string) error {
+	for _, s := range str {
+		a := &insteon.Address{}
+		err := a.Set(s)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *addrSlice) String() string {
+	return fmt.Sprintf("%v", []insteon.Address(*a))
+}
+
 type dataVar []byte
 
-func (d *dataVar) Set(str string) error {
-	var b byte
-	_, err := fmt.Sscanf(str, "%x", &b)
-	if err == nil {
-		*d = append(*d, b)
+func (d *dataVar) Set(str []string) error {
+	for _, s := range str {
+		var b byte
+		_, err := fmt.Sscanf(s, "%x", &b)
+		if err == nil {
+			*d = append(*d, b)
+		} else {
+			return err
+		}
 	}
-	return err
+	return nil
 }
 
 func (d *dataVar) String() string { return fmt.Sprintf("%v", *d) }

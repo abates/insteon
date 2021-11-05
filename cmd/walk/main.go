@@ -41,7 +41,7 @@ var (
 	dbfile         string
 )
 
-func printDevInfo(device insteon.Device) {
+func printDevInfo(device insteon.BasicDevice) {
 	/*fmt.Printf("       Device: %v\n", device)
 	fmt.Printf("     Category: %v\n", device.Info().DevCat)
 	fmt.Printf("     Firmware: %v\n", device.Info().FirmwareVersion)*/

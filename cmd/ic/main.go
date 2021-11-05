@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	modem *plm.PLM
+	modem *plm.PLM = &plm.PLM{}
 	db    util.Database
 
 	logLevelFlag   insteon.LogLevel
@@ -39,7 +39,7 @@ var (
 	writeDelayFlag time.Duration
 	ttlFlag        int
 
-	app       = cli.New(os.Args[0], cli.CallbackOption(run))
+	app       = cli.New(os.Args[0], cli.CallbackOption(cli.Callback(run)))
 	configDir string
 	dbfile    string
 )
@@ -56,7 +56,7 @@ func init() {
 	dbfile = filepath.Join(configDir, "db.json")
 }
 
-func run(string) error {
+func run() error {
 	if logLevelFlag > insteon.LevelNone {
 		insteon.SetLogLevel(logLevelFlag, os.Stderr)
 	}
@@ -83,27 +83,25 @@ func run(string) error {
 		log.Fatalf("Failed to load database: %v", err)
 	}
 
-	modem = plm.New(s, plm.Timeout(timeoutFlag), plm.WriteDelay(writeDelayFlag))
-
+	*modem = *plm.New(s, plm.Timeout(timeoutFlag), plm.WriteDelay(writeDelayFlag))
 	return nil
 }
 
-func open(modem *plm.PLM, addr insteon.Address) (insteon.Device, error) {
-	device, err := util.Open(insteon.TTL(ttlFlag)(modem), addr, db, dbfile)
+func open(modem *plm.PLM, addr insteon.Address) (*insteon.BasicDevice, error) {
+	device, err := util.Open(insteon.TTL(ttlFlag).Filter(modem), addr, db, dbfile)
 
 	if err == insteon.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
 			pc := &plmCmd{group: 0x01, addresses: []insteon.Address{addr}}
-			err = pc.controllerLinkCmd("link")
+			err = pc.link(true, false)()
 		}
 	}
 	return device, err
 }
 
 func main() {
-	app.Parse(os.Args[1:])
-	err := app.Run()
+	_, err := app.Run(os.Args[1:])
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		os.Exit(1)

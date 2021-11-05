@@ -80,7 +80,7 @@ func TestSwitchedDeviceConfig(t *testing.T) {
 	tw := &testWriter{
 		read: []*Message{msg},
 	}
-	sd := NewSwitch(&device{MessageWriter: tw}, DeviceInfo{})
+	sd := NewSwitch(&BasicDevice{MessageWriter: tw, DeviceInfo: DeviceInfo{}})
 
 	got, err := sd.Config()
 	if err != nil {
@@ -103,7 +103,7 @@ func TestSwitchedDeviceOperatingFlags(t *testing.T) {
 		tw.acks = append(tw.acks, &Message{Command: cmd})
 	}
 
-	sd := NewSwitch(&device{MessageWriter: tw}, DeviceInfo{})
+	sd := NewSwitch(&BasicDevice{MessageWriter: tw, DeviceInfo: DeviceInfo{}})
 	want := LightFlags{3, 4, 5, 6, 7}
 	got, _ := sd.OperatingFlags()
 

@@ -43,16 +43,16 @@ func (ma MemAddress) String() string {
 // There are two link request types, one used to read the link database and
 // one used to write links
 const (
-	readLink     linkRequestType = 0x00
-	linkResponse linkRequestType = 0x01
-	writeLink    linkRequestType = 0x02
+	readLink     LinkRequestType = 0x00
+	linkResponse LinkRequestType = 0x01
+	writeLink    LinkRequestType = 0x02
 )
 
-// linkRequestType is used to indicate whether an ALDB request is for reading
+// LinkRequestType is used to indicate whether an ALDB request is for reading
 // or writing the database
-type linkRequestType byte
+type LinkRequestType byte
 
-func (lrt linkRequestType) String() string {
+func (lrt LinkRequestType) String() string {
 	switch lrt {
 	case 0x00:
 		return "Link Read"
@@ -64,16 +64,16 @@ func (lrt linkRequestType) String() string {
 	return "Unknown"
 }
 
-// linkRequest is the message sent to a device to request reading or writing
+// LinkRequest is the message sent to a device to request reading or writing
 // all-link database records
-type linkRequest struct {
-	Type       linkRequestType
+type LinkRequest struct {
+	Type       LinkRequestType
 	MemAddress MemAddress
 	NumRecords int
 	Link       *LinkRecord
 }
 
-func (lr *linkRequest) String() string {
+func (lr *LinkRequest) String() string {
 	if lr.Link == nil {
 		return fmt.Sprintf("%s %s %d", lr.Type, lr.MemAddress, lr.NumRecords)
 	}
@@ -81,11 +81,11 @@ func (lr *linkRequest) String() string {
 }
 
 // UnmarshalBinary will take the byte slice and convert it to a LinkRequest object
-func (lr *linkRequest) UnmarshalBinary(buf []byte) (err error) {
+func (lr *LinkRequest) UnmarshalBinary(buf []byte) (err error) {
 	if len(buf) < 5 {
 		return newBufError(ErrBufferTooShort, 6, len(buf))
 	}
-	lr.Type = linkRequestType(buf[1])
+	lr.Type = LinkRequestType(buf[1])
 	lr.MemAddress = MemAddress(buf[2]) << 8
 	lr.MemAddress |= MemAddress(buf[3])
 
@@ -110,7 +110,7 @@ func (lr *linkRequest) UnmarshalBinary(buf []byte) (err error) {
 
 // MarshalBinary will convert the LinkRequest to a byte slice appropriate for
 // sending out to the insteon network
-func (lr *linkRequest) MarshalBinary() (buf []byte, err error) {
+func (lr *LinkRequest) MarshalBinary() (buf []byte, err error) {
 	var linkData []byte
 	buf = make([]byte, 14)
 	buf[1] = byte(lr.Type)
@@ -156,13 +156,13 @@ func (ldb *linkdb) refresh() error {
 	LogDebug.Printf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
 
-	buf, _ := (&linkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
+	buf, _ := (&LinkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
 	_, err := ldb.Write(&Message{Command: CmdReadWriteALDB, Payload: buf})
 	var msg *Message
 	for err == nil {
 		msg, err = Read(ldb, CmdMatcher(CmdReadWriteALDB))
 		if err == nil {
-			lr := &linkRequest{}
+			lr := &LinkRequest{}
 			err = lr.UnmarshalBinary(msg.Payload)
 			// make sure there was no error unmarshalling, also make sure
 			// that it's a new memory address.  Since insteon messages
@@ -204,7 +204,7 @@ func (ldb *linkdb) writeLink(index int, link *LinkRecord) (err error) {
 		return ErrLinkIndexOutOfRange
 	}
 	memAddress := BaseLinkDBAddress - (MemAddress(index) * LinkRecordSize)
-	buf, _ := (&linkRequest{MemAddress: memAddress, Type: writeLink, Link: link}).MarshalBinary()
+	buf, _ := (&LinkRequest{MemAddress: memAddress, Type: writeLink, Link: link}).MarshalBinary()
 	_, err = ldb.Write(&Message{Command: CmdReadWriteALDB, Payload: buf})
 	if err == nil {
 		if link.Flags.LastRecord() {

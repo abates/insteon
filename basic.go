@@ -27,25 +27,25 @@ var dDumpTpl = template.Must(template.New("name").Parse(`
 Engine Version: {{ .Info.EngineVersion }}
 `[1:]))
 
-// Device provides remote communication to version 1 engines
-type device struct {
+// BasicDevice provides remote communication to version 1 engines
+type BasicDevice struct {
 	MessageWriter
+	DeviceInfo
 	*linkdb
-	info DeviceInfo
 }
 
-func newDevice(mw MessageWriter, info DeviceInfo) *device {
-	d := &device{
+func NewDevice(mw MessageWriter, info DeviceInfo) *BasicDevice {
+	d := &BasicDevice{
 		MessageWriter: mw,
 		linkdb:        &linkdb{},
-		info:          info,
+		DeviceInfo:    info,
 	}
 	d.linkdb.MessageWriter = d
 	return d
 }
 
-func (d *device) Write(msg *Message) (ack *Message, err error) {
-	msg.Dst = d.info.Address
+func (d *BasicDevice) Write(msg *Message) (ack *Message, err error) {
+	msg.Dst = d.DeviceInfo.Address
 	msg.Flags = StandardDirectMessage
 	msg.SetMaxTTL(3)
 	msg.SetTTL(3)
@@ -53,13 +53,13 @@ func (d *device) Write(msg *Message) (ack *Message, err error) {
 		msg.Flags = ExtendedDirectMessage
 	}
 
-	if d.info.EngineVersion == VerI2Cs {
+	if d.DeviceInfo.EngineVersion == VerI2Cs {
 		return d.writeWithChecksum(msg)
 	}
 	return d.MessageWriter.Write(msg)
 }
 
-func (d *device) writeWithChecksum(msg *Message) (ack *Message, err error) {
+func (d *BasicDevice) writeWithChecksum(msg *Message) (ack *Message, err error) {
 	// set checksum
 	if len(msg.Payload) > 0 {
 		if len(msg.Payload) < 14 {
@@ -72,11 +72,11 @@ func (d *device) writeWithChecksum(msg *Message) (ack *Message, err error) {
 	return d.MessageWriter.Write(msg)
 }
 
-func (d *device) Info() DeviceInfo {
-	return d.info
+func (d *BasicDevice) Info() DeviceInfo {
+	return d.DeviceInfo
 }
 
-func (d *device) SendCommand(command Command, payload []byte) error {
+func (d *BasicDevice) SendCommand(command Command, payload []byte) error {
 	_, err := d.Send(command, payload)
 	return err
 }
@@ -85,7 +85,7 @@ func (d *device) SendCommand(command Command, payload []byte) error {
 // a payload (for extended messages). If payload length is zero then a standard
 // length message is used to deliver the commands. Any error encountered sending
 // the command is returned (eg. ack timeout, etc)
-func (d *device) Send(command Command, payload []byte) (Command, error) {
+func (d *BasicDevice) Send(command Command, payload []byte) (Command, error) {
 	return d.sendCommand(command, payload)
 }
 
@@ -93,7 +93,7 @@ func (d *device) Send(command Command, payload []byte) (Command, error) {
 // a payload (for extended messages). If payload length is zero then a standard
 // length message is used to deliver the commands. The command bytes from the
 // response ack are returned as well as any error
-func (d *device) sendCommand(command Command, payload []byte) (response Command, err error) {
+func (d *BasicDevice) sendCommand(command Command, payload []byte) (response Command, err error) {
 	ack, err := d.Write(&Message{
 		Command: command,
 		Payload: payload,
@@ -106,9 +106,9 @@ func (d *device) sendCommand(command Command, payload []byte) (response Command,
 	return response, err
 }
 
-func (d *device) errLookup(msg *Message, err error) (*Message, error) {
+func (d *BasicDevice) errLookup(msg *Message, err error) (*Message, error) {
 	if err == ErrNak {
-		if d.info.EngineVersion == VerI2Cs {
+		if d.DeviceInfo.EngineVersion == VerI2Cs {
 			switch msg.Command.Command2() & 0xff {
 			case 0xfb:
 				err = ErrIllegalValue
@@ -140,7 +140,7 @@ func (d *device) errLookup(msg *Message, err error) (*Message, error) {
 }
 
 // ProductData will retrieve the device's product data
-func (d *device) ProductData() (data *ProductData, err error) {
+func (d *BasicDevice) ProductData() (data *ProductData, err error) {
 	msg, err := d.Write(&Message{Command: CmdProductDataReq})
 	if err == nil {
 		msg, err = Read(d, CmdMatcher(CmdProductDataResp))
@@ -152,7 +152,7 @@ func (d *device) ProductData() (data *ProductData, err error) {
 	return data, err
 }
 
-func (d *device) ExtendedGet(data []byte) (buf []byte, err error) {
+func (d *BasicDevice) ExtendedGet(data []byte) (buf []byte, err error) {
 	msg, err := d.Write(&Message{Command: CmdExtendedGetSet, Payload: data})
 	if err == nil {
 		msg, err = Read(d, CmdMatcher(CmdExtendedGetSet))
@@ -164,30 +164,30 @@ func (d *device) ExtendedGet(data []byte) (buf []byte, err error) {
 	return buf, err
 }
 
-func (d *device) Address() Address {
-	return d.info.Address
+func (d *BasicDevice) Address() Address {
+	return d.DeviceInfo.Address
 }
 
 // String returns the string "<engine version> Device (<address>)" where <address> is the destination
 // address of the device
-func (d *device) String() string {
-	return fmt.Sprintf("%s Device (%s)", d.info.EngineVersion, d.info.Address)
+func (d *BasicDevice) String() string {
+	return fmt.Sprintf("%s Device (%s)", d.DeviceInfo.EngineVersion, d.DeviceInfo.Address)
 }
 
-func (d *device) Dump() string {
+func (d *BasicDevice) Dump() string {
 	builder := &strings.Builder{}
 	dDumpTpl.Execute(builder, d)
 	return builder.String()
 }
 
-func (d *device) linkingMode(cmd Command, payload []byte) (err error) {
+func (d *BasicDevice) linkingMode(cmd Command, payload []byte) (err error) {
 	return d.SendCommand(cmd, payload)
 }
 
-func (d *device) EnterLinkingMode(group Group) error {
+func (d *BasicDevice) EnterLinkingMode(group Group) error {
 	payload := []byte{}
 	cmd := CmdEnterLinkingMode.SubCommand(int(group))
-	if d.info.EngineVersion == VerI2Cs {
+	if d.DeviceInfo.EngineVersion == VerI2Cs {
 		cmd = CmdEnterLinkingModeExt.SubCommand(int(group))
 		payload = make([]byte, 14)
 	}
@@ -195,14 +195,14 @@ func (d *device) EnterLinkingMode(group Group) error {
 	return d.linkingMode(cmd, payload)
 }
 
-func (d *device) EnterUnlinkingMode(group Group) error {
+func (d *BasicDevice) EnterUnlinkingMode(group Group) error {
 	payload := []byte{}
-	if d.info.EngineVersion == VerI2Cs {
+	if d.DeviceInfo.EngineVersion == VerI2Cs {
 		payload = make([]byte, 14)
 	}
 	return d.linkingMode(CmdEnterUnlinkingMode.SubCommand(int(group)), payload)
 }
 
-func (d *device) ExitLinkingMode() error {
+func (d *BasicDevice) ExitLinkingMode() error {
 	return d.SendCommand(CmdExitLinkingMode, nil)
 }

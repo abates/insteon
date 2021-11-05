@@ -23,7 +23,6 @@ import (
 
 type thermostat struct {
 	*insteon.Thermostat
-	addr insteon.Address
 }
 
 func init() {
@@ -31,26 +30,33 @@ func init() {
 		Thermostat: &insteon.Thermostat{},
 	}
 
-	thermCmd := app.SubCommand("thermostat", cli.UsageOption("<device id> <command>"), cli.DescOption("Interact with a thermostat"), cli.CallbackOption(therm.init))
-	thermCmd.Arguments.Var(&therm.addr, "<device id>")
-
-	thermCmd.SubCommand("status", cli.DescOption("get the thermostat status"), cli.CallbackOption(therm.thermStatusCmd))
-	thermCmd.SubCommand("setStatus", cli.DescOption("enable/disable status reporting"), cli.UsageOption("<true|false>"), cli.ArgCallbackOption(therm.SetStatusMessage))
+	thermCmd := &cli.Command{
+		Name:        "thermostat",
+		Usage:       "<device id> <command>",
+		Description: "Interact with a thermostat",
+		Callback:    cli.Callback(therm.init, "<device id>"),
+		SubCommands: []*cli.Command{
+			&cli.Command{Name: "status", Description: "get the thermostat status", Callback: cli.Callback(therm.thermStatusCmd)},
+			&cli.Command{Name: "setStatus", Description: "enable/disable status reporting", Callback: cli.Callback(therm.SetStatusMessage, "<true|false>")},
+		},
+	}
+	app.SubCommands = append(app.SubCommands, thermCmd)
 }
 
-func (therm *thermostat) init(string) error {
-	device, err := open(modem, therm.addr)
+func (therm *thermostat) init(addr insteon.Address) error {
+	device, err := open(modem, addr)
 	if err == nil {
-		if t, ok := device.(*insteon.Thermostat); ok {
+		d := insteon.Upgrade(device)
+		if t, ok := d.(*insteon.Thermostat); ok {
 			*therm.Thermostat = *t
 		} else {
-			err = fmt.Errorf("Device at %s is a %T not a thermostat", therm.addr, device)
+			err = fmt.Errorf("Device at %s is a %T not a thermostat", addr, device)
 		}
 	}
 	return err
 }
 
-func (therm *thermostat) thermStatusCmd(string) (err error) {
+func (therm *thermostat) thermStatusCmd() (err error) {
 	err = therm.SetTempUnit(insteon.Fahrenheit)
 	//err = therm.SetTempUnit(insteon.Celsius)
 	if err != nil {

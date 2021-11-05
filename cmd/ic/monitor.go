@@ -21,13 +21,18 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/util"
 )
 
 func init() {
-	app.SubCommand("monitor", cli.DescOption("Monitor the Insteon network"), cli.CallbackOption(monCmd))
+	app.SubCommands = append(app.SubCommands, &cli.Command{
+		Name:        "monitor",
+		Description: "Monitor the Insteon network",
+		Callback:    cli.Callback(monCmd),
+	})
 }
 
-func monCmd(string) (err error) {
+func monCmd() (err error) {
 	log.Printf("Starting monitor...")
 
 	config, err := modem.Config()
@@ -41,7 +46,7 @@ func monCmd(string) (err error) {
 		return err
 	}
 
-	mon := insteon.Snoop(os.Stdout, db)(modem)
+	mon := util.Snoop(os.Stdout, db).Filter(modem)
 	for _, err = mon.Read(); err == nil || errors.Is(err, insteon.ErrReadTimeout); _, err = mon.Read() {
 	}
 	return err

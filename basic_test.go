@@ -7,7 +7,7 @@ import (
 
 func TestI1DeviceIsDevice(t *testing.T) {
 	var d interface{}
-	d = &device{}
+	d = &BasicDevice{}
 
 	if _, ok := d.(Device); !ok {
 		t.Error("Expected I1Device to be Device")
@@ -35,7 +35,7 @@ func TestI1DeviceWrite(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			tw := &testWriter{}
-			d := newDevice(tw, DeviceInfo{EngineVersion: test.version})
+			d := NewDevice(tw, DeviceInfo{EngineVersion: test.version})
 			_, err := d.Write(test.input)
 			if err == nil {
 				if !bytes.Equal(test.want, tw.written[0].Payload) {
@@ -72,7 +72,7 @@ func TestI1DeviceErrLookup(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			d := &device{info: DeviceInfo{EngineVersion: test.ver}}
+			d := &BasicDevice{DeviceInfo: DeviceInfo{EngineVersion: test.ver}}
 			_, got := d.errLookup(test.input, test.inputErr)
 			if !IsError(got, test.want) {
 				t.Errorf("want error %v got %v", test.want, got)
@@ -92,7 +92,7 @@ func TestI1DeviceSendCommand(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			tw := &testWriter{}
-			device := newDevice(tw, DeviceInfo{})
+			device := NewDevice(tw, DeviceInfo{})
 			device.SendCommand(test.wantCmd, nil)
 
 			gotCmd := tw.written[0].Command
@@ -124,7 +124,7 @@ func TestI1DeviceProductData(t *testing.T) {
 				tw.read = append(tw.read, &msg)
 			}
 
-			device := newDevice(tw, DeviceInfo{})
+			device := NewDevice(tw, DeviceInfo{})
 			pd, err := device.ProductData()
 			if err != test.wantErr {
 				t.Errorf("want error %v got %v", test.wantErr, err)
@@ -138,7 +138,7 @@ func TestI1DeviceProductData(t *testing.T) {
 }
 
 func TestI1DeviceDump(t *testing.T) {
-	device := newDevice(nil, DeviceInfo{Address{1, 2, 3}, DevCat{5, 6}, FirmwareVersion(42), EngineVersion(2)})
+	device := NewDevice(nil, DeviceInfo{Address{1, 2, 3}, DevCat{5, 6}, FirmwareVersion(42), EngineVersion(2)})
 	want := `
         Device: I2Cs Device (01.02.03)
       Category: 05.06
@@ -156,15 +156,15 @@ func TestI1DeviceCommands(t *testing.T) {
 	tests := []struct {
 		name        string
 		version     EngineVersion
-		run         func(*device)
+		run         func(*BasicDevice)
 		want        Command
 		wantPayload []byte
 	}{
-		{"EnterLinkingMode", VerI2, func(d *device) { d.EnterLinkingMode(40) }, CmdEnterLinkingMode.SubCommand(40), []byte{}},
-		{"EnterLinkingMode Ver2Cs", VerI2Cs, func(d *device) { d.EnterLinkingMode(40) }, CmdEnterLinkingModeExt.SubCommand(40), make([]byte, 14)},
-		{"EnterUnlinkingMode", VerI2, func(d *device) { d.EnterUnlinkingMode(41) }, CmdEnterUnlinkingMode.SubCommand(41), []byte{}},
-		{"EnterUnlinkingMode Ver2Cs", VerI2Cs, func(d *device) { d.EnterUnlinkingMode(41) }, CmdEnterUnlinkingMode.SubCommand(41), make([]byte, 14)},
-		{"ExitLinkingMode", VerI2, func(d *device) { d.ExitLinkingMode() }, CmdExitLinkingMode, []byte{}},
+		{"EnterLinkingMode", VerI2, func(d *BasicDevice) { d.EnterLinkingMode(40) }, CmdEnterLinkingMode.SubCommand(40), []byte{}},
+		{"EnterLinkingMode Ver2Cs", VerI2Cs, func(d *BasicDevice) { d.EnterLinkingMode(40) }, CmdEnterLinkingModeExt.SubCommand(40), make([]byte, 14)},
+		{"EnterUnlinkingMode", VerI2, func(d *BasicDevice) { d.EnterUnlinkingMode(41) }, CmdEnterUnlinkingMode.SubCommand(41), []byte{}},
+		{"EnterUnlinkingMode Ver2Cs", VerI2Cs, func(d *BasicDevice) { d.EnterUnlinkingMode(41) }, CmdEnterUnlinkingMode.SubCommand(41), make([]byte, 14)},
+		{"ExitLinkingMode", VerI2, func(d *BasicDevice) { d.ExitLinkingMode() }, CmdExitLinkingMode, []byte{}},
 	}
 
 	for _, test := range tests {
@@ -174,7 +174,7 @@ func TestI1DeviceCommands(t *testing.T) {
 			}
 
 			tw := &testWriter{}
-			device := &device{MessageWriter: tw, info: DeviceInfo{EngineVersion: test.version}}
+			device := &BasicDevice{MessageWriter: tw, DeviceInfo: DeviceInfo{EngineVersion: test.version}}
 			test.run(device)
 			if test.want != tw.written[0].Command {
 				t.Errorf("Wanted command %v got %v", test.want, tw.written[0].Command)
@@ -192,7 +192,7 @@ func TestI1DeviceExtendedGet(t *testing.T) {
 	tw := &testWriter{
 		read: []*Message{&Message{Command: CmdExtendedGetSet, Payload: wantPayload}},
 	}
-	d := newDevice(tw, DeviceInfo{})
+	d := NewDevice(tw, DeviceInfo{})
 	gotPayload, err := d.ExtendedGet(make([]byte, 14))
 	if err == nil {
 		if tw.written[0].Command != CmdExtendedGetSet {

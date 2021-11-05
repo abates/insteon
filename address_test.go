@@ -106,24 +106,3 @@ func TestAddressMarshaling(t *testing.T) {
 		})
 	}
 }
-
-func TestAddressables(t *testing.T) {
-	tests := []struct {
-		desc   string
-		device Addressable
-		want   Address
-	}{
-		{"I1Device", newDevice(nil, DeviceInfo{Address: Address{1, 2, 3}}), Address{1, 2, 3}},
-		{"Switch", NewSwitch(nil, DeviceInfo{Address: Address{1, 2, 3}}), Address{1, 2, 3}},
-		{"Dimmer", NewDimmer(nil, DeviceInfo{Address: Address{1, 2, 3}}), Address{1, 2, 3}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			got := test.device.Address()
-			if test.want != got {
-				t.Errorf("want %q got %q", test.want, got)
-			}
-		})
-	}
-}

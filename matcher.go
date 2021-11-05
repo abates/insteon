@@ -30,8 +30,15 @@ func (m Matches) Matches(msg *Message) bool {
 	return m(msg)
 }
 
-func DuplicateMatcher(msg *Message) Matcher {
-	return Matches(msg.Duplicate)
+func DuplicateMatcher(msg1 *Message) Matcher {
+	return Matches(func(msg2 *Message) bool {
+		// The same exact object is not a duplicate with
+		// itself
+		if msg1 != msg2 {
+			return msg1.Duplicate(msg2)
+		}
+		return false
+	})
 }
 
 func SrcMatcher(src Address) Matcher {

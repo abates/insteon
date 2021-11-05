@@ -55,7 +55,7 @@ func TestLinkRequestType(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%02x", test.input), func(t *testing.T) {
-			lrt := linkRequestType(test.input)
+			lrt := LinkRequestType(test.input)
 			if test.expected != lrt.String() {
 				t.Errorf("got %v, want %v", lrt.String(), test.expected)
 			}
@@ -67,23 +67,23 @@ func TestLinkRequestUnmarshalBinary(t *testing.T) {
 	tests := []struct {
 		desc    string
 		input   []byte
-		want    *linkRequest
+		want    *LinkRequest
 		wantErr error
 	}{
 		{"Short Buffer", nil, nil, ErrBufferTooShort},
 		{"Read Link",
 			mkPayload(0x00, 0x00, 0x0f, 0xff, 0x01),
-			&linkRequest{0x00, 0x0fff, 1, nil},
+			&LinkRequest{0x00, 0x0fff, 1, nil},
 			nil,
 		},
 		{"Link Response",
 			mkPayload(0x00, 0x01, 0x0f, 0xff, 0x00, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
-			&linkRequest{0x01, 0x0fff, 0, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			&LinkRequest{0x01, 0x0fff, 0, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
 			nil,
 		},
 		{"Write Link",
 			mkPayload(0x00, 0x02, 0x0f, 0xff, 1, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
-			&linkRequest{0x02, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			&LinkRequest{0x02, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
 			nil,
 		},
 		// this message caused an error, so I wrote a test for it
@@ -91,14 +91,14 @@ func TestLinkRequestUnmarshalBinary(t *testing.T) {
 		{
 			desc:    "",
 			input:   []byte{0xff, 0xf9, 0xe7, 0x8b, 0x20, 0xaa, 0x01, 0xb6, 0xd5, 0x1a, 0x07, 0xe3, 0xfd, 0xb8},
-			want:    &linkRequest{},
+			want:    &LinkRequest{},
 			wantErr: ErrInvalidResponse,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			got := &linkRequest{}
+			got := &LinkRequest{}
 			gotErr := got.UnmarshalBinary(test.input)
 			if !IsError(gotErr, test.wantErr) {
 				t.Errorf("want error %v got %v", test.wantErr, gotErr)
@@ -114,19 +114,19 @@ func TestLinkRequestUnmarshalBinary(t *testing.T) {
 func TestLinkRequestMarshalBinary(t *testing.T) {
 	tests := []struct {
 		desc  string
-		input *linkRequest
+		input *LinkRequest
 		want  []byte
 	}{
 		{"Read Link",
-			&linkRequest{0x00, 0x0fff, 1, nil},
+			&LinkRequest{0x00, 0x0fff, 1, nil},
 			mkPayload(0x00, 0x00, 0x0f, 0xff, 0x01),
 		},
 		{"Link Response",
-			&linkRequest{0x01, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			&LinkRequest{0x01, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
 			mkPayload(0x00, 0x01, 0x0f, 0xff, 0x00, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
 		},
 		{"Write Link",
-			&linkRequest{0x02, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			&LinkRequest{0x02, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
 			mkPayload(0x00, 0x02, 0x0f, 0xff, 0x08, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
 		},
 	}
@@ -178,7 +178,7 @@ func TestLinkdbLinks(t *testing.T) {
 			tw.acks = append(tw.acks, &Message{Command: CmdReadWriteALDB, Flags: StandardDirectNak})
 			memAddress := BaseLinkDBAddress
 			for _, link := range links {
-				lr := &linkRequest{Type: linkResponse, MemAddress: memAddress, Link: link}
+				lr := &LinkRequest{Type: linkResponse, MemAddress: memAddress, Link: link}
 				msg := &Message{Command: CmdReadWriteALDB, Flags: ExtendedDirectMessage, Payload: make([]byte, 14)}
 				buf, _ := lr.MarshalBinary()
 				copy(msg.Payload, buf)
@@ -225,7 +225,7 @@ func TestLinkdbWriteLink(t *testing.T) {
 			if test.wantErr != gotErr {
 				t.Errorf("Want err %v got %v", test.wantErr, gotErr)
 			} else if gotErr == nil {
-				lr := &linkRequest{}
+				lr := &LinkRequest{}
 				lr.UnmarshalBinary(tw.written[0].Payload)
 				if lr.Type != writeLink {
 					t.Errorf("Expected %v got %v", writeLink, lr.Type)
@@ -268,7 +268,7 @@ func TestLinkdbWriteLinks(t *testing.T) {
 			gotMemAddress := []MemAddress{}
 			gotLinks := []*LinkRecord{}
 			for _, msg := range tw.written {
-				lr := &linkRequest{}
+				lr := &LinkRequest{}
 				lr.UnmarshalBinary(msg.Payload)
 				gotLinks = append(gotLinks, lr.Link)
 				gotMemAddress = append(gotMemAddress, lr.MemAddress)
@@ -346,7 +346,7 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 
 			for i, msg := range tw.written {
 				want := test.want[i]
-				lr := &linkRequest{}
+				lr := &LinkRequest{}
 				lr.UnmarshalBinary(msg.Payload)
 				got := lr.MemAddress
 				if want != got {

@@ -24,11 +24,9 @@ func TestDataVar(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got := dataVar{}
-			for _, s := range test.input {
-				err := got.Set(s)
-				if err != nil {
-					t.Errorf("Unexpected error %v", err)
-				}
+			err := got.Set(test.input)
+			if err != nil {
+				t.Errorf("Unexpected error %v", err)
 			}
 
 			if !bytes.Equal(test.want, []byte(got)) {

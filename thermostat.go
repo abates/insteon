@@ -209,13 +209,13 @@ func (ti *ThermostatInfo) String() string {
 }
 
 type Thermostat struct {
-	*device
+	*BasicDevice
 	info DeviceInfo
 }
 
 // NewThermostat will return a configured Thermostat object
-func NewThermostat(d *device, info DeviceInfo) *Thermostat {
-	therm := &Thermostat{device: d, info: info}
+func NewThermostat(d *BasicDevice) *Thermostat {
+	therm := &Thermostat{BasicDevice: d}
 
 	return therm
 }
