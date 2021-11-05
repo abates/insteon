@@ -17,13 +17,13 @@ package insteon
 import (
 	"bytes"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"testing"
 )
 
 func init() {
 	// turn off logging for tests
-	SetLogLevel(LevelNone, io.Discard)
+	SetLogLevel(LevelNone, ioutil.Discard)
 }
 
 func TestAddress(t *testing.T) {

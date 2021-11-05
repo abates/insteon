@@ -17,14 +17,15 @@ package insteon
 import (
 	"errors"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 )
 
 var (
 	Log      = log.New(os.Stderr, "", log.LstdFlags)
-	LogDebug = log.New(io.Discard, "DEBUG ", log.LstdFlags)
-	LogTrace = log.New(io.Discard, "TRACE ", log.LstdFlags|log.Llongfile)
+	LogDebug = log.New(ioutil.Discard, "DEBUG ", log.LstdFlags)
+	LogTrace = log.New(ioutil.Discard, "TRACE ", log.LstdFlags|log.Llongfile)
 )
 
 // LogLevel indicates verbosity of logging
@@ -82,9 +83,9 @@ const (
 )
 
 func SetLogLevel(ll LogLevel, writer io.Writer) {
-	Log.SetOutput(io.Discard)
-	LogDebug.SetOutput(io.Discard)
-	LogTrace.SetOutput(io.Discard)
+	Log.SetOutput(ioutil.Discard)
+	LogDebug.SetOutput(ioutil.Discard)
+	LogTrace.SetOutput(ioutil.Discard)
 
 	if LevelInfo <= ll {
 		Log.SetOutput(writer)

@@ -17,6 +17,7 @@ package insteon
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"log"
 	"testing"
 )
@@ -28,7 +29,7 @@ func TestSetLogLevel(t *testing.T) {
 		writer io.Writer
 		want   []*log.Logger
 	}{
-		{"none", LevelNone, io.Discard, []*log.Logger{Log, LogDebug, LogTrace}},
+		{"none", LevelNone, ioutil.Discard, []*log.Logger{Log, LogDebug, LogTrace}},
 		{"info", LevelInfo, bytes.NewBuffer(nil), []*log.Logger{Log}},
 		{"debug", LevelDebug, bytes.NewBuffer(nil), []*log.Logger{Log, LogDebug}},
 		{"trace", LevelTrace, bytes.NewBuffer(nil), []*log.Logger{Log, LogDebug, LogTrace}},
