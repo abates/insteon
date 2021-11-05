@@ -23,7 +23,6 @@ import (
 
 type dimmer struct {
 	*insteon.Dimmer
-	addr insteon.Address
 }
 
 func init() {
@@ -31,42 +30,48 @@ func init() {
 		Dimmer: &insteon.Dimmer{Switch: &insteon.Switch{}},
 	}
 
-	dimCmd := app.SubCommand("dimmer", cli.UsageOption("<device id> <command>"), cli.DescOption("Interact with a specific dimmer"), cli.CallbackOption(dim.init))
-	dimCmd.Arguments.Var(&dim.addr, "<device id>")
+	dimCmd := &cli.Command{
+		Name:        "dimmer",
+		Usage:       "<device id> <command>",
+		Description: "Interact with a specific dimmer",
+		Callback:    cli.Callback(dim.init, "<device id>"),
+		SubCommands: []*cli.Command{
+			&cli.Command{Name: "config", Description: "retrieve dimmer configuration information", Callback: cli.Callback(dim.configCmd)},
+			&cli.Command{Name: "status", Description: "get the dimmer status", Callback: cli.Callback(dim.statusCmd)},
+			&cli.Command{Name: "on", Description: "turn light on", Callback: cli.Callback(dim.TurnOn, "<level>")},
+			&cli.Command{Name: "off", Description: "turn light off", Callback: cli.Callback(dim.TurnOff)},
+			&cli.Command{Name: "backlight", Description: "turn backlight on/off", Callback: cli.Callback(dim.SetBacklight, "<true|false>")},
+			&cli.Command{Name: "loadsense", Description: "turn load sense on/off", Callback: cli.Callback(dim.SetLoadSense, "<true|false>")},
+			&cli.Command{Name: "brighten", Description: "brighten light one step", Callback: cli.Callback(dim.Brighten)},
+			&cli.Command{Name: "dim", Description: "dim light one step", Callback: cli.Callback(dim.Dim)},
+			&cli.Command{Name: "startBrighten", Description: "start brightening the light", Callback: cli.Callback(dim.StartBrighten)},
+			&cli.Command{Name: "startDim", Description: "start dimming the light", Callback: cli.Callback(dim.StartDim)},
+			&cli.Command{Name: "stopChange", Description: "stop active change (brighten/dim)", Callback: cli.Callback(dim.StopManualChange)},
+			&cli.Command{Name: "onfast", Description: "turn light on fast", Callback: cli.Callback(dim.OnFast)},
+			&cli.Command{Name: "instantChange", Description: "light instant change", Callback: cli.Callback(dim.InstantChange)},
+			&cli.Command{Name: "setstatus", Description: "set light's status indicator", Callback: cli.Callback(dim.SetStatus)},
+			&cli.Command{Name: "onramp", Description: "turn light on to <level> at <rate>", Callback: cli.Callback(dim.OnAtRamp)},
+			&cli.Command{Name: "offramp", Description: "turn light off at <rate>", Callback: cli.Callback(dim.OffAtRamp)},
+		},
+	}
 
-	dimCmd.SubCommand("config", cli.DescOption("retrieve dimmer configuration information"), cli.CallbackOption(dim.configCmd))
-	dimCmd.SubCommand("status", cli.DescOption("get the dimmer status"), cli.CallbackOption(dim.statusCmd))
-
-	dimCmd.SubCommand("on", cli.DescOption("turn light on"), cli.UsageOption("<level>"), cli.ArgCallbackOption(dim.TurnOn))
-	dimCmd.SubCommand("off", cli.DescOption("turn light off"), cli.ArgCallbackOption(dim.TurnOff))
-	dimCmd.SubCommand("backlight", cli.DescOption("turn backlight on/off"), cli.UsageOption("<true|false>"), cli.ArgCallbackOption(dim.SetBacklight))
-	dimCmd.SubCommand("loadsense", cli.DescOption("turn load sense on/off"), cli.UsageOption("<true|false>"), cli.ArgCallbackOption(dim.SetLoadSense))
-
-	dimCmd.SubCommand("brighten", cli.DescOption("brighten light one step"), cli.ArgCallbackOption(dim.Brighten))
-	dimCmd.SubCommand("dim", cli.DescOption("dim light one step"), cli.ArgCallbackOption(dim.Dim))
-	dimCmd.SubCommand("startBrighten", cli.DescOption("start brightening the light"), cli.ArgCallbackOption(dim.StartBrighten))
-	dimCmd.SubCommand("startDim", cli.DescOption("start dimming the light"), cli.ArgCallbackOption(dim.StartDim))
-	dimCmd.SubCommand("stopChange", cli.DescOption("stop active change (brighten/dim)"), cli.ArgCallbackOption(dim.StopManualChange))
-	dimCmd.SubCommand("onfast", cli.DescOption("turn light on fast"), cli.ArgCallbackOption(dim.OnFast))
-	dimCmd.SubCommand("instantChange", cli.DescOption("light instant change"), cli.UsageOption("<level>"), cli.ArgCallbackOption(dim.InstantChange))
-	dimCmd.SubCommand("setstatus", cli.DescOption("set light's status indicator"), cli.UsageOption("<level>"), cli.ArgCallbackOption(dim.SetStatus))
-	dimCmd.SubCommand("onramp", cli.DescOption("turn light on to <level> at <rate>"), cli.UsageOption("<level> <rate>"), cli.ArgCallbackOption(dim.OnAtRamp))
-	dimCmd.SubCommand("offramp", cli.DescOption("turn light off at <rate>"), cli.UsageOption("<rate>"), cli.ArgCallbackOption(dim.OffAtRamp))
+	app.SubCommands = append(app.SubCommands, dimCmd)
 }
 
-func (dim *dimmer) init(string) (err error) {
-	device, err := open(modem, dim.addr)
+func (dim *dimmer) init(addr insteon.Address) (err error) {
+	device, err := open(modem, addr)
 	if err == nil {
-		if d, ok := device.(*insteon.Dimmer); ok {
+		d := insteon.Upgrade(device)
+		if d, ok := d.(*insteon.Dimmer); ok {
 			*dim.Dimmer.Switch = *d.Switch
 		} else {
-			err = fmt.Errorf("Device %s is not a dimmer", dim.addr)
+			err = fmt.Errorf("Device %s is not a dimmer", addr)
 		}
 	}
 	return err
 }
 
-func (dim *dimmer) configCmd(string) error {
+func (dim *dimmer) configCmd() error {
 	config, err := dim.Config()
 	if err == nil {
 		fmt.Printf("           X10 Address: %02x.%02x\n", config.HouseCode, config.UnitCode)
@@ -91,7 +96,7 @@ func (dim *dimmer) configCmd(string) error {
 	return err
 }
 
-func (dim *dimmer) statusCmd(string) error {
+func (dim *dimmer) statusCmd() error {
 	level, err := dim.Status()
 	if err == nil {
 		if level == 0 {

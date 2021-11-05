@@ -4,8 +4,8 @@ type Outlet struct {
 	*Switch
 }
 
-func NewOutlet(d *device, info DeviceInfo) *Outlet {
-	sd := &Switch{device: d, info: info}
+func NewOutlet(d *BasicDevice) *Outlet {
+	sd := &Switch{BasicDevice: d}
 
 	return &Outlet{sd}
 }

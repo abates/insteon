@@ -60,7 +60,7 @@ func TestCacheLookup(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			c := newCache(len(test.input), test.input...)
 			c.i = test.inputI
-			_, got := c.lookup(test.matcher)
+			_, got := c.Lookup(test.matcher)
 			if test.want != got {
 				t.Errorf("Wanted %v got %v", test.want, got)
 			}
@@ -81,7 +81,7 @@ func TestTTLFilter(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			tw := &testWriter{}
-			f := TTL(int(test.wantTTL))(tw)
+			f := TTL(int(test.wantTTL)).Filter(tw)
 			f.Write(&Message{})
 			if tw.written[0].TTL() != test.wantTTL {
 				t.Errorf("Wanted ttl to be %d got %d", test.wantTTL, tw.written[0].TTL())
@@ -122,7 +122,7 @@ func TestFilterDuplicates(t *testing.T) {
 			tw := &testWriter{
 				read: test.input,
 			}
-			f := FilterDuplicates()(tw)
+			f := FilterDuplicates().Filter(tw)
 			got := []*Message{}
 			for msg, err := f.Read(); err == nil; msg, err = f.Read() {
 				got = append(got, msg)

@@ -128,10 +128,10 @@ var (
 // an initialized device if found.  If not found, Open will call
 // insteon.Open and store the info upon success.  If dbfile is
 // not an empty string, SaveDB will be called at the end
-func Open(mw insteon.MessageWriter, addr insteon.Address, db Database, dbfile string) (insteon.Device, error) {
+func Open(mw insteon.MessageWriter, addr insteon.Address, db Database, dbfile string) (*insteon.BasicDevice, error) {
 	info, found := db.Get(addr)
 	if found {
-		return insteon.New(mw, info), nil
+		return insteon.NewDevice(mw, info), nil
 	}
 
 	device, info, err := insteon.Open(mw, addr)

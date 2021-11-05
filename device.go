@@ -44,12 +44,7 @@ type Addressable interface {
 	Address() Address
 }
 
-type Database interface {
-	Get(addr Address) (info DeviceInfo, found bool)
-}
-
 type Device interface {
-	MessageWriter
 	Addressable
 	Commandable
 	// Info will return the device's information
@@ -107,8 +102,6 @@ type AllLinkable interface {
 // Linkable is any device that can be put into
 // linking mode and the link database can be managed remotely
 type Linkable interface {
-	Addressable
-
 	// EnterLinkingMode is the programmatic equivalent of holding down
 	// the set button for two seconds. If the device is the first
 	// to enter linking mode, then it is the controller. The next
@@ -169,7 +162,7 @@ type DeviceInfo struct {
 // well as device info in order to return the correct device type
 // (Dimmer, switch, thermostat, etc).  Open requires a MessageWriter,
 // such as a PLM to use to communicate with the Insteon network
-func Open(mw MessageWriter, dst Address) (device Device, info DeviceInfo, err error) {
+func Open(mw MessageWriter, dst Address) (device *BasicDevice, info DeviceInfo, err error) {
 	info.Address = dst
 	info.EngineVersion, err = GetEngineVersion(mw, dst)
 	if err == nil {
@@ -177,27 +170,26 @@ func Open(mw MessageWriter, dst Address) (device Device, info DeviceInfo, err er
 	}
 
 	if err == nil {
-		device = New(mw, info)
+		device = NewDevice(mw, info)
 	}
 	return
 }
 
-// New will use the supplied DeviceInfo to create a device instance for the
-// given connection.  For instance, if the DevCat is 0x01 with an I2CS
-// EngineVersion then a Dimmer with an underlying i2CsDevice will be returned
-func New(mw MessageWriter, info DeviceInfo) (device Device) {
-	d := newDevice(mw, info)
-	switch info.DevCat.Domain() {
+// Upgrade will convert the *BasicDevice to a more specific device (*Dimmer,
+// *Switch, etc)
+func Upgrade(bd *BasicDevice) (device Device) {
+	device = bd
+	switch bd.DevCat.Domain() {
 	case DimmerDomain:
-		device = NewDimmer(d, info)
+		device = NewDimmer(bd)
 	case SwitchDomain:
-		if info.DevCat.Category() == 0x08 {
-			device = NewOutlet(d, info)
+		if bd.DevCat.Category() == 0x08 {
+			device = NewOutlet(bd)
 		} else {
-			device = NewSwitch(d, info)
+			device = NewSwitch(bd)
 		}
 	case ThermostatDomain:
-		device = NewThermostat(d, info)
+		device = NewThermostat(bd)
 	}
 	return device
 }

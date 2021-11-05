@@ -17,7 +17,6 @@ package insteon
 import (
 	"bytes"
 	"errors"
-	"reflect"
 	"testing"
 )
 
@@ -26,19 +25,20 @@ func mkPayload(buf ...byte) []byte {
 }
 
 func TestDeviceCommands(t *testing.T) {
-	dimmerFactory := func(version int) func(td *device) Device {
-		return func(td *device) Device {
-			return &Dimmer{Switch: &Switch{device: td}, info: DeviceInfo{FirmwareVersion: FirmwareVersion(version)}}
+	dimmerFactory := func(version int) func(device *BasicDevice) Device {
+		return func(device *BasicDevice) Device {
+			device.DeviceInfo.FirmwareVersion = FirmwareVersion(version)
+			return &Dimmer{Switch: &Switch{BasicDevice: device}}
 		}
 	}
 
-	switchFactory := func(td *device) Device {
-		return &Switch{device: td}
+	switchFactory := func(device *BasicDevice) Device {
+		return &Switch{BasicDevice: device}
 	}
 
 	tests := []struct {
 		name        string
-		setup       func(*device) Device
+		setup       func(*BasicDevice) Device
 		test        func(Device) error
 		wantCmd     Command
 		wantPayload []byte
@@ -68,7 +68,7 @@ func TestDeviceCommands(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			//td := &testDevice{}
 			tw := &testWriter{}
-			device := test.setup(&device{MessageWriter: tw})
+			device := test.setup(&BasicDevice{MessageWriter: tw})
 
 			err := test.test(device)
 			if err == nil {
@@ -93,7 +93,6 @@ func TestOpen(t *testing.T) {
 		acks     []*Message
 		read     []*Message
 		wantInfo DeviceInfo
-		wantDev  Device
 		wantErr  error
 	}{
 		{
@@ -102,7 +101,6 @@ func TestOpen(t *testing.T) {
 			acks:     []*Message{&Message{Command: Command(0x01)}},
 			read:     []*Message{&Message{Dst: Address{byte(SwitchDomain), 1, 59}, Command: CmdSetButtonPressedResponder}},
 			wantInfo: DeviceInfo{EngineVersion: VerI2, FirmwareVersion: FirmwareVersion(59), DevCat: DevCat{byte(SwitchDomain), 1}},
-			wantDev:  &Switch{},
 			wantErr:  nil,
 		},
 		{
@@ -111,7 +109,6 @@ func TestOpen(t *testing.T) {
 			acks:     []*Message{&Message{Flags: StandardDirectNak, Command: Command(0x00ff)}},
 			read:     []*Message{&Message{Dst: Address{byte(SwitchDomain), 1, 59}, Command: CmdSetButtonPressedResponder}},
 			wantInfo: DeviceInfo{EngineVersion: VerI2Cs},
-			wantDev:  nil,
 			wantErr:  ErrNotLinked,
 		},
 	}
@@ -124,14 +121,8 @@ func TestOpen(t *testing.T) {
 				read:   test.read,
 			}
 
-			d, gotInfo, err := Open(tw, Address{})
+			_, gotInfo, err := Open(tw, Address{})
 			if errors.Is(err, test.wantErr) {
-				wantDev := reflect.TypeOf(test.wantDev)
-				gotDev := reflect.TypeOf(d)
-				if wantDev != gotDev {
-					t.Errorf("Wanted type %v got %v", wantDev, gotDev)
-				}
-
 				if test.wantInfo != gotInfo {
 					t.Errorf("Wanted device info %v got %v", test.wantInfo, gotInfo)
 				}
@@ -143,7 +134,7 @@ func TestOpen(t *testing.T) {
 
 }
 
-func TestNew(t *testing.T) {
+/*func TestUpgrade(t *testing.T) {
 	tests := []struct {
 		name  string
 		input DeviceInfo
@@ -157,7 +148,7 @@ func TestNew(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			device := New(&testWriter{}, test.input)
+			device := Upgrade(&testWriter{}, test.input)
 			want := reflect.TypeOf(test.want)
 			got := reflect.TypeOf(device)
 			if want != got {
@@ -165,4 +156,4 @@ func TestNew(t *testing.T) {
 			}
 		})
 	}
-}
+}*/

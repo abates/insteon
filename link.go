@@ -160,7 +160,16 @@ func (rcf *RecordControlFlags) UnmarshalText(text []byte) (err error) {
 type Group byte
 
 // String representation of the group number
-func (g Group) String() string { return fmt.Sprintf("%d", byte(g)) }
+func (g *Group) String() string { return fmt.Sprintf("%d", byte(*g)) }
+
+func (g *Group) Set(s string) error {
+	_, err := fmt.Sscanf(s, "%d", g)
+	return err
+}
+
+func (g *Group) Get() interface{} {
+	return byte(*g)
+}
 
 // UnmarshalText takes an input string and converts
 // it to its Group equivalent.  The decimal input value
@@ -202,7 +211,7 @@ func ResponderLink(group Group, address Address) *LinkRecord {
 // String converts the LinkRecord to a human readable string that looks similar to:
 //    UR        1 01.02.03   00 1c 01
 func (l *LinkRecord) String() string {
-	return fmt.Sprintf("%s %s %s 0x%02x 0x%02x 0x%02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
+	return fmt.Sprintf("%s %v %s 0x%02x 0x%02x 0x%02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
 }
 
 // Equal will determine if another LinkRecord is equivalent. The records are
@@ -238,7 +247,7 @@ func (l *LinkRecord) MarshalBinary() ([]byte, error) {
 // used as input to the UnmarshalText. This is useful in allowing a user
 // to manuall edit link records
 func (l *LinkRecord) MarshalText() ([]byte, error) {
-	str := fmt.Sprintf("%-5s %5s %8s   %02x %02x %02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
+	str := fmt.Sprintf("%-5s %5v %8s   %02x %02x %02x", l.Flags, l.Group, l.Address, l.Data[0], l.Data[1], l.Data[2])
 	return []byte(str), nil
 }
 

@@ -63,14 +63,13 @@ func (dc *DimmerConfig) MarshalBinary() ([]byte, error) {
 
 type Dimmer struct {
 	*Switch
-	info DeviceInfo
 }
 
 // NewDimmer is a factory function that will return a dimmer switch configured
 // appropriately for the given firmware version.  All dimmers are switches, so
 // the first argument is a Switch object used to compose the new dimmer
-func NewDimmer(d *device, info DeviceInfo) *Dimmer {
-	return &Dimmer{Switch: NewSwitch(d, info), info: info}
+func NewDimmer(d *BasicDevice) *Dimmer {
+	return &Dimmer{Switch: NewSwitch(d)}
 }
 
 func (dd *Dimmer) Config() (config DimmerConfig, err error) {
@@ -126,7 +125,7 @@ func (dd *Dimmer) OnAtRamp(level, rate int) error {
 	levelRate |= byte(rate) & 0x0f
 
 	cmd := CmdLightOnAtRamp
-	if dd.info.FirmwareVersion >= 0x43 {
+	if dd.DeviceInfo.FirmwareVersion >= 0x43 {
 		cmd = CmdLightOnAtRampV67
 	}
 	return dd.SendCommand(cmd.SubCommand(int(levelRate)), nil)
@@ -134,12 +133,12 @@ func (dd *Dimmer) OnAtRamp(level, rate int) error {
 
 func (dd *Dimmer) OffAtRamp(rate int) error {
 	cmd := CmdLightOffAtRamp
-	if dd.info.FirmwareVersion >= 0x43 {
+	if dd.DeviceInfo.FirmwareVersion >= 0x43 {
 		cmd = CmdLightOffAtRampV67
 	}
 	return dd.SendCommand(cmd.SubCommand(0x0f&rate), nil)
 }
 
 func (dd *Dimmer) String() string {
-	return fmt.Sprintf("Dimmer (%s)", dd.info.Address)
+	return fmt.Sprintf("Dimmer (%s)", dd.DeviceInfo.Address)
 }

@@ -91,16 +91,15 @@ type LightState struct {
 }
 
 type Switch struct {
-	*device
-	info  DeviceInfo
+	*BasicDevice
 	state LightState
 	mu    sync.Mutex
 }
 
 // NewSwitch will return an initialize switch object that controls
 // a physical switch on the netork
-func NewSwitch(d *device, info DeviceInfo) *Switch {
-	sd := &Switch{device: d, info: info}
+func NewSwitch(d *BasicDevice) *Switch {
+	sd := &Switch{BasicDevice: d}
 
 	return sd
 }
@@ -117,7 +116,7 @@ func (sd *Switch) Status() (level int, err error) {
 }
 
 func (sd *Switch) String() string {
-	return fmt.Sprintf("Switch (%s)", sd.info.Address)
+	return fmt.Sprintf("Switch (%s)", sd.DeviceInfo.Address)
 }
 
 func (sd *Switch) Config() (config SwitchConfig, err error) {
@@ -174,5 +173,5 @@ func (sd *Switch) TurnOn(level int) error {
 }
 
 func (sd *Switch) Address() Address {
-	return sd.info.Address
+	return sd.DeviceInfo.Address
 }
