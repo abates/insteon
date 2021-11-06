@@ -1,0 +1,10 @@
+Link Database:
+{{ if . }}
+    Flags Group Address    Data
+{{range .}}
+    {{printf "%-5s" .Flags}} {{printf "%5v" .Group}} {{printf "%8s" .Address}}   {{printf "%02x" index .Data 0}} {{printf "%02x" index .Data 1}} {{printf "%02x" index .Data 2}}
+{{end}}
+{{else}}
+    No links defined
+{{end}}
+

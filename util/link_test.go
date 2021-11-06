@@ -1,7 +1,6 @@
 package util
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -62,16 +61,23 @@ func TestLinksToText(t *testing.T) {
 		{Flags: insteon.UnavailableResponder, Group: 1, Address: insteon.Address{4, 5, 6}},
 	}
 
-	want := `UC        1 01.02.03   00 00 00
+	want := `#
+# Lines beginning with a # are ignored
+# DO NOT delete lines, this will cause the entries to
+# shift up and then the last entry will be in the database twice
+# To delete a record simply mark it 'Available' by changing the
+# first letter of the Flags to 'A'
+#
+# Flags Group Address    Data
+UC        1 01.02.03   00 00 00
 UR        1 01.02.03   00 00 00
 UC        1 04.05.06   00 00 00
 UR        1 04.05.06   00 00 00
 `
 
-	want = fmt.Sprintf("%s%s", linkTextHeader, want)
 	got := LinksToText(links)
 	if want != got {
-		t.Errorf("Wanted %q got %q", want, got)
+		t.Errorf("Wanted %q\n got %q", want, got)
 	}
 
 	gotLinks, err := TextToLinks(got)

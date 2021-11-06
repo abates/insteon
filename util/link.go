@@ -15,11 +15,13 @@
 package util
 
 import (
+	_ "embed"
 	"errors"
 	"fmt"
 	"io"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/abates/insteon"
@@ -33,26 +35,40 @@ var (
 	ErrLinkNotFound = errors.New("Link was not found in the database")
 )
 
-var linkTextHeader = `#
-# Lines beginning with a # are ignored
-# DO NOT delete lines, this will cause the entries to
-# shift up and then the last entry will be in the database twice
-# To delete a record simply mark it 'Available' by changing the
-# first letter of the Flags to 'A'
-#
-# Flags Group Address    Data
-`
+//go:embed printlinks.tmpl
+var printlinksStr string
+var printlinksTmpl *template.Template
+
+//go:embed dumplinks.tmpl
+var dumplinksStr string
+var dumplinksTmpl *template.Template
+
+//go:embed textlinks.tmpl
+var textlinksStr string
+var textlinksTmpl *template.Template
+
+func init() {
+	printlinksTmpl = template.Must(template.New("printlinks").Parse(printlinksStr))
+	dumplinksTmpl = template.Must(template.New("dumplinks").Parse(dumplinksStr))
+	textlinksTmpl = template.Must(template.New("textlinks").Parse(textlinksStr))
+}
+
+type Links []insteon.LinkRecord
+
+func (l Links) Len() int      { return len(l) }
+func (l Links) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
+func (l Links) Less(i, j int) bool {
+	if l[i].Address == l[j].Address {
+		return l[i].Group < l[j].Group
+	}
+	return l[i].Address.String() < l[j].Address.String()
+}
 
 // LinksToText will take a list of links and marshal them
 // to text for editing
 func LinksToText(links []insteon.LinkRecord) string {
 	builder := &strings.Builder{}
-	builder.WriteString(linkTextHeader)
-	for _, link := range links {
-		output, _ := link.MarshalText()
-		builder.Write(output)
-		builder.WriteString("\n")
-	}
+	textlinksTmpl.Execute(builder, links)
 	return builder.String()
 }
 
@@ -75,47 +91,22 @@ func TextToLinks(input string) (links []insteon.LinkRecord, err error) {
 	return
 }
 
-// IfLinkable will execute the callback function if the given device returns
-// a link database without error.  If the device returns an error (such as
-// insteon.ErrNotSupported from an I1 device) then IfLinkable returns
-// insteon.ErrNotLinkable
-func IfLinkable(device insteon.Addressable, cb func(linkable insteon.Linkable) error) error {
-	err := insteon.ErrNotLinkable
-	if linkable, ok := device.(insteon.Linkable); ok {
-		return cb(linkable)
-	} else {
-		insteon.Log.Printf("%v type %T is not linkable", device, device)
-	}
-	return err
-}
-
-func IfControllerResponder(controller, responder insteon.Addressable, cb func(controller, responder insteon.Linkable) error) error {
-	return IfLinkable(controller, func(controller insteon.Linkable) error {
-		return IfLinkable(responder, func(responder insteon.Linkable) error {
-			return cb(controller, responder)
-		})
-	})
-}
-
 // FindDuplicateLinks will perform a linear search of the
 // LinkDB and return any links that are duplicates. Duplicate
 // links are those that are equivalent as reported by LinkRecord.Equal
-func FindDuplicateLinks(device insteon.Addressable) ([]insteon.LinkRecord, error) {
+func FindDuplicateLinks(linkable insteon.Linkable) ([]insteon.LinkRecord, error) {
 	duplicates := make([]insteon.LinkRecord, 0)
-	err := IfLinkable(device, func(linkable insteon.Linkable) error {
-		links, err := linkable.Links()
-		if err == nil {
-			for i, l1 := range links {
-				for _, l2 := range links[i+1:] {
-					// Available links cannot be duplicates
-					if !l1.Flags.Available() && l1.Equal(&l2) {
-						duplicates = append(duplicates, l2)
-					}
+	links, err := linkable.Links()
+	if err == nil {
+		for i, l1 := range links {
+			for _, l2 := range links[i+1:] {
+				// Available links cannot be duplicates
+				if !l1.Flags.Available() && l1.Equal(&l2) {
+					duplicates = append(duplicates, l2)
 				}
 			}
 		}
-		return err
-	})
+	}
 	return duplicates, err
 }
 
@@ -303,75 +294,27 @@ func Link(group insteon.Group, controller, responder insteon.Linkable) (err erro
 	return err
 }
 
-func DumpLinkDatabase(out io.Writer, device insteon.Addressable) error {
-	return IfLinkable(device, func(linkable insteon.Linkable) error {
-		links, err := linkable.Links()
-		if err == nil {
-			DumpLinks(out, links)
-		}
-		return err
-	})
+func DumpLinkDatabase(out io.Writer, linkable insteon.Linkable) error {
+	links, err := linkable.Links()
+	if err == nil {
+		DumpLinks(out, links)
+	}
+	return err
 }
 
 func DumpLinks(out io.Writer, links []insteon.LinkRecord) {
-	if len(links) > 0 {
-		fmt.Fprintf(out, "links:\n")
-		for _, link := range links {
-			buf, _ := link.MarshalBinary()
-			s := make([]string, len(buf))
-			for i, b := range buf {
-				s[i] = fmt.Sprintf("0x%02x", b)
-			}
-			fmt.Fprintf(out, "- [ %s ]\n", strings.Join(s, ", "))
-		}
-	} else {
-		fmt.Fprintf(out, "no links")
-	}
+	dumplinksTmpl.Execute(out, links)
 }
 
-func PrintLinkDatabase(out io.Writer, device insteon.Addressable) error {
-	return IfLinkable(device, func(linkable insteon.Linkable) error {
-		links, err := linkable.Links()
-		if err == nil {
-			PrintLinks(out, links)
-		}
-		return err
-	})
+func PrintLinkDatabase(out io.Writer, linkable insteon.Linkable) error {
+	links, err := linkable.Links()
+	if err == nil {
+		PrintLinks(out, links)
+	}
+	return err
 }
 
-func PrintLinks(out io.Writer, dblinks []insteon.LinkRecord) {
-	fmt.Fprintf(out, "Link Database:\n")
-	if len(dblinks) > 0 {
-		fmt.Fprintf(out, "    Flags Group Address    Data\n")
-
-		links := make(map[string][]insteon.LinkRecord)
-		for _, link := range dblinks {
-			links[link.Address.String()] = append(links[link.Address.String()], link)
-		}
-
-		linkAddresses := []string{}
-		for linkAddress := range links {
-			linkAddresses = append(linkAddresses, linkAddress)
-		}
-		sort.Strings(linkAddresses)
-
-		for _, linkAddress := range linkAddresses {
-			groups := make(map[int][]insteon.LinkRecord)
-			groupIds := []int{}
-
-			for _, link := range links[linkAddress] {
-				groups[int(link.Group)] = append(groups[int(link.Group)], link)
-				groupIds = append(groupIds, int(link.Group))
-			}
-			sort.Ints(groupIds)
-			for _, id := range groupIds {
-				for _, link := range groups[id] {
-					fmt.Fprintf(out, "    %-5s %5v %8s   %02x %02x %02x\n", link.Flags, link.Group, link.Address, link.Data[0], link.Data[1], link.Data[2])
-				}
-				delete(groups, id)
-			}
-		}
-	} else {
-		fmt.Fprintf(out, "    No links defined\n")
-	}
+func PrintLinks(out io.Writer, links []insteon.LinkRecord) {
+	sort.Sort(Links(links))
+	printlinksTmpl.Execute(out, links)
 }

@@ -1,0 +1,9 @@
+{{ if . }}
+links
+{{range .}}
+- [{{ range $index,$b := .MarshalBinary }}{{if $index}}, {{end}}{{ printf "0x%02x" $b }}{{ end}}]
+{{end}}
+{{else}}
+no links
+{{end}}
+

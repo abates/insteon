@@ -1,0 +1,10 @@
+#
+# Lines beginning with a # are ignored
+# DO NOT delete lines, this will cause the entries to
+# shift up and then the last entry will be in the database twice
+# To delete a record simply mark it 'Available' by changing the
+# first letter of the Flags to 'A'
+#
+# Flags Group Address    Data
+{{range .}}{{ printf "%s" .MarshalText}}
+{{end -}}
