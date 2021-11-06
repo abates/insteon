@@ -41,7 +41,7 @@ var (
 	dbfile         string
 )
 
-func printDevInfo(device insteon.BasicDevice) {
+func printDevInfo(device *insteon.BasicDevice) {
 	/*fmt.Printf("       Device: %v\n", device)
 	fmt.Printf("     Category: %v\n", device.Info().DevCat)
 	fmt.Printf("     Firmware: %v\n", device.Info().FirmwareVersion)*/
@@ -65,10 +65,10 @@ func dump(links []insteon.LinkRecord) {
 		}
 		read[link.Address] = true
 		log.Printf("Querying ALDB from %s", link.Address)
-		device, err := util.Open(insteon.TTL(ttlFlag)(modem), link.Address, db, dbfile)
+		device, err := util.Open(insteon.TTL(ttlFlag).Filter(modem), link.Address, db, dbfile)
 		if errors.Is(err, insteon.ErrReadTimeout) {
 			// retry
-			device, err = util.Open(insteon.TTL(ttlFlag)(modem), link.Address, db, dbfile)
+			device, err = util.Open(insteon.TTL(ttlFlag).Filter(modem), link.Address, db, dbfile)
 		}
 
 		if err == nil {
@@ -129,10 +129,7 @@ func main() {
 		log.Fatalf("error opening serial port: %v", err)
 	}
 
-	modem, err = plm.New(s, plm.Timeout(time.Second*5))
-	if err != nil {
-		log.Fatalf("failed to initialize modem: %v", err)
-	}
+	modem = plm.New(s, plm.Timeout(time.Second*5))
 
 	if links, err := modem.Links(); err == nil {
 		util.PrintLinks(os.Stdout, links)
