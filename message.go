@@ -28,7 +28,20 @@ const (
 	ExtendedMsgLen = 23
 )
 
-// MessageType is an integer representing one of a list of the following types
+// MessageType is an integer representing the type of message (Direct, Direct ACK, etc).
+// The following table displays the bit setting tha correspond to the message flags
+// for the various message types:
+// Flags (8 Bit/1 Byte)
+// Description          | Message Type (3 bits)
+//   Direct             | 0 0 0
+//   Direct Ack         | 0 0 1
+//   AllLink Cleanup    | 0 1 0
+//   AllLink CleanupAck | 0 1 1
+//   Broadcast          | 1 0 0
+//   Direct Nak         | 1 0 1
+//   AllLink Broadcast  | 1 1 0
+//   AllLink CleanupNak | 1 1 1
+
 type MessageType int
 
 // All of the valid message types
@@ -110,7 +123,6 @@ func Flag(messageType MessageType, extended bool, hopsLeft, maxHops uint8) Flags
 	flags.SetTTL(hopsLeft)
 	flags.SetMaxTTL(maxHops)
 	return flags
-	//return Flags(uint8(messageType) | e<<4 | hopsLeft<<2 | maxHops)
 }
 
 // Ack indicates if the message was an acknowledgement
