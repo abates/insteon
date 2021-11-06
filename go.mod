@@ -1,6 +1,6 @@
 module github.com/abates/insteon
 
-go 1.13
+go 1.16
 
 require (
 	github.com/abates/cli v0.0.0-20211105015658-eacc3f1ad4fd
