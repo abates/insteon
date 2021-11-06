@@ -197,7 +197,7 @@ func (m *Message) MarshalBinary() (data []byte, err error) {
 func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	// The CRC is not always present
 	if len(data) < StandardMsgLen {
-		return newBufError(ErrBufferTooShort, StandardMsgLen, len(data))
+		return fmt.Errorf("%w: wanted %d bytes got %d", ErrBufferTooShort, StandardMsgLen, len(data))
 	}
 	copy(m.Src[:], data[0:3])
 	copy(m.Dst[:], data[3:6])
@@ -220,7 +220,7 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 
 	if m.Extended() {
 		if len(data) < ExtendedMsgLen {
-			return newBufError(ErrBufferTooShort, ExtendedMsgLen, len(data))
+			return fmt.Errorf("%w: wanted %d bytes got %d", ErrBufferTooShort, ExtendedMsgLen, len(data))
 		}
 		m.Payload = make([]byte, 14)
 		copy(m.Payload, data[9:])

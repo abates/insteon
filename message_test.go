@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/abates/insteon/commands"
@@ -268,7 +269,7 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			message := &Message{}
 			err := message.UnmarshalBinary(test.input)
-			if !IsError(err, test.expectedError) {
+			if !errors.Is(err, test.expectedError) {
 				t.Errorf("expected %v got %v", test.expectedError, err)
 				return
 			} else if err != nil {

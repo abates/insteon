@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"testing"
 )
@@ -180,7 +181,7 @@ func TestLinkMarshalUnmarshal(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			link := &LinkRecord{}
 			err := link.UnmarshalBinary(test.input)
-			if !IsError(err, test.expectedError) {
+			if !errors.Is(err, test.expectedError) {
 				t.Errorf("got error %v, want %v", err, test.expectedError)
 				return
 			} else if err != nil {

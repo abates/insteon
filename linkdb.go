@@ -85,7 +85,7 @@ func (lr *LinkRequest) String() string {
 // UnmarshalBinary will take the byte slice and convert it to a LinkRequest object
 func (lr *LinkRequest) UnmarshalBinary(buf []byte) (err error) {
 	if len(buf) < 5 {
-		return newBufError(ErrBufferTooShort, 6, len(buf))
+		return fmt.Errorf("%w: wanted 6 bytes got %d", ErrBufferTooShort, len(buf))
 	}
 	lr.Type = LinkRequestType(buf[1])
 	lr.MemAddress = MemAddress(buf[2]) << 8

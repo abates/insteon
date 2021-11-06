@@ -255,7 +255,7 @@ func (l *LinkRecord) MarshalText() ([]byte, error) {
 // request to a LinkRecord
 func (l *LinkRecord) UnmarshalBinary(buf []byte) (err error) {
 	if len(buf) < 8 {
-		return newBufError(ErrBufferTooShort, 8, len(buf))
+		return fmt.Errorf("%w: wanted 8 bytes got %d", ErrBufferTooShort, len(buf))
 	}
 	l.Flags = RecordControlFlags(buf[0])
 	l.Group = Group(buf[1])

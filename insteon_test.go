@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"testing"
@@ -160,7 +161,7 @@ func TestProductDataMarshaling(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			pd := &ProductData{}
 			err := pd.UnmarshalBinary(test.input)
-			if !IsError(err, test.expectedError) {
+			if !errors.Is(err, test.expectedError) {
 				t.Errorf("got error %v, want %v", err, test.expectedError)
 			}
 

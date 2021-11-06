@@ -16,6 +16,7 @@ package insteon
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -102,7 +103,7 @@ func TestLinkRequestUnmarshalBinary(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			got := &LinkRequest{}
 			gotErr := got.UnmarshalBinary(test.input)
-			if !IsError(gotErr, test.wantErr) {
+			if !errors.Is(gotErr, test.wantErr) {
 				t.Errorf("want error %v got %v", test.wantErr, gotErr)
 			} else if gotErr == nil {
 				if !reflect.DeepEqual(got, test.want) {

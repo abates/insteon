@@ -20,25 +20,6 @@ import (
 	"testing"
 )
 
-func TestBufError(t *testing.T) {
-	tests := []struct {
-		desc     string
-		input    error
-		expected string
-	}{
-		{"no cause", newBufError(nil, 10, 20), "need 10 bytes got 20"},
-		{"with cause", newBufError(errors.New("Foo"), 10, 20), "Foo: need 10 bytes got 20"},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			if test.input.Error() != test.expected {
-				t.Errorf("got %v expected %v", test.input.Error(), test.expected)
-			}
-		})
-	}
-}
-
 func TestError(t *testing.T) {
 	err := &traceError{
 		Cause: errors.New("Foo"),
@@ -47,36 +28,6 @@ func TestError(t *testing.T) {
 
 	if err.Error() == "" {
 		t.Error("Expected non-empty string")
-	}
-}
-
-func TestIsError(t *testing.T) {
-	tests := []struct {
-		desc     string
-		cause    error
-		check    error
-		expected bool
-	}{
-		{"traceError matches", &traceError{Cause: ErrBufferTooShort}, ErrBufferTooShort, true},
-		{"traceError mismatch", &traceError{Cause: ErrReadTimeout}, ErrBufferTooShort, false},
-		{"bufError match", &BufError{Cause: ErrBufferTooShort}, ErrBufferTooShort, true},
-		{"bufError mismatch", &BufError{Cause: ErrReadTimeout}, ErrBufferTooShort, false},
-		{"error match", ErrReadTimeout, ErrReadTimeout, true},
-		{"error mismatch", ErrReadTimeout, ErrBufferTooShort, false},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			if IsError(test.cause, test.check) != test.expected {
-				switch e := test.cause.(type) {
-				case *traceError:
-					t.Logf("%v == %v ? %v -- %v", e.Cause, test.check, e.Cause == test.check, IsError(test.cause, test.check))
-				case *BufError:
-					t.Logf("%v == %v ? %v -- %v", e.Cause, test.check, e.Cause == test.check, IsError(test.cause, test.check))
-				}
-				t.Errorf("got %v, expected %v ", IsError(test.cause, test.check), test.expected)
-			}
-		})
 	}
 }
 

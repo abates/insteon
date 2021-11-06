@@ -141,7 +141,7 @@ type ThermostatInfo struct {
 
 func (ti *ThermostatInfo) UnmarshalBinary(data []byte) error {
 	if len(data) < 14 {
-		return newBufError(ErrBufferTooShort, 14, len(data))
+		return fmt.Errorf("%w: wanted 14 bytes got %d", ErrBufferTooShort, len(data))
 	}
 	if data[2] == 0x00 {
 		// temp high byte is data[13], temp low byte is data[3]

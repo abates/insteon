@@ -192,7 +192,7 @@ type ProductData struct {
 // ProductData object
 func (pd *ProductData) UnmarshalBinary(buf []byte) error {
 	if len(buf) < 14 {
-		return newBufError(ErrBufferTooShort, 14, len(buf))
+		return fmt.Errorf("%w wanted 14 bytes got %d", ErrBufferTooShort, len(buf))
 	}
 
 	copy(pd.Key[:], buf[1:4])

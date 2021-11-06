@@ -2,6 +2,7 @@ package insteon
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/abates/insteon/commands"
@@ -76,7 +77,7 @@ func TestI1DeviceErrLookup(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			d := &BasicDevice{DeviceInfo: DeviceInfo{EngineVersion: test.ver}}
 			_, got := d.errLookup(test.input, test.inputErr)
-			if !IsError(got, test.want) {
+			if !errors.Is(got, test.want) {
 				t.Errorf("want error %v got %v", test.want, got)
 			}
 		})

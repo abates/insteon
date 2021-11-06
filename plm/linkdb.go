@@ -68,7 +68,7 @@ func (alr *allLinkReq) MarshalBinary() ([]byte, error) {
 
 func (alr *allLinkReq) UnmarshalBinary(buf []byte) (err error) {
 	if len(buf) < 2 {
-		err = &insteon.BufError{insteon.ErrBufferTooShort, 2, len(buf)}
+		err = fmt.Errorf("%w wanted 2 got %d", insteon.ErrBufferTooShort, len(buf))
 	} else {
 		alr.Mode = linkingMode(buf[0])
 		alr.Group = insteon.Group(buf[1])
