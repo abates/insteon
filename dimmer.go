@@ -16,6 +16,8 @@ package insteon
 
 import (
 	"fmt"
+
+	"github.com/abates/insteon/commands"
 )
 
 // DimmerConfig includes the X10 configuration as well as default ramp
@@ -78,9 +80,9 @@ func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
-	msg, err := dd.Write(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
+	msg, err := dd.Write(&Message{Command: commands.ExtendedGetSet, Payload: []byte{0x01, 0x00}})
 	if err == nil {
-		msg, err = Read(dd, CmdMatcher(CmdExtendedGetSet))
+		msg, err = Read(dd, CmdMatcher(commands.ExtendedGetSet))
 		if err == nil {
 			err = config.UnmarshalBinary(msg.Payload)
 		}
@@ -89,52 +91,52 @@ func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 }
 
 func (dd *Dimmer) Brighten() error {
-	return dd.SendCommand(CmdLightBrighten, nil)
+	return dd.SendCommand(commands.LightBrighten, nil)
 }
 
 func (dd *Dimmer) Dim() error {
-	return dd.SendCommand(CmdLightDim, nil)
+	return dd.SendCommand(commands.LightDim, nil)
 }
 
 func (dd *Dimmer) StartBrighten() error {
-	return dd.SendCommand(CmdStartBrighten, nil)
+	return dd.SendCommand(commands.StartBrighten, nil)
 }
 
 func (dd *Dimmer) StartDim() error {
-	return dd.SendCommand(CmdStartDim, nil)
+	return dd.SendCommand(commands.StartDim, nil)
 }
 
 func (dd *Dimmer) StopManualChange() error {
-	return dd.SendCommand(CmdLightStopManual, nil)
+	return dd.SendCommand(commands.LightStopManual, nil)
 }
 
 func (dd *Dimmer) OnFast() error {
-	return dd.SendCommand(CmdLightOnFast, nil)
+	return dd.SendCommand(commands.LightOnFast, nil)
 }
 
 func (dd *Dimmer) InstantChange(level int) error {
-	return dd.SendCommand(CmdLightInstantChange.SubCommand(level), nil)
+	return dd.SendCommand(commands.LightInstantChange.SubCommand(level), nil)
 }
 
 func (dd *Dimmer) SetStatus(level int) error {
-	return dd.SendCommand(CmdLightSetStatus.SubCommand(level), nil)
+	return dd.SendCommand(commands.LightSetStatus.SubCommand(level), nil)
 }
 
 func (dd *Dimmer) OnAtRamp(level, rate int) error {
 	levelRate := byte(level) << 4
 	levelRate |= byte(rate) & 0x0f
 
-	cmd := CmdLightOnAtRamp
+	cmd := commands.LightOnAtRamp
 	if dd.DeviceInfo.FirmwareVersion >= 0x43 {
-		cmd = CmdLightOnAtRampV67
+		cmd = commands.LightOnAtRampV67
 	}
 	return dd.SendCommand(cmd.SubCommand(int(levelRate)), nil)
 }
 
 func (dd *Dimmer) OffAtRamp(rate int) error {
-	cmd := CmdLightOffAtRamp
+	cmd := commands.LightOffAtRamp
 	if dd.DeviceInfo.FirmwareVersion >= 0x43 {
-		cmd = CmdLightOffAtRampV67
+		cmd = commands.LightOffAtRampV67
 	}
 	return dd.SendCommand(cmd.SubCommand(0x0f&rate), nil)
 }

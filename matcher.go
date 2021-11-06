@@ -14,14 +14,16 @@
 
 package insteon
 
+import "github.com/abates/insteon/commands"
+
 type Matcher interface {
 	Matches(msg *Message) bool
 }
 
-type CmdMatcher Command
+type CmdMatcher commands.Command
 
 func (m CmdMatcher) Matches(msg *Message) bool {
-	return Command(m).Matches(msg.Command)
+	return commands.Command(m).Matches(msg.Command)
 }
 
 type Matches func(msg *Message) bool

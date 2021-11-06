@@ -3,6 +3,8 @@ package insteon
 import (
 	"fmt"
 	"testing"
+
+	"github.com/abates/insteon/commands"
 )
 
 func TestDeviceString(t *testing.T) {
@@ -33,11 +35,11 @@ func TestDeviceString(t *testing.T) {
 		{"AvailableResponder", AvailableResponder, "AR"},
 		{"UnavailableResponder", UnavailableResponder, "UR"},
 		{"Firmware Version", FirmwareVersion(42), "42"},
-		{"Broadcast Message", &Message{Address{1, 2, 3}, Address{4, 5, 6}, StandardBroadcast, CmdSetButtonPressedController, nil}, "SB     2:2 01.02.03 -> ff.ff.ff DevCat 04.05 Firmware 6 Set-button Pressed (controller)"},
-		{"All-Link Broadcast Message", &Message{Address{1, 2, 3}, Address{4, 5, 14}, StandardAllLinkBroadcast, CmdAllLinkRecall, nil}, "SA     2:2 01.02.03 -> ff.ff.ff All-link recall Group(14)"},
-		{"All-Link Cleanup Message", &Message{Address{1, 2, 3}, Address{4, 5, 14}, Flag(MsgTypeAllLinkCleanup, false, 2, 2), CmdAllLinkRecall, nil}, "SC     2:2 01.02.03 -> 04.05.0e Cleanup All-link recall"},
-		{"Extended Direct", &Message{Address{1, 2, 3}, Address{4, 5, 6}, ExtendedDirectMessage, CmdEnterLinkingModeExt, make([]byte, 14)}, "ED     2:2 01.02.03 -> 04.05.06 Enter Linking Mode (i2cs) [00 00 00 00 00 00 00 00 00 00 00 00 00 00]"},
-		{"Standard Ack", &Message{Address{1, 2, 3}, Address{4, 5, 6}, StandardDirectAck, CmdEnterLinkingMode, nil}, "SD Ack 2:2 01.02.03 -> 04.05.06 9.0"},
+		{"Broadcast Message", &Message{Address{1, 2, 3}, Address{4, 5, 6}, StandardBroadcast, commands.SetButtonPressedController, nil}, "SB     2:2 01.02.03 -> ff.ff.ff DevCat 04.05 Firmware 6 Set-button Pressed (controller)"},
+		{"All-Link Broadcast Message", &Message{Address{1, 2, 3}, Address{4, 5, 14}, StandardAllLinkBroadcast, commands.AllLinkRecall, nil}, "SA     2:2 01.02.03 -> ff.ff.ff All-link recall Group(14)"},
+		{"All-Link Cleanup Message", &Message{Address{1, 2, 3}, Address{4, 5, 14}, Flag(MsgTypeAllLinkCleanup, false, 2, 2), commands.AllLinkRecall, nil}, "SC     2:2 01.02.03 -> 04.05.0e Cleanup All-link recall"},
+		{"Extended Direct", &Message{Address{1, 2, 3}, Address{4, 5, 6}, ExtendedDirectMessage, commands.EnterLinkingModeExt, make([]byte, 14)}, "ED     2:2 01.02.03 -> 04.05.06 Enter Linking Mode (i2cs) [00 00 00 00 00 00 00 00 00 00 00 00 00 00]"},
+		{"Standard Ack", &Message{Address{1, 2, 3}, Address{4, 5, 6}, StandardDirectAck, commands.EnterLinkingMode, nil}, "SD Ack 2:2 01.02.03 -> 04.05.06 9.0"},
 	}
 
 	for _, test := range tests {

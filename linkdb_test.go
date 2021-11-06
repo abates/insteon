@@ -20,6 +20,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/abates/insteon/commands"
 )
 
 func TestMemAddress(t *testing.T) {
@@ -174,12 +176,12 @@ func TestLinkdbLinks(t *testing.T) {
 			tw := &testWriter{}
 
 			// Test ignoring acks on receive channel
-			tw.acks = append(tw.acks, &Message{Command: CmdReadWriteALDB, Flags: StandardDirectAck})
-			tw.acks = append(tw.acks, &Message{Command: CmdReadWriteALDB, Flags: StandardDirectNak})
+			tw.acks = append(tw.acks, &Message{Command: commands.ReadWriteALDB, Flags: StandardDirectAck})
+			tw.acks = append(tw.acks, &Message{Command: commands.ReadWriteALDB, Flags: StandardDirectNak})
 			memAddress := BaseLinkDBAddress
 			for _, link := range links {
 				lr := &LinkRequest{Type: linkResponse, MemAddress: memAddress, Link: link}
-				msg := &Message{Command: CmdReadWriteALDB, Flags: ExtendedDirectMessage, Payload: make([]byte, 14)}
+				msg := &Message{Command: commands.ReadWriteALDB, Flags: ExtendedDirectMessage, Payload: make([]byte, 14)}
 				buf, _ := lr.MarshalBinary()
 				copy(msg.Payload, buf)
 				tw.read = append(tw.read, msg)

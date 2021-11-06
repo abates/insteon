@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/commands"
 )
 
 type snoop struct {
@@ -61,9 +62,9 @@ func (s *snoop) print(msg *insteon.Message) {
 			fmt.Fprintf(s.out, " %d.%d (unknown ACK)", msg.Command.Command1(), msg.Command.Command2())
 		}
 	} else if msg.Type() == insteon.MsgTypeAllLinkBroadcast {
-		if insteon.CmdMatcher(insteon.CmdAllLinkSuccessReport).Matches(msg) {
+		if insteon.CmdMatcher(commands.AllLinkSuccessReport).Matches(msg) {
 			// this is ugly
-			fmt.Fprintf(s.out, " %v: %v Group %d (cleanup %d, failed %d)", msg.Command&0xffff00, insteon.Command(0x0c0000)|insteon.Command(msg.Dst[0])<<8, msg.Dst[2], msg.Dst[1], msg.Command.Command2())
+			fmt.Fprintf(s.out, " %v: %v Group %d (cleanup %d, failed %d)", msg.Command&0xffff00, commands.Command(0x0c0000)|commands.Command(msg.Dst[0])<<8, msg.Dst[2], msg.Dst[1], msg.Command.Command2())
 		} else {
 			fmt.Fprintf(s.out, " %v Group %d", msg.Command&0xffff00, msg.Dst[2])
 		}
@@ -76,11 +77,11 @@ func (s *snoop) print(msg *insteon.Message) {
 	if msg.Extended() {
 		var data encoding.BinaryUnmarshaler
 		switch {
-		case msg.Command.Matches(insteon.CmdProductDataResp):
+		case msg.Command.Matches(commands.ProductDataResp):
 			data = &insteon.ProductData{}
-		case msg.Command.Matches(insteon.CmdReadWriteALDB):
+		case msg.Command.Matches(commands.ReadWriteALDB):
 			data = &insteon.LinkRequest{}
-		case msg.Command.Matches(insteon.CmdExtendedGetSet):
+		case msg.Command.Matches(commands.ExtendedGetSet):
 			if s.db != nil {
 				if info, found := s.db.Get(msg.Src); found {
 					switch info.DevCat.Domain() {

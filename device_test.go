@@ -18,6 +18,8 @@ import (
 	"bytes"
 	"errors"
 	"testing"
+
+	"github.com/abates/insteon/commands"
 )
 
 func mkPayload(buf ...byte) []byte {
@@ -40,28 +42,28 @@ func TestDeviceCommands(t *testing.T) {
 		name        string
 		setup       func(*BasicDevice) Device
 		test        func(Device) error
-		wantCmd     Command
+		wantCmd     commands.Command
 		wantPayload []byte
 	}{
-		{"switch on", switchFactory, func(device Device) error { return device.(*Switch).TurnOn(42) }, CmdLightOn.SubCommand(42), nil},
-		{"switch off", switchFactory, func(device Device) error { return device.(*Switch).TurnOff() }, CmdLightOff, nil},
-		{"switch backlight on", switchFactory, func(device Device) error { return device.(*Switch).SetBacklight(true) }, CmdEnableLED, make([]byte, 14)},
-		{"switch backlight off", switchFactory, func(device Device) error { return device.(*Switch).SetBacklight(false) }, CmdDisableLED, make([]byte, 14)},
-		{"switch enable load sense", switchFactory, func(device Device) error { return device.(*Switch).SetLoadSense(true) }, CmdEnableLoadSense, make([]byte, 14)},
-		{"switch disable load sense", switchFactory, func(device Device) error { return device.(*Switch).SetLoadSense(false) }, CmdDisableLoadSense, make([]byte, 14)},
+		{"switch on", switchFactory, func(device Device) error { return device.(*Switch).TurnOn(42) }, commands.LightOn.SubCommand(42), nil},
+		{"switch off", switchFactory, func(device Device) error { return device.(*Switch).TurnOff() }, commands.LightOff, nil},
+		{"switch backlight on", switchFactory, func(device Device) error { return device.(*Switch).SetBacklight(true) }, commands.EnableLED, make([]byte, 14)},
+		{"switch backlight off", switchFactory, func(device Device) error { return device.(*Switch).SetBacklight(false) }, commands.DisableLED, make([]byte, 14)},
+		{"switch enable load sense", switchFactory, func(device Device) error { return device.(*Switch).SetLoadSense(true) }, commands.EnableLoadSense, make([]byte, 14)},
+		{"switch disable load sense", switchFactory, func(device Device) error { return device.(*Switch).SetLoadSense(false) }, commands.DisableLoadSense, make([]byte, 14)},
 
-		{"dimmer brighten", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).Brighten() }, CmdLightBrighten, nil},
-		{"dimmer dim", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).Dim() }, CmdLightDim, nil},
-		{"dimmer start brighten", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).StartBrighten() }, CmdStartBrighten, nil},
-		{"dimmer start dim", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).StartDim() }, CmdStartDim, nil},
-		{"dimmer stop manual change", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).StopManualChange() }, CmdLightStopManual, nil},
-		{"dimmer on fast", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).OnFast() }, CmdLightOnFast, nil},
-		{"dimmer instant change", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).InstantChange(42) }, CmdLightInstantChange.SubCommand(42), nil},
-		{"dimmer set status", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).SetStatus(42) }, CmdLightSetStatus.SubCommand(42), nil},
-		{"dimmer on at ramp", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).OnAtRamp(0x04, 0x02) }, CmdLightOnAtRamp.SubCommand(0x42), nil},
-		{"dimmer on at ramp (new)", dimmerFactory(0x43), func(device Device) error { return device.(*Dimmer).OnAtRamp(0x04, 0x02) }, CmdLightOnAtRampV67.SubCommand(0x42), nil},
-		{"dimmer off at ramp", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).OffAtRamp(15) }, CmdLightOffAtRamp.SubCommand(15), nil},
-		{"dimmer off at ramp (new)", dimmerFactory(0x43), func(device Device) error { return device.(*Dimmer).OffAtRamp(15) }, CmdLightOffAtRampV67.SubCommand(15), nil},
+		{"dimmer brighten", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).Brighten() }, commands.LightBrighten, nil},
+		{"dimmer dim", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).Dim() }, commands.LightDim, nil},
+		{"dimmer start brighten", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).StartBrighten() }, commands.StartBrighten, nil},
+		{"dimmer start dim", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).StartDim() }, commands.StartDim, nil},
+		{"dimmer stop manual change", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).StopManualChange() }, commands.LightStopManual, nil},
+		{"dimmer on fast", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).OnFast() }, commands.LightOnFast, nil},
+		{"dimmer instant change", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).InstantChange(42) }, commands.LightInstantChange.SubCommand(42), nil},
+		{"dimmer set status", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).SetStatus(42) }, commands.LightSetStatus.SubCommand(42), nil},
+		{"dimmer on at ramp", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).OnAtRamp(0x04, 0x02) }, commands.LightOnAtRamp.SubCommand(0x42), nil},
+		{"dimmer on at ramp (new)", dimmerFactory(0x43), func(device Device) error { return device.(*Dimmer).OnAtRamp(0x04, 0x02) }, commands.LightOnAtRampV67.SubCommand(0x42), nil},
+		{"dimmer off at ramp", dimmerFactory(0), func(device Device) error { return device.(*Dimmer).OffAtRamp(15) }, commands.LightOffAtRamp.SubCommand(15), nil},
+		{"dimmer off at ramp (new)", dimmerFactory(0x43), func(device Device) error { return device.(*Dimmer).OffAtRamp(15) }, commands.LightOffAtRampV67.SubCommand(15), nil},
 	}
 
 	for _, test := range tests {
@@ -98,16 +100,16 @@ func TestOpen(t *testing.T) {
 		{
 			name:     "basic",
 			ackErr:   nil,
-			acks:     []*Message{&Message{Command: Command(0x01)}},
-			read:     []*Message{&Message{Dst: Address{byte(SwitchDomain), 1, 59}, Command: CmdSetButtonPressedResponder}},
+			acks:     []*Message{&Message{Command: commands.Command(0x01)}},
+			read:     []*Message{&Message{Dst: Address{byte(SwitchDomain), 1, 59}, Command: commands.SetButtonPressedResponder}},
 			wantInfo: DeviceInfo{EngineVersion: VerI2, FirmwareVersion: FirmwareVersion(59), DevCat: DevCat{byte(SwitchDomain), 1}},
 			wantErr:  nil,
 		},
 		{
 			name:     "unlinked",
 			ackErr:   ErrNak,
-			acks:     []*Message{&Message{Flags: StandardDirectNak, Command: Command(0x00ff)}},
-			read:     []*Message{&Message{Dst: Address{byte(SwitchDomain), 1, 59}, Command: CmdSetButtonPressedResponder}},
+			acks:     []*Message{&Message{Flags: StandardDirectNak, Command: commands.Command(0x00ff)}},
+			read:     []*Message{&Message{Dst: Address{byte(SwitchDomain), 1, 59}, Command: commands.SetButtonPressedResponder}},
 			wantInfo: DeviceInfo{EngineVersion: VerI2Cs},
 			wantErr:  ErrNotLinked,
 		},

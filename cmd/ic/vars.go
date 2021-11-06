@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/commands"
 )
 
 type addrSlice []insteon.Address
@@ -57,7 +58,7 @@ func (d *dataVar) Set(str []string) error {
 func (d *dataVar) String() string { return fmt.Sprintf("%v", *d) }
 
 type cmdVar struct {
-	insteon.Command
+	commands.Command
 }
 
 // Set satisfies the flag.Value interface
@@ -83,6 +84,6 @@ func (cmd *cmdVar) Set(str string) error {
 	if err != nil {
 		return err
 	}
-	cmd.Command = insteon.Command((c1&0xff)<<8 | c2&0xff)
+	cmd.Command = commands.Command((c1&0xff)<<8 | c2&0xff)
 	return nil
 }

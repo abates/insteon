@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"html/template"
 	"strings"
+
+	"github.com/abates/insteon/commands"
 )
 
 var dDumpTpl = template.Must(template.New("name").Parse(`
@@ -76,7 +78,7 @@ func (d *BasicDevice) Info() DeviceInfo {
 	return d.DeviceInfo
 }
 
-func (d *BasicDevice) SendCommand(command Command, payload []byte) error {
+func (d *BasicDevice) SendCommand(command commands.Command, payload []byte) error {
 	_, err := d.Send(command, payload)
 	return err
 }
@@ -85,7 +87,7 @@ func (d *BasicDevice) SendCommand(command Command, payload []byte) error {
 // a payload (for extended messages). If payload length is zero then a standard
 // length message is used to deliver the commands. Any error encountered sending
 // the command is returned (eg. ack timeout, etc)
-func (d *BasicDevice) Send(command Command, payload []byte) (Command, error) {
+func (d *BasicDevice) Send(command commands.Command, payload []byte) (commands.Command, error) {
 	return d.sendCommand(command, payload)
 }
 
@@ -93,7 +95,7 @@ func (d *BasicDevice) Send(command Command, payload []byte) (Command, error) {
 // a payload (for extended messages). If payload length is zero then a standard
 // length message is used to deliver the commands. The command bytes from the
 // response ack are returned as well as any error
-func (d *BasicDevice) sendCommand(command Command, payload []byte) (response Command, err error) {
+func (d *BasicDevice) sendCommand(command commands.Command, payload []byte) (response commands.Command, err error) {
 	ack, err := d.Write(&Message{
 		Command: command,
 		Payload: payload,
@@ -141,9 +143,9 @@ func (d *BasicDevice) errLookup(msg *Message, err error) (*Message, error) {
 
 // ProductData will retrieve the device's product data
 func (d *BasicDevice) ProductData() (data *ProductData, err error) {
-	msg, err := d.Write(&Message{Command: CmdProductDataReq})
+	msg, err := d.Write(&Message{Command: commands.ProductDataReq})
 	if err == nil {
-		msg, err = Read(d, CmdMatcher(CmdProductDataResp))
+		msg, err = Read(d, CmdMatcher(commands.ProductDataResp))
 		if err == nil {
 			data = &ProductData{}
 			err = data.UnmarshalBinary(msg.Payload)
@@ -153,9 +155,9 @@ func (d *BasicDevice) ProductData() (data *ProductData, err error) {
 }
 
 func (d *BasicDevice) ExtendedGet(data []byte) (buf []byte, err error) {
-	msg, err := d.Write(&Message{Command: CmdExtendedGetSet, Payload: data})
+	msg, err := d.Write(&Message{Command: commands.ExtendedGetSet, Payload: data})
 	if err == nil {
-		msg, err = Read(d, CmdMatcher(CmdExtendedGetSet))
+		msg, err = Read(d, CmdMatcher(commands.ExtendedGetSet))
 		if err == nil {
 			buf = make([]byte, len(msg.Payload))
 			copy(buf, msg.Payload)
@@ -180,15 +182,15 @@ func (d *BasicDevice) Dump() string {
 	return builder.String()
 }
 
-func (d *BasicDevice) linkingMode(cmd Command, payload []byte) (err error) {
+func (d *BasicDevice) linkingMode(cmd commands.Command, payload []byte) (err error) {
 	return d.SendCommand(cmd, payload)
 }
 
 func (d *BasicDevice) EnterLinkingMode(group Group) error {
 	payload := []byte{}
-	cmd := CmdEnterLinkingMode.SubCommand(int(group))
+	cmd := commands.EnterLinkingMode.SubCommand(int(group))
 	if d.DeviceInfo.EngineVersion == VerI2Cs {
-		cmd = CmdEnterLinkingModeExt.SubCommand(int(group))
+		cmd = commands.EnterLinkingModeExt.SubCommand(int(group))
 		payload = make([]byte, 14)
 	}
 
@@ -200,9 +202,9 @@ func (d *BasicDevice) EnterUnlinkingMode(group Group) error {
 	if d.DeviceInfo.EngineVersion == VerI2Cs {
 		payload = make([]byte, 14)
 	}
-	return d.linkingMode(CmdEnterUnlinkingMode.SubCommand(int(group)), payload)
+	return d.linkingMode(commands.EnterUnlinkingMode.SubCommand(int(group)), payload)
 }
 
 func (d *BasicDevice) ExitLinkingMode() error {
-	return d.SendCommand(CmdExitLinkingMode, nil)
+	return d.SendCommand(commands.ExitLinkingMode, nil)
 }

@@ -16,6 +16,8 @@ package insteon
 
 import (
 	"testing"
+
+	"github.com/abates/insteon/commands"
 )
 
 func TestMatchers(t *testing.T) {
@@ -29,8 +31,8 @@ func TestMatchers(t *testing.T) {
 		{"AckMatcher (ping)", AckMatcher(), TestPing, false},
 		{"AckMatcher (nak)", AckMatcher(), TestPingNak, true},
 		{"AckMatcher (nak)", AckMatcher(), TestPingNak, true},
-		{"CmdMatcher (true)", CmdMatcher(CmdPing), TestPing, true},
-		{"CmdMatcher (false)", CmdMatcher(CmdPing), &Message{}, false},
+		{"CmdMatcher (true)", CmdMatcher(commands.Ping), TestPing, true},
+		{"CmdMatcher (false)", CmdMatcher(commands.Ping), &Message{}, false},
 		{"And (true)", And(Matches(func(*Message) bool { return true }), Matches(func(*Message) bool { return true })), &Message{}, true},
 		{"And (false)", And(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return true })), &Message{}, false},
 		{"And (false 1)", And(Matches(func(*Message) bool { return false }), Matches(func(*Message) bool { return false })), &Message{}, false},
@@ -47,14 +49,14 @@ func TestMatchers(t *testing.T) {
 		{"duplicate matcher (false)", DuplicateMatcher(&Message{Flags: Flag(MsgTypeDirect, false, 3, 3)}), &Message{Flags: Flag(MsgTypeDirect, true, 2, 3)}, true},
 		{
 			name:    "MatchAck",
-			matcher: MatchAck(&Message{Flags: Flag(MsgTypeDirectAck, false, 0, 1), Command: Command(0x010203), Src: Address{3, 4, 5}}),
-			input:   &Message{Flags: Flag(MsgTypeDirect, false, 0, 1), Command: Command(0x010205), Src: Address{3, 4, 5}},
+			matcher: MatchAck(&Message{Flags: Flag(MsgTypeDirectAck, false, 0, 1), Command: commands.Command(0x010203), Src: Address{3, 4, 5}}),
+			input:   &Message{Flags: Flag(MsgTypeDirect, false, 0, 1), Command: commands.Command(0x010205), Src: Address{3, 4, 5}},
 			want:    true,
 		},
 		{
 			name:    "MatchAck (false)",
-			matcher: MatchAck(&Message{Flags: Flag(MsgTypeDirectAck, false, 0, 1), Command: Command(0x010203), Src: Address{3, 4, 5}}),
-			input:   &Message{Flags: Flag(MsgTypeDirect, false, 0, 1), Command: Command(0x010205), Src: Address{1, 2, 3}},
+			matcher: MatchAck(&Message{Flags: Flag(MsgTypeDirectAck, false, 0, 1), Command: commands.Command(0x010203), Src: Address{3, 4, 5}}),
+			input:   &Message{Flags: Flag(MsgTypeDirect, false, 0, 1), Command: commands.Command(0x010205), Src: Address{1, 2, 3}},
 			want:    false,
 		},
 	}

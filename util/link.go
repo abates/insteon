@@ -17,7 +17,6 @@ package util
 import (
 	_ "embed"
 	"errors"
-	"fmt"
 	"io"
 	"sort"
 	"strings"
@@ -198,7 +197,7 @@ func UnlinkAll(controller, responder insteon.Linkable) error {
 	links, err := controller.Links()
 	if err == nil {
 		for _, link := range links {
-			if addr, ok := responder.(insteon.Addressable); ok && link.Address == addr.Address() {
+			if link.Address == responder.Address() {
 				err = Unlink(link.Group, responder, controller)
 			}
 		}
@@ -252,26 +251,12 @@ func RemoveLinks(device insteon.Linkable, remove ...insteon.LinkRecord) error {
 // entry exists than the other is deleted and new links are created. Once the link
 // check/cleanup has taken place the new links are created using ForceLink
 func Link(group insteon.Group, controller, responder insteon.Linkable) (err error) {
-	controllerAddress, responderAddress := insteon.Address{}, insteon.Address{}
-
-	if addr, ok := controller.(insteon.Addressable); ok {
-		controllerAddress = addr.Address()
-	} else {
-		return fmt.Errorf("Controller is not an addressable device")
-	}
-
-	if addr, ok := responder.(insteon.Addressable); ok {
-		responderAddress = addr.Address()
-	} else {
-		return fmt.Errorf("Responder is not an addressable device")
-	}
-
 	insteon.LogDebug.Printf("Looking for existing links")
 	var controllerLink, responderLink insteon.LinkRecord
-	controllerLink, err = FindLinkRecord(controller, true, controllerAddress, group)
+	controllerLink, err = FindLinkRecord(controller, true, controller.Address(), group)
 
 	if err == ErrLinkNotFound {
-		responderLink, err = FindLinkRecord(responder, false, responderAddress, group)
+		responderLink, err = FindLinkRecord(responder, false, responder.Address(), group)
 
 		if err == nil {
 			// found a responder link, but not a controller link
@@ -283,7 +268,7 @@ func Link(group insteon.Group, controller, responder insteon.Linkable) (err erro
 			err = ForceLink(group, controller, responder)
 		}
 	} else if err == nil {
-		_, err = FindLinkRecord(responder, false, controllerAddress, group)
+		_, err = FindLinkRecord(responder, false, controller.Address(), group)
 		if err == ErrLinkNotFound {
 			// found a controller link, but not a responder link
 			insteon.LogDebug.Printf("Responder link already exists, deleting it")

@@ -17,6 +17,8 @@ package insteon
 import (
 	"fmt"
 	"sync"
+
+	"github.com/abates/insteon/commands"
 )
 
 // SwitchConfig contains the HouseCode and UnitCode for a switch's
@@ -108,7 +110,7 @@ func NewSwitch(d *BasicDevice) *Switch {
 // level. For switched devices this is either 0 or 255, dimmable devices
 // will be the current dim level between 0 and 255
 func (sd *Switch) Status() (level int, err error) {
-	ack, err := sd.Send(CmdLightStatusRequest, nil)
+	ack, err := sd.Send(commands.LightStatusRequest, nil)
 	if err == nil {
 		level = ack.Command2()
 	}
@@ -121,9 +123,9 @@ func (sd *Switch) String() string {
 
 func (sd *Switch) Config() (config SwitchConfig, err error) {
 	// SEE Dimmer.Config() notes for explanation of D1 and D2 (payload[0] and payload[1])
-	msg, err := sd.Write(&Message{Command: CmdExtendedGetSet, Payload: []byte{0x01, 0x00}})
+	msg, err := sd.Write(&Message{Command: commands.ExtendedGetSet, Payload: []byte{0x01, 0x00}})
 	if err == nil {
-		msg, err = Read(sd, CmdMatcher(CmdExtendedGetSet))
+		msg, err = Read(sd, CmdMatcher(commands.ExtendedGetSet))
 		if err == nil {
 			err = config.UnmarshalBinary(msg.Payload)
 		}
@@ -132,12 +134,12 @@ func (sd *Switch) Config() (config SwitchConfig, err error) {
 }
 
 func (sd *Switch) OperatingFlags() (flags LightFlags, err error) {
-	commands := []Command{
-		CmdGetOperatingFlags.SubCommand(0x01),
-		CmdGetOperatingFlags.SubCommand(0x02),
-		CmdGetOperatingFlags.SubCommand(0x04),
-		CmdGetOperatingFlags.SubCommand(0x10),
-		CmdGetOperatingFlags.SubCommand(0x20),
+	commands := []commands.Command{
+		commands.GetOperatingFlags.SubCommand(0x01),
+		commands.GetOperatingFlags.SubCommand(0x02),
+		commands.GetOperatingFlags.SubCommand(0x04),
+		commands.GetOperatingFlags.SubCommand(0x10),
+		commands.GetOperatingFlags.SubCommand(0x20),
 	}
 
 	var ack *Message
@@ -152,24 +154,24 @@ func (sd *Switch) OperatingFlags() (flags LightFlags, err error) {
 
 func (sd *Switch) SetLoadSense(loadsense bool) error {
 	if loadsense {
-		return sd.SendCommand(CmdEnableLoadSense, make([]byte, 14))
+		return sd.SendCommand(commands.EnableLoadSense, make([]byte, 14))
 	}
-	return sd.SendCommand(CmdDisableLoadSense, make([]byte, 14))
+	return sd.SendCommand(commands.DisableLoadSense, make([]byte, 14))
 }
 
 func (sd *Switch) SetBacklight(light bool) error {
 	if light {
-		return sd.SendCommand(CmdEnableLED, make([]byte, 14))
+		return sd.SendCommand(commands.EnableLED, make([]byte, 14))
 	}
-	return sd.SendCommand(CmdDisableLED, make([]byte, 14))
+	return sd.SendCommand(commands.DisableLED, make([]byte, 14))
 }
 
 func (sd *Switch) TurnOff() error {
-	return sd.SendCommand(CmdLightOff, nil)
+	return sd.SendCommand(commands.LightOff, nil)
 }
 
 func (sd *Switch) TurnOn(level int) error {
-	return sd.SendCommand(CmdLightOn.SubCommand(level), nil)
+	return sd.SendCommand(commands.LightOn.SubCommand(level), nil)
 }
 
 func (sd *Switch) Address() Address {

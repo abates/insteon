@@ -18,6 +18,8 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+
+	"github.com/abates/insteon/commands"
 )
 
 const (
@@ -32,7 +34,8 @@ const (
 // The following table displays the bit setting tha correspond to the message flags
 // for the various message types:
 // Flags (8 Bit/1 Byte)
-// Description          | Message Type (3 bits)
+//
+//   Description        | Message Type (3 bits)
 //   Direct             | 0 0 0
 //   Direct Ack         | 0 0 1
 //   AllLink Cleanup    | 0 1 0
@@ -41,7 +44,6 @@ const (
 //   Direct Nak         | 1 0 1
 //   AllLink Broadcast  | 1 1 0
 //   AllLink CleanupNak | 1 1 1
-
 type MessageType int
 
 // All of the valid message types
@@ -169,7 +171,7 @@ type Message struct {
 	Src Address
 	Dst Address
 	Flags
-	Command Command
+	Command commands.Command
 	Payload []byte
 }
 
@@ -209,11 +211,11 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	// The command lookup won't have the NAK bit set, so the first conditional
 	// sets the command without the NAK bit (masking it with 0x70 instead of 0xf0)
 	if m.Nak() {
-		m.Command = Command(int(0x70&data[6])<<12 | int(data[7])<<8 | int(data[8]))
+		m.Command = commands.Command(int(0x70&data[6])<<12 | int(data[7])<<8 | int(data[8]))
 	} else if m.Type() == MsgTypeAllLinkCleanup {
-		m.Command = Command(0x0c0000 | int(data[7])<<8 | int(data[8]))
+		m.Command = commands.Command(0x0c0000 | int(data[7])<<8 | int(data[8]))
 	} else {
-		m.Command = Command(int(0xf0&data[6])<<12 | int(data[7])<<8 | int(data[8]))
+		m.Command = commands.Command(int(0xf0&data[6])<<12 | int(data[7])<<8 | int(data[8]))
 	}
 
 	if m.Extended() {

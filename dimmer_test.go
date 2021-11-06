@@ -3,6 +3,8 @@ package insteon
 import (
 	"bytes"
 	"testing"
+
+	"github.com/abates/insteon/commands"
 )
 
 func TestDimmerConfig(t *testing.T) {
@@ -56,7 +58,7 @@ func TestDimmerConfig(t *testing.T) {
 func TestDimmableDeviceConfig(t *testing.T) {
 	want := DimmerConfig{31, 42, 15, 27, 4}
 	payload, _ := want.MarshalBinary()
-	msg := &Message{Command: CmdExtendedGetSet, Payload: make([]byte, 14)}
+	msg := &Message{Command: commands.ExtendedGetSet, Payload: make([]byte, 14)}
 	copy(msg.Payload, payload)
 
 	ch := make(chan *Message, 1)

@@ -60,7 +60,6 @@ func main() {
 		}{
 			Copyright: fmt.Sprintf("%4d", time.Now().Year()),
 			Owner:     "Andrew Bates",
-			Package:   "insteon",
 			Data:      tmpl.data(),
 		})
 
@@ -75,7 +74,7 @@ func main() {
 		defer f.Close()
 
 		b := buf.Bytes()
-		if strings.HasSuffix(tmpl.input, ".go") {
+		if strings.HasSuffix(tmpl.output, ".go") {
 			b, err = format.Source(b)
 			if err != nil {
 				f.Write(buf.Bytes()) // This is here to debug bad format

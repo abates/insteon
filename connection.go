@@ -16,6 +16,8 @@ package insteon
 
 import (
 	"time"
+
+	"github.com/abates/insteon/commands"
 )
 
 var (
@@ -31,16 +33,16 @@ var (
 	}
 )
 
-type MessageReader interface {
+type messageReader interface {
 	Read() (*Message, error)
 }
 
 type MessageWriter interface {
-	MessageReader
+	Read() (*Message, error)
 	Write(*Message) (ack *Message, err error)
 }
 
-func Retry(retries int, cb func() error) (err error) {
+func retry(retries int, cb func() error) (err error) {
 	tries := retries
 	for {
 		err = cb()
@@ -59,9 +61,9 @@ func Retry(retries int, cb func() error) (err error) {
 }
 
 func IDRequest(mw MessageWriter, dst Address) (version FirmwareVersion, devCat DevCat, err error) {
-	msg, err := mw.Write(&Message{Dst: dst, Flags: StandardDirectMessage, Command: CmdIDRequest})
+	msg, err := mw.Write(&Message{Dst: dst, Flags: StandardDirectMessage, Command: commands.IDRequest})
 	if err == nil {
-		msg, err = Read(mw, Or(CmdMatcher(CmdSetButtonPressedResponder), CmdMatcher(CmdSetButtonPressedController)))
+		msg, err = Read(mw, Or(CmdMatcher(commands.SetButtonPressedResponder), CmdMatcher(commands.SetButtonPressedController)))
 		if err == nil {
 			version = FirmwareVersion(msg.Dst[2])
 			devCat = DevCat{msg.Dst[0], msg.Dst[1]}
@@ -71,7 +73,7 @@ func IDRequest(mw MessageWriter, dst Address) (version FirmwareVersion, devCat D
 }
 
 func GetEngineVersion(mw MessageWriter, dst Address) (version EngineVersion, err error) {
-	ack, err := mw.Write(&Message{Dst: dst, Flags: StandardDirectMessage, Command: CmdGetEngineVersion})
+	ack, err := mw.Write(&Message{Dst: dst, Flags: StandardDirectMessage, Command: commands.GetEngineVersion})
 	if err == nil {
 		LogDebug.Printf("Device %v responded with an engine version %d", dst, ack.Command.Command2())
 		version = EngineVersion(ack.Command.Command2())
@@ -89,7 +91,7 @@ func GetEngineVersion(mw MessageWriter, dst Address) (version EngineVersion, err
 	return
 }
 
-func Read(reader MessageReader, matcher Matcher) (*Message, error) {
+func Read(reader messageReader, matcher Matcher) (*Message, error) {
 	msg, err := reader.Read()
 	for ; err == nil; msg, err = reader.Read() {
 		if matcher.Matches(msg) {

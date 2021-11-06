@@ -3,6 +3,8 @@ package insteon
 import (
 	"bytes"
 	"testing"
+
+	"github.com/abates/insteon/commands"
 )
 
 func TestSwitchConfig(t *testing.T) {
@@ -74,7 +76,7 @@ func TestLightFlags(t *testing.T) {
 func TestSwitchedDeviceConfig(t *testing.T) {
 	want := SwitchConfig{31, 42}
 	payload, _ := want.MarshalBinary()
-	msg := &Message{Command: CmdExtendedGetSet, Payload: make([]byte, 14)}
+	msg := &Message{Command: commands.ExtendedGetSet, Payload: make([]byte, 14)}
 	copy(msg.Payload, payload)
 
 	tw := &testWriter{
@@ -91,12 +93,12 @@ func TestSwitchedDeviceConfig(t *testing.T) {
 }
 
 func TestSwitchedDeviceOperatingFlags(t *testing.T) {
-	cmds := []Command{
-		CmdGetOperatingFlags.SubCommand(3),
-		CmdGetOperatingFlags.SubCommand(4),
-		CmdGetOperatingFlags.SubCommand(5),
-		CmdGetOperatingFlags.SubCommand(6),
-		CmdGetOperatingFlags.SubCommand(7),
+	cmds := []commands.Command{
+		commands.GetOperatingFlags.SubCommand(3),
+		commands.GetOperatingFlags.SubCommand(4),
+		commands.GetOperatingFlags.SubCommand(5),
+		commands.GetOperatingFlags.SubCommand(6),
+		commands.GetOperatingFlags.SubCommand(7),
 	}
 	tw := &testWriter{}
 	for _, cmd := range cmds {
@@ -113,7 +115,7 @@ func TestSwitchedDeviceOperatingFlags(t *testing.T) {
 }
 
 /*func TestSwitchStatus(t *testing.T) {
-	td := &testDevice{sendAck: CmdLightStatusRequest.SubCommand(43)}
+	td := &testDevice{sendAck: commands.LightStatusRequest.SubCommand(43)}
 	sw := &Switch{Device: td}
 	level, err := sw.Status()
 	if err == nil {

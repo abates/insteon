@@ -17,6 +17,8 @@ package insteon
 import (
 	"fmt"
 	"time"
+
+	"github.com/abates/insteon/commands"
 )
 
 const (
@@ -157,10 +159,10 @@ func (ldb *linkdb) refresh() error {
 	lastAddress := MemAddress(0)
 
 	buf, _ := (&LinkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
-	_, err := ldb.Write(&Message{Command: CmdReadWriteALDB, Payload: buf})
+	_, err := ldb.Write(&Message{Command: commands.ReadWriteALDB, Payload: buf})
 	var msg *Message
 	for err == nil {
-		msg, err = Read(ldb, CmdMatcher(CmdReadWriteALDB))
+		msg, err = Read(ldb, CmdMatcher(commands.ReadWriteALDB))
 		if err == nil {
 			lr := &LinkRequest{}
 			err = lr.UnmarshalBinary(msg.Payload)
@@ -205,7 +207,7 @@ func (ldb *linkdb) writeLink(index int, link *LinkRecord) (err error) {
 	}
 	memAddress := BaseLinkDBAddress - (MemAddress(index) * LinkRecordSize)
 	buf, _ := (&LinkRequest{MemAddress: memAddress, Type: writeLink, Link: link}).MarshalBinary()
-	_, err = ldb.Write(&Message{Command: CmdReadWriteALDB, Payload: buf})
+	_, err = ldb.Write(&Message{Command: commands.ReadWriteALDB, Payload: buf})
 	if err == nil {
 		if link.Flags.LastRecord() {
 			// if the last record comes before the end of the cached links then

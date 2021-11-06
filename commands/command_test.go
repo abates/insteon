@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package commands
 
 import (
 	"encoding/hex"
@@ -84,8 +84,8 @@ func TestCommandString(t *testing.T) {
 		t.Errorf("Failed to parse file: %v", err)
 	}
 
-	cmd := CmdAssignToAllLinkGroup.SubCommand(1)
-	expected := fmt.Sprintf("%s(1)", CmdAssignToAllLinkGroup.String())
+	cmd := AssignToAllLinkGroup.SubCommand(1)
+	expected := fmt.Sprintf("%s(1)", AssignToAllLinkGroup.String())
 	if cmd.String() != expected {
 		t.Errorf("expected %q got %q", expected, cmd.String())
 	}

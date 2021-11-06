@@ -19,6 +19,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/abates/insteon/commands"
 )
 
 type ZoneInfo [4]int
@@ -223,19 +225,19 @@ func NewThermostat(d *BasicDevice) *Thermostat {
 func (therm *Thermostat) Address() Address { return therm.info.Address }
 
 func (therm *Thermostat) IncreaseTemp(delta int) error {
-	return therm.SendCommand(CmdIncreaseTemp.SubCommand(delta*2), nil)
+	return therm.SendCommand(commands.IncreaseTemp.SubCommand(delta*2), nil)
 }
 
 func (therm *Thermostat) DecreaseTemp(delta int) error {
-	return therm.SendCommand(CmdDecreaseTemp.SubCommand(delta*2), nil)
+	return therm.SendCommand(commands.DecreaseTemp.SubCommand(delta*2), nil)
 }
 
 func (therm *Thermostat) GetZoneInfo(zone int) (zi ZoneInfo, err error) {
-	commands := []Command{
-		CmdGetZoneInfo.SubCommand(zone & 0x0f),
-		CmdGetZoneInfo.SubCommand(0x10 | zone&0x0f),
-		CmdGetZoneInfo.SubCommand(0x20 | zone&0x0f),
-		CmdGetZoneInfo.SubCommand(0x30 | zone&0x0f),
+	commands := []commands.Command{
+		commands.GetZoneInfo.SubCommand(zone & 0x0f),
+		commands.GetZoneInfo.SubCommand(0x10 | zone&0x0f),
+		commands.GetZoneInfo.SubCommand(0x20 | zone&0x0f),
+		commands.GetZoneInfo.SubCommand(0x30 | zone&0x0f),
 	}
 
 	var ack *Message
@@ -249,7 +251,7 @@ func (therm *Thermostat) GetZoneInfo(zone int) (zi ZoneInfo, err error) {
 }
 
 func (therm *Thermostat) GetMode() (mode ThermostatMode, err error) {
-	ack, err := therm.Send(CmdGetThermostatMode, nil)
+	ack, err := therm.Send(commands.GetThermostatMode, nil)
 	if err == nil {
 		mode = ThermostatMode(ack.Command2())
 	}
@@ -257,7 +259,7 @@ func (therm *Thermostat) GetMode() (mode ThermostatMode, err error) {
 }
 
 func (therm *Thermostat) GetAmbientTemp() (temp int, err error) {
-	ack, err := therm.Send(CmdGetAmbientTemp, nil)
+	ack, err := therm.Send(commands.GetAmbientTemp, nil)
 	if err == nil {
 		temp = int(ack.Command2())
 	}
@@ -265,26 +267,26 @@ func (therm *Thermostat) GetAmbientTemp() (temp int, err error) {
 }
 
 func (therm *Thermostat) SetMode(mode ThermostatMode) error {
-	cmd := Command(0x00)
+	cmd := commands.Command(0x00)
 	switch mode {
 	case ThermostatOff:
-		cmd = CmdThermOff
+		cmd = commands.ThermOff
 	case Heat:
-		cmd = CmdSetHeat
+		cmd = commands.SetHeat
 	case Cool:
-		cmd = CmdSetCool
+		cmd = commands.SetCool
 	case Auto:
-		cmd = CmdSetModeAuto
+		cmd = commands.SetModeAuto
 	case FanOn:
-		cmd = CmdSetFan
+		cmd = commands.SetFan
 	case FanOff:
-		cmd = CmdClearFan
+		cmd = commands.ClearFan
 	case ProgramAuto:
-		cmd = CmdSetProgramAuto
+		cmd = commands.SetProgramAuto
 	case ProgramHeat:
-		cmd = CmdSetProgramHeat
+		cmd = commands.SetProgramHeat
 	case ProgramCool:
-		cmd = CmdSetProgramCool
+		cmd = commands.SetProgramCool
 	default:
 		return ErrInvalidThermostatMode
 	}
@@ -292,7 +294,7 @@ func (therm *Thermostat) SetMode(mode ThermostatMode) error {
 }
 
 func (therm *Thermostat) GetEquipmentState() (EquipmentState, error) {
-	ack, err := therm.Send(CmdGetEquipmentState, nil)
+	ack, err := therm.Send(commands.GetEquipmentState, nil)
 	return EquipmentState(ack.Command2()), err
 }
 
@@ -319,27 +321,27 @@ func (therm *Thermostat) GetTempUnit() (Unit, error) {
 
 func (therm *Thermostat) SetTempUnit(unit Unit) error {
 	if unit == Celsius {
-		return therm.SendCommand(CmdExtendedGetSet, []byte{0x00, 0x04, 0x00, 0x08})
+		return therm.SendCommand(commands.ExtendedGetSet, []byte{0x00, 0x04, 0x00, 0x08})
 	} else if unit == Fahrenheit {
-		return therm.SendCommand(CmdExtendedGetSet, []byte{0x00, 0x04, 0x00, 0x00})
+		return therm.SendCommand(commands.ExtendedGetSet, []byte{0x00, 0x04, 0x00, 0x00})
 	}
 	return ErrInvalidUnit
 }
 
 func (therm *Thermostat) GetFanSpeed() (FanSpeed, error) {
-	ack, err := therm.Send(CmdGetFanOnSpeed, nil)
+	ack, err := therm.Send(commands.GetFanOnSpeed, nil)
 	return FanSpeed(ack.Command2()), err
 }
 
 func (therm *Thermostat) SetFanSpeen(speed FanSpeed) error {
-	cmd := Command(0x00)
+	cmd := commands.Command(0x00)
 	switch speed {
 	case LowSpeed:
-		cmd = CmdSetFanOnLow
+		cmd = commands.SetFanOnLow
 	case MedSpeed:
-		cmd = CmdSetFanOnMed
+		cmd = commands.SetFanOnMed
 	case HighSpeed:
-		cmd = CmdSetFanOnHigh
+		cmd = commands.SetFanOnHigh
 	default:
 		return ErrInvalidFanSpeed
 	}
@@ -368,33 +370,33 @@ func (therm *Thermostat) Status() (status ThermostatStatus, err error) {
 
 func (therm *Thermostat) SetStatusMessage(enabled bool) error {
 	if enabled {
-		return therm.SendCommand(CmdExtendedGetSet, []byte{0x00, 0x08, 0x00})
+		return therm.SendCommand(commands.ExtendedGetSet, []byte{0x00, 0x08, 0x00})
 	}
-	return therm.SendCommand(CmdDisableStatusMessage, nil)
+	return therm.SendCommand(commands.DisableStatusMessage, nil)
 }
 
 func (therm *Thermostat) SetCoolSetpoint(zone int, temp int) error {
-	return therm.SendCommand(CmdSetCoolSetpoint.SubCommand(temp*2), nil)
+	return therm.SendCommand(commands.SetCoolSetpoint.SubCommand(temp*2), nil)
 }
 
 func (therm *Thermostat) SetHeatSetpoint(zone int, temp int) error {
-	return therm.SendCommand(CmdSetHeatSetpoint.SubCommand(temp*2), nil)
+	return therm.SendCommand(commands.SetHeatSetpoint.SubCommand(temp*2), nil)
 }
 
 func (therm *Thermostat) IncreaseZoneTemp(zone int, delta int) error {
-	return therm.SendCommand(CmdZoneTempUp.SubCommand(zone), []byte{byte(delta * 2)})
+	return therm.SendCommand(commands.ZoneTempUp.SubCommand(zone), []byte{byte(delta * 2)})
 }
 
 func (therm *Thermostat) DecreaseZoneTemp(zone int, delta int) error {
-	return therm.SendCommand(CmdZoneTempDown.SubCommand(zone), []byte{byte(delta * 2)})
+	return therm.SendCommand(commands.ZoneTempDown.SubCommand(zone), []byte{byte(delta * 2)})
 }
 
 func (therm *Thermostat) SetZoneCoolSetpoint(zone int, temp, deadband int) error {
-	return therm.SendCommand(CmdSetZoneCoolSetpoint.SubCommand(zone), []byte{byte(temp * 2), byte(deadband)})
+	return therm.SendCommand(commands.SetZoneCoolSetpoint.SubCommand(zone), []byte{byte(temp * 2), byte(deadband)})
 }
 
 func (therm *Thermostat) SetZoneHeatSetpoint(zone int, temp, deadband int) error {
-	return therm.SendCommand(CmdSetZoneHeatSetpoint.SubCommand(zone), []byte{byte(temp * 2), byte(deadband)})
+	return therm.SendCommand(commands.SetZoneHeatSetpoint.SubCommand(zone), []byte{byte(temp * 2), byte(deadband)})
 }
 
 func (therm *Thermostat) String() string {

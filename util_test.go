@@ -3,6 +3,8 @@ package insteon
 import (
 	"testing"
 	"time"
+
+	"github.com/abates/insteon/commands"
 )
 
 func TestChecksum(t *testing.T) {
@@ -25,7 +27,7 @@ func TestChecksum(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			cmd := Command(int(test.input[0])<<8 | int(test.input[1]))
+			cmd := commands.Command(int(test.input[0])<<8 | int(test.input[1]))
 			got := byte(cmd.Command1()) + byte(cmd.Command2())
 			want := test.input[0] + test.input[1]
 			if want != got {

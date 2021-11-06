@@ -3,6 +3,8 @@ package insteon
 import (
 	"bytes"
 	"testing"
+
+	"github.com/abates/insteon/commands"
 )
 
 func TestI1DeviceIsDevice(t *testing.T) {
@@ -57,17 +59,17 @@ func TestI1DeviceErrLookup(t *testing.T) {
 		want     error
 	}{
 		{"nil error", VerI1, &Message{}, nil, nil},
-		{"ErrUnknownCommand", VerI1, &Message{Command: Command(0x0000fd), Flags: StandardDirectNak}, ErrNak, ErrUnknownCommand},
-		{"ErrNoLoadDetected", VerI1, &Message{Command: Command(0x0000fe), Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
-		{"ErrNotLinked", VerI1, &Message{Command: Command(0x0000ff), Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
-		{"ErrUnexpectedResponse", VerI1, &Message{Command: Command(0x0000fc), Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
+		{"ErrUnknownCommand", VerI1, &Message{Command: commands.Command(0x0000fd), Flags: StandardDirectNak}, ErrNak, ErrUnknownCommand},
+		{"ErrNoLoadDetected", VerI1, &Message{Command: commands.Command(0x0000fe), Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
+		{"ErrNotLinked", VerI1, &Message{Command: commands.Command(0x0000ff), Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
+		{"ErrUnexpectedResponse", VerI1, &Message{Command: commands.Command(0x0000fc), Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
 		{"nil error", VerI2Cs, &Message{}, nil, nil},
-		{"ErrIllegalValue", VerI2Cs, &Message{Command: Command(0x0000fb), Flags: StandardDirectNak}, ErrNak, ErrIllegalValue},
-		{"ErrPreNak", VerI2Cs, &Message{Command: Command(0x0000fc), Flags: StandardDirectNak}, ErrNak, ErrPreNak},
-		{"ErrIncorrectChecksum", VerI2Cs, &Message{Command: Command(0x0000fd), Flags: StandardDirectNak}, ErrNak, ErrIncorrectChecksum},
-		{"ErrNoLoadDetected", VerI2Cs, &Message{Command: Command(0x0000fe), Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
-		{"ErrNotLinked", VerI2Cs, &Message{Command: Command(0x0000ff), Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
-		{"ErrUnexpectedResponse", VerI2Cs, &Message{Command: Command(0x0000fa), Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
+		{"ErrIllegalValue", VerI2Cs, &Message{Command: commands.Command(0x0000fb), Flags: StandardDirectNak}, ErrNak, ErrIllegalValue},
+		{"ErrPreNak", VerI2Cs, &Message{Command: commands.Command(0x0000fc), Flags: StandardDirectNak}, ErrNak, ErrPreNak},
+		{"ErrIncorrectChecksum", VerI2Cs, &Message{Command: commands.Command(0x0000fd), Flags: StandardDirectNak}, ErrNak, ErrIncorrectChecksum},
+		{"ErrNoLoadDetected", VerI2Cs, &Message{Command: commands.Command(0x0000fe), Flags: StandardDirectNak}, ErrNak, ErrNoLoadDetected},
+		{"ErrNotLinked", VerI2Cs, &Message{Command: commands.Command(0x0000ff), Flags: StandardDirectNak}, ErrNak, ErrNotLinked},
+		{"ErrUnexpectedResponse", VerI2Cs, &Message{Command: commands.Command(0x0000fa), Flags: StandardDirectNak}, ErrNak, ErrUnexpectedResponse},
 	}
 
 	for _, test := range tests {
@@ -84,9 +86,9 @@ func TestI1DeviceErrLookup(t *testing.T) {
 func TestI1DeviceSendCommand(t *testing.T) {
 	tests := []struct {
 		desc    string
-		wantCmd Command
+		wantCmd commands.Command
 	}{
-		{"SD", Command((0xff&int(StandardDirectMessage))<<16 | 0x0102)},
+		{"SD", commands.Command((0xff&int(StandardDirectMessage))<<16 | 0x0102)},
 	}
 
 	for _, test := range tests {
@@ -157,14 +159,14 @@ func TestI1DeviceCommands(t *testing.T) {
 		name        string
 		version     EngineVersion
 		run         func(*BasicDevice)
-		want        Command
+		want        commands.Command
 		wantPayload []byte
 	}{
-		{"EnterLinkingMode", VerI2, func(d *BasicDevice) { d.EnterLinkingMode(40) }, CmdEnterLinkingMode.SubCommand(40), []byte{}},
-		{"EnterLinkingMode Ver2Cs", VerI2Cs, func(d *BasicDevice) { d.EnterLinkingMode(40) }, CmdEnterLinkingModeExt.SubCommand(40), make([]byte, 14)},
-		{"EnterUnlinkingMode", VerI2, func(d *BasicDevice) { d.EnterUnlinkingMode(41) }, CmdEnterUnlinkingMode.SubCommand(41), []byte{}},
-		{"EnterUnlinkingMode Ver2Cs", VerI2Cs, func(d *BasicDevice) { d.EnterUnlinkingMode(41) }, CmdEnterUnlinkingMode.SubCommand(41), make([]byte, 14)},
-		{"ExitLinkingMode", VerI2, func(d *BasicDevice) { d.ExitLinkingMode() }, CmdExitLinkingMode, []byte{}},
+		{"EnterLinkingMode", VerI2, func(d *BasicDevice) { d.EnterLinkingMode(40) }, commands.EnterLinkingMode.SubCommand(40), []byte{}},
+		{"EnterLinkingMode Ver2Cs", VerI2Cs, func(d *BasicDevice) { d.EnterLinkingMode(40) }, commands.EnterLinkingModeExt.SubCommand(40), make([]byte, 14)},
+		{"EnterUnlinkingMode", VerI2, func(d *BasicDevice) { d.EnterUnlinkingMode(41) }, commands.EnterUnlinkingMode.SubCommand(41), []byte{}},
+		{"EnterUnlinkingMode Ver2Cs", VerI2Cs, func(d *BasicDevice) { d.EnterUnlinkingMode(41) }, commands.EnterUnlinkingMode.SubCommand(41), make([]byte, 14)},
+		{"ExitLinkingMode", VerI2, func(d *BasicDevice) { d.ExitLinkingMode() }, commands.ExitLinkingMode, []byte{}},
 	}
 
 	for _, test := range tests {
@@ -190,13 +192,13 @@ func TestI1DeviceCommands(t *testing.T) {
 func TestI1DeviceExtendedGet(t *testing.T) {
 	wantPayload := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 	tw := &testWriter{
-		read: []*Message{&Message{Command: CmdExtendedGetSet, Payload: wantPayload}},
+		read: []*Message{&Message{Command: commands.ExtendedGetSet, Payload: wantPayload}},
 	}
 	d := NewDevice(tw, DeviceInfo{})
 	gotPayload, err := d.ExtendedGet(make([]byte, 14))
 	if err == nil {
-		if tw.written[0].Command != CmdExtendedGetSet {
-			t.Errorf("Wanted command %v got %v", CmdExtendedGetSet, tw.written[0].Command)
+		if tw.written[0].Command != commands.ExtendedGetSet {
+			t.Errorf("Wanted command %v got %v", commands.ExtendedGetSet, tw.written[0].Command)
 		}
 
 		if !bytes.Equal(wantPayload, gotPayload) {

@@ -14,6 +14,8 @@
 
 package insteon
 
+import "github.com/abates/insteon/commands"
+
 // Insteon Engine Versions
 const (
 	VerI1 EngineVersion = iota
@@ -37,32 +39,19 @@ func (ev EngineVersion) String() string {
 	return "unknown"
 }
 
-// Addressable is any receiver that can be queried for its address
-type Addressable interface {
+type Device interface {
+	commands.Commandable
+
 	// Address will return the 3 byte destination address of the device.
 	// All device implemtaions must be able to return their address
 	Address() Address
-}
 
-type Device interface {
-	Addressable
-	Commandable
 	// Info will return the device's information
 	Info() DeviceInfo
 }
 
 type ExtendedGetSet interface {
 	ExtendedGet([]byte) ([]byte, error)
-}
-
-// Commandable indicates that the implementation exists to send commands
-type Commandable interface {
-	// SendCommand will send the given command bytes to the device including
-	// a payload (for extended messages). If payload length is zero then a standard
-	// length message is used to deliver the commands.
-	SendCommand(cmd Command, payload []byte) (err error)
-
-	Send(cmd Command, payload []byte) (ack Command, err error)
 }
 
 // PingableDevice is any device that implements the Ping method
@@ -102,6 +91,10 @@ type AllLinkable interface {
 // Linkable is any device that can be put into
 // linking mode and the link database can be managed remotely
 type Linkable interface {
+	// Address will return the 3 byte destination address of the device.
+	// All device implemtaions must be able to return their address
+	Address() Address
+
 	// EnterLinkingMode is the programmatic equivalent of holding down
 	// the set button for two seconds. If the device is the first
 	// to enter linking mode, then it is the controller. The next

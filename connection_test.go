@@ -18,6 +18,8 @@ import (
 	"errors"
 	"io"
 	"testing"
+
+	"github.com/abates/insteon/commands"
 )
 
 type testWriter struct {
@@ -78,9 +80,9 @@ func TestConnectionEngineVersion(t *testing.T) {
 		wantVersion EngineVersion
 		wantErr     error
 	}{
-		{"Regular device", &Message{Command: CmdGetEngineVersion.SubCommand(42), Flags: StandardDirectAck}, nil, EngineVersion(42), nil},
-		{"I2Cs device", &Message{Command: CmdGetEngineVersion.SubCommand(0xff), Flags: StandardDirectNak}, ErrNak, VerI2Cs, ErrNotLinked},
-		{"NAK", &Message{Command: CmdGetEngineVersion.SubCommand(0xfd), Flags: StandardDirectNak}, ErrNak, VerI2Cs, ErrNak},
+		{"Regular device", &Message{Command: commands.GetEngineVersion.SubCommand(42), Flags: StandardDirectAck}, nil, EngineVersion(42), nil},
+		{"I2Cs device", &Message{Command: commands.GetEngineVersion.SubCommand(0xff), Flags: StandardDirectNak}, ErrNak, VerI2Cs, ErrNotLinked},
+		{"NAK", &Message{Command: commands.GetEngineVersion.SubCommand(0xfd), Flags: StandardDirectNak}, ErrNak, VerI2Cs, ErrNak},
 	}
 
 	for _, test := range tests {
@@ -101,21 +103,21 @@ func TestConnectionEngineVersion(t *testing.T) {
 func TestRead(t *testing.T) {
 	tests := []struct {
 		name    string
-		input   []Command
+		input   []commands.Command
 		matcher Matcher
-		want    []Command
+		want    []commands.Command
 	}{
 		{
 			name:    "Simple",
-			input:   []Command{Command(1), Command(2), Command(3), Command(4)},
+			input:   []commands.Command{commands.Command(1), commands.Command(2), commands.Command(3), commands.Command(4)},
 			matcher: Matches(func(msg *Message) bool { return int(msg.Command)%2 == 0 }),
-			want:    []Command{Command(2), Command(4)},
+			want:    []commands.Command{commands.Command(2), commands.Command(4)},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := []Command{}
+			got := []commands.Command{}
 			input := []*Message{}
 			for _, c := range test.input {
 				input = append(input, &Message{Command: c})
@@ -159,7 +161,7 @@ func TestRetry(t *testing.T) {
 				i++
 				return test.errors[i-1]
 			}
-			got := Retry(test.retries, cb)
+			got := retry(test.retries, cb)
 			if !errors.Is(test.want, got) {
 				t.Errorf("Wanted error %v got %v", test.want, got)
 			}
