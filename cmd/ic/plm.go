@@ -81,22 +81,22 @@ func init() {
 		Name:        "plm",
 		Description: "Interact with the PLM",
 		SubCommands: []*cli.Command{
-			&cli.Command{
+			{
 				Name:        "setflag",
 				Usage:       "<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)",
 				Description: "set a config flag on the PLM",
 				Callback:    cli.Callback(p.flagCmd(true), "[L|M|A|D]"),
 			},
-			&cli.Command{
+			{
 				Name:        "clearflag",
 				Usage:       "<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)",
 				Description: "clear a config flag on the PLM",
 				Callback:    cli.Callback(p.flagCmd(false), "[L|M|A|D]"),
 			},
-			&cli.Command{Name: "edit", Description: "edit the PLM all-link database", Callback: cli.Callback(p.editCmd)},
-			&cli.Command{Name: "info", Description: "display information (device id, link database, etc)", Callback: cli.Callback(p.infoCmd)},
-			&cli.Command{Name: "reset", Description: "Factory reset the IM", Callback: cli.Callback(p.resetCmd)},
-			&cli.Command{
+			{Name: "edit", Description: "edit the PLM all-link database", Callback: cli.Callback(p.editCmd)},
+			{Name: "info", Description: "display information (device id, link database, etc)", Callback: cli.Callback(p.infoCmd)},
+			{Name: "reset", Description: "Factory reset the IM", Callback: cli.Callback(p.resetCmd)},
+			{
 				Name:        "link",
 				Description: "Link the PLM to a device",
 				SubCommands: []*cli.Command{
@@ -104,7 +104,7 @@ func init() {
 					linkCmd("responder", "Link (as a responder) the PLM to one or more devices.", p.link(false, true)),
 					linkCmd("crosslink", "Crosslink the PLM to one or more devices", p.link(true, true)),
 					linkCmd("unlink", "Unlink the PLM from one or more devices", p.unlinkCmd),
-					&cli.Command{
+					{
 						Name:        "alllink",
 						Usage:       "<group>",
 						Description: "Put the PLM into linking mode for manual linking",
@@ -157,16 +157,14 @@ func (p *plmCmd) link(controller, responder bool) func() error {
 			}
 
 			if err == nil {
-				err = util.IfLinkable(device, func(ldevice insteon.Linkable) (err error) {
-					if controller {
-						err = util.ForceLink(group, modem, ldevice)
-					}
+				if controller {
+					err = util.ForceLink(group, modem, device)
+				}
 
-					if err == nil && responder {
-						err = util.ForceLink(group, ldevice, modem)
-					}
-					return err
-				})
+				if err == nil && responder {
+					err = util.ForceLink(group, device, modem)
+				}
+				return err
 
 				if err == nil {
 					fmt.Printf("done\n")
@@ -190,16 +188,14 @@ func (p *plmCmd) unlinkCmd(addresses addrSlice) (err error) {
 
 		if err == nil {
 			fmt.Printf("Unlinking from %s:%s...", device, addr)
-			err = util.IfLinkable(device, func(ldevice insteon.Linkable) (err error) {
-				if err == nil {
-					err = util.Unlink(group, ldevice, modem)
-				}
+			if err == nil {
+				err = util.Unlink(group, device, modem)
+			}
 
-				if err == nil || err == insteon.ErrNotLinked {
-					err = util.Unlink(group, modem, ldevice)
-				}
-				return err
-			})
+			if err == nil || err == insteon.ErrNotLinked {
+				err = util.Unlink(group, modem, device)
+			}
+			return err
 		} else if err == insteon.ErrNotLinked {
 			err = nil
 		}
