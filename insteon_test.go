@@ -16,14 +16,8 @@ package insteon
 
 import (
 	"fmt"
-	"io/ioutil"
 	"testing"
 )
-
-func init() {
-	// turn off logging for tests
-	SetLogLevel(LevelNone, ioutil.Discard)
-}
 
 func TestAddress(t *testing.T) {
 	tests := []struct {

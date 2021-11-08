@@ -132,7 +132,7 @@ var (
 func Open(mw devices.MessageWriter, addr insteon.Address, db Database, dbfile string) (*devices.BasicDevice, error) {
 	info, found := db.Get(addr)
 	if found {
-		return devices.NewDevice(mw, info), nil
+		return devices.New(mw, info), nil
 	}
 
 	device, info, err := devices.Open(mw, addr)

@@ -3,11 +3,9 @@ package insteon
 import (
 	"testing"
 	"time"
-
-	"github.com/abates/insteon/commands"
 )
 
-func TestChecksum(t *testing.T) {
+/*func TestChecksum(t *testing.T) {
 	tests := []struct {
 		desc     string
 		input    []byte
@@ -40,7 +38,7 @@ func TestChecksum(t *testing.T) {
 			}
 		})
 	}
-}
+}*/
 
 func TestPropagationDelay(t *testing.T) {
 	tests := []struct {

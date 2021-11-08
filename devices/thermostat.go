@@ -223,8 +223,6 @@ func NewThermostat(d *BasicDevice) *Thermostat {
 	return therm
 }
 
-func (therm *Thermostat) Address() insteon.Address { return therm.info.Address }
-
 func (therm *Thermostat) IncreaseTemp(delta int) error {
 	return therm.SendCommand(commands.IncreaseTemp.SubCommand(delta*2), nil)
 }

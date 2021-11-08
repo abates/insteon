@@ -2,39 +2,7 @@ package devices
 
 import (
 	"errors"
-	"fmt"
-	"path"
-	"runtime"
 )
-
-// traceError is used only when something failed that needs to bubble up
-// the location in code where the error occurred.
-type traceError struct {
-	Cause error         // the underlying cause of the error
-	Frame runtime.Frame // the runtime frame of the occurrence
-}
-
-func (e *traceError) Unwrap() error {
-	return e.Cause
-}
-
-// Error indicates the underlying cause of the error as well as the file and line that the error occurred
-func (e *traceError) Error() string {
-	return fmt.Sprintf("%s:%d in %q: %s", path.Base(e.Frame.File), e.Frame.Line, e.Frame.Function, e.Cause.Error())
-}
-
-// newTraceError generates an Error and records the runtime stack frame
-func newTraceError(cause error) error {
-	pc := make([]uintptr, 10)
-	runtime.Callers(2, pc)
-	frames := runtime.CallersFrames(pc)
-	frame, _ := frames.Next()
-
-	return &traceError{
-		Cause: cause,
-		Frame: frame,
-	}
-}
 
 var (
 	// ErrReadTimeout indicates the timeout period expired while waiting for

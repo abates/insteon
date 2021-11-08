@@ -115,15 +115,14 @@ func TestSwitchedDeviceOperatingFlags(t *testing.T) {
 	}
 }
 
-/*func TestSwitchStatus(t *testing.T) {
-	td := &testDevice{sendAck: commands.LightStatusRequest.SubCommand(43)}
-	sw := &Switch{Device: td}
-	level, err := sw.Status()
-	if err == nil {
-		if level != 43 {
-			t.Errorf("Wanted level 43 got %d", level)
-		}
-	} else {
-		t.Errorf("Unexpected error %v", err)
+func TestSwitchStatus(t *testing.T) {
+	want := 43
+	tw := &testWriter{
+		acks: []*insteon.Message{&insteon.Message{Command: commands.LightStatusRequest.SubCommand(want)}},
 	}
-}*/
+	sw := &Switch{BasicDevice: &BasicDevice{MessageWriter: tw}}
+	got, _ := sw.Status()
+	if want != got {
+		t.Errorf("Wanted level %d got %d", want, got)
+	}
+}

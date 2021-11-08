@@ -17,12 +17,20 @@ package devices
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"reflect"
 	"testing"
 
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
+
+func init() {
+	// turn off logging for tests
+	Log.SetOutput(ioutil.Discard)
+	LogDebug.SetOutput(ioutil.Discard)
+}
 
 func mkPayload(buf ...byte) []byte {
 	return append(buf, make([]byte, 14-len(buf))...)
@@ -176,7 +184,7 @@ func TestOpen(t *testing.T) {
 
 }
 
-func TestUpgrade(t *testing.T) {
+func TestNew(t *testing.T) {
 	tests := []struct {
 		name  string
 		input DeviceInfo
@@ -190,11 +198,34 @@ func TestUpgrade(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			device := Upgrade(&BasicDevice{DeviceInfo: test.input})
+			device := Lookup(New(nil, test.input))
 			want := reflect.TypeOf(test.want)
 			got := reflect.TypeOf(device)
 			if want != got {
 				t.Errorf("Wanted type %s got %s", want, got)
+			}
+		})
+	}
+}
+
+func TestDeviceString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input fmt.Stringer
+		want  string
+	}{
+		{"I1Device", New(nil, DeviceInfo{Address: insteon.Address{1, 2, 3}}), "I1 Device (01.02.03)"},
+		{"Switch", NewSwitch(&BasicDevice{DeviceInfo: DeviceInfo{Address: insteon.Address{1, 2, 3}}}), "Switch (01.02.03)"},
+		{"Dimmer", NewDimmer(&BasicDevice{DeviceInfo: DeviceInfo{Address: insteon.Address{1, 2, 3}}}), "Dimmer (01.02.03)"},
+		{"Link Request Nil Link", &LinkRequest{Type: readLink, MemAddress: BaseLinkDBAddress, NumRecords: 2, Link: nil}, "Link Read 0f.ff 2"},
+		{"Link Request", &LinkRequest{Type: readLink, MemAddress: BaseLinkDBAddress, NumRecords: 2, Link: &insteon.LinkRecord{Flags: 0xd0, Group: insteon.Group(1), Address: insteon.Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}}, "Link Read 0f.ff 2 UC 1 01.02.03 0x04 0x05 0x06"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.input.String()
+			if test.want != got {
+				t.Errorf("Wanted string %q got %q", test.want, got)
 			}
 		})
 	}

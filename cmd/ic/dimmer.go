@@ -62,7 +62,7 @@ func init() {
 func (dim *dimmer) init(addr insteon.Address) (err error) {
 	device, err := open(modem, addr)
 	if err == nil {
-		d := devices.Upgrade(device)
+		d := devices.Lookup(device)
 		if d, ok := d.(*devices.Dimmer); ok {
 			*dim.Dimmer.Switch = *d.Switch
 		} else {

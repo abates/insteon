@@ -149,8 +149,6 @@ func (ldb *linkdb) writeLink(link *insteon.LinkRecord) (*Packet, error) {
 }
 
 func (ldb *linkdb) WriteLinks(newLinks ...insteon.LinkRecord) (err error) {
-	//err = ldb.refresh()
-	lte := &insteon.LinkTransactionError{}
 	if err == nil {
 		// blow away the database and pray something doesn't go wrong, it's really
 		// too bad that the PLM doesn't support some form of transactions or modifying
@@ -188,13 +186,9 @@ func (ldb *linkdb) WriteLinks(newLinks ...insteon.LinkRecord) (err error) {
 			}
 
 			if err != nil {
-				lte.Errors = append(lte.Errors, &insteon.LinkError{Link: link, Cause: err})
+				break
 			}
 		}
-	}
-
-	if len(lte.Errors) > 0 {
-		err = lte
 	}
 
 	return err

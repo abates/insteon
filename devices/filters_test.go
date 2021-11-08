@@ -7,6 +7,31 @@ import (
 	"github.com/abates/insteon"
 )
 
+func TestCacheReadWrite(t *testing.T) {
+	m1 := &insteon.Message{Src: insteon.Address{1, 2, 3}}
+	m2 := &insteon.Message{Src: insteon.Address{9, 8, 7}}
+	tw := &testWriter{
+		read: []*insteon.Message{m2},
+	}
+
+	c := newCache(3)
+	mw := c.Filter(tw)
+	mw.Write(m1)
+
+	if c.messages[0] != m1 {
+		t.Errorf("Expected message %v got %v", m1, c.messages[0])
+	}
+
+	g2, _ := mw.Read()
+	if g2 != m2 {
+		t.Errorf("Expected message %v got %v", m2, g2)
+	}
+
+	if c.messages[1] != m2 {
+		t.Errorf("Expected message %v got %v", m2, c.messages[1])
+	}
+}
+
 func TestCachePush(t *testing.T) {
 	a1 := insteon.Address{0, 0, 1}
 	a2 := insteon.Address{0, 0, 2}
@@ -28,6 +53,7 @@ func TestCachePush(t *testing.T) {
 	}
 
 	c.push(&insteon.Message{Src: a1})
+	c.push(nil)
 	if c.messages[0].Src != a4 {
 		t.Errorf("Wanted message with src %v got %v", a4, c.messages[0].Src)
 	}
@@ -53,6 +79,7 @@ func TestCacheLookup(t *testing.T) {
 		matcher Matcher
 		want    bool
 	}{
+		{"empty cache", 1, nil, SrcMatcher(insteon.Address{1, 2, 3}), false},
 		{"found", 1, []*insteon.Message{&insteon.Message{Src: insteon.Address{0, 1, 2}}, &insteon.Message{Src: insteon.Address{1, 2, 3}}}, SrcMatcher(insteon.Address{1, 2, 3}), true},
 		{"not found", 1, []*insteon.Message{&insteon.Message{Src: insteon.Address{0, 1, 2}}, &insteon.Message{Src: insteon.Address{1, 2, 3}}}, SrcMatcher(insteon.Address{3, 4, 5}), false},
 		{"found", 0, []*insteon.Message{&insteon.Message{Src: insteon.Address{0, 1, 2}}, &insteon.Message{Src: insteon.Address{1, 2, 3}}, &insteon.Message{Src: insteon.Address{4, 1, 2}}, &insteon.Message{Src: insteon.Address{3, 5, 7}}}, SrcMatcher(insteon.Address{1, 2, 3}), true},

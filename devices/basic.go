@@ -37,7 +37,7 @@ type BasicDevice struct {
 	*linkdb
 }
 
-func NewDevice(mw MessageWriter, info DeviceInfo) *BasicDevice {
+func New(mw MessageWriter, info DeviceInfo) *BasicDevice {
 	d := &BasicDevice{
 		MessageWriter: mw,
 		linkdb:        &linkdb{},
@@ -124,7 +124,7 @@ func (d *BasicDevice) errLookup(msg *insteon.Message, err error) (*insteon.Messa
 			case 0xff:
 				err = ErrNotLinked
 			default:
-				err = newTraceError(ErrUnexpectedResponse)
+				err = ErrUnexpectedResponse
 			}
 		} else {
 			switch msg.Command.Command2() & 0xff {
@@ -135,7 +135,7 @@ func (d *BasicDevice) errLookup(msg *insteon.Message, err error) (*insteon.Messa
 			case 0xff:
 				err = ErrNotLinked
 			default:
-				err = newTraceError(ErrUnexpectedResponse)
+				err = ErrUnexpectedResponse
 			}
 		}
 	}

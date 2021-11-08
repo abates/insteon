@@ -41,9 +41,6 @@ func (a *Address) UnmarshalText(text []byte) error {
 		text = bytes.Join([][]byte{text[0:2], text[2:4], text[4:6]}, []byte("."))
 	}
 
-	if len(text) != 8 {
-		return ErrAddrFormat
-	}
 	var b1, b2, b3 byte
 	_, err := fmt.Sscanf(string(text), "%2x.%2x.%2x", &b1, &b2, &b3)
 	if err != nil {
@@ -58,6 +55,11 @@ func (a *Address) UnmarshalText(text []byte) error {
 // Set satisfies the flag.Value interface
 func (a *Address) Set(str string) error {
 	return a.UnmarshalText([]byte(str))
+}
+
+// Set satisfies the flag.Getter interface
+func (a *Address) Get() interface{} {
+	return Address(*a)
 }
 
 // MarshalText fulfills the requiresments of encoding.TextMarshaler so that

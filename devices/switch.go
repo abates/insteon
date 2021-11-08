@@ -174,7 +174,3 @@ func (sd *Switch) TurnOff() error {
 func (sd *Switch) TurnOn(level int) error {
 	return sd.SendCommand(commands.LightOn.SubCommand(level), nil)
 }
-
-func (sd *Switch) Address() insteon.Address {
-	return sd.DeviceInfo.Address
-}

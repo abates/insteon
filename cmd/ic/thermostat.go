@@ -47,7 +47,7 @@ func init() {
 func (therm *thermostat) init(addr insteon.Address) error {
 	device, err := open(modem, addr)
 	if err == nil {
-		d := devices.Upgrade(device)
+		d := devices.Lookup(device)
 		if t, ok := d.(*devices.Thermostat); ok {
 			*therm.Thermostat = *t
 		} else {

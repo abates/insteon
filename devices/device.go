@@ -168,15 +168,14 @@ func Open(mw MessageWriter, dst insteon.Address) (device *BasicDevice, info Devi
 	}
 
 	if err == nil {
-		device = NewDevice(mw, info)
+		device = New(mw, info)
 	}
 	return
 }
 
-// Upgrade will convert the *BasicDevice to a more specific device (*Dimmer,
+// Lookup will convert the *BasicDevice to a more specific device (*Dimmer,
 // *Switch, etc)
-func Upgrade(bd *BasicDevice) (device Device) {
-	device = bd
+func Lookup(bd *BasicDevice) (device Device) {
 	switch bd.DevCat.Domain() {
 	case insteon.DimmerDomain:
 		device = NewDimmer(bd)
@@ -188,6 +187,8 @@ func Upgrade(bd *BasicDevice) (device Device) {
 		}
 	case insteon.ThermostatDomain:
 		device = NewThermostat(bd)
+	default:
+		device = bd
 	}
 	return device
 }

@@ -49,7 +49,7 @@ func init() {
 func (sw *swtch) init(addr insteon.Address) error {
 	device, err := open(modem, addr)
 	if err == nil {
-		d := devices.Upgrade(device)
+		d := devices.Lookup(device)
 		if s, ok := d.(*devices.Switch); ok {
 			sw.Switch = s
 		} else {

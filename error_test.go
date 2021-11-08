@@ -36,4 +36,8 @@ func TestTraceError(t *testing.T) {
 	if _, ok := err.(*traceError); !ok {
 		t.Errorf("expected *Error got %T", err)
 	}
+
+	if !errors.Is(err, ErrBufferTooShort) {
+		t.Errorf("expected TraceError to wrap ErrBufferTooShort")
+	}
 }

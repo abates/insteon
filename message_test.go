@@ -46,16 +46,17 @@ func TestMessageType(t *testing.T) {
 		input             MessageType
 		expectedDirect    bool
 		expectedBroadcast bool
+		expectedAllLink   bool
 		expectedString    string
 	}{
-		{MsgTypeDirect, true, false, "D"},
-		{MsgTypeDirectAck, true, false, "D Ack"},
-		{MsgTypeAllLinkCleanup, true, false, "C"},
-		{MsgTypeAllLinkCleanupAck, true, false, "C Ack"},
-		{MsgTypeBroadcast, false, true, "B"},
-		{MsgTypeDirectNak, true, false, "D NAK"},
-		{MsgTypeAllLinkBroadcast, false, true, "A"},
-		{MsgTypeAllLinkCleanupNak, true, false, "C NAK"},
+		{MsgTypeDirect, true, false, false, "D"},
+		{MsgTypeDirectAck, true, false, false, "D Ack"},
+		{MsgTypeAllLinkCleanup, true, false, true, "C"},
+		{MsgTypeAllLinkCleanupAck, true, false, true, "C Ack"},
+		{MsgTypeBroadcast, false, true, false, "B"},
+		{MsgTypeDirectNak, true, false, false, "D NAK"},
+		{MsgTypeAllLinkBroadcast, false, true, true, "A"},
+		{MsgTypeAllLinkCleanupNak, true, false, true, "C NAK"},
 	}
 
 	for _, test := range tests {
@@ -70,6 +71,10 @@ func TestMessageType(t *testing.T) {
 
 			if test.input.String() != test.expectedString {
 				t.Errorf("got String %q, want %q", test.input.String(), test.expectedString)
+			}
+
+			if test.expectedAllLink != test.input.AllLink() {
+				t.Errorf("wanted all link %v got %v", test.expectedAllLink, test.input.AllLink())
 			}
 		})
 	}

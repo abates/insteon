@@ -11,15 +11,21 @@ import (
 
 func TestI1DeviceIsDevice(t *testing.T) {
 	var d interface{}
-	d = &BasicDevice{}
+	wantAddress := insteon.Address{7, 6, 5}
+	d = &BasicDevice{DeviceInfo: DeviceInfo{Address: wantAddress}}
 
-	if _, ok := d.(Device); !ok {
-		t.Error("Expected I1Device to be Device")
+	if d, ok := d.(Device); ok {
+		if d.Address() != wantAddress {
+			t.Errorf("Wanted address %v got %v", wantAddress, d.Address())
+		}
+	} else {
+		t.Error("Expected BasicDevice to be Device")
 	}
 
 	if _, ok := d.(Linkable); !ok {
-		t.Error("Expected I1Device to be Linkable")
+		t.Error("Expected BasicDevice to be Linkable")
 	}
+
 }
 
 func TestI1DeviceWrite(t *testing.T) {
@@ -39,7 +45,7 @@ func TestI1DeviceWrite(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			tw := &testWriter{}
-			d := NewDevice(tw, DeviceInfo{EngineVersion: test.version})
+			d := New(tw, DeviceInfo{EngineVersion: test.version})
 			_, err := d.Write(test.input)
 			if err == nil {
 				if !bytes.Equal(test.want, tw.written[0].Payload) {
@@ -96,7 +102,7 @@ func TestI1DeviceSendCommand(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			tw := &testWriter{}
-			device := NewDevice(tw, DeviceInfo{})
+			device := New(tw, DeviceInfo{})
 			device.SendCommand(test.wantCmd, nil)
 
 			gotCmd := tw.written[0].Command
@@ -128,7 +134,7 @@ func TestI1DeviceProductData(t *testing.T) {
 				tw.read = append(tw.read, msg)
 			}
 
-			device := NewDevice(tw, DeviceInfo{})
+			device := New(tw, DeviceInfo{})
 			pd, err := device.ProductData()
 			if err != test.wantErr {
 				t.Errorf("want error %v got %v", test.wantErr, err)
@@ -142,7 +148,7 @@ func TestI1DeviceProductData(t *testing.T) {
 }
 
 func TestI1DeviceDump(t *testing.T) {
-	device := NewDevice(nil, DeviceInfo{insteon.Address{1, 2, 3}, insteon.DevCat{5, 6}, insteon.FirmwareVersion(42), insteon.EngineVersion(2)})
+	device := New(nil, DeviceInfo{insteon.Address{1, 2, 3}, insteon.DevCat{5, 6}, insteon.FirmwareVersion(42), insteon.EngineVersion(2)})
 	want := `
         Device: I2Cs Device (01.02.03)
       Category: 05.06
@@ -196,7 +202,7 @@ func TestI1DeviceExtendedGet(t *testing.T) {
 	tw := &testWriter{
 		read: []*insteon.Message{&insteon.Message{Command: commands.ExtendedGetSet, Payload: wantPayload}},
 	}
-	d := NewDevice(tw, DeviceInfo{})
+	d := New(tw, DeviceInfo{})
 	gotPayload, err := d.ExtendedGet(make([]byte, 14))
 	if err == nil {
 		if tw.written[0].Command != commands.ExtendedGetSet {

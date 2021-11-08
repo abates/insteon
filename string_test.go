@@ -1,11 +1,45 @@
 package insteon
 
 import (
+	"flag"
 	"fmt"
 	"testing"
 
 	"github.com/abates/insteon/commands"
 )
+
+func TestGetSet(t *testing.T) {
+	tests := []struct {
+		name    string
+		getter  flag.Getter
+		input   string
+		want    interface{}
+		wantStr string
+	}{
+		{"group", new(Group), "128", Group(128), "128"},
+		{"address", new(Address), "01.04.07", Address{1, 4, 7}, "01.04.07"},
+		{"address", new(Address), "1.4.7", Address{1, 4, 7}, "01.04.07"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.getter.Set(test.input)
+			if err == nil {
+				got := test.getter.Get()
+				if test.want != got {
+					t.Errorf("Wanted %v of type %T but got %v of type %T", test.want, test.want, got, got)
+				}
+
+				gotStr := test.getter.String()
+				if test.wantStr != gotStr {
+					t.Errorf("Wanted string %q got %q", test.wantStr, gotStr)
+				}
+			} else {
+				t.Errorf("Unexpected error: %v", err)
+			}
+		})
+	}
+}
 
 func TestDeviceString(t *testing.T) {
 	tests := []struct {
@@ -17,17 +51,7 @@ func TestDeviceString(t *testing.T) {
 		{"I2 EngineVersion", VerI2, "I2"},
 		{"I2Cs EngineVersion", VerI2Cs, "I2Cs"},
 		{"Unknown EngineVersion", EngineVersion(3), "unknown"},
-		//{"I1Device", NewDevice(nil, DeviceInfo{Address: Address{1, 2, 3}}), "I1 Device (01.02.03)"},
-		//{"Switch", NewSwitch(&BasicDevice{DeviceInfo: DeviceInfo{Address: Address{1, 2, 3}}}), "Switch (01.02.03)"},
-		//{"Dimmer", NewDimmer(&BasicDevice{DeviceInfo: DeviceInfo{Address: Address{1, 2, 3}}}), "Dimmer (01.02.03)"},
 		{"Link Record", &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}, "UC 1 01.02.03 0x04 0x05 0x06"},
-		//{"Link Request Nil Link", &LinkRequest{Type: readLink, MemAddress: BaseLinkDBAddress, NumRecords: 2, Link: nil}, "Link Read 0f.ff 2"},
-		//{"Link Request", &LinkRequest{Type: readLink, MemAddress: BaseLinkDBAddress, NumRecords: 2, Link: &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}}, "Link Read 0f.ff 2 UC 1 01.02.03 0x04 0x05 0x06"},
-		{"LevelNone", LevelNone, "NONE"},
-		{"LevelInfo", LevelInfo, "INFO"},
-		{"LevelDebug", LevelDebug, "DEBUG"},
-		{"LevelTrace", LevelTrace, "TRACE"},
-		{"LevelUnkown", LogLevel(-1), ""},
 		{"StandardDirectFlag", StandardDirectMessage, "SD     2:2"},
 		{"ExtendedDirectFlag", ExtendedDirectMessage, "ED     2:2"},
 		{"AvailableController", AvailableController, "AC"},

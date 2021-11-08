@@ -88,16 +88,12 @@ func newCache(size int, messages ...*insteon.Message) *cache {
 func (c *cache) Filter(next MessageWriter) MessageWriter {
 	c.filter.read = func() (*insteon.Message, error) {
 		msg, err := next.Read()
-		if msg != nil {
-			c.push(msg)
-		}
+		c.push(msg)
 		return msg, err
 	}
 
 	c.filter.write = func(msg *insteon.Message) (*insteon.Message, error) {
-		if msg != nil {
-			c.push(msg)
-		}
+		c.push(msg)
 		return next.Write(msg)
 	}
 	return c
@@ -111,6 +107,10 @@ type cache struct {
 }
 
 func (c *cache) push(msg *insteon.Message) {
+	if msg == nil {
+		return
+	}
+
 	if c.length > 0 {
 		c.i++
 		if c.i == len(c.messages) {
