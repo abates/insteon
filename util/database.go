@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 )
 
 // Database is the interface representing a collection of
@@ -24,11 +25,11 @@ type Database interface {
 	// Get will look up the Address in the database and return the
 	// matching DeviceInfo object.  If no entry is found, then
 	// found returns false
-	Get(addr insteon.Address) (info insteon.DeviceInfo, found bool)
+	Get(addr insteon.Address) (info devices.DeviceInfo, found bool)
 
 	// Put will store the DeviceInfo object in the Database overwriting
 	// any existing object
-	Put(info insteon.DeviceInfo)
+	Put(info devices.DeviceInfo)
 
 	// Filter will return a list of addresses that match the
 	// given device categories
@@ -57,12 +58,12 @@ type Loadable interface {
 // NewMemDB returns a memory-backed database
 func NewMemDB() Saveable {
 	return &memDB{
-		values: make(map[insteon.Address]insteon.DeviceInfo),
+		values: make(map[insteon.Address]devices.DeviceInfo),
 	}
 }
 
 type memDB struct {
-	values map[insteon.Address]insteon.DeviceInfo
+	values map[insteon.Address]devices.DeviceInfo
 	dirty  bool
 }
 
@@ -75,12 +76,12 @@ func (db *memDB) Filter(domains ...insteon.Domain) (matches []insteon.Address) {
 	return matches
 }
 
-func (db *memDB) Get(addr insteon.Address) (insteon.DeviceInfo, bool) {
+func (db *memDB) Get(addr insteon.Address) (devices.DeviceInfo, bool) {
 	info, found := db.values[addr]
 	return info, found
 }
 
-func (db *memDB) Put(info insteon.DeviceInfo) {
+func (db *memDB) Put(info devices.DeviceInfo) {
 	if old := db.values[info.Address]; old != info {
 		db.dirty = true
 		db.values[info.Address] = info
@@ -115,7 +116,7 @@ func (db *memDB) MarshalJSON() ([]byte, error) {
 }
 
 func (db *memDB) UnmarshalJSON(data []byte) error {
-	db.values = make(map[insteon.Address]insteon.DeviceInfo)
+	db.values = make(map[insteon.Address]devices.DeviceInfo)
 	return json.Unmarshal(data, &db.values)
 }
 
@@ -128,13 +129,13 @@ var (
 // an initialized device if found.  If not found, Open will call
 // insteon.Open and store the info upon success.  If dbfile is
 // not an empty string, SaveDB will be called at the end
-func Open(mw insteon.MessageWriter, addr insteon.Address, db Database, dbfile string) (*insteon.BasicDevice, error) {
+func Open(mw devices.MessageWriter, addr insteon.Address, db Database, dbfile string) (*devices.BasicDevice, error) {
 	info, found := db.Get(addr)
 	if found {
-		return insteon.NewDevice(mw, info), nil
+		return devices.NewDevice(mw, info), nil
 	}
 
-	device, info, err := insteon.Open(mw, addr)
+	device, info, err := devices.Open(mw, addr)
 	if err == nil {
 		db.Put(info)
 		if dbfile != "" {

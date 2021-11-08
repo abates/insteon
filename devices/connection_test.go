@@ -12,35 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package devices
 
 import (
 	"errors"
 	"io"
 	"testing"
 
+	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
 
 type testWriter struct {
-	read    []*Message
+	read    []*insteon.Message
 	readErr error
-	written []*Message
-	acks    []*Message
+	written []*insteon.Message
+	acks    []*insteon.Message
 	ackErr  error
 }
 
-func (tw *testWriter) Write(msg *Message) (*Message, error) {
+func (tw *testWriter) Write(msg *insteon.Message) (*insteon.Message, error) {
 	tw.written = append(tw.written, msg)
 	if len(tw.acks) > 0 {
 		ack := tw.acks[0]
 		tw.acks = tw.acks[1:]
 		return ack, tw.ackErr
 	}
-	return TestAck, tw.ackErr
+	return &insteon.Message{Src: msg.Dst, Dst: msg.Src, Flags: insteon.StandardDirectAck}, tw.ackErr
 }
 
-func (tw *testWriter) Read() (*Message, error) {
+func (tw *testWriter) Read() (*insteon.Message, error) {
 	if len(tw.read) > 0 {
 		msg := tw.read[0]
 		tw.read = tw.read[1:]
@@ -50,18 +51,26 @@ func (tw *testWriter) Read() (*Message, error) {
 }
 
 func TestConnectionIDRequest(t *testing.T) {
+	setButtonPressed := func(controller bool, domain, category, firmware byte) *insteon.Message {
+		sbp := commands.SetButtonPressedResponder
+		if controller {
+			sbp = commands.SetButtonPressedController
+		}
+		return &insteon.Message{insteon.Address{3, 4, 5}, insteon.Address{domain, category, firmware}, insteon.StandardBroadcast, sbp, nil}
+	}
+
 	tests := []struct {
 		desc        string
-		input       *Message
-		wantVersion FirmwareVersion
-		wantDevCat  DevCat
+		input       *insteon.Message
+		wantVersion insteon.FirmwareVersion
+		wantDevCat  insteon.DevCat
 	}{
-		{"Happy Path", SetButtonPressed(true, 7, 79, 42), FirmwareVersion(42), DevCat{07, 79}},
+		{"Happy Path", setButtonPressed(true, 7, 79, 42), insteon.FirmwareVersion(42), insteon.DevCat{07, 79}},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			tw := &testWriter{read: []*Message{test.input}}
-			gotVersion, gotDevCat, _ := IDRequest(tw, Address{})
+			tw := &testWriter{read: []*insteon.Message{test.input}}
+			gotVersion, gotDevCat, _ := IDRequest(tw, insteon.Address{})
 			if gotVersion != test.wantVersion {
 				t.Errorf("Want FirmwareVersion %v got %v", test.wantVersion, gotVersion)
 			}
@@ -75,20 +84,20 @@ func TestConnectionIDRequest(t *testing.T) {
 func TestConnectionEngineVersion(t *testing.T) {
 	tests := []struct {
 		desc        string
-		input       *Message
+		input       *insteon.Message
 		ackErr      error
-		wantVersion EngineVersion
+		wantVersion insteon.EngineVersion
 		wantErr     error
 	}{
-		{"Regular device", &Message{Command: commands.GetEngineVersion.SubCommand(42), Flags: StandardDirectAck}, nil, EngineVersion(42), nil},
-		{"I2Cs device", &Message{Command: commands.GetEngineVersion.SubCommand(0xff), Flags: StandardDirectNak}, ErrNak, VerI2Cs, ErrNotLinked},
-		{"NAK", &Message{Command: commands.GetEngineVersion.SubCommand(0xfd), Flags: StandardDirectNak}, ErrNak, VerI2Cs, ErrNak},
+		{"Regular device", &insteon.Message{Command: commands.GetEngineVersion.SubCommand(42), Flags: insteon.StandardDirectAck}, nil, insteon.EngineVersion(42), nil},
+		{"I2Cs device", &insteon.Message{Command: commands.GetEngineVersion.SubCommand(0xff), Flags: insteon.StandardDirectNak}, ErrNak, insteon.VerI2Cs, ErrNotLinked},
+		{"NAK", &insteon.Message{Command: commands.GetEngineVersion.SubCommand(0xfd), Flags: insteon.StandardDirectNak}, ErrNak, insteon.VerI2Cs, ErrNak},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			tw := &testWriter{acks: []*Message{test.input}, ackErr: test.ackErr}
-			gotVersion, err := GetEngineVersion(tw, Address{})
+			tw := &testWriter{acks: []*insteon.Message{test.input}, ackErr: test.ackErr}
+			gotVersion, err := GetEngineVersion(tw, insteon.Address{})
 			if err != test.wantErr {
 				t.Errorf("want error %v got %v", test.wantErr, err)
 			} else if err == nil {
@@ -110,7 +119,7 @@ func TestRead(t *testing.T) {
 		{
 			name:    "Simple",
 			input:   []commands.Command{commands.Command(1), commands.Command(2), commands.Command(3), commands.Command(4)},
-			matcher: Matches(func(msg *Message) bool { return int(msg.Command)%2 == 0 }),
+			matcher: Matches(func(msg *insteon.Message) bool { return int(msg.Command)%2 == 0 }),
 			want:    []commands.Command{commands.Command(2), commands.Command(4)},
 		},
 	}
@@ -118,9 +127,9 @@ func TestRead(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got := []commands.Command{}
-			input := []*Message{}
+			input := []*insteon.Message{}
 			for _, c := range test.input {
-				input = append(input, &Message{Command: c})
+				input = append(input, &insteon.Message{Command: c})
 			}
 			tw := &testWriter{read: input}
 			for m, err := Read(tw, test.matcher); err == nil; m, err = Read(tw, test.matcher) {

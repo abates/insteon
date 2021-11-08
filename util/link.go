@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 )
 
 var (
@@ -93,7 +94,7 @@ func TextToLinks(input string) (links []insteon.LinkRecord, err error) {
 // FindDuplicateLinks will perform a linear search of the
 // LinkDB and return any links that are duplicates. Duplicate
 // links are those that are equivalent as reported by LinkRecord.Equal
-func FindDuplicateLinks(linkable insteon.Linkable) ([]insteon.LinkRecord, error) {
+func FindDuplicateLinks(linkable devices.Linkable) ([]insteon.LinkRecord, error) {
 	duplicates := make([]insteon.LinkRecord, 0)
 	links, err := linkable.Links()
 	if err == nil {
@@ -112,7 +113,7 @@ func FindDuplicateLinks(linkable insteon.Linkable) ([]insteon.LinkRecord, error)
 // FindLinkRecord will perform a linear search of the database and return
 // a LinkRecord that matches the group, address and controller/responder
 // indicator
-func FindLinkRecord(device insteon.Linkable, controller bool, address insteon.Address, group insteon.Group) (found insteon.LinkRecord, err error) {
+func FindLinkRecord(device devices.Linkable, controller bool, address insteon.Address, group insteon.Group) (found insteon.LinkRecord, err error) {
 	links, err := device.Links()
 	if err == nil {
 		err = ErrLinkNotFound
@@ -129,7 +130,7 @@ func FindLinkRecord(device insteon.Linkable, controller bool, address insteon.Ad
 
 // CrossLinkAll will create bi-directional links among all the devices
 // listed. This is useful for creating virtual N-Way connections
-func CrossLinkAll(group insteon.Group, devices ...insteon.Linkable) (err error) {
+func CrossLinkAll(group insteon.Group, devices ...devices.Linkable) (err error) {
 	for i, d1 := range devices {
 		for _, d2 := range devices[i:] {
 			if d1 != d2 {
@@ -147,7 +148,7 @@ func CrossLinkAll(group insteon.Group, devices ...insteon.Linkable) (err error) 
 // devices. Each device will get both a controller and responder
 // link for the given group. When using lighting control devices, this
 // will effectively create a 3-Way light switch configuration
-func CrossLink(group insteon.Group, d1, d2 insteon.Linkable) error {
+func CrossLink(group insteon.Group, d1, d2 devices.Linkable) error {
 	err := Link(group, d1, d2)
 	if err == nil || err == ErrAlreadyLinked {
 		err = Link(group, d2, d1)
@@ -161,7 +162,7 @@ func CrossLink(group insteon.Group, d1, d2 insteon.Linkable) error {
 // ForceLink will create links in the controller and responder All-Link
 // databases without first checking if the links exist. The links are
 // created by simulating set button presses (using EnterLinkingMode)
-func ForceLink(group insteon.Group, controller, responder insteon.Linkable) error {
+func ForceLink(group insteon.Group, controller, responder devices.Linkable) error {
 	// The sequence to create a link between two devices follows:
 	// 1) Controller enters linking mode (same as holding down the set button for 10 seconds)
 	// 2) Controller sends a "Set-Button Pressed Controller" broadcast message
@@ -171,7 +172,7 @@ func ForceLink(group insteon.Group, controller, responder insteon.Linkable) erro
 	// At this point the two devices will exchange direct messages that won't necessarily
 	// be seen by the initiator (such as a PLM), so as soon as the responder broadcast
 	// is received, we assume the linking is complete
-	insteon.LogDebug.Printf("Putting controller %s into linking mode", controller)
+	devices.LogDebug.Printf("Putting controller %s into linking mode", controller)
 
 	// controller enters all-linking mode
 	// and waits for set-button message.  If not
@@ -182,7 +183,7 @@ func ForceLink(group insteon.Group, controller, responder insteon.Linkable) erro
 	if err == nil {
 		// responder pushes the set button responder and
 		// waits for the set-button message
-		insteon.LogDebug.Printf("Assigning responder to group")
+		devices.LogDebug.Printf("Assigning responder to group")
 		err = responder.EnterLinkingMode(group)
 
 		controller.ExitLinkingMode()
@@ -193,7 +194,7 @@ func ForceLink(group insteon.Group, controller, responder insteon.Linkable) erro
 
 // UnlinkAll will unlink all groups between a controller and
 // a responder device
-func UnlinkAll(controller, responder insteon.Linkable) error {
+func UnlinkAll(controller, responder devices.Linkable) error {
 	links, err := controller.Links()
 	if err == nil {
 		for _, link := range links {
@@ -209,14 +210,14 @@ func UnlinkAll(controller, responder insteon.Linkable) error {
 // controller is put into UnlinkingMode (analogous to unlinking mode via
 // the set button) and then the responder is put into unlinking mode (also
 // analogous to the set button pressed)
-func Unlink(group insteon.Group, controller, responder insteon.Linkable) error {
+func Unlink(group insteon.Group, controller, responder devices.Linkable) error {
 	// controller enters all-linking mode
-	insteon.LogDebug.Printf("Putting controller %v into unlinking mode", controller)
+	devices.LogDebug.Printf("Putting controller %v into unlinking mode", controller)
 	err := controller.EnterUnlinkingMode(group)
 
 	// responder pushes the set button responder
 	if err == nil {
-		insteon.LogDebug.Printf("Instructing responder %v to unlink", responder)
+		devices.LogDebug.Printf("Instructing responder %v to unlink", responder)
 		err = responder.EnterLinkingMode(group)
 		time.Sleep(2 * time.Second)
 
@@ -227,7 +228,7 @@ func Unlink(group insteon.Group, controller, responder insteon.Linkable) error {
 	return err
 }
 
-func RemoveLinks(device insteon.Linkable, remove ...insteon.LinkRecord) error {
+func RemoveLinks(device devices.Linkable, remove ...insteon.LinkRecord) error {
 	links, err := device.Links()
 	if err == nil {
 		removeLinks := []insteon.LinkRecord{}
@@ -250,8 +251,8 @@ func RemoveLinks(device insteon.Linkable, remove ...insteon.LinkRecord) error {
 // exist (a controller link and a responder link) then nothing is done. If only one
 // entry exists than the other is deleted and new links are created. Once the link
 // check/cleanup has taken place the new links are created using ForceLink
-func Link(group insteon.Group, controller, responder insteon.Linkable) (err error) {
-	insteon.LogDebug.Printf("Looking for existing links")
+func Link(group insteon.Group, controller, responder devices.Linkable) (err error) {
+	devices.LogDebug.Printf("Looking for existing links")
 	var controllerLink, responderLink insteon.LinkRecord
 	controllerLink, err = FindLinkRecord(controller, true, controller.Address(), group)
 
@@ -260,7 +261,7 @@ func Link(group insteon.Group, controller, responder insteon.Linkable) (err erro
 
 		if err == nil {
 			// found a responder link, but not a controller link
-			insteon.LogDebug.Printf("Controller link already exists, deleting it")
+			devices.LogDebug.Printf("Controller link already exists, deleting it")
 			err = RemoveLinks(responder, responderLink)
 		}
 
@@ -271,7 +272,7 @@ func Link(group insteon.Group, controller, responder insteon.Linkable) (err erro
 		_, err = FindLinkRecord(responder, false, controller.Address(), group)
 		if err == ErrLinkNotFound {
 			// found a controller link, but not a responder link
-			insteon.LogDebug.Printf("Responder link already exists, deleting it")
+			devices.LogDebug.Printf("Responder link already exists, deleting it")
 			err = RemoveLinks(controller, controllerLink)
 			err = ForceLink(group, controller, responder)
 		}
@@ -279,7 +280,7 @@ func Link(group insteon.Group, controller, responder insteon.Linkable) (err erro
 	return err
 }
 
-func DumpLinkDatabase(out io.Writer, linkable insteon.Linkable) error {
+func DumpLinkDatabase(out io.Writer, linkable devices.Linkable) error {
 	links, err := linkable.Links()
 	if err == nil {
 		DumpLinks(out, links)
@@ -291,7 +292,7 @@ func DumpLinks(out io.Writer, links []insteon.LinkRecord) {
 	dumplinksTmpl.Execute(out, links)
 }
 
-func PrintLinkDatabase(out io.Writer, linkable insteon.Linkable) error {
+func PrintLinkDatabase(out io.Writer, linkable devices.Linkable) error {
 	links, err := linkable.Links()
 	if err == nil {
 		PrintLinks(out, links)

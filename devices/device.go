@@ -12,31 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package devices
 
-import "github.com/abates/insteon/commands"
+import (
+	"fmt"
 
-// Insteon Engine Versions
-const (
-	VerI1 EngineVersion = iota
-	VerI2
-	VerI2Cs
+	"github.com/abates/insteon"
+	"github.com/abates/insteon/commands"
 )
 
-// EngineVersion indicates the Insteon engine version that the
-// device is running
-type EngineVersion int
+// ProductData contains information about the device including its
+// product key and device category
+type ProductData struct {
+	Key    insteon.ProductKey
+	DevCat insteon.DevCat
+}
 
-func (ev EngineVersion) String() string {
-	switch ev {
-	case VerI1:
-		return "I1"
-	case VerI2:
-		return "I2"
-	case VerI2Cs:
-		return "I2Cs"
+// UnmarshalBinary takes the input byte buffer and unmarshals it into the
+// ProductData object
+func (pd *ProductData) UnmarshalBinary(buf []byte) error {
+	if len(buf) < 14 {
+		return fmt.Errorf("%w wanted 14 bytes got %d", insteon.ErrBufferTooShort, len(buf))
 	}
-	return "unknown"
+
+	copy(pd.Key[:], buf[1:4])
+	copy(pd.DevCat[:], buf[4:6])
+	return nil
+}
+
+// MarshalBinary will convert the ProductData to a binary byte string
+// for sending on the network
+func (pd *ProductData) MarshalBinary() ([]byte, error) {
+	buf := make([]byte, 7)
+	copy(buf[1:4], pd.Key[:])
+	copy(buf[4:6], pd.DevCat[:])
+	buf[6] = 0xff
+	return buf, nil
 }
 
 type Device interface {
@@ -44,7 +55,7 @@ type Device interface {
 
 	// Address will return the 3 byte destination address of the device.
 	// All device implemtaions must be able to return their address
-	Address() Address
+	Address() insteon.Address
 
 	// Info will return the device's information
 	Info() DeviceInfo
@@ -81,11 +92,11 @@ type AllLinkable interface {
 	// has been pressed on a responder. If the set button was pressed
 	// then this method will assign the responder to the given
 	// All-Link Group
-	AssignToAllLinkGroup(Group) error
+	AssignToAllLinkGroup(insteon.Group) error
 
 	// DeleteFromAllLinkGroup removes an All-Link record from a responding
 	// device during an Unlinking session
-	DeleteFromAllLinkGroup(Group) error
+	DeleteFromAllLinkGroup(insteon.Group) error
 }
 
 // Linkable is any device that can be put into
@@ -93,14 +104,14 @@ type AllLinkable interface {
 type Linkable interface {
 	// Address will return the 3 byte destination address of the device.
 	// All device implemtaions must be able to return their address
-	Address() Address
+	Address() insteon.Address
 
 	// EnterLinkingMode is the programmatic equivalent of holding down
 	// the set button for two seconds. If the device is the first
 	// to enter linking mode, then it is the controller. The next
 	// device to enter linking mode is the responder.  LinkingMode
 	// is usually indicated by a flashing GREEN LED on the device
-	EnterLinkingMode(Group) error
+	EnterLinkingMode(insteon.Group) error
 
 	// EnterUnlinkingMode puts a controller device into unlinking mode
 	// when the set button is then pushed (EnterLinkingMode) on a linked
@@ -109,20 +120,14 @@ type Linkable interface {
 	// to pressing the set button until the device beeps, releasing, then
 	// pressing the set button again until the device beeps again. UnlinkingMode
 	// is usually indicated by a flashing RED LED on the device
-	EnterUnlinkingMode(Group) error
+	EnterUnlinkingMode(insteon.Group) error
 
 	// ExitLinkingMode takes a controller out of linking/unlinking mode.
 	ExitLinkingMode() error
 
-	// LinkDatabase will return a LinkDatabase if the underlying device
-	// supports it.  If the underlying device (namely I1 devices) does
-	// not support the All-Link database then an ErrNotSupported will
-	// be returned
-	//LinkDatabase() (Linkable, error)
-
 	// Links will return a list of LinkRecords that are present in
 	// the All-Link database
-	Links() ([]LinkRecord, error)
+	Links() ([]insteon.LinkRecord, error)
 
 	// UpdateLinks will write the given links to the device's all-link
 	// database.  Links will be written to available records
@@ -132,22 +137,22 @@ type Linkable interface {
 	// the appropriate error is returned (ErrReadTimeout, ErrAckTimeout, etc.)
 	// If an existing link is found that has different flags then the existing
 	// record is updated to reflect the new flags
-	UpdateLinks(...LinkRecord) error
+	UpdateLinks(...insteon.LinkRecord) error
 
 	// WriteLinks will overwrite the entire device all-link database
 	// with the list of links provided.  If a communication failure occurs
 	// then the appropriate error is returned (ErrReadTimeout, ErrAckTimeout,
 	// etc).
-	WriteLinks(...LinkRecord) error
+	WriteLinks(...insteon.LinkRecord) error
 }
 
 // DeviceInfo is a record of information about known
 // devices on the network
 type DeviceInfo struct {
-	Address         Address         `json:"address"`
-	DevCat          DevCat          `json:"devCat"`
-	FirmwareVersion FirmwareVersion `json:"firmwareVersion"`
-	EngineVersion   EngineVersion   `json:"engineVersion"`
+	Address         insteon.Address         `json:"address"`
+	DevCat          insteon.DevCat          `json:"devCat"`
+	FirmwareVersion insteon.FirmwareVersion `json:"firmwareVersion"`
+	EngineVersion   insteon.EngineVersion   `json:"engineVersion"`
 }
 
 // Open will try to establish communication with the remote device.
@@ -155,7 +160,7 @@ type DeviceInfo struct {
 // well as device info in order to return the correct device type
 // (Dimmer, switch, thermostat, etc).  Open requires a MessageWriter,
 // such as a PLM to use to communicate with the Insteon network
-func Open(mw MessageWriter, dst Address) (device *BasicDevice, info DeviceInfo, err error) {
+func Open(mw MessageWriter, dst insteon.Address) (device *BasicDevice, info DeviceInfo, err error) {
 	info.Address = dst
 	info.EngineVersion, err = GetEngineVersion(mw, dst)
 	if err == nil {
@@ -173,15 +178,15 @@ func Open(mw MessageWriter, dst Address) (device *BasicDevice, info DeviceInfo, 
 func Upgrade(bd *BasicDevice) (device Device) {
 	device = bd
 	switch bd.DevCat.Domain() {
-	case DimmerDomain:
+	case insteon.DimmerDomain:
 		device = NewDimmer(bd)
-	case SwitchDomain:
+	case insteon.SwitchDomain:
 		if bd.DevCat.Category() == 0x08 {
 			device = NewOutlet(bd)
 		} else {
 			device = NewSwitch(bd)
 		}
-	case ThermostatDomain:
+	case insteon.ThermostatDomain:
 		device = NewThermostat(bd)
 	}
 	return device

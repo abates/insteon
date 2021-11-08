@@ -15,8 +15,6 @@
 package insteon
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"testing"
@@ -140,44 +138,6 @@ func TestDevCatMarshaling(t *testing.T) {
 				}
 			} else if err.Error() != test.expectedError {
 				t.Errorf("got error %v, want %v", err, test.expectedError)
-			}
-		})
-	}
-}
-
-func TestProductDataMarshaling(t *testing.T) {
-	tests := []struct {
-		desc           string
-		input          []byte
-		expectedDevCat [2]byte
-		expectedKey    [3]byte
-		expectedError  error
-	}{
-		{"0 1 2 3...", []byte{0, 1, 2, 3, 4, 5, 255, 0, 0, 0, 0, 0, 0, 0}, [2]byte{4, 5}, [3]byte{1, 2, 3}, nil},
-		{"too short", []byte{}, [2]byte{0, 0}, [3]byte{0, 0, 0}, ErrBufferTooShort},
-	}
-
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			pd := &ProductData{}
-			err := pd.UnmarshalBinary(test.input)
-			if !errors.Is(err, test.expectedError) {
-				t.Errorf("got error %v, want %v", err, test.expectedError)
-			}
-
-			if err == nil {
-				if pd.Key != ProductKey(test.expectedKey) {
-					t.Errorf("got ProductKey %x, want %x", pd.Key, test.expectedKey)
-				}
-
-				if pd.DevCat != DevCat(test.expectedDevCat) {
-					t.Errorf("got DevCat %x, want %x", pd.DevCat, test.expectedDevCat)
-				}
-
-				buf, _ := pd.MarshalBinary()
-				if !bytes.Equal(buf, test.input[0:7]) {
-					t.Errorf("got MarshalBinary %x, want %x", buf, test.input[0:7])
-				}
 			}
 		})
 	}

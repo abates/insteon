@@ -89,25 +89,25 @@ func (rcf *RecordControlFlags) SetAvailable() {
 // Controller indicates that the device is a controller for the device in the
 // link record
 func (rcf RecordControlFlags) Controller() bool { return rcf&0x40 == 0x40 }
-func (rcf *RecordControlFlags) setController() {
+func (rcf *RecordControlFlags) SetController() {
 	rcf.setBit(6)
 }
 
 // Responder indicates that the device is a reponder to the device listed in
 // the link record
 func (rcf RecordControlFlags) Responder() bool { return rcf&0x40 == 0x00 }
-func (rcf *RecordControlFlags) setResponder() {
+func (rcf *RecordControlFlags) SetResponder() {
 	rcf.clearBit(6)
 }
 
 // LastRecord indicates if this link record is the last record (also known
 // as the high water mark) in the database.
 func (rcf RecordControlFlags) LastRecord() bool { return rcf&0x02 == 0x00 }
-func (rcf *RecordControlFlags) clearLastRecord() {
+func (rcf *RecordControlFlags) ClearLastRecord() {
 	rcf.setBit(1)
 }
 
-func (rcf *RecordControlFlags) setLastRecord() {
+func (rcf *RecordControlFlags) SetLastRecord() {
 	rcf.clearBit(1)
 }
 
@@ -147,9 +147,9 @@ func (rcf *RecordControlFlags) UnmarshalText(text []byte) (err error) {
 	}
 
 	if str[1] == "C" {
-		rcf.setController()
+		rcf.SetController()
 	} else if str[1] == "R" {
-		rcf.setResponder()
+		rcf.SetResponder()
 	} else {
 		err = errors.New("Invalid value for Controller flag")
 	}

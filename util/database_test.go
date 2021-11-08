@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 )
 
 func TestMemDB(t *testing.T) {
 	db := NewMemDB().(*memDB)
 
 	addr := insteon.Address{5, 6, 7}
-	want := insteon.DeviceInfo{}
+	want := devices.DeviceInfo{}
 	got, found := db.Get(addr)
 	if found {
 		t.Fatalf("Expected not found")
@@ -22,7 +23,7 @@ func TestMemDB(t *testing.T) {
 		t.Fatalf("Expected empty info, got %v", got)
 	}
 
-	want = insteon.DeviceInfo{
+	want = devices.DeviceInfo{
 		Address:         addr,
 		DevCat:          insteon.DevCat{1, 2},
 		FirmwareVersion: insteon.FirmwareVersion(3),

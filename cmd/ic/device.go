@@ -21,21 +21,22 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 	"github.com/abates/insteon/util"
 )
 
 type linkableDevice interface {
-	insteon.Device
-	insteon.Linkable
+	devices.Device
+	devices.Linkable
 }
 
 type device struct {
-	*insteon.BasicDevice
+	*devices.BasicDevice
 }
 
 func init() {
 	d := &device{
-		BasicDevice: &insteon.BasicDevice{},
+		BasicDevice: &devices.BasicDevice{},
 	}
 
 	cmd := &cli.Command{
@@ -100,7 +101,7 @@ func (dev *device) editCmd(string) error {
 	return editLinks(dev)
 }
 
-func editLinks(linkable insteon.Linkable) error {
+func editLinks(linkable devices.Linkable) error {
 	dbLinks, _ := linkable.Links()
 	if len(dbLinks) == 0 {
 		return fmt.Errorf("No links to edit")

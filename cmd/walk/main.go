@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 	"github.com/abates/insteon/plm"
 	"github.com/abates/insteon/util"
 	"github.com/kirsle/configdir"
@@ -33,7 +34,7 @@ import (
 )
 
 var (
-	logLevelFlag   insteon.LogLevel
+	debugFlag      bool
 	serialPortFlag string
 	ttlFlag        int
 	modem          *plm.PLM
@@ -41,11 +42,7 @@ var (
 	dbfile         string
 )
 
-func printDevInfo(device *insteon.BasicDevice) {
-	/*fmt.Printf("       Device: %v\n", device)
-	fmt.Printf("     Category: %v\n", device.Info().DevCat)
-	fmt.Printf("     Firmware: %v\n", device.Info().FirmwareVersion)*/
-
+func printDevInfo(device *devices.BasicDevice) {
 	err := util.PrintLinkDatabase(io.Discard, device)
 	if errors.Is(err, insteon.ErrReadTimeout) {
 		// try again
@@ -65,10 +62,10 @@ func dump(links []insteon.LinkRecord) {
 		}
 		read[link.Address] = true
 		log.Printf("Querying ALDB from %s", link.Address)
-		device, err := util.Open(insteon.TTL(ttlFlag).Filter(modem), link.Address, db, dbfile)
+		device, err := util.Open(devices.TTL(ttlFlag).Filter(modem), link.Address, db, dbfile)
 		if errors.Is(err, insteon.ErrReadTimeout) {
 			// retry
-			device, err = util.Open(insteon.TTL(ttlFlag).Filter(modem), link.Address, db, dbfile)
+			device, err = util.Open(devices.TTL(ttlFlag).Filter(modem), link.Address, db, dbfile)
 		}
 
 		if err == nil {
@@ -90,7 +87,7 @@ func init() {
 	}
 
 	flag.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
-	flag.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
+	flag.BoolVar(&debugFlag, "debug", false, "Debug logging")
 	flag.IntVar(&ttlFlag, "ttl", 3, "default ttl for sending Insteon messages")
 
 	db = util.NewMemDB()
@@ -114,8 +111,9 @@ func init() {
 func main() {
 	flag.Parse()
 
-	if logLevelFlag > insteon.LevelNone {
-		insteon.SetLogLevel(logLevelFlag, os.Stderr)
+	if debugFlag {
+		devices.LogDebug.SetOutput(os.Stderr)
+		plm.LogDebug.SetOutput(os.Stderr)
 	}
 
 	c := &serial.Config{

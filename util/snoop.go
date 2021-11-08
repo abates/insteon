@@ -8,16 +8,17 @@ import (
 
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
+	"github.com/abates/insteon/devices"
 )
 
 type snoop struct {
-	cache insteon.CacheFilter
+	cache devices.CacheFilter
 	db    Database
-	mw    insteon.MessageWriter
+	mw    devices.MessageWriter
 	out   io.Writer
 }
 
-func (s *snoop) Filter(next insteon.MessageWriter) insteon.MessageWriter {
+func (s *snoop) Filter(next devices.MessageWriter) devices.MessageWriter {
 	s.mw = s.cache.Filter(next)
 	return s
 }
@@ -55,14 +56,14 @@ func (s *snoop) print(msg *insteon.Message) {
 	fmt.Fprintf(s.out, " %d:%d", msg.MaxTTL(), msg.TTL())
 
 	if msg.Ack() {
-		prev, found := s.cache.Lookup(insteon.MatchAck(msg))
+		prev, found := s.cache.Lookup(devices.MatchAck(msg))
 		if found {
 			fmt.Fprintf(s.out, " %v ACK", prev.Command)
 		} else {
 			fmt.Fprintf(s.out, " %d.%d (unknown ACK)", msg.Command.Command1(), msg.Command.Command2())
 		}
 	} else if msg.Type() == insteon.MsgTypeAllLinkBroadcast {
-		if insteon.CmdMatcher(commands.AllLinkSuccessReport).Matches(msg) {
+		if devices.CmdMatcher(commands.AllLinkSuccessReport).Matches(msg) {
 			// this is ugly
 			fmt.Fprintf(s.out, " %v: %v Group %d (cleanup %d, failed %d)", msg.Command&0xffff00, commands.Command(0x0c0000)|commands.Command(msg.Dst[0])<<8, msg.Dst[2], msg.Dst[1], msg.Command.Command2())
 		} else {
@@ -78,17 +79,17 @@ func (s *snoop) print(msg *insteon.Message) {
 		var data encoding.BinaryUnmarshaler
 		switch {
 		case msg.Command.Matches(commands.ProductDataResp):
-			data = &insteon.ProductData{}
+			data = &devices.ProductData{}
 		case msg.Command.Matches(commands.ReadWriteALDB):
-			data = &insteon.LinkRequest{}
+			data = &devices.LinkRequest{}
 		case msg.Command.Matches(commands.ExtendedGetSet):
 			if s.db != nil {
 				if info, found := s.db.Get(msg.Src); found {
 					switch info.DevCat.Domain() {
 					case insteon.DimmerDomain:
-						data = &insteon.DimmerConfig{}
+						data = &devices.DimmerConfig{}
 					case insteon.SwitchDomain:
-						data = &insteon.SwitchConfig{}
+						data = &devices.SwitchConfig{}
 					}
 				}
 			}
@@ -120,10 +121,10 @@ func (s *snoop) payloadStr(payload []byte) string {
 	return builder.String()
 }
 
-func Snoop(out io.Writer, db Database) insteon.Filter {
+func Snoop(out io.Writer, db Database) devices.Filter {
 	return &snoop{
 		db:    db,
-		cache: insteon.NewCache(10),
+		cache: devices.NewCache(10),
 		out:   out,
 	}
 }

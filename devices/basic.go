@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package devices
 
 import (
 	"fmt"
 	"html/template"
 	"strings"
 
+	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
 
@@ -46,22 +47,22 @@ func NewDevice(mw MessageWriter, info DeviceInfo) *BasicDevice {
 	return d
 }
 
-func (d *BasicDevice) Write(msg *Message) (ack *Message, err error) {
+func (d *BasicDevice) Write(msg *insteon.Message) (ack *insteon.Message, err error) {
 	msg.Dst = d.DeviceInfo.Address
-	msg.Flags = StandardDirectMessage
+	msg.Flags = insteon.StandardDirectMessage
 	msg.SetMaxTTL(3)
 	msg.SetTTL(3)
 	if len(msg.Payload) > 0 {
-		msg.Flags = ExtendedDirectMessage
+		msg.Flags = insteon.ExtendedDirectMessage
 	}
 
-	if d.DeviceInfo.EngineVersion == VerI2Cs {
+	if d.DeviceInfo.EngineVersion == insteon.VerI2Cs {
 		return d.writeWithChecksum(msg)
 	}
 	return d.MessageWriter.Write(msg)
 }
 
-func (d *BasicDevice) writeWithChecksum(msg *Message) (ack *Message, err error) {
+func (d *BasicDevice) writeWithChecksum(msg *insteon.Message) (ack *insteon.Message, err error) {
 	// set checksum
 	if len(msg.Payload) > 0 {
 		if len(msg.Payload) < 14 {
@@ -96,7 +97,7 @@ func (d *BasicDevice) Send(command commands.Command, payload []byte) (commands.C
 // length message is used to deliver the commands. The command bytes from the
 // response ack are returned as well as any error
 func (d *BasicDevice) sendCommand(command commands.Command, payload []byte) (response commands.Command, err error) {
-	ack, err := d.Write(&Message{
+	ack, err := d.Write(&insteon.Message{
 		Command: command,
 		Payload: payload,
 	})
@@ -108,14 +109,14 @@ func (d *BasicDevice) sendCommand(command commands.Command, payload []byte) (res
 	return response, err
 }
 
-func (d *BasicDevice) errLookup(msg *Message, err error) (*Message, error) {
+func (d *BasicDevice) errLookup(msg *insteon.Message, err error) (*insteon.Message, error) {
 	if err == ErrNak {
-		if d.DeviceInfo.EngineVersion == VerI2Cs {
+		if d.DeviceInfo.EngineVersion == insteon.VerI2Cs {
 			switch msg.Command.Command2() & 0xff {
 			case 0xfb:
 				err = ErrIllegalValue
 			case 0xfc:
-				err = ErrPreNak
+				err = insteon.ErrPreNak
 			case 0xfd:
 				err = ErrIncorrectChecksum
 			case 0xfe:
@@ -128,7 +129,7 @@ func (d *BasicDevice) errLookup(msg *Message, err error) (*Message, error) {
 		} else {
 			switch msg.Command.Command2() & 0xff {
 			case 0xfd:
-				err = ErrUnknownCommand
+				err = insteon.ErrUnknownCommand
 			case 0xfe:
 				err = ErrNoLoadDetected
 			case 0xff:
@@ -143,7 +144,7 @@ func (d *BasicDevice) errLookup(msg *Message, err error) (*Message, error) {
 
 // ProductData will retrieve the device's product data
 func (d *BasicDevice) ProductData() (data *ProductData, err error) {
-	msg, err := d.Write(&Message{Command: commands.ProductDataReq})
+	msg, err := d.Write(&insteon.Message{Command: commands.ProductDataReq})
 	if err == nil {
 		msg, err = Read(d, CmdMatcher(commands.ProductDataResp))
 		if err == nil {
@@ -155,7 +156,7 @@ func (d *BasicDevice) ProductData() (data *ProductData, err error) {
 }
 
 func (d *BasicDevice) ExtendedGet(data []byte) (buf []byte, err error) {
-	msg, err := d.Write(&Message{Command: commands.ExtendedGetSet, Payload: data})
+	msg, err := d.Write(&insteon.Message{Command: commands.ExtendedGetSet, Payload: data})
 	if err == nil {
 		msg, err = Read(d, CmdMatcher(commands.ExtendedGetSet))
 		if err == nil {
@@ -166,7 +167,7 @@ func (d *BasicDevice) ExtendedGet(data []byte) (buf []byte, err error) {
 	return buf, err
 }
 
-func (d *BasicDevice) Address() Address {
+func (d *BasicDevice) Address() insteon.Address {
 	return d.DeviceInfo.Address
 }
 
@@ -186,10 +187,10 @@ func (d *BasicDevice) linkingMode(cmd commands.Command, payload []byte) (err err
 	return d.SendCommand(cmd, payload)
 }
 
-func (d *BasicDevice) EnterLinkingMode(group Group) error {
+func (d *BasicDevice) EnterLinkingMode(group insteon.Group) error {
 	payload := []byte{}
 	cmd := commands.EnterLinkingMode.SubCommand(int(group))
-	if d.DeviceInfo.EngineVersion == VerI2Cs {
+	if d.DeviceInfo.EngineVersion == insteon.VerI2Cs {
 		cmd = commands.EnterLinkingModeExt.SubCommand(int(group))
 		payload = make([]byte, 14)
 	}
@@ -197,9 +198,9 @@ func (d *BasicDevice) EnterLinkingMode(group Group) error {
 	return d.linkingMode(cmd, payload)
 }
 
-func (d *BasicDevice) EnterUnlinkingMode(group Group) error {
+func (d *BasicDevice) EnterUnlinkingMode(group insteon.Group) error {
 	payload := []byte{}
-	if d.DeviceInfo.EngineVersion == VerI2Cs {
+	if d.DeviceInfo.EngineVersion == insteon.VerI2Cs {
 		payload = make([]byte, 14)
 	}
 	return d.linkingMode(commands.EnterUnlinkingMode.SubCommand(int(group)), payload)

@@ -1,9 +1,10 @@
-package insteon
+package devices
 
 import (
 	"bytes"
 	"testing"
 
+	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
 
@@ -15,7 +16,7 @@ func TestSwitchConfig(t *testing.T) {
 		expectedUnitCode  int
 	}{
 		{mkPayload(0, 0, 0, 0, 4, 5), nil, 4, 5},
-		{nil, ErrBufferTooShort, 0, 0},
+		{nil, insteon.ErrBufferTooShort, 0, 0},
 	}
 
 	for i, test := range tests {
@@ -76,11 +77,11 @@ func TestLightFlags(t *testing.T) {
 func TestSwitchedDeviceConfig(t *testing.T) {
 	want := SwitchConfig{31, 42}
 	payload, _ := want.MarshalBinary()
-	msg := &Message{Command: commands.ExtendedGetSet, Payload: make([]byte, 14)}
+	msg := &insteon.Message{Command: commands.ExtendedGetSet, Payload: make([]byte, 14)}
 	copy(msg.Payload, payload)
 
 	tw := &testWriter{
-		read: []*Message{msg},
+		read: []*insteon.Message{msg},
 	}
 	sd := NewSwitch(&BasicDevice{MessageWriter: tw, DeviceInfo: DeviceInfo{}})
 
@@ -102,7 +103,7 @@ func TestSwitchedDeviceOperatingFlags(t *testing.T) {
 	}
 	tw := &testWriter{}
 	for _, cmd := range cmds {
-		tw.acks = append(tw.acks, &Message{Command: cmd})
+		tw.acks = append(tw.acks, &insteon.Message{Command: cmd})
 	}
 
 	sd := NewSwitch(&BasicDevice{MessageWriter: tw, DeviceInfo: DeviceInfo{}})

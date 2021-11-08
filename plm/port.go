@@ -74,7 +74,7 @@ func (dw *delayWriter) writeDelay(pkt *Packet) (delay time.Duration) {
 
 func (dw *delayWriter) Write(pkt *Packet) (ack *Packet, err error) {
 	delay := dw.writeDelay(pkt)
-	insteon.LogTrace.Printf("Write delay %v)", delay)
+	LogDebug.Printf("Write delay %v)", delay)
 	time.Sleep(delay)
 
 	dw.lastPkt = pkt
@@ -93,7 +93,7 @@ func (rw *retryWriter) WritePacket(packet *Packet) (ack *Packet, err error) {
 		ack, err = rw.PacketWriter.WritePacket(packet)
 		if (err == ErrNak && rw.ignoreNak) || err == ErrReadTimeout {
 			// TODO add exponential backoff
-			insteon.LogDebug.Printf("Got %v retrying", err)
+			LogDebug.Printf("Got %v retrying", err)
 			time.Sleep(time.Second)
 			retries--
 		} else {
@@ -111,14 +111,13 @@ type logWriter struct {
 	io.Writer
 	Log      *log.Logger
 	LogDebug *log.Logger
-	LogTrace *log.Logger
 }
 
 // Write writes len(p) bytes from p to the underlying data stream.
 // and logs what was written. Write will return the number of bytes
 // written and any associated error
 func (lw logWriter) Write(buf []byte) (int, error) {
-	lw.LogTrace.Printf("TX %s", hexDump("%02x", buf, " "))
+	lw.LogDebug.Printf("OUT %s", hexDump("%02x", buf, " "))
 	n, err := lw.Writer.Write(buf)
 	if err != nil {
 		lw.Log.Printf("Failed to write: %v", err)
@@ -149,7 +148,7 @@ func (pr *packetReader) sync() (n int, paclen int, err error) {
 
 		// first byte of PLM packets is always 0x02
 		if b != 0x02 {
-			insteon.LogTrace.Printf("(syncronizing) Expected Start of Text (0x02) got 0x%02x", b)
+			LogDebug.Printf("(syncronizing) Expected Start of Text (0x02) got 0x%02x", b)
 			continue
 		} else {
 			b, err = pr.reader.ReadByte()
@@ -188,7 +187,7 @@ func (pr *packetReader) read() (int, error) {
 		}
 
 		if err == nil {
-			insteon.LogTrace.Printf("RX %s", hexDump("%02x", pr.buf[0:n], " "))
+			LogDebug.Printf("IN %s", hexDump("%02x", pr.buf[0:n], " "))
 		}
 	}
 

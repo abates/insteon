@@ -19,6 +19,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -35,6 +38,11 @@ var (
 	ErrWrongAck           = errors.New("Command in ACK does not match TX packet")
 	ErrWrongPayload       = errors.New("Payload in ACK does not match TX packet")
 	ErrNak                = errors.New("PLM responded with a NAK.  Resend command")
+)
+
+var (
+	Log      = log.New(os.Stderr, "", log.LstdFlags)
+	LogDebug = log.New(ioutil.Discard, "DEBUG ", log.LstdFlags)
 )
 
 func hexDump(format string, buf []byte, sep string) string {
@@ -87,25 +95,25 @@ func (plm *PLM) readLoop() {
 		pkt, err := plm.reader.ReadPacket()
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
-				insteon.Log.Printf("Read error: %v", err)
+				Log.Printf("Read error: %v", err)
 			}
 			close(plm.msgBuf)
 			close(plm.packetBuf)
 			return
 		}
 
-		insteon.LogDebug.Printf("PLM RX %v", pkt)
+		LogDebug.Printf("PLM RX %v", pkt)
 		if pkt.Command == CmdStdMsgReceived || pkt.Command == CmdExtMsgReceived {
 			select {
 			case plm.msgBuf <- pkt:
 			default:
-				insteon.Log.Printf("PLM Packet dropped, no one listening")
+				Log.Printf("PLM Packet dropped, no one listening")
 			}
 		} else {
 			select {
 			case plm.packetBuf <- pkt:
 			default:
-				insteon.Log.Printf("PLM Packet dropped, no one listening")
+				Log.Printf("PLM Packet dropped, no one listening")
 			}
 		}
 	}
@@ -115,7 +123,7 @@ func (plm *PLM) readLoop() {
 func (plm *PLM) Write(msg *insteon.Message) (ack *insteon.Message, err error) {
 	buf, err := msg.MarshalBinary()
 	if err == nil {
-		insteon.LogDebug.Printf("TX Insteon Message %v", msg)
+		LogDebug.Printf("TX Insteon Message %v", msg)
 		// slice off the source address since the PLM doesn't want it
 		buf = buf[3:]
 		_, err = RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
@@ -137,8 +145,7 @@ func (plm *PLM) Write(msg *insteon.Message) (ack *insteon.Message, err error) {
 func (plm *PLM) WritePacket(pkt *Packet) (ack *Packet, err error) {
 	buf, err := pkt.MarshalBinary()
 	if err == nil {
-		insteon.LogTrace.Printf("Sending packet %v", pkt)
-		insteon.LogDebug.Printf("PLM TX %v", pkt)
+		LogDebug.Printf("PLM TX %v", pkt)
 		_, err = plm.writer.Write(buf)
 
 		if err == nil {
@@ -184,7 +191,7 @@ func (plm *PLM) Read() (msg *insteon.Message, err error) {
 		msg = &insteon.Message{}
 		err = msg.UnmarshalBinary(pkt.Payload)
 		if err == nil {
-			insteon.LogDebug.Printf("RX Insteon Message %v", msg)
+			LogDebug.Printf("RX Insteon Message %v", msg)
 		}
 	case <-time.After(plm.timeout):
 		err = insteon.ErrReadTimeout
@@ -249,8 +256,4 @@ func (plm *PLM) Address() insteon.Address {
 
 func (plm *PLM) String() string {
 	return fmt.Sprintf("PLM (%s)", plm.Address())
-}
-
-func (plm *PLM) LinkDatabase() (insteon.Linkable, error) {
-	return plm, nil
 }

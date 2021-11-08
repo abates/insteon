@@ -13,13 +13,14 @@
 // limitations under the License.
 
 //go:generate stringer -type=ThermostatMode,Unit,FanSpeed -linecomment
-package insteon
+package devices
 
 import (
 	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
 
@@ -141,7 +142,7 @@ type ThermostatInfo struct {
 
 func (ti *ThermostatInfo) UnmarshalBinary(data []byte) error {
 	if len(data) < 14 {
-		return fmt.Errorf("%w: wanted 14 bytes got %d", ErrBufferTooShort, len(data))
+		return fmt.Errorf("%w: wanted 14 bytes got %d", insteon.ErrBufferTooShort, len(data))
 	}
 	if data[2] == 0x00 {
 		// temp high byte is data[13], temp low byte is data[3]
@@ -222,7 +223,7 @@ func NewThermostat(d *BasicDevice) *Thermostat {
 	return therm
 }
 
-func (therm *Thermostat) Address() Address { return therm.info.Address }
+func (therm *Thermostat) Address() insteon.Address { return therm.info.Address }
 
 func (therm *Thermostat) IncreaseTemp(delta int) error {
 	return therm.SendCommand(commands.IncreaseTemp.SubCommand(delta*2), nil)
@@ -240,9 +241,9 @@ func (therm *Thermostat) GetZoneInfo(zone int) (zi ZoneInfo, err error) {
 		commands.GetZoneInfo.SubCommand(0x30 | zone&0x0f),
 	}
 
-	var ack *Message
+	var ack *insteon.Message
 	for i := 0; i < len(commands) && err == nil; i++ {
-		ack, err = therm.Write(&Message{Command: commands[i]})
+		ack, err = therm.Write(&insteon.Message{Command: commands[i]})
 		if err == nil {
 			zi[i] = ack.Command.Command2()
 		}
@@ -299,7 +300,6 @@ func (therm *Thermostat) GetEquipmentState() (EquipmentState, error) {
 }
 
 func (therm *Thermostat) GetInfo() (ti ThermostatInfo, err error) {
-	//if therm, ok := therm.Device.(ExtendedGetSet); ok {
 	var buf []byte
 	for i := 0; i < 2 && err == nil; i++ {
 		buf, err = therm.ExtendedGet([]byte{0x00, 0x00, byte(i)})
@@ -307,9 +307,6 @@ func (therm *Thermostat) GetInfo() (ti ThermostatInfo, err error) {
 			err = ti.UnmarshalBinary(buf)
 		}
 	}
-	//} else {
-	//err = ErrNotSupported
-	//}
 
 	return ti, err
 }

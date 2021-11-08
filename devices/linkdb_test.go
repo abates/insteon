@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package devices
 
 import (
 	"bytes"
@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
 
@@ -73,7 +74,7 @@ func TestLinkRequestUnmarshalBinary(t *testing.T) {
 		want    *LinkRequest
 		wantErr error
 	}{
-		{"Short Buffer", nil, nil, ErrBufferTooShort},
+		{"Short Buffer", nil, nil, insteon.ErrBufferTooShort},
 		{"Read Link",
 			mkPayload(0x00, 0x00, 0x0f, 0xff, 0x01),
 			&LinkRequest{0x00, 0x0fff, 1, nil},
@@ -81,12 +82,12 @@ func TestLinkRequestUnmarshalBinary(t *testing.T) {
 		},
 		{"Link Response",
 			mkPayload(0x00, 0x01, 0x0f, 0xff, 0x00, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
-			&LinkRequest{0x01, 0x0fff, 0, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			&LinkRequest{0x01, 0x0fff, 0, &insteon.LinkRecord{Flags: 0xd0, Group: insteon.Group(1), Address: insteon.Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
 			nil,
 		},
 		{"Write Link",
 			mkPayload(0x00, 0x02, 0x0f, 0xff, 1, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
-			&LinkRequest{0x02, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			&LinkRequest{0x02, 0x0fff, 1, &insteon.LinkRecord{Flags: 0xd0, Group: insteon.Group(1), Address: insteon.Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
 			nil,
 		},
 		// this message caused an error, so I wrote a test for it
@@ -125,11 +126,11 @@ func TestLinkRequestMarshalBinary(t *testing.T) {
 			mkPayload(0x00, 0x00, 0x0f, 0xff, 0x01),
 		},
 		{"Link Response",
-			&LinkRequest{0x01, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			&LinkRequest{0x01, 0x0fff, 1, &insteon.LinkRecord{Flags: 0xd0, Group: insteon.Group(1), Address: insteon.Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
 			mkPayload(0x00, 0x01, 0x0f, 0xff, 0x00, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
 		},
 		{"Write Link",
-			&LinkRequest{0x02, 0x0fff, 1, &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
+			&LinkRequest{0x02, 0x0fff, 1, &insteon.LinkRecord{Flags: 0xd0, Group: insteon.Group(1), Address: insteon.Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}},
 			mkPayload(0x00, 0x02, 0x0f, 0xff, 0x08, 0xd0, 0x01, 1, 2, 3, 4, 5, 6),
 		},
 	}
@@ -161,28 +162,28 @@ func TestLinkdbLinks(t *testing.T) {
 	tests := []struct {
 		desc    string
 		age     time.Time
-		want    []*LinkRecord
+		want    []*insteon.LinkRecord
 		wantErr error
 	}{
 		{"not old", time.Now().Add(time.Hour), nil, nil},
-		{"old 1", time.Now().Add(-1 * time.Hour), []*LinkRecord{ControllerLink(1, Address{1, 2, 3})}, nil},
-		{"old 2", time.Now().Add(-1 * time.Hour), []*LinkRecord{ControllerLink(1, Address{4, 5, 6}), ControllerLink(1, Address{1, 2, 3})}, nil},
+		{"old 1", time.Now().Add(-1 * time.Hour), []*insteon.LinkRecord{insteon.ControllerLink(1, insteon.Address{1, 2, 3})}, nil},
+		{"old 2", time.Now().Add(-1 * time.Hour), []*insteon.LinkRecord{insteon.ControllerLink(1, insteon.Address{4, 5, 6}), insteon.ControllerLink(1, insteon.Address{1, 2, 3})}, nil},
 		{"timeout", time.Now().Add(-1 * time.Hour), nil, ErrReadTimeout},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			// Add high water mark
-			links := append(test.want, &LinkRecord{})
+			links := append(test.want, &insteon.LinkRecord{})
 			tw := &testWriter{}
 
 			// Test ignoring acks on receive channel
-			tw.acks = append(tw.acks, &Message{Command: commands.ReadWriteALDB, Flags: StandardDirectAck})
-			tw.acks = append(tw.acks, &Message{Command: commands.ReadWriteALDB, Flags: StandardDirectNak})
+			tw.acks = append(tw.acks, &insteon.Message{Command: commands.ReadWriteALDB, Flags: insteon.StandardDirectAck})
+			tw.acks = append(tw.acks, &insteon.Message{Command: commands.ReadWriteALDB, Flags: insteon.StandardDirectNak})
 			memAddress := BaseLinkDBAddress
 			for _, link := range links {
 				lr := &LinkRequest{Type: linkResponse, MemAddress: memAddress, Link: link}
-				msg := &Message{Command: commands.ReadWriteALDB, Flags: ExtendedDirectMessage, Payload: make([]byte, 14)}
+				msg := &insteon.Message{Command: commands.ReadWriteALDB, Flags: insteon.ExtendedDirectMessage, Payload: make([]byte, 14)}
 				buf, _ := lr.MarshalBinary()
 				copy(msg.Payload, buf)
 				tw.read = append(tw.read, msg)
@@ -207,17 +208,17 @@ func TestLinkdbLinks(t *testing.T) {
 func TestLinkdbWriteLink(t *testing.T) {
 	tests := []struct {
 		desc           string
-		links          []LinkRecord
+		links          []insteon.LinkRecord
 		inputIndex     int
-		inputRecord    *LinkRecord
+		inputRecord    *insteon.LinkRecord
 		wantLinksSize  int
 		wantMemAddress MemAddress
 		wantErr        error
 	}{
 		{"Invalid Index", nil, 1, nil, 0, BaseLinkDBAddress, ErrLinkIndexOutOfRange},
-		{"Base Address", nil, 0, ControllerLink(1, Address{1, 2, 3}), 1, BaseLinkDBAddress, nil},
-		{"Truncate existing links", []LinkRecord{*ControllerLink(1, Address{1, 2, 3}), *ResponderLink(1, Address{1, 2, 3}), *ControllerLink(1, Address{4, 5, 6})}, 2, &LinkRecord{Flags: 0xfc}, 2, BaseLinkDBAddress - LinkRecordSize*2, nil},
-		{"Replace existing link", []LinkRecord{*ControllerLink(1, Address{1, 2, 3}), *ResponderLink(1, Address{1, 2, 3}), *ControllerLink(1, Address{4, 5, 6})}, 1, ResponderLink(43, Address{11, 12, 13}), 3, BaseLinkDBAddress - LinkRecordSize, nil},
+		{"Base Address", nil, 0, insteon.ControllerLink(1, insteon.Address{1, 2, 3}), 1, BaseLinkDBAddress, nil},
+		{"Truncate existing links", []insteon.LinkRecord{*insteon.ControllerLink(1, insteon.Address{1, 2, 3}), *insteon.ResponderLink(1, insteon.Address{1, 2, 3}), *insteon.ControllerLink(1, insteon.Address{4, 5, 6})}, 2, &insteon.LinkRecord{Flags: 0xfc}, 2, BaseLinkDBAddress - LinkRecordSize*2, nil},
+		{"Replace existing link", []insteon.LinkRecord{*insteon.ControllerLink(1, insteon.Address{1, 2, 3}), *insteon.ResponderLink(1, insteon.Address{1, 2, 3}), *insteon.ControllerLink(1, insteon.Address{4, 5, 6})}, 1, insteon.ResponderLink(43, insteon.Address{11, 12, 13}), 3, BaseLinkDBAddress - LinkRecordSize, nil},
 	}
 
 	for _, test := range tests {
@@ -255,12 +256,12 @@ func TestLinkdbWriteLink(t *testing.T) {
 func TestLinkdbWriteLinks(t *testing.T) {
 	tests := []struct {
 		desc           string
-		input          []LinkRecord
+		input          []insteon.LinkRecord
 		wantMemAddress []MemAddress
 	}{
-		{"nothing", []LinkRecord{}, []MemAddress{BaseLinkDBAddress}},
-		{"one link", []LinkRecord{*ControllerLink(1, Address{1, 2, 3})}, []MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - LinkRecordSize}},
-		{"two links", []LinkRecord{*ControllerLink(1, Address{1, 2, 3}), *ControllerLink(1, Address{4, 5, 6})}, []MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - LinkRecordSize, BaseLinkDBAddress - LinkRecordSize*2}},
+		{"nothing", []insteon.LinkRecord{}, []MemAddress{BaseLinkDBAddress}},
+		{"one link", []insteon.LinkRecord{*insteon.ControllerLink(1, insteon.Address{1, 2, 3})}, []MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - LinkRecordSize}},
+		{"two links", []insteon.LinkRecord{*insteon.ControllerLink(1, insteon.Address{1, 2, 3}), *insteon.ControllerLink(1, insteon.Address{4, 5, 6})}, []MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - LinkRecordSize, BaseLinkDBAddress - LinkRecordSize*2}},
 	}
 
 	for _, test := range tests {
@@ -269,7 +270,7 @@ func TestLinkdbWriteLinks(t *testing.T) {
 			linkdb := linkdb{MessageWriter: tw}
 			linkdb.WriteLinks(test.input...)
 			gotMemAddress := []MemAddress{}
-			gotLinks := []*LinkRecord{}
+			gotLinks := []*insteon.LinkRecord{}
 			for _, msg := range tw.written {
 				lr := &LinkRequest{}
 				lr.UnmarshalBinary(msg.Payload)
@@ -306,32 +307,32 @@ func TestLinkdbWriteLinks(t *testing.T) {
 func TestLinkdbUpdateLinks(t *testing.T) {
 	tests := []struct {
 		desc          string
-		existingLinks []LinkRecord
-		input         []LinkRecord
+		existingLinks []insteon.LinkRecord
+		input         []insteon.LinkRecord
 		want          []MemAddress
 	}{
 		{
 			"no existing links",
 			nil,
-			[]LinkRecord{*ControllerLink(1, Address{1, 2, 3})},
+			[]insteon.LinkRecord{*insteon.ControllerLink(1, insteon.Address{1, 2, 3})},
 			[]MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - LinkRecordSize},
 		},
 		{
 			"duplicate links",
-			[]LinkRecord{*ControllerLink(1, Address{1, 2, 3})},
-			[]LinkRecord{*ControllerLink(1, Address{1, 2, 3})},
+			[]insteon.LinkRecord{*insteon.ControllerLink(1, insteon.Address{1, 2, 3})},
+			[]insteon.LinkRecord{*insteon.ControllerLink(1, insteon.Address{1, 2, 3})},
 			nil,
 		},
 		{
 			"duplicate link (update flags)",
-			[]LinkRecord{{AvailableController, 1, Address{1, 2, 3}, [3]byte{}}},
-			[]LinkRecord{*ControllerLink(1, Address{1, 2, 3})},
+			[]insteon.LinkRecord{{insteon.AvailableController, 1, insteon.Address{1, 2, 3}, [3]byte{}}},
+			[]insteon.LinkRecord{*insteon.ControllerLink(1, insteon.Address{1, 2, 3})},
 			[]MemAddress{BaseLinkDBAddress},
 		},
 		{
 			"available and append links",
-			[]LinkRecord{{AvailableController, 1, Address{1, 2, 3}, [3]byte{}}, *ControllerLink(1, Address{4, 5, 6})},
-			[]LinkRecord{*ControllerLink(1, Address{6, 7, 8}), *ResponderLink(1, Address{5, 6, 7})},
+			[]insteon.LinkRecord{{insteon.AvailableController, 1, insteon.Address{1, 2, 3}, [3]byte{}}, *insteon.ControllerLink(1, insteon.Address{4, 5, 6})},
+			[]insteon.LinkRecord{*insteon.ControllerLink(1, insteon.Address{6, 7, 8}), *insteon.ResponderLink(1, insteon.Address{5, 6, 7})},
 			[]MemAddress{BaseLinkDBAddress, BaseLinkDBAddress - 2*LinkRecordSize, BaseLinkDBAddress - 3*LinkRecordSize},
 		},
 	}
@@ -339,7 +340,7 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			tw := &testWriter{}
-			index := make(map[LinkID]int)
+			index := make(map[insteon.LinkID]int)
 			for i, link := range test.existingLinks {
 				index[link.ID()] = i
 			}

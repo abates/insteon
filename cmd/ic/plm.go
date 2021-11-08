@@ -21,6 +21,7 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 	"github.com/abates/insteon/plm"
 	"github.com/abates/insteon/util"
 )
@@ -152,7 +153,7 @@ func (p *plmCmd) link(controller, responder bool) func() error {
 			group := insteon.Group(p.group)
 			fmt.Printf("Linking to %s...", addr)
 			device, err := util.Open(modem, addr, db, dbfile)
-			if err == insteon.ErrNotLinked {
+			if err == devices.ErrNotLinked {
 				err = nil
 			}
 
@@ -183,7 +184,7 @@ func (p *plmCmd) unlinkCmd(addresses addrSlice) (err error) {
 	group := insteon.Group(p.group)
 
 	for _, addr := range p.addresses {
-		var device *insteon.BasicDevice
+		var device *devices.BasicDevice
 		device, err = util.Open(modem, addr, db, dbfile)
 
 		if err == nil {
@@ -192,11 +193,11 @@ func (p *plmCmd) unlinkCmd(addresses addrSlice) (err error) {
 				err = util.Unlink(group, device, modem)
 			}
 
-			if err == nil || err == insteon.ErrNotLinked {
+			if err == nil || err == devices.ErrNotLinked {
 				err = util.Unlink(group, modem, device)
 			}
 			return err
-		} else if err == insteon.ErrNotLinked {
+		} else if err == devices.ErrNotLinked {
 			err = nil
 		}
 

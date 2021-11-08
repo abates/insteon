@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package devices
 
 import (
 	"fmt"
 	"time"
 
+	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
 
@@ -72,7 +73,7 @@ type LinkRequest struct {
 	Type       LinkRequestType
 	MemAddress MemAddress
 	NumRecords int
-	Link       *LinkRecord
+	Link       *insteon.LinkRecord
 }
 
 func (lr *LinkRequest) String() string {
@@ -85,7 +86,7 @@ func (lr *LinkRequest) String() string {
 // UnmarshalBinary will take the byte slice and convert it to a LinkRequest object
 func (lr *LinkRequest) UnmarshalBinary(buf []byte) (err error) {
 	if len(buf) < 5 {
-		return fmt.Errorf("%w: wanted 6 bytes got %d", ErrBufferTooShort, len(buf))
+		return fmt.Errorf("%w: wanted 6 bytes got %d", insteon.ErrBufferTooShort, len(buf))
 	}
 	lr.Type = LinkRequestType(buf[1])
 	lr.MemAddress = MemAddress(buf[2]) << 8
@@ -95,10 +96,10 @@ func (lr *LinkRequest) UnmarshalBinary(buf []byte) (err error) {
 	case 0x00:
 		lr.NumRecords = int(buf[4])
 	case 0x01:
-		lr.Link = &LinkRecord{}
+		lr.Link = &insteon.LinkRecord{}
 	case 0x02:
 		lr.NumRecords = int(buf[4])
-		lr.Link = &LinkRecord{}
+		lr.Link = &insteon.LinkRecord{}
 	default:
 		err = ErrInvalidResponse
 	}
@@ -140,8 +141,8 @@ const (
 type linkdb struct {
 	MessageWriter
 	age   time.Time
-	links []LinkRecord
-	index map[LinkID]int
+	links []insteon.LinkRecord
+	index map[insteon.LinkID]int
 }
 
 func (ldb *linkdb) old() bool {
@@ -152,15 +153,15 @@ func (ldb *linkdb) refresh() error {
 	if !ldb.old() {
 		return nil
 	}
-	ldb.index = make(map[LinkID]int)
+	ldb.index = make(map[insteon.LinkID]int)
 
 	ldb.links = nil
 	LogDebug.Printf("Retrieving Device link database")
 	lastAddress := MemAddress(0)
 
 	buf, _ := (&LinkRequest{Type: readLink, NumRecords: 0}).MarshalBinary()
-	_, err := ldb.Write(&Message{Command: commands.ReadWriteALDB, Payload: buf})
-	var msg *Message
+	_, err := ldb.Write(&insteon.Message{Command: commands.ReadWriteALDB, Payload: buf})
+	var msg *insteon.Message
 	for err == nil {
 		msg, err = Read(ldb, CmdMatcher(commands.ReadWriteALDB))
 		if err == nil {
@@ -192,22 +193,22 @@ func (ldb *linkdb) refresh() error {
 
 // Links will retrieve the link-database from the device and
 // return a list of LinkRecords
-func (ldb *linkdb) Links() (links []LinkRecord, err error) {
+func (ldb *linkdb) Links() (links []insteon.LinkRecord, err error) {
 	err = ldb.refresh()
 	if err == nil {
-		links = make([]LinkRecord, len(ldb.links))
+		links = make([]insteon.LinkRecord, len(ldb.links))
 		copy(links, ldb.links)
 	}
 	return links, err
 }
 
-func (ldb *linkdb) writeLink(index int, link *LinkRecord) (err error) {
+func (ldb *linkdb) writeLink(index int, link *insteon.LinkRecord) (err error) {
 	if index > len(ldb.links) {
 		return ErrLinkIndexOutOfRange
 	}
 	memAddress := BaseLinkDBAddress - (MemAddress(index) * LinkRecordSize)
 	buf, _ := (&LinkRequest{MemAddress: memAddress, Type: writeLink, Link: link}).MarshalBinary()
-	_, err = ldb.Write(&Message{Command: commands.ReadWriteALDB, Payload: buf})
+	_, err = ldb.Write(&insteon.Message{Command: commands.ReadWriteALDB, Payload: buf})
 	if err == nil {
 		if link.Flags.LastRecord() {
 			// if the last record comes before the end of the cached links then
@@ -217,7 +218,6 @@ func (ldb *linkdb) writeLink(index int, link *LinkRecord) (err error) {
 			}
 		} else {
 			// copy the link so it can't be modified outside of the database
-			//link = &LinkRecord{Flags: link.Flags, Group: link.Group, Address: link.Address, Data: link.Data}
 			if index == len(ldb.links) {
 				ldb.links = append(ldb.links, *link)
 			} else {
@@ -228,20 +228,20 @@ func (ldb *linkdb) writeLink(index int, link *LinkRecord) (err error) {
 	return err
 }
 
-func (ldb *linkdb) WriteLinks(links ...LinkRecord) (err error) {
+func (ldb *linkdb) WriteLinks(links ...insteon.LinkRecord) (err error) {
 	err = ldb.writeLinks(links...)
 	return err
 }
 
-func (ldb *linkdb) writeLinks(links ...LinkRecord) (err error) {
+func (ldb *linkdb) writeLinks(links ...insteon.LinkRecord) (err error) {
 	for i := 0; i < len(links) && err == nil; i++ {
-		links[i].Flags.clearLastRecord()
+		links[i].Flags.ClearLastRecord()
 		err = ldb.writeLink(i, &links[i])
 	}
 
 	if err == nil {
-		link := &LinkRecord{}
-		link.Flags.setLastRecord()
+		link := &insteon.LinkRecord{}
+		link.Flags.SetLastRecord()
 		err = ldb.writeLink(len(ldb.links), link)
 		if err == nil {
 			ldb.age = time.Now()
@@ -250,7 +250,7 @@ func (ldb *linkdb) writeLinks(links ...LinkRecord) (err error) {
 	return
 }
 
-func (ldb *linkdb) UpdateLinks(links ...LinkRecord) (err error) {
+func (ldb *linkdb) UpdateLinks(links ...insteon.LinkRecord) (err error) {
 	err = ldb.refresh()
 
 	if err == nil {
@@ -266,7 +266,7 @@ func (ldb *linkdb) UpdateLinks(links ...LinkRecord) (err error) {
 
 		for i := 0; err == nil && i < len(ldb.links); i++ {
 			if ldb.links[i].Flags.Available() && len(links) > 0 {
-				links[0].Flags.clearLastRecord()
+				links[0].Flags.ClearLastRecord()
 				err = ldb.writeLink(i, &links[0])
 				if err == nil {
 					links = links[1:]
@@ -277,14 +277,14 @@ func (ldb *linkdb) UpdateLinks(links ...LinkRecord) (err error) {
 		if err == nil && len(links) > 0 {
 			i := len(ldb.links)
 			for _, link := range links {
-				link.Flags.clearLastRecord()
+				link.Flags.ClearLastRecord()
 				err = ldb.writeLink(i, &link)
 				i++
 			}
 
 			if err == nil {
-				link := &LinkRecord{}
-				link.Flags.setLastRecord()
+				link := &insteon.LinkRecord{}
+				link.Flags.SetLastRecord()
 				err = ldb.writeLink(i, link)
 			}
 		}

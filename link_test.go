@@ -101,10 +101,10 @@ func TestSettingRecordControlFlags(t *testing.T) {
 	}{
 		{"SetAvailable", flags.SetAvailable, 0x7f},
 		{"SetInUse", flags.SetInUse, 0xff},
-		{"setResponder", flags.setResponder, 0xbf},
-		{"setController", flags.setController, 0xff},
-		{"setLastRecord", flags.setLastRecord, 0xfd},
-		{"clearLastRecord", flags.clearLastRecord, 0xff},
+		{"setResponder", flags.SetResponder, 0xbf},
+		{"setController", flags.SetController, 0xff},
+		{"setLastRecord", flags.SetLastRecord, 0xfd},
+		{"clearLastRecord", flags.ClearLastRecord, 0xff},
 	}
 
 	for _, test := range tests {

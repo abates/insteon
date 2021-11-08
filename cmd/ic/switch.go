@@ -19,10 +19,11 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 )
 
 type swtch struct {
-	*insteon.Switch
+	*devices.Switch
 }
 
 func init() {
@@ -48,8 +49,8 @@ func init() {
 func (sw *swtch) init(addr insteon.Address) error {
 	device, err := open(modem, addr)
 	if err == nil {
-		d := insteon.Upgrade(device)
-		if s, ok := d.(*insteon.Switch); ok {
+		d := devices.Upgrade(device)
+		if s, ok := d.(*devices.Switch); ok {
 			sw.Switch = s
 		} else {
 			err = fmt.Errorf("Device at %s is a %T not a switch", addr, device)

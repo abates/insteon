@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package devices
 
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"testing"
 
+	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
 
@@ -26,10 +28,48 @@ func mkPayload(buf ...byte) []byte {
 	return append(buf, make([]byte, 14-len(buf))...)
 }
 
+func TestProductDataMarshaling(t *testing.T) {
+	tests := []struct {
+		desc           string
+		input          []byte
+		expectedDevCat [2]byte
+		expectedKey    [3]byte
+		expectedError  error
+	}{
+		{"0 1 2 3...", []byte{0, 1, 2, 3, 4, 5, 255, 0, 0, 0, 0, 0, 0, 0}, [2]byte{4, 5}, [3]byte{1, 2, 3}, nil},
+		{"too short", []byte{}, [2]byte{0, 0}, [3]byte{0, 0, 0}, insteon.ErrBufferTooShort},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			pd := &ProductData{}
+			err := pd.UnmarshalBinary(test.input)
+			if !errors.Is(err, test.expectedError) {
+				t.Errorf("got error %v, want %v", err, test.expectedError)
+			}
+
+			if err == nil {
+				if pd.Key != insteon.ProductKey(test.expectedKey) {
+					t.Errorf("got ProductKey %x, want %x", pd.Key, test.expectedKey)
+				}
+
+				if pd.DevCat != insteon.DevCat(test.expectedDevCat) {
+					t.Errorf("got DevCat %x, want %x", pd.DevCat, test.expectedDevCat)
+				}
+
+				buf, _ := pd.MarshalBinary()
+				if !bytes.Equal(buf, test.input[0:7]) {
+					t.Errorf("got MarshalBinary %x, want %x", buf, test.input[0:7])
+				}
+			}
+		})
+	}
+}
+
 func TestDeviceCommands(t *testing.T) {
 	dimmerFactory := func(version int) func(device *BasicDevice) Device {
 		return func(device *BasicDevice) Device {
-			device.DeviceInfo.FirmwareVersion = FirmwareVersion(version)
+			device.DeviceInfo.FirmwareVersion = insteon.FirmwareVersion(version)
 			return &Dimmer{Switch: &Switch{BasicDevice: device}}
 		}
 	}
@@ -92,25 +132,25 @@ func TestOpen(t *testing.T) {
 	tests := []struct {
 		name     string
 		ackErr   error
-		acks     []*Message
-		read     []*Message
+		acks     []*insteon.Message
+		read     []*insteon.Message
 		wantInfo DeviceInfo
 		wantErr  error
 	}{
 		{
 			name:     "basic",
 			ackErr:   nil,
-			acks:     []*Message{&Message{Command: commands.Command(0x01)}},
-			read:     []*Message{&Message{Dst: Address{byte(SwitchDomain), 1, 59}, Command: commands.SetButtonPressedResponder}},
-			wantInfo: DeviceInfo{EngineVersion: VerI2, FirmwareVersion: FirmwareVersion(59), DevCat: DevCat{byte(SwitchDomain), 1}},
+			acks:     []*insteon.Message{&insteon.Message{Command: commands.Command(0x01)}},
+			read:     []*insteon.Message{&insteon.Message{Dst: insteon.Address{byte(insteon.SwitchDomain), 1, 59}, Command: commands.SetButtonPressedResponder}},
+			wantInfo: DeviceInfo{EngineVersion: insteon.VerI2, FirmwareVersion: insteon.FirmwareVersion(59), DevCat: insteon.DevCat{byte(insteon.SwitchDomain), 1}},
 			wantErr:  nil,
 		},
 		{
 			name:     "unlinked",
 			ackErr:   ErrNak,
-			acks:     []*Message{&Message{Flags: StandardDirectNak, Command: commands.Command(0x00ff)}},
-			read:     []*Message{&Message{Dst: Address{byte(SwitchDomain), 1, 59}, Command: commands.SetButtonPressedResponder}},
-			wantInfo: DeviceInfo{EngineVersion: VerI2Cs},
+			acks:     []*insteon.Message{&insteon.Message{Flags: insteon.StandardDirectNak, Command: commands.Command(0x00ff)}},
+			read:     []*insteon.Message{&insteon.Message{Dst: insteon.Address{byte(insteon.SwitchDomain), 1, 59}, Command: commands.SetButtonPressedResponder}},
+			wantInfo: DeviceInfo{EngineVersion: insteon.VerI2Cs},
 			wantErr:  ErrNotLinked,
 		},
 	}
@@ -123,7 +163,7 @@ func TestOpen(t *testing.T) {
 				read:   test.read,
 			}
 
-			_, gotInfo, err := Open(tw, Address{})
+			_, gotInfo, err := Open(tw, insteon.Address{})
 			if errors.Is(err, test.wantErr) {
 				if test.wantInfo != gotInfo {
 					t.Errorf("Wanted device info %v got %v", test.wantInfo, gotInfo)
@@ -136,21 +176,21 @@ func TestOpen(t *testing.T) {
 
 }
 
-/*func TestUpgrade(t *testing.T) {
+func TestUpgrade(t *testing.T) {
 	tests := []struct {
 		name  string
 		input DeviceInfo
 		want  Device
 	}{
-		{"switch", DeviceInfo{EngineVersion: EngineVersion(1), DevCat: DevCat{byte(SwitchDomain), 0}}, &Switch{}},
-		{"dimmer", DeviceInfo{EngineVersion: EngineVersion(1), DevCat: DevCat{byte(DimmerDomain), 0}}, &Dimmer{}},
-		{"outlet", DeviceInfo{EngineVersion: EngineVersion(1), DevCat: DevCat{byte(SwitchDomain), 0x08}}, &Outlet{}},
-		{"thermostat", DeviceInfo{EngineVersion: EngineVersion(1), DevCat: DevCat{byte(ThermostatDomain), 0}}, &Thermostat{}},
+		{"switch", DeviceInfo{EngineVersion: insteon.EngineVersion(1), DevCat: insteon.DevCat{byte(insteon.SwitchDomain), 0}}, &Switch{}},
+		{"dimmer", DeviceInfo{EngineVersion: insteon.EngineVersion(1), DevCat: insteon.DevCat{byte(insteon.DimmerDomain), 0}}, &Dimmer{}},
+		{"outlet", DeviceInfo{EngineVersion: insteon.EngineVersion(1), DevCat: insteon.DevCat{byte(insteon.SwitchDomain), 0x08}}, &Outlet{}},
+		{"thermostat", DeviceInfo{EngineVersion: insteon.EngineVersion(1), DevCat: insteon.DevCat{byte(insteon.ThermostatDomain), 0}}, &Thermostat{}},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			device := Upgrade(&testWriter{}, test.input)
+			device := Upgrade(&BasicDevice{DeviceInfo: test.input})
 			want := reflect.TypeOf(test.want)
 			got := reflect.TypeOf(device)
 			if want != got {
@@ -158,4 +198,4 @@ func TestOpen(t *testing.T) {
 			}
 		})
 	}
-}*/
+}

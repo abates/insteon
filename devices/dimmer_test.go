@@ -1,9 +1,10 @@
-package insteon
+package devices
 
 import (
 	"bytes"
 	"testing"
 
+	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
 
@@ -18,7 +19,7 @@ func TestDimmerConfig(t *testing.T) {
 		expectedSNT       int
 	}{
 		{mkPayload(0, 0, 0, 0, 4, 5, 6, 7, 8), nil, 4, 5, 6, 7, 8},
-		{nil, ErrBufferTooShort, 0, 0, 0, 0, 0},
+		{nil, insteon.ErrBufferTooShort, 0, 0, 0, 0, 0},
 	}
 
 	for i, test := range tests {
@@ -58,14 +59,14 @@ func TestDimmerConfig(t *testing.T) {
 func TestDimmableDeviceConfig(t *testing.T) {
 	want := DimmerConfig{31, 42, 15, 27, 4}
 	payload, _ := want.MarshalBinary()
-	msg := &Message{Command: commands.ExtendedGetSet, Payload: make([]byte, 14)}
+	msg := &insteon.Message{Command: commands.ExtendedGetSet, Payload: make([]byte, 14)}
 	copy(msg.Payload, payload)
 
-	ch := make(chan *Message, 1)
+	ch := make(chan *insteon.Message, 1)
 	ch <- msg
 
 	tw := &testWriter{}
-	tw.read = []*Message{msg}
+	tw.read = []*insteon.Message{msg}
 	dd := NewDimmer(&BasicDevice{MessageWriter: tw, DeviceInfo: DeviceInfo{FirmwareVersion: 67}})
 	got, err := dd.Config()
 	if err != nil {

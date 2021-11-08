@@ -19,15 +19,16 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 )
 
 type thermostat struct {
-	*insteon.Thermostat
+	*devices.Thermostat
 }
 
 func init() {
 	therm := thermostat{
-		Thermostat: &insteon.Thermostat{},
+		Thermostat: &devices.Thermostat{},
 	}
 
 	thermCmd := &cli.Command{
@@ -46,8 +47,8 @@ func init() {
 func (therm *thermostat) init(addr insteon.Address) error {
 	device, err := open(modem, addr)
 	if err == nil {
-		d := insteon.Upgrade(device)
-		if t, ok := d.(*insteon.Thermostat); ok {
+		d := devices.Upgrade(device)
+		if t, ok := d.(*devices.Thermostat); ok {
 			*therm.Thermostat = *t
 		} else {
 			err = fmt.Errorf("Device at %s is a %T not a thermostat", addr, device)
@@ -57,7 +58,7 @@ func (therm *thermostat) init(addr insteon.Address) error {
 }
 
 func (therm *thermostat) thermStatusCmd() (err error) {
-	err = therm.SetTempUnit(insteon.Fahrenheit)
+	err = therm.SetTempUnit(devices.Fahrenheit)
 	//err = therm.SetTempUnit(insteon.Celsius)
 	if err != nil {
 		return err

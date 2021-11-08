@@ -32,7 +32,7 @@ func TestMarshalUnmarshalBinary(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			err := test.got.UnmarshalBinary(test.input)
-			if !insteon.IsError(err, test.wantErr) {
+			if !errors.Is(err, test.wantErr) {
 				t.Errorf("Want error %v got %v", test.wantErr, err)
 			} else if err == nil {
 				buf, err := test.want.MarshalBinary()

@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package devices
 
 import (
 	"fmt"
 	"sync"
 
+	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
 
@@ -35,7 +36,7 @@ type SwitchConfig struct {
 // the receiver
 func (sc *SwitchConfig) UnmarshalBinary(buf []byte) error {
 	if len(buf) < 14 {
-		return ErrBufferTooShort
+		return insteon.ErrBufferTooShort
 	}
 	sc.HouseCode = int(buf[4])
 	sc.UnitCode = int(buf[5])
@@ -123,7 +124,7 @@ func (sd *Switch) String() string {
 
 func (sd *Switch) Config() (config SwitchConfig, err error) {
 	// SEE Dimmer.Config() notes for explanation of D1 and D2 (payload[0] and payload[1])
-	msg, err := sd.Write(&Message{Command: commands.ExtendedGetSet, Payload: []byte{0x01, 0x00}})
+	msg, err := sd.Write(&insteon.Message{Command: commands.ExtendedGetSet, Payload: []byte{0x01, 0x00}})
 	if err == nil {
 		msg, err = Read(sd, CmdMatcher(commands.ExtendedGetSet))
 		if err == nil {
@@ -142,9 +143,9 @@ func (sd *Switch) OperatingFlags() (flags LightFlags, err error) {
 		commands.GetOperatingFlags.SubCommand(0x20),
 	}
 
-	var ack *Message
+	var ack *insteon.Message
 	for i := 0; i < len(commands) && err == nil; i++ {
-		ack, err = sd.Write(&Message{Command: commands[i]})
+		ack, err = sd.Write(&insteon.Message{Command: commands[i]})
 		if err == nil {
 			flags[i] = byte(ack.Command.Command2())
 		}
@@ -174,6 +175,6 @@ func (sd *Switch) TurnOn(level int) error {
 	return sd.SendCommand(commands.LightOn.SubCommand(level), nil)
 }
 
-func (sd *Switch) Address() Address {
+func (sd *Switch) Address() insteon.Address {
 	return sd.DeviceInfo.Address
 }

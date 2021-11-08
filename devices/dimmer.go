@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package devices
 
 import (
 	"fmt"
 
+	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
 
@@ -42,7 +43,7 @@ type DimmerConfig struct {
 // UnmarshalBinary will parse the byte buffer into the receiver
 func (dc *DimmerConfig) UnmarshalBinary(buf []byte) error {
 	if len(buf) < 14 {
-		return ErrBufferTooShort
+		return insteon.ErrBufferTooShort
 	}
 	dc.HouseCode = int(buf[4])
 	dc.UnitCode = int(buf[5])
@@ -80,7 +81,7 @@ func (dd *Dimmer) Config() (config DimmerConfig, err error) {
 	// the value of D1.  I think D1 is maybe only relevant on KeyPadLinc dimmers.
 	//
 	// D2 is 0x00 for requests
-	msg, err := dd.Write(&Message{Command: commands.ExtendedGetSet, Payload: []byte{0x01, 0x00}})
+	msg, err := dd.Write(&insteon.Message{Command: commands.ExtendedGetSet, Payload: []byte{0x01, 0x00}})
 	if err == nil {
 		msg, err = Read(dd, CmdMatcher(commands.ExtendedGetSet))
 		if err == nil {

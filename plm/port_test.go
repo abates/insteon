@@ -2,7 +2,6 @@ package plm
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"log"
 	"reflect"
@@ -32,21 +31,11 @@ func TestLogWriter(t *testing.T) {
 			buf := bytes.NewBuffer(nil)
 			l := log.New(buf, "", 0)
 			ld := log.New(buf, "DEBUG ", 0)
-			lt := log.New(buf, "TRACE ", 0)
-			lw := logWriter{Writer: test.writer, Log: l, LogDebug: ld, LogTrace: lt}
+			lw := logWriter{Writer: test.writer, Log: l, LogDebug: ld}
 			_, gotErr := lw.Write(test.input)
 			lines := strings.Split(buf.String(), "\n")
-			want := fmt.Sprintf("TRACE TX %s", hexDump("%02x", test.input, " "))
-			got := ""
-			if index := strings.Index(lines[0], "TRACE"); index != -1 {
-				got = lines[0][index:]
-			}
 
-			if want != got {
-				t.Errorf("Wanted log %q got %q", want, got)
-			}
-
-			got = strings.TrimPrefix(lines[1], " INFO ")
+			got := strings.TrimPrefix(lines[1], " INFO ")
 			if test.want != got {
 				t.Errorf("Wanted log %q got %q", test.want, got)
 			}

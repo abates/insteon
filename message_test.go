@@ -26,53 +26,19 @@ func testMsg(typ MessageType, cmd commands.Command, payload ...byte) *Message {
 	return &Message{Address{6, 7, 8}, Address{9, 10, 11}, Flag(typ, len(payload) > 0, 2, 2), cmd, payload}
 }
 
-var (
-	SetButtonPressed = func(controller bool, domain, category, firmware byte) *Message {
-		sbp := commands.SetButtonPressedResponder
-		if controller {
-			sbp = commands.SetButtonPressedController
-		}
-		return &Message{testDstAddr, Address{domain, category, firmware}, StandardBroadcast, sbp, nil}
-	}
+func mkPayload(buf ...byte) []byte {
+	return append(buf, make([]byte, 14-len(buf))...)
+}
 
+var (
 	Ack = func(ack bool, cmd1, cmd2 byte) *Message {
 		flags := StandardDirectNak
 		if ack {
 			flags = StandardDirectAck
 		}
 
-		return &Message{testSrcAddr, testDstAddr, flags, commands.Command(int(cmd1)<<7 | int(cmd2)), nil}
+		return &Message{Address{1, 2, 3}, Address{3, 4, 5}, flags, commands.Command(int(cmd1)<<7 | int(cmd2)), nil}
 	}
-
-	testSrcAddr = Address{1, 2, 3}
-	testDstAddr = Address{3, 4, 5}
-
-	TestMessageEngineVersion1   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, commands.Command(0x000d00), nil}
-	TestMessageEngineVersion2   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, commands.Command(0x000d01), nil}
-	TestMessageEngineVersion2cs = &Message{testSrcAddr, testDstAddr, StandardDirectAck, commands.Command(0x000d02), nil}
-	TestMessageEngineVersion3   = &Message{testSrcAddr, testDstAddr, StandardDirectAck, commands.Command(0x000d03), nil}
-
-	TestMessagePing    = &Message{testSrcAddr, testDstAddr, StandardDirectMessage, commands.Command(0x000f00), nil}
-	TestMessagePingAck = &Message{testDstAddr, testSrcAddr, StandardDirectAck, commands.Command(0x000f00), nil}
-	TestPingNak        = &Message{testSrcAddr, testDstAddr, StandardDirectNak, commands.Command(0x000f00), nil}
-	TestAck            = &Message{testSrcAddr, testDstAddr, StandardDirectAck, commands.Command(0x000000), nil}
-
-	TestProductDataResponse = &Message{testDstAddr, testSrcAddr, ExtendedDirectMessage, commands.ProductDataResp, []byte{0, 1, 2, 3, 4, 5, 0xff, 0xff, 0, 0, 0, 0, 0, 0}}
-	TestDeviceLink1         = &Message{testSrcAddr, testDstAddr, ExtendedDirectMessage, commands.ReadWriteALDB, []byte{0, 1, 0x0f, 0xff, 0, 0xc0, 1, 7, 8, 9, 0, 0, 0, 0}}
-	TestDeviceLink2         = &Message{testSrcAddr, testDstAddr, ExtendedDirectMessage, commands.ReadWriteALDB, []byte{0, 1, 0x0f, 0xf7, 0, 0xc0, 1, 10, 11, 12, 0, 0, 0, 0}}
-	TestDeviceLink3         = &Message{testSrcAddr, testDstAddr, ExtendedDirectMessage, commands.ReadWriteALDB, []byte{0, 1, 0x0f, 0xf7, 0, 0x00, 0, 0, 0, 0, 0, 0, 0, 0}}
-
-	TestMessageUnknownCommandNak  = &Message{testDstAddr, testSrcAddr, StandardDirectNak, commands.Command(0x0000fd), nil}
-	TestMessageNoLoadDetected     = &Message{testDstAddr, testSrcAddr, StandardDirectNak, commands.Command(0x0000fe), nil}
-	TestMessageNotLinked          = &Message{testDstAddr, testSrcAddr, StandardDirectNak, commands.Command(0x0000ff), nil}
-	TestMessageIllegalValue       = &Message{testDstAddr, testSrcAddr, StandardDirectNak, commands.Command(0x0000fb), nil}
-	TestMessagePreNak             = &Message{testDstAddr, testSrcAddr, StandardDirectNak, commands.Command(0x0000fc), nil}
-	TestMessageIncorrectChecksum  = &Message{testDstAddr, testSrcAddr, StandardDirectNak, commands.Command(0x0000fd), nil}
-	TestMessageNoLoadDetectedI2Cs = &Message{testDstAddr, testSrcAddr, StandardDirectNak, commands.Command(0x0000fe), nil}
-	TestMessageNotLinkedI2Cs      = &Message{testDstAddr, testSrcAddr, StandardDirectNak, commands.Command(0x0000ff), nil}
-
-	TestPing    = &Message{testSrcAddr, testDstAddr, StandardDirectMessage, commands.Ping, nil}
-	TestPingAck = &Message{testDstAddr, testSrcAddr, StandardDirectAck, commands.Ping, nil}
 )
 
 func TestMessageType(t *testing.T) {

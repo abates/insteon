@@ -1,4 +1,6 @@
-package insteon
+package devices
+
+import "github.com/abates/insteon"
 
 type FilterFunc func(next MessageWriter) MessageWriter
 
@@ -11,15 +13,15 @@ type Filter interface {
 }
 
 type filter struct {
-	read  func() (*Message, error)
-	write func(*Message) (*Message, error)
+	read  func() (*insteon.Message, error)
+	write func(*insteon.Message) (*insteon.Message, error)
 }
 
-func (f *filter) Read() (*Message, error) {
+func (f *filter) Read() (*insteon.Message, error) {
 	return f.read()
 }
 
-func (f *filter) Write(msg *Message) (*Message, error) {
+func (f *filter) Write(msg *insteon.Message) (*insteon.Message, error) {
 	return f.write(msg)
 }
 
@@ -27,7 +29,7 @@ func FilterDuplicates() Filter {
 	return FilterFunc(func(mw MessageWriter) MessageWriter {
 		cache := NewCache(10)
 		mw = cache.Filter(mw)
-		read := func() (*Message, error) {
+		read := func() (*insteon.Message, error) {
 			msg, err := mw.Read()
 		top:
 			for ; err == nil; msg, err = mw.Read() {
@@ -51,7 +53,7 @@ func TTL(ttl int) Filter {
 	return FilterFunc(func(mw MessageWriter) MessageWriter {
 		return &filter{
 			read: mw.Read,
-			write: func(msg *Message) (*Message, error) {
+			write: func(msg *insteon.Message) (*insteon.Message, error) {
 				msg.SetMaxTTL(uint8(ttl))
 				msg.SetTTL(uint8(ttl))
 				return mw.Write(msg)
@@ -62,16 +64,16 @@ func TTL(ttl int) Filter {
 
 type CacheFilter interface {
 	Filter
-	Lookup(Matcher) (match *Message, found bool)
+	Lookup(Matcher) (match *insteon.Message, found bool)
 }
 
-func NewCache(size int, messages ...*Message) CacheFilter {
+func NewCache(size int, messages ...*insteon.Message) CacheFilter {
 	return newCache(size, messages...)
 }
 
-func newCache(size int, messages ...*Message) *cache {
+func newCache(size int, messages ...*insteon.Message) *cache {
 	c := &cache{
-		messages: make([]*Message, size),
+		messages: make([]*insteon.Message, size),
 		length:   0,
 	}
 
@@ -84,7 +86,7 @@ func newCache(size int, messages ...*Message) *cache {
 }
 
 func (c *cache) Filter(next MessageWriter) MessageWriter {
-	c.filter.read = func() (*Message, error) {
+	c.filter.read = func() (*insteon.Message, error) {
 		msg, err := next.Read()
 		if msg != nil {
 			c.push(msg)
@@ -92,7 +94,7 @@ func (c *cache) Filter(next MessageWriter) MessageWriter {
 		return msg, err
 	}
 
-	c.filter.write = func(msg *Message) (*Message, error) {
+	c.filter.write = func(msg *insteon.Message) (*insteon.Message, error) {
 		if msg != nil {
 			c.push(msg)
 		}
@@ -103,12 +105,12 @@ func (c *cache) Filter(next MessageWriter) MessageWriter {
 
 type cache struct {
 	filter
-	messages []*Message
+	messages []*insteon.Message
 	i        int
 	length   int
 }
 
-func (c *cache) push(msg *Message) {
+func (c *cache) push(msg *insteon.Message) {
 	if c.length > 0 {
 		c.i++
 		if c.i == len(c.messages) {
@@ -123,7 +125,7 @@ func (c *cache) push(msg *Message) {
 	c.messages[c.i] = msg
 }
 
-func (c *cache) Lookup(matcher Matcher) (*Message, bool) {
+func (c *cache) Lookup(matcher Matcher) (*insteon.Message, bool) {
 	if c.length == 0 {
 		return nil, false
 	}

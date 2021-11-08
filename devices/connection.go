@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package insteon
+package devices
 
 import (
 	"time"
 
+	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
 
@@ -34,12 +35,12 @@ var (
 )
 
 type messageReader interface {
-	Read() (*Message, error)
+	Read() (*insteon.Message, error)
 }
 
 type MessageWriter interface {
-	Read() (*Message, error)
-	Write(*Message) (ack *Message, err error)
+	Read() (*insteon.Message, error)
+	Write(*insteon.Message) (ack *insteon.Message, err error)
 }
 
 func retry(retries int, cb func() error) (err error) {
@@ -60,29 +61,29 @@ func retry(retries int, cb func() error) (err error) {
 	return err
 }
 
-func IDRequest(mw MessageWriter, dst Address) (version FirmwareVersion, devCat DevCat, err error) {
-	msg, err := mw.Write(&Message{Dst: dst, Flags: StandardDirectMessage, Command: commands.IDRequest})
+func IDRequest(mw MessageWriter, dst insteon.Address) (version insteon.FirmwareVersion, devCat insteon.DevCat, err error) {
+	msg, err := mw.Write(&insteon.Message{Dst: dst, Flags: insteon.StandardDirectMessage, Command: commands.IDRequest})
 	if err == nil {
 		msg, err = Read(mw, Or(CmdMatcher(commands.SetButtonPressedResponder), CmdMatcher(commands.SetButtonPressedController)))
 		if err == nil {
-			version = FirmwareVersion(msg.Dst[2])
-			devCat = DevCat{msg.Dst[0], msg.Dst[1]}
+			version = insteon.FirmwareVersion(msg.Dst[2])
+			devCat = insteon.DevCat{msg.Dst[0], msg.Dst[1]}
 		}
 	}
 	return
 }
 
-func GetEngineVersion(mw MessageWriter, dst Address) (version EngineVersion, err error) {
-	ack, err := mw.Write(&Message{Dst: dst, Flags: StandardDirectMessage, Command: commands.GetEngineVersion})
+func GetEngineVersion(mw MessageWriter, dst insteon.Address) (version insteon.EngineVersion, err error) {
+	ack, err := mw.Write(&insteon.Message{Dst: dst, Flags: insteon.StandardDirectMessage, Command: commands.GetEngineVersion})
 	if err == nil {
 		LogDebug.Printf("Device %v responded with an engine version %d", dst, ack.Command.Command2())
-		version = EngineVersion(ack.Command.Command2())
+		version = insteon.EngineVersion(ack.Command.Command2())
 	} else if err == ErrNak {
 		// This only happens if the device is an I2Cs device and
 		// is not linked to the queryier
 		if ack.Command.Command2() == 0xff {
 			LogDebug.Printf("Device %v is an unlinked I2Cs device", dst)
-			version = VerI2Cs
+			version = insteon.VerI2Cs
 			err = ErrNotLinked
 		} else {
 			err = ErrNak
@@ -91,7 +92,7 @@ func GetEngineVersion(mw MessageWriter, dst Address) (version EngineVersion, err
 	return
 }
 
-func Read(reader messageReader, matcher Matcher) (*Message, error) {
+func Read(reader messageReader, matcher Matcher) (*insteon.Message, error) {
 	msg, err := reader.Read()
 	for ; err == nil; msg, err = reader.Read() {
 		if matcher.Matches(msg) {

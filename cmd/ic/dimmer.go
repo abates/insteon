@@ -19,15 +19,16 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 )
 
 type dimmer struct {
-	*insteon.Dimmer
+	*devices.Dimmer
 }
 
 func init() {
 	dim := &dimmer{
-		Dimmer: &insteon.Dimmer{Switch: &insteon.Switch{}},
+		Dimmer: &devices.Dimmer{Switch: &devices.Switch{}},
 	}
 
 	dimCmd := &cli.Command{
@@ -61,8 +62,8 @@ func init() {
 func (dim *dimmer) init(addr insteon.Address) (err error) {
 	device, err := open(modem, addr)
 	if err == nil {
-		d := insteon.Upgrade(device)
-		if d, ok := d.(*insteon.Dimmer); ok {
+		d := devices.Upgrade(device)
+		if d, ok := d.(*devices.Dimmer); ok {
 			*dim.Dimmer.Switch = *d.Switch
 		} else {
 			err = fmt.Errorf("Device %s is not a dimmer", addr)

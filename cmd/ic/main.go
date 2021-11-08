@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 	"github.com/abates/insteon/plm"
 	"github.com/abates/insteon/util"
 	"github.com/kirsle/configdir"
@@ -33,11 +35,12 @@ var (
 	modem *plm.PLM = &plm.PLM{}
 	db    util.Database
 
-	logLevelFlag   insteon.LogLevel
 	serialPortFlag string
 	timeoutFlag    time.Duration
 	writeDelayFlag time.Duration
 	ttlFlag        int
+	debugFlag      bool
+	quietFlag      bool
 
 	app       = cli.New(os.Args[0], cli.CallbackOption(cli.Callback(run)))
 	configDir string
@@ -47,7 +50,8 @@ var (
 func init() {
 	app.SetOutput(os.Stderr)
 	app.Flags.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
-	app.Flags.Var(&logLevelFlag, "log", "Log Level {none|info|debug|trace}")
+	app.Flags.BoolVar(&debugFlag, "debug", false, "Set debug logging")
+	app.Flags.BoolVar(&debugFlag, "quietFlag", false, "Log nothing")
 	app.Flags.DurationVar(&timeoutFlag, "timeout", 3*time.Second, "read/write timeout duration")
 	app.Flags.DurationVar(&writeDelayFlag, "writeDelay", 0, "writeDelay duration (default of 0 indicates to compute wait time based on message length and ttl)")
 	app.Flags.IntVar(&ttlFlag, "ttl", 3, "default ttl for sending Insteon messages")
@@ -57,8 +61,16 @@ func init() {
 }
 
 func run() error {
-	if logLevelFlag > insteon.LevelNone {
-		insteon.SetLogLevel(logLevelFlag, os.Stderr)
+	if debugFlag {
+		plm.LogDebug.SetOutput(os.Stderr)
+		devices.LogDebug.SetOutput(os.Stderr)
+	}
+
+	if quietFlag {
+		devices.Log.SetOutput(ioutil.Discard)
+		devices.LogDebug.SetOutput(ioutil.Discard)
+		plm.Log.SetOutput(ioutil.Discard)
+		plm.LogDebug.SetOutput(ioutil.Discard)
 	}
 
 	err := configdir.MakePath(configDir)
@@ -87,10 +99,10 @@ func run() error {
 	return nil
 }
 
-func open(modem *plm.PLM, addr insteon.Address) (*insteon.BasicDevice, error) {
-	device, err := util.Open(insteon.TTL(ttlFlag).Filter(modem), addr, db, dbfile)
+func open(modem *plm.PLM, addr insteon.Address) (*devices.BasicDevice, error) {
+	device, err := util.Open(devices.TTL(ttlFlag).Filter(modem), addr, db, dbfile)
 
-	if err == insteon.ErrNotLinked {
+	if err == devices.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
 			pc := &plmCmd{group: 0x01, addresses: []insteon.Address{addr}}

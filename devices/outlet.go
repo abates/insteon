@@ -1,4 +1,4 @@
-package insteon
+package devices
 
 type Outlet struct {
 	*Switch
