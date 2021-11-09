@@ -18,6 +18,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -25,6 +26,7 @@ import (
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/plm"
 	"github.com/abates/insteon/util"
+	"github.com/creack/pty"
 	"github.com/kirsle/configdir"
 	"github.com/tarm/serial"
 )
@@ -54,14 +56,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	modem := plm.New(s)
-
-	mon := util.Snoop(os.Stdout, db).Filter(modem)
-	for _, err = mon.Read(); err == nil || errors.Is(err, insteon.ErrReadTimeout); _, err = mon.Read() {
-	}
-
+	p, f, err := pty.Open()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to start PTY: %v\n", err)
 		os.Exit(1)
 	}
+
+	fmt.Fprintf(os.Stdout, "Connect intercepted application to %s\n", f.Name())
+
+	txReader, txWriter := io.Pipe()
+	rxReader, rxWriter := io.Pipe()
+
+	rx := io.TeeReader(s, rxWriter)
+	tx := io.TeeReader(p, txWriter)
+
+	go func() {
+		mon := util.Snoop(os.Stdout, db).Filter(plm.Snoop(rxReader, txReader))
+		for _, err = mon.Read(); err == nil || errors.Is(err, insteon.ErrReadTimeout); _, err = mon.Read() {
+		}
+	}()
+
+	go io.Copy(p, rx)
+	io.Copy(s, tx)
 }

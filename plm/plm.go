@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 )
 
 var (
@@ -67,11 +68,49 @@ type PLM struct {
 	packetBuf chan *Packet
 }
 
+type snoop struct {
+	tx *PLM
+	rx *PLM
+}
+
+func (s *snoop) Read() (*insteon.Message, error) {
+	var pkt *Packet
+	for pkt == nil {
+		select {
+		case pkt = <-s.tx.msgBuf:
+			println("MSG Received from tx")
+		case pkt = <-s.rx.msgBuf:
+			//println("MSG Received from rx")
+		case <-s.tx.packetBuf:
+			//println("PKT Received from tx")
+		case <-s.rx.packetBuf:
+			//println("PKT Received from rx")
+		}
+	}
+
+	msg := &insteon.Message{}
+	err := msg.UnmarshalBinary(pkt.Payload)
+	return msg, err
+}
+
+func (s *snoop) Write(*insteon.Message) (ack *insteon.Message, err error) {
+	// We can't write to a snooped PLM
+	return nil, ErrNotImplemented
+}
+
+func Snoop(rx, tx io.Reader) devices.MessageWriter {
+	return &snoop{newPlm(tx, nil), newPlm(rx, nil)}
+}
+
 // New creates a new PLM instance.
 func New(rw io.ReadWriter, options ...Option) (plm *PLM) {
+	return newPlm(rw, rw, options...)
+}
+
+func newPlm(reader io.Reader, writer io.Writer, options ...Option) (plm *PLM) {
 	plm = &PLM{
-		writer: logWriter{rw},
-		reader: NewPacketReader(rw),
+		writer: logWriter{writer},
+		reader: NewPacketReader(reader),
 
 		timeout:   3 * time.Second,
 		retries:   3,

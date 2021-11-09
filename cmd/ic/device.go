@@ -45,15 +45,15 @@ func init() {
 		Description: "Interact with a specific device",
 		Callback:    cli.Callback(d.init, "<device id>"),
 		SubCommands: []*cli.Command{
-			&cli.Command{Name: "info", Description: "retrieve device info", Callback: cli.Callback(d.infoCmd)},
-			&cli.Command{Name: "link", Description: "enter linking mode", Callback: cli.Callback(d.EnterLinkingMode, "<group>")},
-			&cli.Command{Name: "unlink", Description: "enter unlinking mode", Callback: cli.Callback(d.EnterUnlinkingMode, "<group>")},
-			&cli.Command{Name: "exitlink", Description: "exit linking mode", Callback: cli.Callback(d.ExitLinkingMode)},
-			&cli.Command{Name: "dump", Description: "dump the device all-link database", Callback: cli.Callback(d.dumpCmd)},
-			&cli.Command{Name: "edit", Description: "edit the device all-link database", Callback: cli.Callback(d.editCmd)},
-			&cli.Command{Name: "version", Description: "Retrieve the Insteon engine version", Callback: cli.Callback(d.versionCmd)},
-			&cli.Command{Name: "send", Description: "send an arbitrary standard-direct command", Callback: cli.Callback(d.sendCmd, "<cmd1>.<cmd2>")},
-			&cli.Command{Name: "esend", Description: "send an arbitrary extended-direct command", Callback: cli.Callback(d.esendCmd, "<cmd1>.<cmd2>", "<d1> <d2> ...")},
+			{Name: "info", Description: "retrieve device info", Callback: cli.Callback(d.infoCmd)},
+			{Name: "link", Description: "enter linking mode", Callback: cli.Callback(d.EnterLinkingMode, "<group>")},
+			{Name: "unlink", Description: "enter unlinking mode", Callback: cli.Callback(d.EnterUnlinkingMode, "<group>")},
+			{Name: "exitlink", Description: "exit linking mode", Callback: cli.Callback(d.ExitLinkingMode)},
+			{Name: "dump", Description: "dump the device all-link database", Callback: cli.Callback(d.dumpCmd)},
+			{Name: "edit", Description: "edit the device all-link database", Callback: cli.Callback(d.editCmd)},
+			{Name: "version", Description: "Retrieve the Insteon engine version", Callback: cli.Callback(d.versionCmd)},
+			{Name: "send", Description: "send an arbitrary standard-direct command", Callback: cli.Callback(d.sendCmd, "<cmd1>.<cmd2>")},
+			{Name: "esend", Description: "send an arbitrary extended-direct command", Callback: cli.Callback(d.esendCmd, "<cmd1>.<cmd2>", "<d1> <d2> ...")},
 		},
 	}
 	app.SubCommands = append(app.SubCommands, cmd)
@@ -62,8 +62,9 @@ func init() {
 func (dev *device) init(address insteon.Address) error {
 	device, err := open(modem, address)
 	if err == nil {
-		dev.BasicDevice.MessageWriter = device.MessageWriter
-		dev.BasicDevice.DeviceInfo = device.DeviceInfo
+		*dev.BasicDevice = *device
+		//dev.BasicDevice.MessageWriter = device.MessageWriter
+		//dev.BasicDevice.DeviceInfo = device.DeviceInfo
 	}
 	return err
 }

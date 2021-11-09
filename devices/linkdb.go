@@ -146,6 +146,7 @@ type linkdb struct {
 }
 
 func (ldb *linkdb) old() bool {
+	println(fmt.Sprintf("%v", ldb))
 	return ldb.age.Add(MaxLinkDbAge).Before(time.Now())
 }
 
