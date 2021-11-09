@@ -17,7 +17,6 @@ package plm
 import (
 	"bufio"
 	"io"
-	"log"
 	"time"
 
 	"github.com/abates/insteon"
@@ -107,20 +106,30 @@ func RetryWriter(writer PacketWriter, retries int, ignoreNak bool) PacketWriter 
 	return &retryWriter{writer, retries, ignoreNak}
 }
 
+type logReader struct {
+	io.Reader
+}
+
+func (lr logReader) Read(buf []byte) (n int, err error) {
+	n, err = lr.Reader.Read(buf)
+	if n > 0 {
+		LogDebug.Printf("RX %s", hexDump("%02x", buf[0:n], " "))
+	}
+	return
+}
+
 type logWriter struct {
 	io.Writer
-	Log      *log.Logger
-	LogDebug *log.Logger
 }
 
 // Write writes len(p) bytes from p to the underlying data stream.
 // and logs what was written. Write will return the number of bytes
 // written and any associated error
 func (lw logWriter) Write(buf []byte) (int, error) {
-	lw.LogDebug.Printf("OUT %s", hexDump("%02x", buf, " "))
+	LogDebug.Printf("TX %s", hexDump("%02x", buf, " "))
 	n, err := lw.Writer.Write(buf)
 	if err != nil {
-		lw.Log.Printf("Failed to write: %v", err)
+		Log.Printf("Failed to write: %v", err)
 	}
 	return n, err
 }
@@ -134,7 +143,7 @@ type packetReader struct {
 // NewPacketReader will create and initialize a PacketReader for the
 // given io.Reader
 func NewPacketReader(reader io.Reader) PacketReader {
-	return &packetReader{reader: bufio.NewReader(reader)}
+	return &packetReader{reader: bufio.NewReader(logReader{reader})}
 }
 
 // sync will advance the reader until a start of text character is seen
@@ -186,9 +195,6 @@ func (pr *packetReader) read() (int, error) {
 			n += nn
 		}
 
-		if err == nil {
-			LogDebug.Printf("IN %s", hexDump("%02x", pr.buf[0:n], " "))
-		}
 	}
 
 	return n, err
@@ -199,6 +205,9 @@ func (pr *packetReader) ReadPacket() (packet *Packet, err error) {
 	if err == nil {
 		packet = &Packet{}
 		err = packet.UnmarshalBinary(pr.buf[0:n])
+		if err == nil {
+			LogDebug.Printf("RX Packet %v", packet)
+		}
 	}
 	return packet, err
 }

@@ -70,7 +70,7 @@ type PLM struct {
 // New creates a new PLM instance.
 func New(rw io.ReadWriter, options ...Option) (plm *PLM) {
 	plm = &PLM{
-		writer: rw,
+		writer: logWriter{rw},
 		reader: NewPacketReader(rw),
 
 		timeout:   3 * time.Second,
@@ -102,7 +102,6 @@ func (plm *PLM) readLoop() {
 			return
 		}
 
-		LogDebug.Printf("PLM RX %v", pkt)
 		if pkt.Command == CmdStdMsgReceived || pkt.Command == CmdExtMsgReceived {
 			select {
 			case plm.msgBuf <- pkt:
@@ -123,7 +122,7 @@ func (plm *PLM) readLoop() {
 func (plm *PLM) Write(msg *insteon.Message) (ack *insteon.Message, err error) {
 	buf, err := msg.MarshalBinary()
 	if err == nil {
-		LogDebug.Printf("TX Insteon Message %v", msg)
+		LogDebug.Printf("TX Message %v", msg)
 		// slice off the source address since the PLM doesn't want it
 		buf = buf[3:]
 		_, err = RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
@@ -145,7 +144,7 @@ func (plm *PLM) Write(msg *insteon.Message) (ack *insteon.Message, err error) {
 func (plm *PLM) WritePacket(pkt *Packet) (ack *Packet, err error) {
 	buf, err := pkt.MarshalBinary()
 	if err == nil {
-		LogDebug.Printf("PLM TX %v", pkt)
+		LogDebug.Printf("TX Packet %v", pkt)
 		_, err = plm.writer.Write(buf)
 
 		if err == nil {
@@ -166,11 +165,12 @@ func (plm *PLM) WritePacket(pkt *Packet) (ack *Packet, err error) {
 						err = ErrWrongPayload
 					}
 				}
+
+				if ack.NAK() {
+					err = ErrNak
+				}
 			}
 		}
-	}
-	if ack.NAK() {
-		err = ErrNak
 	}
 
 	return

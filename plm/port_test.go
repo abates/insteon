@@ -29,9 +29,9 @@ func TestLogWriter(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			buf := bytes.NewBuffer(nil)
-			l := log.New(buf, "", 0)
-			ld := log.New(buf, "DEBUG ", 0)
-			lw := logWriter{Writer: test.writer, Log: l, LogDebug: ld}
+			Log = log.New(buf, "", 0)
+			LogDebug = log.New(buf, "DEBUG ", 0)
+			lw := logWriter{Writer: test.writer}
 			_, gotErr := lw.Write(test.input)
 			lines := strings.Split(buf.String(), "\n")
 

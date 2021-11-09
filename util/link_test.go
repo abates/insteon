@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 
@@ -128,5 +129,49 @@ func TestFindLinkRecord(t *testing.T) {
 				t.Errorf("Wanted error %v got %v", test.wantErr, err)
 			}
 		})
+	}
+}
+
+func TestPrintLinks(t *testing.T) {
+	links := []insteon.LinkRecord{
+		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address{1, 2, 3}},
+		{Flags: insteon.UnavailableResponder, Group: 1, Address: insteon.Address{1, 2, 3}},
+		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address{4, 5, 6}},
+		{Flags: insteon.UnavailableResponder, Group: 1, Address: insteon.Address{4, 5, 6}},
+	}
+
+	want := `Link Database:
+    No links defined
+`
+	out := &bytes.Buffer{}
+	l := &testLinkable{}
+
+	err := PrintLinkDatabase(out, l)
+	if err == nil {
+		got := string(out.Bytes())
+		if want != got {
+			t.Errorf("Wanted:\n%v\nGot:\n%v", want, got)
+		}
+	} else {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	out.Reset()
+	want = `Link Database:
+    Flags Group Address    Data
+    UC        1 01.02.03   00 00 00
+    UR        1 01.02.03   00 00 00
+    UC        1 04.05.06   00 00 00
+    UR        1 04.05.06   00 00 00
+`
+
+	l.links = links
+	err = PrintLinkDatabase(out, l)
+	if err == nil {
+		got := string(out.Bytes())
+		if want != got {
+			t.Errorf("Wanted:\n%v\nGot:\n%v", want, got)
+		}
+	} else {
+		t.Fatalf("Unexpected error: %v", err)
 	}
 }

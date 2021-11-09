@@ -283,24 +283,24 @@ func Link(group insteon.Group, controller, responder devices.Linkable) (err erro
 func DumpLinkDatabase(out io.Writer, linkable devices.Linkable) error {
 	links, err := linkable.Links()
 	if err == nil {
-		DumpLinks(out, links)
+		err = DumpLinks(out, links)
 	}
 	return err
 }
 
-func DumpLinks(out io.Writer, links []insteon.LinkRecord) {
-	dumplinksTmpl.Execute(out, links)
+func DumpLinks(out io.Writer, links []insteon.LinkRecord) error {
+	return dumplinksTmpl.Execute(out, links)
 }
 
 func PrintLinkDatabase(out io.Writer, linkable devices.Linkable) error {
 	links, err := linkable.Links()
 	if err == nil {
-		PrintLinks(out, links)
+		err = PrintLinks(out, links)
 	}
 	return err
 }
 
-func PrintLinks(out io.Writer, links []insteon.LinkRecord) {
+func PrintLinks(out io.Writer, links []insteon.LinkRecord) error {
 	sort.Sort(Links(links))
-	printlinksTmpl.Execute(out, links)
+	return printlinksTmpl.Execute(out, links)
 }

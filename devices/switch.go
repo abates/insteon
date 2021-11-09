@@ -85,8 +85,9 @@ func (lf LightFlags) X10Enabled() bool { return lf[4]&0x01 != 0x01 }
 // TODO: Confirm this description is correct
 func (lf LightFlags) ErrorBlink() bool { return lf[4]&0x02 == 0x02 }
 
-// CleanupReport enables sending All-link cleanup reports
-// TODO: Confirm this description is correct
+// CleanupReport enables sending All-link cleanup reports.  These are
+// broadcast messages sent after all-link recall/all-link alias
+// messages.
 func (lf LightFlags) CleanupReport() bool { return lf[4]&0x04 == 0x04 }
 
 type LightState struct {

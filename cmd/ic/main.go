@@ -89,8 +89,7 @@ func run() error {
 		return fmt.Errorf("error opening serial port: %v", err)
 	}
 
-	db = util.NewMemDB()
-	err = util.LoadDB(dbfile, db)
+	db, err = util.NewFileDB(dbfile)
 	if err != nil {
 		log.Fatalf("Failed to load database: %v", err)
 	}
@@ -100,7 +99,7 @@ func run() error {
 }
 
 func open(modem *plm.PLM, addr insteon.Address) (*devices.BasicDevice, error) {
-	device, err := util.Open(devices.TTL(ttlFlag).Filter(modem), addr, db, dbfile)
+	device, err := db.Open(devices.TTL(ttlFlag).Filter(modem), addr)
 
 	if err == devices.ErrNotLinked {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)

@@ -34,6 +34,12 @@ type Database interface {
 	// Filter will return a list of addresses that match the
 	// given device categories
 	Filter(domains ...insteon.Domain) []insteon.Address
+
+	// Open will look for the device info in the database and return
+	// an initialized device if found.  If not found, Open will call
+	// insteon.Open and store the info upon success.  If dbfile is
+	// not an empty string, SaveDB will be called at the end
+	Open(mw devices.MessageWriter, addr insteon.Address) (*devices.BasicDevice, error)
 }
 
 // Saveable is any database that can be written to an io.Writer
@@ -60,6 +66,30 @@ func NewMemDB() Saveable {
 	return &memDB{
 		values: make(map[insteon.Address]devices.DeviceInfo),
 	}
+}
+
+type fileDB struct {
+	*memDB
+	filename string
+}
+
+func NewFileDB(filename string) (Database, error) {
+	db := &fileDB{
+		memDB: &memDB{
+			values: make(map[insteon.Address]devices.DeviceInfo),
+		},
+		filename: filename,
+	}
+
+	return db, LoadDB(filename, db.memDB)
+}
+
+func (db *fileDB) Open(mw devices.MessageWriter, addr insteon.Address) (*devices.BasicDevice, error) {
+	dev, found, err := db.open(mw, addr)
+	if err == nil && !found {
+		err = SaveDB(db.filename, db.memDB)
+	}
+	return dev, err
 }
 
 type memDB struct {
@@ -125,24 +155,22 @@ var (
 	ErrNotLoadable = errors.New("Database is not loadable")
 )
 
-// Open will look for the device info in the database and return
-// an initialized device if found.  If not found, Open will call
-// insteon.Open and store the info upon success.  If dbfile is
-// not an empty string, SaveDB will be called at the end
-func Open(mw devices.MessageWriter, addr insteon.Address, db Database, dbfile string) (*devices.BasicDevice, error) {
+func (db *memDB) open(mw devices.MessageWriter, addr insteon.Address) (device *devices.BasicDevice, found bool, err error) {
 	info, found := db.Get(addr)
 	if found {
-		return devices.New(mw, info), nil
+		return devices.New(mw, info), found, err
 	}
 
-	device, info, err := devices.Open(mw, addr)
+	device, info, err = devices.Open(mw, addr)
 	if err == nil {
 		db.Put(info)
-		if dbfile != "" {
-			err = SaveDB(dbfile, db)
-		}
 	}
-	return device, err
+	return device, found, err
+}
+
+func (db *memDB) Open(mw devices.MessageWriter, addr insteon.Address) (*devices.BasicDevice, error) {
+	dev, _, err := db.open(mw, addr)
+	return dev, err
 }
 
 // SaveDB will attemt to save the database to the named file.  If

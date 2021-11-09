@@ -131,7 +131,6 @@ func main() {
 
 	if links, err := modem.Links(); err == nil {
 		util.PrintLinks(os.Stdout, links)
-		//time.Sleep(time.Millisecond * 100)
 		dump(links)
 	} else {
 		log.Fatalf("Failed to retrieve modem info: %v", err)

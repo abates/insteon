@@ -152,7 +152,7 @@ func (p *plmCmd) link(controller, responder bool) func() error {
 		for _, addr := range p.addresses {
 			group := insteon.Group(p.group)
 			fmt.Printf("Linking to %s...", addr)
-			device, err := util.Open(modem, addr, db, dbfile)
+			device, err := db.Open(modem, addr)
 			if err == devices.ErrNotLinked {
 				err = nil
 			}
@@ -185,7 +185,7 @@ func (p *plmCmd) unlinkCmd(addresses addrSlice) (err error) {
 
 	for _, addr := range p.addresses {
 		var device *devices.BasicDevice
-		device, err = util.Open(modem, addr, db, dbfile)
+		device, err = db.Open(modem, addr)
 
 		if err == nil {
 			fmt.Printf("Unlinking from %s:%s...", device, addr)

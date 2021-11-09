@@ -48,7 +48,10 @@ func (p *Packet) Format(f fmt.State, c rune) {
 		if c == 's' {
 			fmt.Fprintf(f, p.String())
 		} else if c == 'v' {
-			fmt.Fprintf(f, "%v %s", p.Command, hexDump("%02x", p.Payload, " "))
+			fmt.Fprintf(f, "%v", p.Command)
+			if len(p.Payload) > 0 {
+				fmt.Fprintf(f, " %s", hexDump("%02x", p.Payload, " "))
+			}
 			if p.ACK() {
 				fmt.Fprintf(f, " ACK")
 			} else if p.NAK() {
