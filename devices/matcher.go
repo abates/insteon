@@ -52,6 +52,12 @@ func SrcMatcher(src insteon.Address) Matcher {
 	})
 }
 
+func DstMatcher(dst insteon.Address) Matcher {
+	return Matches(func(msg *insteon.Message) bool {
+		return msg.Dst == dst
+	})
+}
+
 func AckMatcher() Matcher {
 	return Matches(func(msg *insteon.Message) bool {
 		return msg.Ack() || msg.Nak()
@@ -95,5 +101,5 @@ func Or(matchers ...Matcher) Matcher {
 // MatchAck will match the message that corresponds to the
 // given ack message
 func MatchAck(ack *insteon.Message) Matcher {
-	return And(Not(AckMatcher()), SrcMatcher(ack.Src), CmdMatcher(ack.Command))
+	return And(Not(AckMatcher()), DstMatcher(ack.Src), CmdMatcher(ack.Command))
 }

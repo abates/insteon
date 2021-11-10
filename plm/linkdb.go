@@ -83,7 +83,7 @@ func (alr *allLinkReq) String() string {
 type linkdb struct {
 	age     time.Time
 	links   []insteon.LinkRecord
-	plm     PacketWriter
+	plm     packetWriter
 	retries int
 	timeout time.Duration
 }
@@ -97,7 +97,7 @@ func (ldb *linkdb) refresh() error {
 		return nil
 	}
 	links := make([]insteon.LinkRecord, 0)
-	_, err := RetryWriter(ldb.plm, ldb.retries, true).WritePacket(&Packet{Command: CmdGetFirstAllLink})
+	_, err := retry(ldb.plm, ldb.retries, true).WritePacket(&Packet{Command: CmdGetFirstAllLink})
 	for err == nil {
 		var pkt *Packet
 		pkt, err = ldb.plm.ReadPacket()
@@ -107,7 +107,7 @@ func (ldb *linkdb) refresh() error {
 				err = link.UnmarshalBinary(pkt.Payload)
 				if err == nil {
 					links = append(links, link)
-					_, err = RetryWriter(ldb.plm, ldb.retries, false).WritePacket(&Packet{Command: CmdGetNextAllLink})
+					_, err = retry(ldb.plm, ldb.retries, false).WritePacket(&Packet{Command: CmdGetNextAllLink})
 				}
 			}
 		}
@@ -133,7 +133,7 @@ func (ldb *linkdb) deleteLink(link *insteon.LinkRecord) (*Packet, error) {
 		link: link,
 	}
 	payload, _ := mrr.MarshalBinary()
-	return RetryWriter(ldb.plm, 3, true).WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
+	return retry(ldb.plm, 3, true).WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
 }
 
 func (ldb *linkdb) writeLink(link *insteon.LinkRecord) (*Packet, error) {
@@ -145,7 +145,7 @@ func (ldb *linkdb) writeLink(link *insteon.LinkRecord) (*Packet, error) {
 		mrr.cmd = LinkCmdModFirstCtrl
 	}
 	payload, _ := mrr.MarshalBinary()
-	return RetryWriter(ldb.plm, 3, true).WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
+	return retry(ldb.plm, 3, true).WritePacket(&Packet{Command: CmdManageAllLinkRecord, Payload: payload})
 }
 
 func (ldb *linkdb) WriteLinks(newLinks ...insteon.LinkRecord) (err error) {

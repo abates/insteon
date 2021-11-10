@@ -88,6 +88,7 @@ func (lr *LinkRequest) UnmarshalBinary(buf []byte) (err error) {
 	if len(buf) < 5 {
 		return fmt.Errorf("%w: wanted 6 bytes got %d", insteon.ErrBufferTooShort, len(buf))
 	}
+
 	lr.Type = LinkRequestType(buf[1])
 	lr.MemAddress = MemAddress(buf[2]) << 8
 	lr.MemAddress |= MemAddress(buf[3])
@@ -146,7 +147,6 @@ type linkdb struct {
 }
 
 func (ldb *linkdb) old() bool {
-	println(fmt.Sprintf("%v", ldb))
 	return ldb.age.Add(MaxLinkDbAge).Before(time.Now())
 }
 

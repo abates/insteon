@@ -12,7 +12,7 @@ import (
 )
 
 type snoop struct {
-	cache devices.CacheFilter
+	cache *devices.CacheFilter
 	db    Database
 	mw    devices.MessageWriter
 	out   io.Writer
@@ -25,7 +25,7 @@ func (s *snoop) Filter(next devices.MessageWriter) devices.MessageWriter {
 
 func (s *snoop) Read() (*insteon.Message, error) {
 	msg, err := s.mw.Read()
-	if msg != nil {
+	if err == nil {
 		s.print(msg)
 	}
 	return msg, err
@@ -105,7 +105,7 @@ func (s *snoop) print(msg *insteon.Message) {
 		} else {
 			payload = fmt.Sprintf("unknown payload [%v]", s.payloadStr(msg.Payload))
 		}
-		fmt.Fprint(s.out, payload)
+		fmt.Fprint(s.out, " ", payload)
 	}
 	fmt.Fprintln(s.out, "")
 }

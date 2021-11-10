@@ -94,6 +94,7 @@ func (p *Packet) UnmarshalBinary(buf []byte) (err error) {
 	}
 
 	p.Command = Command(buf[1])
+
 	buf = buf[2:]
 
 	// responses to locally generated insteon messages need
@@ -103,9 +104,18 @@ func (p *Packet) UnmarshalBinary(buf []byte) (err error) {
 		p.Payload = make([]byte, 3)
 	}
 
+	// If the length of the buffer is 1 less than we're expecting, assume
+	// no ack byte is present.  This change was made to support snooping
 	if 0x60 <= p.Command && p.Command <= 0x7f {
-		p.Ack = buf[len(buf)-1]
-		buf = buf[0 : len(buf)-1]
+		if p.Command == CmdSendInsteonMsg {
+			if len(buf) == 21 || len(buf) == 7 {
+				p.Ack = buf[len(buf)-1]
+				buf = buf[0 : len(buf)-1]
+			}
+		} else if len(buf) == commandLens[p.Command] {
+			p.Ack = buf[len(buf)-1]
+			buf = buf[0 : len(buf)-1]
+		}
 	}
 
 	p.Payload = append(p.Payload, buf...)

@@ -62,30 +62,23 @@ func TTL(ttl int) Filter {
 	})
 }
 
-type CacheFilter interface {
-	Filter
-	Lookup(Matcher) (match *insteon.Message, found bool)
-}
+func NewCache(size int, messages ...*insteon.Message) *CacheFilter {
+	if size < len(messages) {
+		size = len(messages)
+	}
 
-func NewCache(size int, messages ...*insteon.Message) CacheFilter {
-	return newCache(size, messages...)
-}
-
-func newCache(size int, messages ...*insteon.Message) *cache {
-	c := &cache{
-		messages: make([]*insteon.Message, size),
-		length:   0,
+	c := &CacheFilter{
+		Messages: make([]*insteon.Message, 0, size),
 	}
 
 	for i, msg := range messages {
 		c.i = i
-		c.length++
-		c.messages[i] = msg
+		c.Messages = append(c.Messages, msg)
 	}
 	return c
 }
 
-func (c *cache) Filter(next MessageWriter) MessageWriter {
+func (c *CacheFilter) Filter(next MessageWriter) MessageWriter {
 	c.filter.read = func() (*insteon.Message, error) {
 		msg, err := next.Read()
 		c.push(msg)
@@ -99,48 +92,47 @@ func (c *cache) Filter(next MessageWriter) MessageWriter {
 	return c
 }
 
-type cache struct {
+type CacheFilter struct {
 	filter
-	messages []*insteon.Message
+	Messages []*insteon.Message
 	i        int
-	length   int
 }
 
-func (c *cache) push(msg *insteon.Message) {
+func (c *CacheFilter) push(msg *insteon.Message) {
 	if msg == nil {
 		return
 	}
 
-	if c.length > 0 {
+	if len(c.Messages) > 0 {
 		c.i++
-		if c.i == len(c.messages) {
+	}
+
+	if len(c.Messages) < cap(c.Messages) {
+		c.Messages = append(c.Messages, msg)
+	} else {
+		if c.i == len(c.Messages) {
 			c.i = 0
 		}
+		c.Messages[c.i] = msg
 	}
-
-	if c.length < len(c.messages) {
-		c.length++
-	}
-
-	c.messages[c.i] = msg
 }
 
-func (c *cache) Lookup(matcher Matcher) (*insteon.Message, bool) {
-	if c.length == 0 {
+func (c *CacheFilter) Lookup(matcher Matcher) (*insteon.Message, bool) {
+	if len(c.Messages) == 0 {
 		return nil, false
 	}
 
 	j := c.i + 1
-	if j == c.length {
+	if j == len(c.Messages) {
 		j = 0
 	}
 
 	for i := c.i; ; i-- {
 		if i < 0 {
-			i = c.length - 1
+			i = len(c.Messages) - 1
 		}
-		if matcher.Matches(c.messages[i]) {
-			return c.messages[i], true
+		if matcher.Matches(c.Messages[i]) {
+			return c.Messages[i], true
 		}
 		if i == j {
 			break

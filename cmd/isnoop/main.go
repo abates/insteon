@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 	"github.com/abates/insteon/plm"
 	"github.com/abates/insteon/util"
 	"github.com/creack/pty"
@@ -35,9 +36,17 @@ func main() {
 	configDir := configdir.LocalConfig("go-insteon")
 	dbfile := filepath.Join(configDir, "db.json")
 
+	debugFlag := false
 	serialPortFlag := ""
+
+	flag.BoolVar(&debugFlag, "debug", false, "turn on debug log")
 	flag.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
 	flag.Parse()
+
+	if debugFlag {
+		plm.LogDebug.SetOutput(os.Stderr)
+		devices.LogDebug.SetOutput(os.Stderr)
+	}
 
 	c := &serial.Config{
 		Name: serialPortFlag,
@@ -64,8 +73,8 @@ func main() {
 
 	fmt.Fprintf(os.Stdout, "Connect intercepted application to %s\n", f.Name())
 
-	txReader, txWriter := io.Pipe()
 	rxReader, rxWriter := io.Pipe()
+	txReader, txWriter := io.Pipe()
 
 	rx := io.TeeReader(s, rxWriter)
 	tx := io.TeeReader(p, txWriter)

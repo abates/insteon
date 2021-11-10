@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/abates/insteon"
+	"github.com/abates/insteon/commands"
 )
 
 func TestDataVar(t *testing.T) {
@@ -44,14 +44,14 @@ func TestCmdVar(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
-		want    insteon.Command
+		want    commands.Command
 		wantErr error
 	}{
-		{"common format", "01.02", insteon.Command(0x0102), nil},
-		{"no dots", "0102", insteon.Command(0x0102), nil},
-		{"short", "123", insteon.Command(0), strconv.ErrSyntax},
-		{"first byte syntax error", "xx.01", insteon.Command(0), strconv.ErrSyntax},
-		{"second byte syntax error", "01.xx", insteon.Command(0), strconv.ErrSyntax},
+		{"common format", "01.02", commands.Command(0x0102), nil},
+		{"no dots", "0102", commands.Command(0x0102), nil},
+		{"short", "123", commands.Command(0), strconv.ErrSyntax},
+		{"first byte syntax error", "xx.01", commands.Command(0), strconv.ErrSyntax},
+		{"second byte syntax error", "01.xx", commands.Command(0), strconv.ErrSyntax},
 	}
 
 	for _, test := range tests {

@@ -53,7 +53,7 @@ func TestMatchers(t *testing.T) {
 		{"duplicate matcher (false)", DuplicateMatcher(&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 3, 3)}), &insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, true, 2, 3)}, true},
 		{
 			name:    "MatchAck",
-			matcher: MatchAck(&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirectAck, false, 0, 1), Command: commands.Command(0x010203), Src: insteon.Address{3, 4, 5}}),
+			matcher: MatchAck(&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirectAck, false, 0, 1), Command: commands.Command(0x010203), Dst: insteon.Address{3, 4, 5}}),
 			input:   &insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 0, 1), Command: commands.Command(0x010205), Src: insteon.Address{3, 4, 5}},
 			want:    true,
 		},

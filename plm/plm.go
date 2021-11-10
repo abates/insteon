@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/abates/insteon"
-	"github.com/abates/insteon/devices"
 )
 
 var (
@@ -56,7 +55,7 @@ func hexDump(format string, buf []byte, sep string) string {
 
 type PLM struct {
 	writer  io.Writer
-	reader  PacketReader
+	reader  *packetReader
 	address insteon.Address
 
 	linkdb
@@ -68,49 +67,11 @@ type PLM struct {
 	packetBuf chan *Packet
 }
 
-type snoop struct {
-	tx *PLM
-	rx *PLM
-}
-
-func (s *snoop) Read() (*insteon.Message, error) {
-	var pkt *Packet
-	for pkt == nil {
-		select {
-		case pkt = <-s.tx.msgBuf:
-			println("MSG Received from tx")
-		case pkt = <-s.rx.msgBuf:
-			//println("MSG Received from rx")
-		case <-s.tx.packetBuf:
-			//println("PKT Received from tx")
-		case <-s.rx.packetBuf:
-			//println("PKT Received from rx")
-		}
-	}
-
-	msg := &insteon.Message{}
-	err := msg.UnmarshalBinary(pkt.Payload)
-	return msg, err
-}
-
-func (s *snoop) Write(*insteon.Message) (ack *insteon.Message, err error) {
-	// We can't write to a snooped PLM
-	return nil, ErrNotImplemented
-}
-
-func Snoop(rx, tx io.Reader) devices.MessageWriter {
-	return &snoop{newPlm(tx, nil), newPlm(rx, nil)}
-}
-
 // New creates a new PLM instance.
 func New(rw io.ReadWriter, options ...Option) (plm *PLM) {
-	return newPlm(rw, rw, options...)
-}
-
-func newPlm(reader io.Reader, writer io.Writer, options ...Option) (plm *PLM) {
 	plm = &PLM{
-		writer: logWriter{writer},
-		reader: NewPacketReader(reader),
+		writer: logWriter{rw},
+		reader: newPacketReader(rw, false),
 
 		timeout:   3 * time.Second,
 		retries:   3,
@@ -164,7 +125,7 @@ func (plm *PLM) Write(msg *insteon.Message) (ack *insteon.Message, err error) {
 		LogDebug.Printf("TX Message %v", msg)
 		// slice off the source address since the PLM doesn't want it
 		buf = buf[3:]
-		_, err = RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
+		_, err = retry(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSendInsteonMsg, Payload: buf})
 
 		if err == nil {
 			// get the ACK
@@ -240,7 +201,7 @@ func (plm *PLM) Read() (msg *insteon.Message, err error) {
 }
 
 func (plm *PLM) Info() (info *Info, err error) {
-	ack, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdGetInfo})
+	ack, err := retry(plm, plm.retries, true).WritePacket(&Packet{Command: CmdGetInfo})
 	if err == nil {
 		info = &Info{}
 		err = info.UnmarshalBinary(ack.Payload)
@@ -253,13 +214,13 @@ func (plm *PLM) Reset() error {
 	timeout := plm.timeout
 	plm.timeout = 20 * time.Second
 
-	_, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdReset})
+	_, err := retry(plm, plm.retries, true).WritePacket(&Packet{Command: CmdReset})
 	plm.timeout = timeout
 	return err
 }
 
 func (plm *PLM) Config() (config Config, err error) {
-	ack, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdGetConfig})
+	ack, err := retry(plm, plm.retries, true).WritePacket(&Packet{Command: CmdGetConfig})
 	if err == nil {
 		err = config.UnmarshalBinary(ack.Payload)
 	}
@@ -268,7 +229,7 @@ func (plm *PLM) Config() (config Config, err error) {
 
 func (plm *PLM) SetConfig(config Config) error {
 	payload, _ := config.MarshalBinary()
-	_, err := RetryWriter(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSetConfig, Payload: payload})
+	_, err := retry(plm, plm.retries, true).WritePacket(&Packet{Command: CmdSetConfig, Payload: payload})
 	return err
 }
 

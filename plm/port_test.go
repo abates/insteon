@@ -61,7 +61,7 @@ func TestPacketReaderSync(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewPacketReader(bytes.NewReader(test.input)).(*packetReader)
+			reader := newPacketReader(bytes.NewReader(test.input), false)
 			gotN, gotPaclen, gotErr := reader.sync()
 			if test.wantN != gotN {
 				t.Errorf("Wanted N %d got %d", test.wantN, gotN)
@@ -98,7 +98,7 @@ func TestPacketReaderRead(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := NewPacketReader(bytes.NewReader(test.input)).(*packetReader)
+			reader := newPacketReader(bytes.NewReader(test.input), false)
 			got, err := reader.ReadPacket()
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)

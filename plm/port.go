@@ -22,17 +22,13 @@ import (
 	"github.com/abates/insteon"
 )
 
-type PacketReader interface {
+type packetWriter interface {
 	ReadPacket() (*Packet, error)
-}
-
-type PacketWriter interface {
-	PacketReader
 	WritePacket(*Packet) (ack *Packet, err error)
 }
 
 type delayWriter struct {
-	PacketWriter
+	packetWriter
 	lastTTL  uint8
 	lastLen  int
 	minDelay time.Duration
@@ -41,7 +37,7 @@ type delayWriter struct {
 }
 
 func (dw *delayWriter) ReadPacket() (*Packet, error) {
-	pkt, err := dw.PacketWriter.ReadPacket()
+	pkt, err := dw.packetWriter.ReadPacket()
 	if err == nil {
 		dw.lastRead = time.Now()
 		dw.lastLen = len(pkt.Payload)
@@ -77,11 +73,11 @@ func (dw *delayWriter) Write(pkt *Packet) (ack *Packet, err error) {
 	time.Sleep(delay)
 
 	dw.lastPkt = pkt
-	return dw.PacketWriter.WritePacket(pkt)
+	return dw.packetWriter.WritePacket(pkt)
 }
 
 type retryWriter struct {
-	PacketWriter
+	packetWriter
 	retries   int
 	ignoreNak bool
 }
@@ -89,7 +85,7 @@ type retryWriter struct {
 func (rw *retryWriter) WritePacket(packet *Packet) (ack *Packet, err error) {
 	retries := rw.retries
 	for 0 <= retries {
-		ack, err = rw.PacketWriter.WritePacket(packet)
+		ack, err = rw.packetWriter.WritePacket(packet)
 		if (err == ErrNak && rw.ignoreNak) || err == ErrReadTimeout {
 			// TODO add exponential backoff
 			LogDebug.Printf("Got %v retrying", err)
@@ -102,7 +98,7 @@ func (rw *retryWriter) WritePacket(packet *Packet) (ack *Packet, err error) {
 	return
 }
 
-func RetryWriter(writer PacketWriter, retries int, ignoreNak bool) PacketWriter {
+func retry(writer packetWriter, retries int, ignoreNak bool) packetWriter {
 	return &retryWriter{writer, retries, ignoreNak}
 }
 
@@ -134,16 +130,22 @@ func (lw logWriter) Write(buf []byte) (int, error) {
 	return n, err
 }
 
-// PacketReader reads PLM packets from a given io.Reader
+// packetReader reads PLM packets from a given io.Reader
 type packetReader struct {
 	reader *bufio.Reader
 	buf    [maxPaclen]byte
+
+	// ignoreAck instructs the packet reader to forgoe looking
+	// for ack bytes in packets.  This is *only* useful when
+	// running the packet reader on the transmit side of a
+	// snooped connection
+	ignoreAck bool
 }
 
-// NewPacketReader will create and initialize a PacketReader for the
+// newPacketReader will create and initialize a packetReader for the
 // given io.Reader
-func NewPacketReader(reader io.Reader) PacketReader {
-	return &packetReader{reader: bufio.NewReader(logReader{reader})}
+func newPacketReader(reader io.Reader, ignoreAck bool) *packetReader {
+	return &packetReader{reader: bufio.NewReader(logReader{reader}), ignoreAck: ignoreAck}
 }
 
 // sync will advance the reader until a start of text character is seen
@@ -165,6 +167,12 @@ func (pr *packetReader) sync() (n int, paclen int, err error) {
 			if paclen, found = commandLens[Command(b)]; found {
 				pr.buf[0] = 0x02
 				pr.buf[1] = b
+				// length will be one less for packets originating from
+				// the host since no ack will be on the end.  Thi is
+				// to support snooping
+				if pr.ignoreAck && 0x60 <= b && b <= 0x64 {
+					paclen--
+				}
 				n = 2
 				break
 			} else {
@@ -182,21 +190,18 @@ func (pr *packetReader) read() (int, error) {
 		return n, err
 	}
 
-	nn, err := io.ReadAtLeast(pr.reader, pr.buf[2:2+paclen], paclen)
+	nn, err := io.ReadAtLeast(pr.reader, pr.buf[n:n+paclen], paclen)
 	n += nn
-
 	if err == nil {
 		// read some more if it's an extended message (this conditional is
 		// necessary because the PLM echos everything back to us and the
 		// send insteon command does not distinguish between standard and
 		// extended messages like the received command does
 		if Command(pr.buf[1]) == CmdSendInsteonMsg && insteon.Flags(pr.buf[5]).Extended() {
-			nn, err = io.ReadAtLeast(pr.reader, pr.buf[n:], 14)
+			nn, err = io.ReadFull(pr.reader, pr.buf[n:n+14])
 			n += nn
 		}
-
 	}
-
 	return n, err
 }
 
