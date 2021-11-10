@@ -101,5 +101,5 @@ func Or(matchers ...Matcher) Matcher {
 // MatchAck will match the message that corresponds to the
 // given ack message
 func MatchAck(ack *insteon.Message) Matcher {
-	return And(Not(AckMatcher()), DstMatcher(ack.Src), CmdMatcher(ack.Command))
+	return And(Not(AckMatcher()), DstMatcher(ack.Src))
 }
