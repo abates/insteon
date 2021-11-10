@@ -25,11 +25,6 @@ import (
 	"github.com/abates/insteon/util"
 )
 
-type linkableDevice interface {
-	devices.Device
-	devices.Linkable
-}
-
 type device struct {
 	*devices.BasicDevice
 }
@@ -63,8 +58,6 @@ func (dev *device) init(address insteon.Address) error {
 	device, err := open(modem, address)
 	if err == nil {
 		*dev.BasicDevice = *device
-		//dev.BasicDevice.MessageWriter = device.MessageWriter
-		//dev.BasicDevice.DeviceInfo = device.DeviceInfo
 	}
 	return err
 }
@@ -74,10 +67,10 @@ func (dev *device) dumpCmd() error {
 }
 
 func (dev *device) infoCmd() (err error) {
-	return printDevInfo(dev, "")
+	return printDevInfo(devices.Lookup(dev.BasicDevice), "")
 }
 
-func printDevInfo(device linkableDevice, extra string) (err error) {
+func printDevInfo(device devices.Device, extra string) (err error) {
 	fmt.Printf("       Device: %v\n", device)
 	if err == nil {
 		fmt.Printf("       Engine: %v\n", device.Info().EngineVersion)
@@ -88,7 +81,9 @@ func printDevInfo(device linkableDevice, extra string) (err error) {
 			fmt.Printf("%s\n", extra)
 		}
 
-		err = util.PrintLinkDatabase(os.Stdout, device)
+		if linkable, ok := device.(devices.Linkable); ok {
+			err = util.PrintLinkDatabase(os.Stdout, linkable)
+		}
 	}
 	return err
 }

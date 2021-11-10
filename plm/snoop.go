@@ -45,7 +45,9 @@ func (s *snoop) readLoop(reader *packetReader, msgBuf chan<- *Packet) {
 		}
 
 		if pkt.Command == CmdStdMsgReceived || pkt.Command == CmdExtMsgReceived || pkt.Command == CmdSendInsteonMsg {
-			msgBuf <- pkt
+			if !pkt.ACK() {
+				msgBuf <- pkt
+			}
 		}
 	}
 }

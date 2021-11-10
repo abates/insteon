@@ -27,7 +27,6 @@ import (
 	"github.com/abates/insteon/devices"
 	"github.com/abates/insteon/plm"
 	"github.com/abates/insteon/util"
-	"github.com/creack/pty"
 	"github.com/kirsle/configdir"
 	"github.com/tarm/serial"
 )
@@ -65,26 +64,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	p, f, err := pty.Open()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to start PTY: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Fprintf(os.Stdout, "Connect intercepted application to %s\n", f.Name())
-
 	rxReader, rxWriter := io.Pipe()
 	txReader, txWriter := io.Pipe()
 
-	rx := io.TeeReader(s, rxWriter)
-	tx := io.TeeReader(p, txWriter)
+	tx := io.TeeReader(s, txWriter)
+	rx := io.TeeReader(os.Stdin, rxWriter)
 
 	go func() {
-		mon := util.Snoop(os.Stdout, db).Filter(plm.Snoop(rxReader, txReader))
+		mon := util.Snoop(os.Stderr, db).Filter(plm.Snoop(rxReader, txReader))
 		for _, err = mon.Read(); err == nil || errors.Is(err, insteon.ErrReadTimeout); _, err = mon.Read() {
 		}
 	}()
 
-	go io.Copy(p, rx)
-	io.Copy(s, tx)
+	go io.Copy(os.Stdout, tx)
+	io.Copy(s, rx)
 }

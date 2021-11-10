@@ -43,15 +43,20 @@ func (s *snoop) Write(msg *insteon.Message) (*insteon.Message, error) {
 
 func (s *snoop) print(msg *insteon.Message) {
 	if msg.Type() == insteon.MsgTypeAllLinkBroadcast {
-		fmt.Fprintf(s.out, "All-Link Broadcast %s -> ff.ff.ff", msg.Src)
+		fmt.Fprintf(s.out, "SA %s -> ff.ff.ff", msg.Src)
 	} else if msg.Type() == insteon.MsgTypeBroadcast {
 		devCat := insteon.DevCat{msg.Dst[0], msg.Dst[1]}
 		firmware := insteon.FirmwareVersion(msg.Dst[2])
-		fmt.Fprintf(s.out, "         Broadcast %s -> ff.ff.ff DevCat %v Firmware %s", msg.Src, devCat, firmware)
+		fmt.Fprintf(s.out, "SB %s -> ff.ff.ff DevCat %v Firmware %s", msg.Src, devCat, firmware)
 	} else if msg.Type() == insteon.MsgTypeAllLinkCleanup {
-		fmt.Fprintf(s.out, "  All-Link Cleanup %s -> %s", msg.Src, msg.Dst)
+		fmt.Fprintf(s.out, "SC %s -> %s", msg.Src, msg.Dst)
 	} else {
-		fmt.Fprintf(s.out, "            Direct %s -> %s", msg.Src, msg.Dst)
+		if msg.Extended() {
+			fmt.Fprint(s.out, "E")
+		} else {
+			fmt.Fprint(s.out, "S")
+		}
+		fmt.Fprintf(s.out, "D %s -> %s", msg.Src, msg.Dst)
 	}
 	fmt.Fprintf(s.out, " %d:%d", msg.MaxTTL(), msg.TTL())
 
