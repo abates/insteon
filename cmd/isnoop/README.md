@@ -22,8 +22,8 @@ Socat can execute isnoop and send the data to a newly created pts
 that can then be connected to from the application being
 snooped:
 
-```shell
-abates@localhost:~/socat -d -d exec:isnoop pty,raw,echo=0
+```
+abates@localhost:~$ socat -d -d exec:isnoop pty,raw,echo=0
 2021/11/10 16:33:31 socat[1484514] N forking off child, using socket for reading and writing
 2021/11/10 16:33:31 socat[1484514] N forked off child process 14515
 2021/11/10 16:33:31 socat[1484514] N forked off child process 14515
@@ -34,8 +34,8 @@ abates@localhost:~/socat -d -d exec:isnoop pty,raw,echo=0
 
 As an example, using the ic command via the above pts:
 
-```shell
-abates@hawkeye:~/local/devel/insteon.v2/cmd/ic$ ic -port /dev/pts/6 device 0a.0b.0c info
+```
+abates@localhost:~$ ic -port /dev/pts/6 device 0a.0b.0c info
        Device: Dimmer (0a.0b.0c)
        Engine: I2Cs
      Category: 01.20
@@ -52,7 +52,7 @@ Link Database:
 
 You will see something similar to the following from the snoop/socat command:
 
-```shell
+```
 ED 00.00.00 -> 0a.0b.0c 3:3 Read/Write ALDB Link Read 00.00 0
 SD 0a.0b.0c -> 01.02.03 3:3 Read/Write ALDB ACK
 ED 0a.0b.0c -> 01.02.03 1:1 Read/Write ALDB Link Resp 0f.ff 0 UR 1 07.08.09 0xfe 0x1c 0x01
