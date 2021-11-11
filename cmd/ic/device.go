@@ -93,7 +93,7 @@ func (dev *device) versionCmd() error {
 	return nil
 }
 
-func (dev *device) editCmd(string) error {
+func (dev *device) editCmd() error {
 	return editLinks(dev)
 }
 
