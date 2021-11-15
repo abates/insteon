@@ -45,8 +45,8 @@ func (s *snoop) print(msg *insteon.Message) {
 	if msg.Type() == insteon.MsgTypeAllLinkBroadcast {
 		fmt.Fprintf(s.out, "SA %s -> ff.ff.ff", msg.Src)
 	} else if msg.Type() == insteon.MsgTypeBroadcast {
-		devCat := insteon.DevCat{msg.Dst[0], msg.Dst[1]}
-		firmware := insteon.FirmwareVersion(msg.Dst[2])
+		devCat := insteon.DevCat{byte(msg.Dst >> 16), byte(msg.Dst >> 8)}
+		firmware := insteon.FirmwareVersion(byte(msg.Dst))
 		fmt.Fprintf(s.out, "SB %s -> ff.ff.ff DevCat %v Firmware %s", msg.Src, devCat, firmware)
 	} else if msg.Type() == insteon.MsgTypeAllLinkCleanup {
 		fmt.Fprintf(s.out, "SC %s -> %s", msg.Src, msg.Dst)
@@ -70,9 +70,9 @@ func (s *snoop) print(msg *insteon.Message) {
 	} else if msg.Type() == insteon.MsgTypeAllLinkBroadcast {
 		if devices.CmdMatcher(commands.AllLinkSuccessReport).Matches(msg) {
 			// this is ugly
-			fmt.Fprintf(s.out, " %v: %v Group %d (cleanup %d, failed %d)", msg.Command&0xffff00, commands.Command(0x0c0000)|commands.Command(msg.Dst[0])<<8, msg.Dst[2], msg.Dst[1], msg.Command.Command2())
+			fmt.Fprintf(s.out, " %v: %v Group %d (cleanup %d, failed %d)", msg.Command&0xffff00, commands.Command(0x0c0000)|commands.Command(msg.Dst>>16)<<8, byte(msg.Dst), byte(msg.Dst>>8), msg.Command.Command2())
 		} else {
-			fmt.Fprintf(s.out, " %v Group %d", msg.Command&0xffff00, msg.Dst[2])
+			fmt.Fprintf(s.out, " %v Group %d", msg.Command&0xffff00, byte(msg.Dst))
 		}
 	} else if msg.Type() == insteon.MsgTypeAllLinkCleanup {
 		fmt.Fprintf(s.out, " %v Group %d", msg.Command&0xffff00, msg.Command.Command2())

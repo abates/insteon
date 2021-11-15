@@ -16,21 +16,22 @@ package insteon
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 )
 
 // Address is a 3 byte insteon address
-type Address [3]byte
-
-var Wildcard = Address{0, 0, 0}
+type Address uint32
 
 // String will format the Address object into a form
 // common to Insteon devices: 00.00.00 where each byte
 // is represented in hexadecimal form (e.g. 01.b4.a5) the
 // string will always be 8 characters long, bytes are zero
 // padded
-func (a Address) String() string { return fmt.Sprintf("%02x.%02x.%02x", a[0], a[1], a[2]) }
+func (a Address) String() string {
+	return fmt.Sprintf("%02x.%02x.%02x", byte(a>>16), byte(a>>8), byte(a))
+}
 
 // UnmarshalText converts a human readable string into an
 // Insteon address. If the address cannot be parsed then
@@ -41,14 +42,12 @@ func (a *Address) UnmarshalText(text []byte) error {
 		text = bytes.Join([][]byte{text[0:2], text[2:4], text[4:6]}, []byte("."))
 	}
 
-	var b1, b2, b3 byte
-	_, err := fmt.Sscanf(string(text), "%2x.%2x.%2x", &b1, &b2, &b3)
+	var b [4]byte
+	_, err := fmt.Sscanf(string(text), "%2x.%2x.%2x", &b[1], &b[2], &b[3])
 	if err != nil {
 		return ErrAddrFormat
 	}
-	a[0] = b1
-	a[1] = b2
-	a[2] = b3
+	*a = Address(binary.BigEndian.Uint32(b[:]))
 	return nil
 }
 
@@ -60,6 +59,18 @@ func (a *Address) Set(str string) error {
 // Set satisfies the flag.Getter interface
 func (a *Address) Get() interface{} {
 	return Address(*a)
+}
+
+func (a *Address) Put(buf []byte) {
+	b := make([]byte, 4)
+	copy(b[1:], buf)
+	*a = Address(binary.BigEndian.Uint32(b))
+}
+
+func (a *Address) Bytes() []byte {
+	b := [4]byte{}
+	binary.BigEndian.PutUint32(b[:], uint32(*a))
+	return b[1:]
 }
 
 // MarshalText fulfills the requiresments of encoding.TextMarshaler so that
@@ -77,11 +88,7 @@ func (a Address) MarshalJSON() ([]byte, error) {
 func (a *Address) UnmarshalJSON(data []byte) (err error) {
 	var s string
 	if err = json.Unmarshal(data, &s); err == nil {
-		var n int
-		n, err = fmt.Sscanf(s, "%02x.%02x.%02x", &a[0], &a[1], &a[2])
-		if n < 3 {
-			err = fmt.Errorf("Expected Scanf to parse 3 digits, got %d", n)
-		}
+		err = a.Set(s)
 	}
 	return err
 }

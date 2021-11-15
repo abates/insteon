@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/abates/insteon"
+	"github.com/abates/insteon/devices"
 )
 
 var (
@@ -73,7 +74,7 @@ func New(rw io.ReadWriter, options ...Option) (plm *PLM) {
 		writer: logWriter{rw},
 		reader: newPacketReader(rw, false),
 
-		timeout:   3 * time.Second,
+		timeout:   time.Second * 3,
 		retries:   3,
 		msgBuf:    make(chan *Packet, 10),
 		packetBuf: make(chan *Packet, 10),
@@ -131,7 +132,10 @@ func (plm *PLM) Write(msg *insteon.Message) (ack *insteon.Message, err error) {
 			// get the ACK
 			ack, err = plm.Read()
 			for ; err == nil; ack, err = plm.Read() {
-				if ack.Src == msg.Dst && ack.Ack() {
+				if ack.Src == msg.Dst && (ack.Ack() || ack.Nak()) {
+					if ack.Nak() {
+						err = devices.ErrNak
+					}
 					break
 				}
 			}
@@ -180,7 +184,7 @@ func (plm *PLM) ReadPacket() (pkt *Packet, err error) {
 	select {
 	case pkt = <-plm.packetBuf:
 	case <-time.After(plm.timeout):
-		err = ErrReadTimeout
+		err = fmt.Errorf("PLM ACK %w", ErrReadTimeout)
 	}
 	return
 }
@@ -194,7 +198,7 @@ func (plm *PLM) Read() (msg *insteon.Message, err error) {
 			LogDebug.Printf("RX Insteon Message %v", msg)
 		}
 	case <-time.After(plm.timeout):
-		err = insteon.ErrReadTimeout
+		err = fmt.Errorf("Device ACK %w", insteon.ErrReadTimeout)
 	}
 
 	return msg, err
@@ -244,7 +248,7 @@ func (plm *PLM) RFSleep() error {
 }
 
 func (plm *PLM) Address() insteon.Address {
-	address := insteon.Address{}
+	address := insteon.Address(0)
 	if plm.address == address {
 		info, err := plm.Info()
 		if err == nil {

@@ -118,32 +118,32 @@ func TestSettingRecordControlFlags(t *testing.T) {
 }
 
 func TestLinkEqual(t *testing.T) {
-	newLink := func(flags RecordControlFlags, group Group, address Address) *LinkRecord {
-		link := &LinkRecord{flags, group, address, [3]byte{}}
+	newLink := func(flags RecordControlFlags, group Group, address Address) LinkRecord {
+		link := LinkRecord{flags, group, address, [3]byte{}}
 		return link
 	}
 
-	l1 := newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03})
+	l1 := newLink(AvailableController, Group(0x01), Address(0x010203))
 	l2 := l1
 
 	tests := []struct {
 		desc     string
-		link1    *LinkRecord
-		link2    *LinkRecord
+		link1    LinkRecord
+		link2    LinkRecord
 		expected bool
 	}{
-		{"equal 1", ControllerLink(Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), true},
-		{"not equal 2", ResponderLink(Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
-		{"equal 3", newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), true},
-		{"not equal 4", newLink(AvailableResponder, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), false},
-		{"not equal 5", newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x04}), false},
-		{"not equal 6", newLink(AvailableController, Group(0x01), Address{0x01, 0x02, 0x03}), nil, false},
+		{"equal 1", ControllerLink(Group(0x01), Address(0x010203)), newLink(AvailableController, Group(0x01), Address(0x010203)), true},
+		{"not equal 2", ResponderLink(Group(0x01), Address(0x010203)), newLink(AvailableController, Group(0x01), Address(0x010203)), false},
+		{"equal 3", newLink(AvailableController, Group(0x01), Address(0x010203)), newLink(AvailableController, Group(0x01), Address(0x010203)), true},
+		{"not equal 4", newLink(AvailableResponder, Group(0x01), Address(0x010203)), newLink(AvailableController, Group(0x01), Address(0x010203)), false},
+		{"not equal 5", newLink(AvailableController, Group(0x01), Address(0x010203)), newLink(AvailableController, Group(0x01), Address(0x010204)), false},
+		{"not equal 6", newLink(AvailableController, Group(0x01), Address(0x010203)), LinkRecord{}, false},
 		{"equal", l1, l2, true},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			if test.link1.Equal(test.link2) != test.expected {
+			if test.link1.Equal(&test.link2) != test.expected {
 				t.Errorf("got %v, want %v", !test.expected, test.expected)
 			}
 		})
@@ -166,7 +166,7 @@ func TestLinkMarshalUnmarshal(t *testing.T) {
 			input:           []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
 			expectedFlags:   RecordControlFlags(0x01),
 			expectedGroup:   Group(0x02),
-			expectedAddress: Address{0x03, 0x04, 0x05},
+			expectedAddress: Address(0x030405),
 			expectedData:    [3]byte{0x06, 0x07, 0x08},
 			expectedString:  "AR 2 03.04.05 0x06 0x07 0x08",
 		},
@@ -223,7 +223,7 @@ func TestLinkRecordMarshalText(t *testing.T) {
 		expected       LinkRecord
 		expectedErr    string
 	}{
-		{"UC        1 01.01.01   00 00 00", LinkRecord{RecordControlFlags(0xc0), Group(1), Address{1, 1, 1}, [3]byte{0, 0, 0}}, ""},
+		{"UC        1 01.01.01   00 00 00", LinkRecord{RecordControlFlags(0xc2), Group(1), Address(0x010101), [3]byte{0, 0, 0}}, ""},
 		{"UC        1 01.01.01   00 00", LinkRecord{}, "Expected 6 fields got 5"},
 	}
 

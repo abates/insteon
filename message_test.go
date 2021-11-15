@@ -23,7 +23,7 @@ import (
 )
 
 func testMsg(typ MessageType, cmd commands.Command, payload ...byte) *Message {
-	return &Message{Address{6, 7, 8}, Address{9, 10, 11}, Flag(typ, len(payload) > 0, 2, 2), cmd, payload}
+	return &Message{Address(0x060708), Address(0x090a0b), Flag(typ, len(payload) > 0, 2, 2), cmd, payload}
 }
 
 func mkPayload(buf ...byte) []byte {
@@ -37,7 +37,7 @@ var (
 			flags = StandardDirectAck
 		}
 
-		return &Message{Address{1, 2, 3}, Address{3, 4, 5}, flags, commands.Command(int(cmd1)<<7 | int(cmd2)), nil}
+		return &Message{Address(0x010203), Address(0x030405), flags, commands.Command(int(cmd1)<<7 | int(cmd2)), nil}
 	}
 )
 
@@ -154,8 +154,8 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			desc:      "0",
 			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x0a, 0x10, 0x00},
 			version:   VerI1,
-			wantSrc:   Address{0x01, 0x02, 0x03},
-			wantDst:   Address{0x04, 0x05, 0x06},
+			wantSrc:   Address(0x010203),
+			wantDst:   Address(0x040506),
 			wantFlags: StandardDirectMessage,
 			wantCmd:   commands.Command(0x001000),
 		},
@@ -164,8 +164,8 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			desc:      "1",
 			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x8a, 0x01, 0x00},
 			version:   VerI1,
-			wantSrc:   Address{0x01, 0x02, 0x03},
-			wantDst:   Address{0x04, 0x05, 0x06},
+			wantSrc:   Address(0x010203),
+			wantDst:   Address(0x040506),
 			wantFlags: Flags(0x8a),
 			wantCmd:   commands.Command(0x080100),
 		},
@@ -180,8 +180,8 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			desc:      "3",
 			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x1a, 0x09, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe},
 			version:   VerI1,
-			wantSrc:   Address{0x01, 0x02, 0x03},
-			wantDst:   Address{0x04, 0x05, 0x06},
+			wantSrc:   Address(0x010203),
+			wantDst:   Address(0x040506),
 			wantFlags: ExtendedDirectMessage,
 			wantCmd:   commands.Command(0x010900),
 		},
@@ -196,8 +196,8 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			desc:      "5",
 			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x1a, 0x2f, 0x00, 0x00, 0x02, 0x0f, 0xff, 0x08, 0xe2, 0x01, 0x08, 0xb6, 0xea, 0x00, 0x1b, 0x01, 0x12},
 			version:   VerI2Cs,
-			wantSrc:   Address{0x01, 0x02, 0x03},
-			wantDst:   Address{0x04, 0x05, 0x06},
+			wantSrc:   Address(0x010203),
+			wantDst:   Address(0x040506),
 			wantFlags: ExtendedDirectMessage,
 			wantCmd:   commands.Command(0x012f00),
 		},
@@ -206,30 +206,30 @@ func TestMessageMarshalUnmarshal(t *testing.T) {
 			desc:      "6",
 			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xaa, 0x01, 0x00},
 			version:   VerI1,
-			wantSrc:   Address{0x01, 0x02, 0x03},
-			wantDst:   Address{0x04, 0x05, 0x06},
+			wantSrc:   Address(0x010203),
+			wantDst:   Address(0x040506),
 			wantFlags: Flags(0xaa),
 			wantNak:   true,
-			wantCmd:   commands.Command(0x020100),
+			wantCmd:   commands.Command(0x000100),
 		},
 		// Test 7
 		{
 			desc:      "7",
 			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x2a, 0x01, 0x00},
 			version:   VerI1,
-			wantSrc:   Address{0x01, 0x02, 0x03},
-			wantDst:   Address{0x04, 0x05, 0x06},
+			wantSrc:   Address(0x010203),
+			wantDst:   Address(0x040506),
 			wantFlags: Flags(0x2a),
 			wantAck:   true,
-			wantCmd:   commands.Command(0x020100),
+			wantCmd:   commands.Command(0x000100),
 		},
 		// Test 8
 		{
 			desc:      "All-Link Cleanup",
 			input:     []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x4a, 0x11, 0x03},
 			version:   VerI1,
-			wantSrc:   Address{0x01, 0x02, 0x03},
-			wantDst:   Address{0x04, 0x05, 0x06},
+			wantSrc:   Address(0x010203),
+			wantDst:   Address(0x040506),
 			wantFlags: MsgTypeAllLinkCleanup | 0x0a,
 			wantAck:   false,
 			wantCmd:   commands.AllLinkRecall.SubCommand(3),

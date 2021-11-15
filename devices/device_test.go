@@ -149,7 +149,7 @@ func TestOpen(t *testing.T) {
 			name:     "basic",
 			ackErr:   nil,
 			acks:     []*insteon.Message{&insteon.Message{Command: commands.Command(0x01)}},
-			read:     []*insteon.Message{&insteon.Message{Dst: insteon.Address{byte(insteon.SwitchDomain), 1, 59}, Command: commands.SetButtonPressedResponder}},
+			read:     []*insteon.Message{&insteon.Message{Dst: insteon.Address(uint32(insteon.SwitchDomain)<<16 | 1<<8 | 59), Command: commands.SetButtonPressedResponder}},
 			wantInfo: DeviceInfo{EngineVersion: insteon.VerI2, FirmwareVersion: insteon.FirmwareVersion(59), DevCat: insteon.DevCat{byte(insteon.SwitchDomain), 1}},
 			wantErr:  nil,
 		},
@@ -157,7 +157,7 @@ func TestOpen(t *testing.T) {
 			name:     "unlinked",
 			ackErr:   ErrNak,
 			acks:     []*insteon.Message{&insteon.Message{Flags: insteon.StandardDirectNak, Command: commands.Command(0x00ff)}},
-			read:     []*insteon.Message{&insteon.Message{Dst: insteon.Address{byte(insteon.SwitchDomain), 1, 59}, Command: commands.SetButtonPressedResponder}},
+			read:     []*insteon.Message{&insteon.Message{Dst: insteon.Address(uint32(insteon.SwitchDomain)<<16 | 1<<8 | 59), Command: commands.SetButtonPressedResponder}},
 			wantInfo: DeviceInfo{EngineVersion: insteon.VerI2Cs},
 			wantErr:  ErrNotLinked,
 		},
@@ -171,7 +171,7 @@ func TestOpen(t *testing.T) {
 				read:   test.read,
 			}
 
-			_, gotInfo, err := Open(tw, insteon.Address{})
+			_, gotInfo, err := Open(tw, insteon.Address(0))
 			if errors.Is(err, test.wantErr) {
 				if test.wantInfo != gotInfo {
 					t.Errorf("Wanted device info %v got %v", test.wantInfo, gotInfo)
@@ -214,11 +214,11 @@ func TestDeviceString(t *testing.T) {
 		input fmt.Stringer
 		want  string
 	}{
-		{"I1Device", New(nil, DeviceInfo{Address: insteon.Address{1, 2, 3}}), "I1 Device (01.02.03)"},
-		{"Switch", NewSwitch(&BasicDevice{DeviceInfo: DeviceInfo{Address: insteon.Address{1, 2, 3}}}), "Switch (01.02.03)"},
-		{"Dimmer", NewDimmer(&BasicDevice{DeviceInfo: DeviceInfo{Address: insteon.Address{1, 2, 3}}}), "Dimmer (01.02.03)"},
+		{"I1Device", New(nil, DeviceInfo{Address: insteon.Address(0x010203)}), "I1 Device (01.02.03)"},
+		{"Switch", NewSwitch(&BasicDevice{DeviceInfo: DeviceInfo{Address: insteon.Address(0x010203)}}), "Switch (01.02.03)"},
+		{"Dimmer", NewDimmer(&BasicDevice{DeviceInfo: DeviceInfo{Address: insteon.Address(0x010203)}}), "Dimmer (01.02.03)"},
 		{"Link Request Nil Link", &LinkRequest{Type: readLink, MemAddress: BaseLinkDBAddress, NumRecords: 2, Link: nil}, "Link Read 0f.ff 2"},
-		{"Link Request", &LinkRequest{Type: readLink, MemAddress: BaseLinkDBAddress, NumRecords: 2, Link: &insteon.LinkRecord{Flags: 0xd0, Group: insteon.Group(1), Address: insteon.Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}}, "Link Read 0f.ff 2 UC 1 01.02.03 0x04 0x05 0x06"},
+		{"Link Request", &LinkRequest{Type: readLink, MemAddress: BaseLinkDBAddress, NumRecords: 2, Link: &insteon.LinkRecord{Flags: 0xd0, Group: insteon.Group(1), Address: insteon.Address(0x010203), Data: [3]byte{4, 5, 6}}}, "Link Read 0f.ff 2 UC 1 01.02.03 0x04 0x05 0x06"},
 	}
 
 	for _, test := range tests {

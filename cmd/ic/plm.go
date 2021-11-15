@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/abates/cli"
 	"github.com/abates/insteon"
@@ -26,32 +25,10 @@ import (
 	"github.com/abates/insteon/util"
 )
 
-type addrList []insteon.Address
-
-func (al *addrList) Set(str string) error {
-	for _, v := range strings.Split(str, ",") {
-		addr := insteon.Address{}
-		err := addr.Set(v)
-		if err != nil {
-			return err
-		}
-		*al = append(*al, addr)
-	}
-	return nil
-}
-
-func (al *addrList) String() string {
-	list := make([]string, len(*al))
-	for i, addr := range *al {
-		list[i] = addr.String()
-	}
-	return strings.Join(list, ",")
-}
-
 type addresses []insteon.Address
 
 func (a *addresses) Set(str string) error {
-	addr := insteon.Address{}
+	addr := insteon.Address(0)
 	err := addr.Set(str)
 	if err == nil {
 		*a = append(*a, addr)
@@ -103,15 +80,15 @@ func init() {
 				SubCommands: []*cli.Command{
 					linkCmd("controller", "Link (as a controller) the PLM to one or more devices.", p.link(true, false)),
 					linkCmd("responder", "Link (as a responder) the PLM to one or more devices.", p.link(false, true)),
-					linkCmd("crosslink", "Crosslink the PLM to one or more devices", p.link(true, true)),
-					linkCmd("unlink", "Unlink the PLM from one or more devices", p.unlinkCmd),
-					{
-						Name:        "alllink",
-						Usage:       "<group>",
-						Description: "Put the PLM into linking mode for manual linking",
-						Callback:    cli.Callback(p.EnterLinkingMode, "<group id>"),
-					},
 				},
+			},
+			linkCmd("crosslink", "Crosslink the PLM to one or more devices", p.link(true, true)),
+			linkCmd("unlink", "Unlink the PLM from one or more devices", p.unlinkCmd),
+			{
+				Name:        "alllink",
+				Usage:       "<group>",
+				Description: "Put the PLM into linking mode for manual linking",
+				Callback:    cli.Callback(p.EnterLinkingMode, "<group id>"),
 			},
 		},
 	}
@@ -147,12 +124,11 @@ func (p *plmCmd) infoCmd() (err error) {
 	return err
 }
 
-func (p *plmCmd) link(controller, responder bool) func() error {
-	return func() error {
-		for _, addr := range p.addresses {
-			group := insteon.Group(p.group)
+func (p *plmCmd) link(controller, responder bool) func(group insteon.Group, addresses util.Addresses) error {
+	return func(group insteon.Group, addresses util.Addresses) error {
+		for _, addr := range addresses {
 			fmt.Printf("Linking to %s...", addr)
-			device, err := db.Open(modem, addr)
+			device, err := open(modem, addr, false)
 			if err == devices.ErrNotLinked {
 				err = nil
 			}
@@ -180,12 +156,12 @@ func (p *plmCmd) link(controller, responder bool) func() error {
 	}
 }
 
-func (p *plmCmd) unlinkCmd(addresses addrSlice) (err error) {
+func (p *plmCmd) unlinkCmd(addresses util.Addresses) (err error) {
 	group := insteon.Group(p.group)
 
 	for _, addr := range p.addresses {
 		var device *devices.BasicDevice
-		device, err = db.Open(modem, addr)
+		device, err = open(modem, addr, false)
 
 		if err == nil {
 			fmt.Printf("Unlinking from %s:%s...", device, addr)

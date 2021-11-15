@@ -13,7 +13,7 @@ func TestInfoMarshalUnmarshalBinary(t *testing.T) {
 		input []byte
 		want  *Info
 	}{
-		{"test 1", []byte{1, 2, 3, 4, 5, 6}, &Info{insteon.Address{1, 2, 3}, insteon.DevCat{4, 5}, 6}},
+		{"test 1", []byte{1, 2, 3, 4, 5, 6}, &Info{insteon.Address(0x010203), insteon.DevCat{4, 5}, 6}},
 	}
 
 	for _, test := range tests {

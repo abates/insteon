@@ -43,31 +43,13 @@ type MessageWriter interface {
 	Write(*insteon.Message) (ack *insteon.Message, err error)
 }
 
-func retry(retries int, cb func() error) (err error) {
-	tries := retries
-	for {
-		err = cb()
-		if err == nil || err != ErrReadTimeout {
-			break
-		}
-		if retries > 1 {
-			retries--
-			Log.Printf("Read Timeout, retrying")
-		} else {
-			Log.Printf("Retry count exceeded (%d)", tries)
-			break
-		}
-	}
-	return err
-}
-
 func IDRequest(mw MessageWriter, dst insteon.Address) (version insteon.FirmwareVersion, devCat insteon.DevCat, err error) {
 	msg, err := mw.Write(&insteon.Message{Dst: dst, Flags: insteon.StandardDirectMessage, Command: commands.IDRequest})
 	if err == nil {
 		msg, err = Read(mw, Or(CmdMatcher(commands.SetButtonPressedResponder), CmdMatcher(commands.SetButtonPressedController)))
 		if err == nil {
-			version = insteon.FirmwareVersion(msg.Dst[2])
-			devCat = insteon.DevCat{msg.Dst[0], msg.Dst[1]}
+			version = insteon.FirmwareVersion(byte(msg.Dst))
+			devCat = insteon.DevCat{byte(msg.Dst >> 16), byte(msg.Dst >> 8)}
 		}
 	}
 	return

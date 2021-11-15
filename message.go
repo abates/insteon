@@ -179,8 +179,8 @@ type Message struct {
 // sending out onto the insteon network
 func (m *Message) MarshalBinary() (data []byte, err error) {
 	data = make([]byte, StandardMsgLen)
-	copy(data[0:3], m.Src[:])
-	copy(data[3:6], m.Dst[:])
+	copy(data[0:3], m.Src.Bytes())
+	copy(data[3:6], m.Dst.Bytes())
 	data[6] = byte(m.Flags)
 	data[7] = byte(m.Command.Command1())
 	data[8] = byte(m.Command.Command2())
@@ -199,24 +199,10 @@ func (m *Message) UnmarshalBinary(data []byte) (err error) {
 	if len(data) < StandardMsgLen {
 		return fmt.Errorf("%w: wanted %d bytes got %d", ErrBufferTooShort, StandardMsgLen, len(data))
 	}
-	copy(m.Src[:], data[0:3])
-	copy(m.Dst[:], data[3:6])
+	m.Src.Put(data[0:3])
+	m.Dst.Put(data[3:6])
 	m.Flags = Flags(data[6])
-	// magic numbers, oh la la
-	// data[6] is the flags field of the message which contains
-	// the message flags as well as the max hops and hops left information
-	// 0xe0 masks the 3 most significant bits, which are the actual message flags
-	// 0xa0 - Direct NAK
-	// 0xe0 - All-Link Cleanup NAK
-	// The command lookup won't have the NAK bit set, so the first conditional
-	// sets the command without the NAK bit (masking it with 0x70 instead of 0xf0)
-	if m.Nak() {
-		m.Command = commands.Command(int(0x70&data[6])<<12 | int(data[7])<<8 | int(data[8]))
-	} else if m.Type() == MsgTypeAllLinkCleanup {
-		m.Command = commands.Command(0x0c0000 | int(data[7])<<8 | int(data[8]))
-	} else {
-		m.Command = commands.Command(int(0xf0&data[6])<<12 | int(data[7])<<8 | int(data[8]))
-	}
+	m.Command = commands.From(data[6], data[7], data[8])
 
 	if m.Extended() {
 		if len(data) < ExtendedMsgLen {
@@ -252,8 +238,8 @@ func (m *Message) String() (str string) {
 	if m.Type() == MsgTypeAllLinkBroadcast {
 		str = fmt.Sprintf("%s %s -> ff.ff.ff", m.Flags, m.Src)
 	} else if m.Type() == MsgTypeBroadcast {
-		devCat := DevCat{m.Dst[0], m.Dst[1]}
-		firmware := FirmwareVersion(m.Dst[2])
+		devCat := DevCat{byte(m.Dst >> 16), byte(m.Dst >> 8)}
+		firmware := FirmwareVersion(byte(m.Dst))
 
 		str = fmt.Sprintf("%s %s -> ff.ff.ff DevCat %v Firmware %v", m.Flags, m.Src, devCat, firmware)
 	} else if m.Type() == MsgTypeAllLinkCleanup {
@@ -276,7 +262,7 @@ func (m *Message) String() (str string) {
 	}
 
 	if m.Type() == MsgTypeAllLinkBroadcast {
-		str = fmt.Sprintf("%s Group(%d)", str, m.Dst[2])
+		str = fmt.Sprintf("%s Group(%d)", str, byte(m.Dst))
 	}
 
 	if m.Extended() {

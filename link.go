@@ -174,14 +174,14 @@ type LinkRecord struct {
 
 // ControllerLink creates a LinkRecord that is set as a controller record with the
 // group and responder address set to the given arguments
-func ControllerLink(group Group, address Address) *LinkRecord {
-	return &LinkRecord{Flags: UnavailableController | 0x02, Group: group, Address: address}
+func ControllerLink(group Group, address Address) LinkRecord {
+	return LinkRecord{Flags: UnavailableController | 0x02, Group: group, Address: address}
 }
 
 // ResponderLink creates a LinkRecord that is set as a responder record with the
 // group and controller address set to the given arguments
-func ResponderLink(group Group, address Address) *LinkRecord {
-	return &LinkRecord{Flags: UnavailableResponder | 0x02, Group: group, Address: address}
+func ResponderLink(group Group, address Address) LinkRecord {
+	return LinkRecord{Flags: UnavailableResponder | 0x02, Group: group, Address: address}
 }
 
 // String converts the LinkRecord to a human readable string that looks similar to:
@@ -192,7 +192,7 @@ func (l *LinkRecord) String() string {
 
 // Equal will determine if another LinkRecord is equivalent. The records are
 // equivalent if they both have the same availability, type (controller/responder)
-// and address
+// address and group
 func (l *LinkRecord) Equal(other *LinkRecord) bool {
 	return l.ID() == other.ID()
 }
@@ -205,7 +205,7 @@ func (l *LinkRecord) ID() LinkID {
 	if l == nil {
 		return LinkID{}
 	}
-	return LinkID{byte(l.Flags & 0x40), byte(l.Group), l.Address[0], l.Address[1], l.Address[2]}
+	return LinkID{byte(l.Flags & 0x40), byte(l.Group), byte(l.Address >> 16), byte((l.Address & 0xff00) >> 8), byte(l.Address & 0xff)}
 }
 
 // MarshalBinary converts the link-record to a byte string that can be
@@ -214,7 +214,7 @@ func (l *LinkRecord) MarshalBinary() ([]byte, error) {
 	data := make([]byte, 8)
 	data[0] = byte(l.Flags)
 	data[1] = byte(l.Group)
-	copy(data[2:5], l.Address[:])
+	copy(data[2:5], l.Address.Bytes())
 	copy(data[5:8], l.Data[:])
 	return data, nil
 }
@@ -235,7 +235,7 @@ func (l *LinkRecord) UnmarshalBinary(buf []byte) (err error) {
 	}
 	l.Flags = RecordControlFlags(buf[0])
 	l.Group = Group(buf[1])
-	copy(l.Address[:], buf[2:5])
+	l.Address.Put(buf[2:5])
 	copy(l.Data[:], buf[5:8])
 	return err
 }
@@ -255,6 +255,9 @@ func (l *LinkRecord) UnmarshalText(buf []byte) (err error) {
 
 	if err == nil {
 		err = l.Flags.UnmarshalText(fields[0])
+		// if we're unmarshaling text, then every record
+		// should have the high-water mark set
+		l.Flags.ClearLastRecord()
 	}
 
 	if err == nil {

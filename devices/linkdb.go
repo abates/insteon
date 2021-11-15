@@ -203,12 +203,49 @@ func (ldb *linkdb) Links() (links []insteon.LinkRecord, err error) {
 	return links, err
 }
 
-func (ldb *linkdb) writeLink(index int, link *insteon.LinkRecord) (err error) {
+func (ldb *linkdb) AddLinks(addLinks ...insteon.LinkRecord) (err error) {
+	if len(addLinks) == 0 {
+		return nil
+	}
+
+	err = ldb.refresh()
+	if err == nil {
+		for i, link := range ldb.links {
+			if link.Flags.Available() {
+				err = ldb.WriteLink(i, link)
+				if err == nil {
+					addLinks[0].Flags.SetInUse()
+					addLinks[0].Flags.ClearLastRecord()
+					ldb.links[i] = addLinks[0]
+				} else {
+					break
+				}
+			}
+			addLinks = addLinks[1:]
+			if len(addLinks) == 0 {
+				break
+			}
+		}
+
+		if err == nil && len(addLinks) > 0 {
+			for _, link := range addLinks {
+				link.Flags.ClearLastRecord()
+				err = ldb.WriteLink(len(ldb.links), link)
+				if err != nil {
+					break
+				}
+			}
+		}
+	}
+	return err
+}
+
+func (ldb *linkdb) WriteLink(index int, link insteon.LinkRecord) (err error) {
 	if index > len(ldb.links) {
 		return ErrLinkIndexOutOfRange
 	}
 	memAddress := BaseLinkDBAddress - (MemAddress(index) * LinkRecordSize)
-	buf, _ := (&LinkRequest{MemAddress: memAddress, Type: writeLink, Link: link}).MarshalBinary()
+	buf, _ := (&LinkRequest{MemAddress: memAddress, Type: writeLink, Link: &link}).MarshalBinary()
 	_, err = ldb.Write(&insteon.Message{Command: commands.ReadWriteALDB, Payload: buf})
 	if err == nil {
 		if link.Flags.LastRecord() {
@@ -220,9 +257,9 @@ func (ldb *linkdb) writeLink(index int, link *insteon.LinkRecord) (err error) {
 		} else {
 			// copy the link so it can't be modified outside of the database
 			if index == len(ldb.links) {
-				ldb.links = append(ldb.links, *link)
+				ldb.links = append(ldb.links, link)
 			} else {
-				ldb.links[index] = *link
+				ldb.links[index] = link
 			}
 		}
 	}
@@ -237,13 +274,13 @@ func (ldb *linkdb) WriteLinks(links ...insteon.LinkRecord) (err error) {
 func (ldb *linkdb) writeLinks(links ...insteon.LinkRecord) (err error) {
 	for i := 0; i < len(links) && err == nil; i++ {
 		links[i].Flags.ClearLastRecord()
-		err = ldb.writeLink(i, &links[i])
+		err = ldb.WriteLink(i, links[i])
 	}
 
 	if err == nil {
-		link := &insteon.LinkRecord{}
+		link := insteon.LinkRecord{}
 		link.Flags.SetLastRecord()
-		err = ldb.writeLink(len(ldb.links), link)
+		err = ldb.WriteLink(len(ldb.links), link)
 		if err == nil {
 			ldb.age = time.Now()
 		}
@@ -258,7 +295,7 @@ func (ldb *linkdb) UpdateLinks(links ...insteon.LinkRecord) (err error) {
 		for i := 0; err == nil && i < len(links); i++ {
 			if j, found := ldb.index[links[i].ID()]; found {
 				if ldb.links[j].Flags != links[i].Flags {
-					err = ldb.writeLink(i, &links[i])
+					err = ldb.WriteLink(i, links[i])
 				}
 				links = append(links[0:i], links[i+1:]...)
 				i--
@@ -268,7 +305,7 @@ func (ldb *linkdb) UpdateLinks(links ...insteon.LinkRecord) (err error) {
 		for i := 0; err == nil && i < len(ldb.links); i++ {
 			if ldb.links[i].Flags.Available() && len(links) > 0 {
 				links[0].Flags.ClearLastRecord()
-				err = ldb.writeLink(i, &links[0])
+				err = ldb.WriteLink(i, links[0])
 				if err == nil {
 					links = links[1:]
 				}
@@ -279,14 +316,14 @@ func (ldb *linkdb) UpdateLinks(links ...insteon.LinkRecord) (err error) {
 			i := len(ldb.links)
 			for _, link := range links {
 				link.Flags.ClearLastRecord()
-				err = ldb.writeLink(i, &link)
+				err = ldb.WriteLink(i, link)
 				i++
 			}
 
 			if err == nil {
-				link := &insteon.LinkRecord{}
+				link := insteon.LinkRecord{}
 				link.Flags.SetLastRecord()
-				err = ldb.writeLink(i, link)
+				err = ldb.WriteLink(i, link)
 			}
 		}
 	}

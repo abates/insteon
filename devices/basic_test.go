@@ -11,7 +11,7 @@ import (
 
 func TestI1DeviceIsDevice(t *testing.T) {
 	var d interface{}
-	wantAddress := insteon.Address{7, 6, 5}
+	wantAddress := insteon.Address(0x070605)
 	d = &BasicDevice{DeviceInfo: DeviceInfo{Address: wantAddress}}
 
 	if d, ok := d.(Device); ok {
@@ -127,7 +127,7 @@ func TestI1DeviceProductData(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			tw := &testWriter{}
 			if test.wantErr == nil {
-				msg := &insteon.Message{insteon.Address{1, 2, 3}, insteon.Address{3, 4, 5}, insteon.ExtendedDirectMessage, commands.ProductDataResp, []byte{0, 1, 2, 3, 4, 5, 0xff, 0xff, 0, 0, 0, 0, 0, 0}}
+				msg := &insteon.Message{insteon.Address(0x010203), insteon.Address(0x030405), insteon.ExtendedDirectMessage, commands.ProductDataResp, []byte{0, 1, 2, 3, 4, 5, 0xff, 0xff, 0, 0, 0, 0, 0, 0}}
 				buf, _ := test.want.MarshalBinary()
 				msg.Payload = make([]byte, 14)
 				copy(msg.Payload, buf)
@@ -148,7 +148,7 @@ func TestI1DeviceProductData(t *testing.T) {
 }
 
 func TestI1DeviceDump(t *testing.T) {
-	device := New(nil, DeviceInfo{insteon.Address{1, 2, 3}, insteon.DevCat{5, 6}, insteon.FirmwareVersion(42), insteon.EngineVersion(2)})
+	device := New(nil, DeviceInfo{insteon.Address(0x010203), insteon.DevCat{5, 6}, insteon.FirmwareVersion(42), insteon.EngineVersion(2)})
 	want := `
         Device: I2Cs Device (01.02.03)
       Category: 05.06
@@ -177,8 +177,10 @@ func TestI1DeviceCommands(t *testing.T) {
 		{"ExitLinkingMode", insteon.VerI2, func(d *BasicDevice) { d.ExitLinkingMode() }, commands.ExitLinkingMode, []byte{}},
 	}
 
+	oldWait := LinkingModeWaitTime
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			LinkingModeWaitTime = 0
 			if len(test.wantPayload) > 0 {
 				setChecksum(test.want, test.wantPayload)
 			}
@@ -194,6 +196,7 @@ func TestI1DeviceCommands(t *testing.T) {
 				t.Errorf("Wanted payload %v got %v", test.wantPayload, tw.written[0].Payload)
 			}
 		})
+		LinkingModeWaitTime = oldWait
 	}
 }
 

@@ -26,20 +26,20 @@ func TestAddressMarshalUnmarshalText(t *testing.T) {
 		wantMarshal string
 		wantErr     bool
 	}{
-		{"01.02.03", Address{1, 2, 3}, "01.02.03", false},
-		{"a1.b2.c3", Address{0xA1, 0xB2, 0xC3}, "a1.b2.c3", false},
-		{"D1.E2.F3", Address{0xD1, 0xE2, 0xF3}, "d1.e2.f3", false},
-		{"a1b2c3", Address{0xA1, 0xB2, 0xC3}, "a1.b2.c3", false},
-		{"D1E2F3", Address{0xD1, 0xE2, 0xF3}, "d1.e2.f3", false},
-		{"abcd", Address{}, "00.00.00", true},
-		{"abcdefg", Address{}, "00.00.00", true},
-		{"01b.02.03", Address{}, "00.00.00", true},
-		{"vx.02.03", Address{}, "00.00.00", true},
+		{"01.02.03", Address(0x010203), "01.02.03", false},
+		{"a1.b2.c3", Address(0xA1B2C3), "a1.b2.c3", false},
+		{"D1.E2.F3", Address(0xD1E2F3), "d1.e2.f3", false},
+		{"a1b2c3", Address(0xA1B2C3), "a1.b2.c3", false},
+		{"D1E2F3", Address(0xD1E2F3), "d1.e2.f3", false},
+		{"abcd", Address(0), "00.00.00", true},
+		{"abcdefg", Address(0), "00.00.00", true},
+		{"01b.02.03", Address(0), "00.00.00", true},
+		{"vx.02.03", Address(0), "00.00.00", true},
 	}
 
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
-			address := Address{}
+			address := Address(0)
 			err := address.Set(test.input)
 			if test.wantErr && err == nil {
 				t.Errorf("expected failure for UnmarshalText(%q)", test.input)
@@ -64,7 +64,7 @@ func TestAddressString(t *testing.T) {
 		input Address
 		want  string
 	}{
-		{Address{0, 1, 2}, "00.01.02"},
+		{Address(0x000102), "00.01.02"},
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%v", test.input), func(t *testing.T) {
@@ -83,8 +83,8 @@ func TestAddressMarshaling(t *testing.T) {
 		expectedJSON    string
 		expectedError   string
 	}{
-		{"\"01.02.03\"", Address{1, 2, 3}, "\"01.02.03\"", ""},
-		{"\"01.02\"", Address{0, 0, 0}, "", "Expected Scanf to parse 3 digits, got 2"},
+		{"\"01.02.03\"", Address(0x010203), "\"01.02.03\"", ""},
+		{"\"01.02\"", Address(0), "", "address format is xx.xx.xx (digits in hex)"},
 	}
 
 	for _, test := range tests {

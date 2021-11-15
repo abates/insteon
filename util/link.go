@@ -18,6 +18,7 @@ import (
 	_ "embed"
 	"errors"
 	"io"
+	"math/rand"
 	"sort"
 	"strings"
 	"text/template"
@@ -66,9 +67,15 @@ func (l Links) Less(i, j int) bool {
 
 // LinksToText will take a list of links and marshal them
 // to text for editing
-func LinksToText(links []insteon.LinkRecord) string {
+func LinksToText(links []insteon.LinkRecord, printHeading bool) string {
 	builder := &strings.Builder{}
-	textlinksTmpl.Execute(builder, links)
+	textlinksTmpl.Execute(builder, struct {
+		PrintHeading bool
+		Links        []insteon.LinkRecord
+	}{
+		PrintHeading: printHeading,
+		Links:        links,
+	})
 	return builder.String()
 }
 
@@ -92,16 +99,18 @@ func TextToLinks(input string) (links []insteon.LinkRecord, err error) {
 }
 
 // FindDuplicateLinks will perform a linear search of the
-// LinkDB and return any links that are duplicates. Duplicate
-// links are those that are equivalent as reported by LinkRecord.Equal
-func FindDuplicateLinks(linkable devices.Linkable) ([]insteon.LinkRecord, error) {
+// LinkDB and return any links that are duplicates. Comparison
+// is done with the provided equal function.  If the equal
+// function returns true, then the two links are considered
+// duplicated
+func FindDuplicateLinks(linkable devices.Linkable, equal func(l1, l2 insteon.LinkRecord) bool) ([]insteon.LinkRecord, error) {
 	duplicates := make([]insteon.LinkRecord, 0)
 	links, err := linkable.Links()
 	if err == nil {
 		for i, l1 := range links {
 			for _, l2 := range links[i+1:] {
 				// Available links cannot be duplicates
-				if !l1.Flags.Available() && l1.Equal(&l2) {
+				if equal(l1, l2) {
 					duplicates = append(duplicates, l2)
 				}
 			}
@@ -126,6 +135,130 @@ func FindLinkRecord(device devices.Linkable, controller bool, address insteon.Ad
 		}
 	}
 	return found, err
+}
+
+func FixCrosslink(forAddr insteon.Address, device devices.Linkable) error {
+	return nil
+}
+
+// Anonymize returns a copy of the links where each link
+// Address field has been randomized. Matching input addresses will
+// all use the same random address
+func Anonymize(links []insteon.LinkRecord) []insteon.LinkRecord {
+	newLinks := []insteon.LinkRecord{}
+	index := make(map[insteon.Address]insteon.Address)
+	for _, link := range links {
+		newAddr, found := index[link.Address]
+		if !found {
+			newAddr = insteon.Address(0x00ffffff & rand.Int31())
+			index[link.Address] = newAddr
+		}
+		link.Address = newAddr
+		newLinks = append(newLinks, link)
+	}
+	return newLinks
+}
+
+// MissingCrosslinks loops through the links and looks for
+// controller and responder records for each of the addresses
+// if either a controller or responder link is missing in the
+// input list, then it is added to the slice of "missing"
+// records returned
+func MissingCrosslinks(links []insteon.LinkRecord, forAddresses ...insteon.Address) []insteon.LinkRecord {
+	missed := []insteon.LinkRecord{}
+	for _, forAddr := range forAddresses {
+		processed := make(map[insteon.Address]bool)
+		for i, l1 := range links {
+			found := false
+			if l1.Flags.Available() || l1.Address != forAddr || processed[l1.Address] {
+				continue
+			}
+			processed[l1.Address] = true
+
+			for _, l2 := range links[i+1:] {
+				if l2.Address == forAddr && l1.Group == l2.Group {
+					if l1.Flags.Controller() == l2.Flags.Responder() {
+						found = true
+						break
+					}
+				}
+			}
+
+			// if we get to here, then no matching record was found
+			if !found {
+				l2 := l1
+				if l2.Flags.Controller() {
+					l2.Flags.SetResponder()
+				} else {
+					l2.Flags.SetController()
+				}
+				missed = append(missed, l2)
+			}
+		}
+	}
+	return missed
+}
+
+func AddLinks(device devices.Linkable, addLinks ...insteon.LinkRecord) (err error) {
+	newLinks := []insteon.LinkRecord{}
+	existingLinks, err := device.Links()
+	if err == nil {
+		for i, existing := range existingLinks {
+			if wr, ok := device.(devices.WriteLink); ok {
+				if len(addLinks) > 0 && existing.Flags.Available() {
+					err = wr.WriteLink(i, addLinks[0])
+					if err != nil {
+						return err
+					}
+					addLinks = addLinks[1:]
+				}
+			} else {
+				if len(addLinks) > 0 && existing.Flags.Available() {
+					newLinks = append(newLinks, addLinks[0])
+					addLinks = addLinks[1:]
+				} else {
+					newLinks = append(newLinks, existing)
+				}
+			}
+		}
+
+		if len(addLinks) > 0 {
+			if wr, ok := device.(devices.WriteLink); ok {
+				for i, link := range addLinks {
+					err = wr.WriteLink(len(existingLinks)+i, link)
+					if err != nil {
+						return err
+					}
+				}
+			} else {
+				newLinks = append(newLinks, addLinks...)
+			}
+		}
+
+		if len(newLinks) > 0 {
+			err = device.WriteLinks(newLinks...)
+		}
+	}
+	return err
+}
+
+func fixCrosslinks(links []insteon.LinkRecord, forAddresses ...insteon.Address) []insteon.LinkRecord {
+	newLinks := make([]insteon.LinkRecord, len(links))
+	copy(newLinks, links)
+	for _, m := range MissingCrosslinks(links, forAddresses...) {
+		added := false
+		for i, l := range newLinks {
+			if l.Flags.Available() {
+				newLinks[i] = m
+				added = true
+				break
+			}
+		}
+		if !added {
+			newLinks = append(links, m)
+		}
+	}
+	return newLinks
 }
 
 // CrossLinkAll will create bi-directional links among all the devices

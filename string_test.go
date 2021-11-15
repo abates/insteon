@@ -17,8 +17,8 @@ func TestGetSet(t *testing.T) {
 		wantStr string
 	}{
 		{"group", new(Group), "128", Group(128), "128"},
-		{"address", new(Address), "01.04.07", Address{1, 4, 7}, "01.04.07"},
-		{"address", new(Address), "1.4.7", Address{1, 4, 7}, "01.04.07"},
+		{"address", new(Address), "01.04.07", Address(0x10407), "01.04.07"},
+		{"address", new(Address), "1.4.7", Address(0x10407), "01.04.07"},
 	}
 
 	for _, test := range tests {
@@ -51,7 +51,7 @@ func TestDeviceString(t *testing.T) {
 		{"I2 EngineVersion", VerI2, "I2"},
 		{"I2Cs EngineVersion", VerI2Cs, "I2Cs"},
 		{"Unknown EngineVersion", EngineVersion(3), "unknown"},
-		{"Link Record", &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address{1, 2, 3}, Data: [3]byte{4, 5, 6}}, "UC 1 01.02.03 0x04 0x05 0x06"},
+		{"Link Record", &LinkRecord{Flags: 0xd0, Group: Group(1), Address: Address(0x10203), Data: [3]byte{4, 5, 6}}, "UC 1 01.02.03 0x04 0x05 0x06"},
 		{"StandardDirectFlag", StandardDirectMessage, "SD     2:2"},
 		{"ExtendedDirectFlag", ExtendedDirectMessage, "ED     2:2"},
 		{"AvailableController", AvailableController, "AC"},
@@ -59,11 +59,11 @@ func TestDeviceString(t *testing.T) {
 		{"AvailableResponder", AvailableResponder, "AR"},
 		{"UnavailableResponder", UnavailableResponder, "UR"},
 		{"Firmware Version", FirmwareVersion(42), "42"},
-		{"Broadcast Message", &Message{Address{1, 2, 3}, Address{4, 5, 6}, StandardBroadcast, commands.SetButtonPressedController, nil}, "SB     2:2 01.02.03 -> ff.ff.ff DevCat 04.05 Firmware 6 Set-button Pressed (controller)"},
-		{"All-Link Broadcast Message", &Message{Address{1, 2, 3}, Address{4, 5, 14}, StandardAllLinkBroadcast, commands.AllLinkRecall, nil}, "SA     2:2 01.02.03 -> ff.ff.ff All-link recall Group(14)"},
-		{"All-Link Cleanup Message", &Message{Address{1, 2, 3}, Address{4, 5, 14}, Flag(MsgTypeAllLinkCleanup, false, 2, 2), commands.AllLinkRecall, nil}, "SC     2:2 01.02.03 -> 04.05.0e Cleanup All-link recall"},
-		{"Extended Direct", &Message{Address{1, 2, 3}, Address{4, 5, 6}, ExtendedDirectMessage, commands.EnterLinkingModeExt, make([]byte, 14)}, "ED     2:2 01.02.03 -> 04.05.06 Enter Linking Mode (i2cs) [00 00 00 00 00 00 00 00 00 00 00 00 00 00]"},
-		{"Standard Ack", &Message{Address{1, 2, 3}, Address{4, 5, 6}, StandardDirectAck, commands.EnterLinkingMode, nil}, "SD Ack 2:2 01.02.03 -> 04.05.06 9.0"},
+		{"Broadcast Message", &Message{Address(0x10203), Address(0x040506), StandardBroadcast, commands.SetButtonPressedController, nil}, "SB     2:2 01.02.03 -> ff.ff.ff DevCat 04.05 Firmware 6 Set-button Pressed (controller)"},
+		{"All-Link Broadcast Message", &Message{Address(0x010203), Address(0x04050e), StandardAllLinkBroadcast, commands.AllLinkRecall, nil}, "SA     2:2 01.02.03 -> ff.ff.ff All-link recall Group(14)"},
+		{"All-Link Cleanup Message", &Message{Address(0x010203), Address(0x04050e), Flag(MsgTypeAllLinkCleanup, false, 2, 2), commands.AllLinkRecall, nil}, "SC     2:2 01.02.03 -> 04.05.0e Cleanup All-link recall"},
+		{"Extended Direct", &Message{Address(0x010203), Address(0x040506), ExtendedDirectMessage, commands.EnterLinkingModeExt, make([]byte, 14)}, "ED     2:2 01.02.03 -> 04.05.06 Enter Linking Mode (i2cs) [00 00 00 00 00 00 00 00 00 00 00 00 00 00]"},
+		{"Standard Ack", &Message{Address(0x010203), Address(0x040506), StandardDirectAck, commands.EnterLinkingMode, nil}, "SD Ack 2:2 01.02.03 -> 04.05.06 9.0"},
 	}
 
 	for _, test := range tests {

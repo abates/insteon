@@ -18,10 +18,16 @@ import (
 	"fmt"
 	"html/template"
 	"strings"
+	"time"
 
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
+
+// LinkingModeWaitTime is the default time to wait after linking mode
+// has been enabled on a device.  This allows the set button pressed
+// message to propagate through the Insteon network
+var LinkingModeWaitTime = (500 * time.Millisecond) + insteon.PropagationDelay(3, 14)
 
 var dDumpTpl = template.Must(template.New("name").Parse(`
         Device: {{.String}}
@@ -184,7 +190,11 @@ func (d *BasicDevice) Dump() string {
 }
 
 func (d *BasicDevice) linkingMode(cmd commands.Command, payload []byte) (err error) {
-	return d.SendCommand(cmd, payload)
+	err = d.SendCommand(cmd, payload)
+	if err == nil {
+		time.Sleep(LinkingModeWaitTime)
+	}
+	return err
 }
 
 func (d *BasicDevice) EnterLinkingMode(group insteon.Group) error {

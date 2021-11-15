@@ -37,14 +37,14 @@ func (info *Info) String() string {
 func (info *Info) MarshalBinary() ([]byte, error) {
 	data := make([]byte, 6)
 
-	copy(data[0:3], info.Address[:])
+	copy(data[0:3], info.Address.Bytes())
 	copy(data[3:5], info.DevCat[:])
 	data[5] = byte(info.Firmware)
 	return data, nil
 }
 
 func (info *Info) UnmarshalBinary(data []byte) error {
-	copy(info.Address[:], data[0:3])
+	info.Address.Put(data[0:3])
 	copy(info.DevCat[:], data[3:5])
 	info.Firmware = Version(data[5])
 	return nil

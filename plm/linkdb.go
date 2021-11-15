@@ -194,6 +194,21 @@ func (ldb *linkdb) WriteLinks(newLinks ...insteon.LinkRecord) (err error) {
 	return err
 }
 
+func (ldb *linkdb) IterateDevices(cb func(insteon.Address)) error {
+	read := make(map[insteon.Address]bool)
+	links, err := ldb.Links()
+	if err == nil {
+		for _, link := range links {
+			if _, found := read[link.Address]; !found {
+				read[link.Address] = true
+				cb(link.Address)
+				continue
+			}
+		}
+	}
+	return err
+}
+
 func (ldb *linkdb) UpdateLinks(...insteon.LinkRecord) error {
 	return insteon.ErrNotImplemented
 }

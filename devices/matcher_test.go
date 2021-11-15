@@ -22,8 +22,8 @@ import (
 )
 
 func TestMatchers(t *testing.T) {
-	ping := &insteon.Message{insteon.Address{1, 3, 3}, insteon.Address{3, 4, 5}, insteon.StandardDirectMessage, commands.Ping, nil}
-	pingNak := &insteon.Message{insteon.Address{1, 2, 3}, insteon.Address{3, 4, 5}, insteon.StandardDirectNak, commands.Command(0x000f00), nil}
+	ping := &insteon.Message{insteon.Address(0x010303), insteon.Address(0x030405), insteon.StandardDirectMessage, commands.Ping, nil}
+	pingNak := &insteon.Message{insteon.Address(0x010203), insteon.Address(0x030405), insteon.StandardDirectNak, commands.Command(0x000f00), nil}
 
 	tests := []struct {
 		name    string
@@ -45,22 +45,22 @@ func TestMatchers(t *testing.T) {
 		{"Or (neither)", Or(Matches(func(*insteon.Message) bool { return false }), Matches(func(*insteon.Message) bool { return false })), &insteon.Message{}, false},
 		{"Not (true)", Not(AckMatcher()), &insteon.Message{Flags: insteon.StandardDirectAck}, false},
 		{"Not (false)", Not(AckMatcher()), &insteon.Message{}, true},
-		{"Src Matcher (true)", SrcMatcher(insteon.Address{1, 2, 3}), &insteon.Message{Src: insteon.Address{1, 2, 3}}, true},
-		{"Src Matcher (false)", SrcMatcher(insteon.Address{3, 4, 5}), &insteon.Message{Src: insteon.Address{1, 2, 3}}, false},
+		{"Src Matcher (true)", SrcMatcher(insteon.Address(0x010203)), &insteon.Message{Src: insteon.Address(0x010203)}, true},
+		{"Src Matcher (false)", SrcMatcher(insteon.Address(0x030405)), &insteon.Message{Src: insteon.Address(0x010203)}, false},
 		{"All-Link Matcher (true)", AllLinkMatcher(), &insteon.Message{Flags: insteon.StandardAllLinkBroadcast}, true},
 		{"All-Link Matcher (false)", AllLinkMatcher(), &insteon.Message{Flags: insteon.StandardDirectAck}, false},
 		{"duplicate matcher (true)", DuplicateMatcher(&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 3, 3)}), &insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 2, 3)}, true},
 		{"duplicate matcher (false)", DuplicateMatcher(&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 3, 3)}), &insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, true, 2, 3)}, true},
 		{
 			name:    "MatchAck",
-			matcher: MatchAck(&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirectAck, false, 0, 1), Command: commands.Command(0x010203), Dst: insteon.Address{3, 4, 5}}),
-			input:   &insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 0, 1), Command: commands.Command(0x010205), Src: insteon.Address{3, 4, 5}},
+			matcher: MatchAck(&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirectAck, false, 0, 1), Command: commands.Command(0x010203), Dst: insteon.Address(0x030405)}),
+			input:   &insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 0, 1), Command: commands.Command(0x010205), Src: insteon.Address(0x030405)},
 			want:    true,
 		},
 		{
 			name:    "MatchAck (false)",
-			matcher: MatchAck(&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirectAck, false, 0, 1), Command: commands.Command(0x010203), Src: insteon.Address{3, 4, 5}}),
-			input:   &insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 0, 1), Command: commands.Command(0x010205), Src: insteon.Address{1, 2, 3}},
+			matcher: MatchAck(&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirectAck, false, 0, 1), Command: commands.Command(0x010203), Src: insteon.Address(0x030405)}),
+			input:   &insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 0, 1), Command: commands.Command(0x010205), Src: insteon.Address(0x010203)},
 			want:    false,
 		},
 	}

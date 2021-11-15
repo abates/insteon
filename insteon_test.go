@@ -21,10 +21,10 @@ import (
 
 func TestAddress(t *testing.T) {
 	tests := []struct {
-		input [3]byte
+		input uint32
 		str   string
 	}{
-		{[3]byte{0x47, 0x2d, 0x10}, "47.2d.10"},
+		{0x472d10, "47.2d.10"},
 	}
 
 	for _, test := range tests {

@@ -55,7 +55,7 @@ func init() {
 }
 
 func (dev *device) init(address insteon.Address) error {
-	device, err := open(modem, address)
+	device, err := open(modem, address, true)
 	if err == nil {
 		*dev.BasicDevice = *device
 	}
@@ -103,7 +103,7 @@ func editLinks(linkable devices.Linkable) error {
 		return fmt.Errorf("No links to edit")
 	}
 
-	inputLinksText := []byte(util.LinksToText(dbLinks))
+	inputLinksText := []byte(util.LinksToText(dbLinks, true))
 	outputLinksText, err := cli.Edit(inputLinksText)
 	if err == nil && !bytes.Equal(inputLinksText, outputLinksText) {
 		dbLinks, err = util.TextToLinks(string(outputLinksText))

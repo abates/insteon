@@ -8,6 +8,7 @@ import (
 )
 
 func TestDeviceString(t *testing.T) {
+	ctrlLink := insteon.ControllerLink(1, insteon.Address(0x040506))
 	tests := []struct {
 		desc   string
 		device fmt.Stringer
@@ -19,8 +20,8 @@ func TestDeviceString(t *testing.T) {
 		{"Config (deadman)", Config(0x10), "...D"},
 		{"Config (all)", Config(0xF0), "LMAD"},
 		{"Version", Version(42), "42"},
-		{"Info", &Info{insteon.Address{1, 2, 3}, insteon.DevCat{4, 5}, Version(6)}, "01.02.03 category 04.05 version 6"},
-		{"manageRecordRequest", &manageRecordRequest{0x25, insteon.ControllerLink(1, insteon.Address{4, 5, 6})}, "25 UC 1 04.05.06 0x00 0x00 0x00"},
+		{"Info", &Info{insteon.Address(0x010203), insteon.DevCat{4, 5}, Version(6)}, "01.02.03 category 04.05 version 6"},
+		{"manageRecordRequest", &manageRecordRequest{0x25, &ctrlLink}, "25 UC 1 04.05.06 0x00 0x00 0x00"},
 		{"allLinkReq", &allLinkReq{0x42, 22}, "42 22"},
 		{"ACK packet", &Packet{Command: CmdGetInfo, Ack: 0x06}, fmt.Sprintf("%v ACK", CmdGetInfo)},
 		{"NAK packet", &Packet{Command: CmdGetInfo, Ack: 0x15}, fmt.Sprintf("%v NAK", CmdGetInfo)},

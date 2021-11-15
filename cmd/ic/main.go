@@ -39,6 +39,7 @@ var (
 	timeoutFlag    time.Duration
 	writeDelayFlag time.Duration
 	ttlFlag        int
+	logFlag        bool
 	debugFlag      bool
 	quietFlag      bool
 
@@ -50,6 +51,7 @@ var (
 func init() {
 	app.SetOutput(os.Stderr)
 	app.Flags.StringVar(&serialPortFlag, "port", "/dev/ttyUSB0", "serial port connected to a PLM")
+	app.Flags.BoolVar(&logFlag, "log", false, "Log insteon traffic")
 	app.Flags.BoolVar(&debugFlag, "debug", false, "Set debug logging")
 	app.Flags.BoolVar(&debugFlag, "quietFlag", false, "Log nothing")
 	app.Flags.DurationVar(&timeoutFlag, "timeout", 3*time.Second, "read/write timeout duration")
@@ -98,14 +100,19 @@ func run() error {
 	return nil
 }
 
-func open(modem *plm.PLM, addr insteon.Address) (*devices.BasicDevice, error) {
-	device, err := db.Open(devices.TTL(ttlFlag).Filter(modem), addr)
+func open(modem *plm.PLM, addr insteon.Address, askLink bool) (*devices.BasicDevice, error) {
+	filters := []devices.Filter{}
+	if logFlag {
+		filters = append(filters, util.Snoop(os.Stdout, db))
+	}
+	filters = append(filters, devices.TTL(ttlFlag), devices.RetryFilter(3))
+	device, err := db.Open(modem, addr, filters...)
 
-	if err == devices.ErrNotLinked {
+	if err == devices.ErrNotLinked && askLink {
 		msg := fmt.Sprintf("Device %s is not linked to the PLM.  Link now? (y/n) ", addr)
 		if cli.Query(os.Stdin, os.Stdout, msg, "y", "n") == "y" {
-			pc := &plmCmd{group: 0x01, addresses: []insteon.Address{addr}}
-			err = pc.link(true, false)()
+			pc := &plmCmd{}
+			err = pc.link(true, false)(insteon.Group(1), util.Addresses{addr})
 		}
 	}
 	return device, err

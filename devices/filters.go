@@ -140,3 +140,29 @@ func (c *CacheFilter) Lookup(matcher Matcher) (*insteon.Message, bool) {
 	}
 	return nil, false
 }
+
+func RetryFilter(tries int) Filter {
+	return FilterFunc(func(mw MessageWriter) MessageWriter {
+		return &filter{
+			read: mw.Read,
+			write: func(msg *insteon.Message) (ack *insteon.Message, err error) {
+				t := tries
+				for {
+					ack, err = mw.Write(msg)
+					if err == nil || err != ErrReadTimeout {
+						break
+					}
+
+					if t > 1 {
+						t--
+						Log.Printf("Read Timeout, retrying")
+					} else {
+						Log.Printf("Retry count exceeded (%d)", tries)
+						break
+					}
+				}
+				return
+			},
+		}
+	})
+}

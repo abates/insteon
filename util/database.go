@@ -39,7 +39,7 @@ type Database interface {
 	// an initialized device if found.  If not found, Open will call
 	// insteon.Open and store the info upon success.  If dbfile is
 	// not an empty string, SaveDB will be called at the end
-	Open(mw devices.MessageWriter, addr insteon.Address) (*devices.BasicDevice, error)
+	Open(mw devices.MessageWriter, addr insteon.Address, filters ...devices.Filter) (*devices.BasicDevice, error)
 }
 
 // Saveable is any database that can be written to an io.Writer
@@ -84,7 +84,11 @@ func NewFileDB(filename string) (Database, error) {
 	return db, LoadDB(filename, db.memDB)
 }
 
-func (db *fileDB) Open(mw devices.MessageWriter, addr insteon.Address) (*devices.BasicDevice, error) {
+func (db *fileDB) Open(mw devices.MessageWriter, addr insteon.Address, filters ...devices.Filter) (*devices.BasicDevice, error) {
+	// this needs to be tested... we don't ever want to save
+	// a device that was not found and also not linked.  If
+	// the error returned is "ErrNotLinked" it definitely shouldn't
+	// be saved since we won't have correct devcat info
 	dev, found, err := db.open(mw, addr)
 	if err == nil && !found {
 		err = SaveDB(db.filename, db.memDB)
@@ -155,20 +159,20 @@ var (
 	ErrNotLoadable = errors.New("Database is not loadable")
 )
 
-func (db *memDB) open(mw devices.MessageWriter, addr insteon.Address) (device *devices.BasicDevice, found bool, err error) {
+func (db *memDB) open(mw devices.MessageWriter, addr insteon.Address, filters ...devices.Filter) (device *devices.BasicDevice, found bool, err error) {
 	info, found := db.Get(addr)
 	if found {
 		return devices.New(mw, info), found, err
 	}
 
-	device, info, err = devices.Open(mw, addr)
+	device, info, err = devices.Open(mw, addr, filters...)
 	if err == nil {
 		db.Put(info)
 	}
 	return device, found, err
 }
 
-func (db *memDB) Open(mw devices.MessageWriter, addr insteon.Address) (*devices.BasicDevice, error) {
+func (db *memDB) Open(mw devices.MessageWriter, addr insteon.Address, filters ...devices.Filter) (*devices.BasicDevice, error) {
 	dev, _, err := db.open(mw, addr)
 	return dev, err
 }

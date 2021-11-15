@@ -1,3 +1,4 @@
+{{ if .PrintHeading -}}
 #
 # Lines beginning with a # are ignored
 # DO NOT delete lines, this will cause the entries to
@@ -6,5 +7,6 @@
 # first letter of the Flags to 'A'
 #
 # Flags Group Address    Data
-{{range .}}{{ printf "%s" .MarshalText}}
+{{ end -}}
+{{range .Links }}{{ printf "%s" .MarshalText}}
 {{end -}}

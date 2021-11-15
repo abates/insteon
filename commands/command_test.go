@@ -96,3 +96,28 @@ func TestCommandString(t *testing.T) {
 		t.Errorf("expected %q got %q", expected, cmd.String())
 	}
 }
+
+func TestFrom(t *testing.T) {
+	tests := []struct {
+		name  string
+		input [3]int
+		want  Command
+	}{
+		{"standard direct", [3]int{0x0a, AssignToAllLinkGroup.Command1(), AssignToAllLinkGroup.Command2()}, AssignToAllLinkGroup},
+		{"standard direct ACK", [3]int{0x2a, AssignToAllLinkGroup.Command1(), AssignToAllLinkGroup.Command2()}, AssignToAllLinkGroup},
+		{"standard direct NAK", [3]int{0xaa, AssignToAllLinkGroup.Command1(), AssignToAllLinkGroup.Command2()}, AssignToAllLinkGroup},
+		{"extended direct", [3]int{0x1a, ProductDataResp.Command1(), ProductDataResp.Command2()}, ProductDataResp},
+		{"extended direct ACK", [3]int{0x3a, ProductDataResp.Command1(), ProductDataResp.Command2()}, ProductDataResp},
+		{"extended direct NAK", [3]int{0xfa, ProductDataResp.Command1(), ProductDataResp.Command2()}, ProductDataResp},
+		{"all-link cleanup", [3]int{0x4a, AllLinkRecall.Command1(), AllLinkRecall.Command2()}, AllLinkRecall},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := From(byte(test.input[0]), byte(test.input[1]), byte(test.input[2]))
+			if test.want != got {
+				t.Errorf("Wanted command %v got %v", test.want, got)
+			}
+		})
+	}
+}

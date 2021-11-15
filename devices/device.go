@@ -146,6 +146,10 @@ type Linkable interface {
 	WriteLinks(...insteon.LinkRecord) error
 }
 
+type WriteLink interface {
+	WriteLink(index int, record insteon.LinkRecord) error
+}
+
 // DeviceInfo is a record of information about known
 // devices on the network
 type DeviceInfo struct {
@@ -160,14 +164,18 @@ type DeviceInfo struct {
 // well as device info in order to return the correct device type
 // (Dimmer, switch, thermostat, etc).  Open requires a MessageWriter,
 // such as a PLM to use to communicate with the Insteon network
-func Open(mw MessageWriter, dst insteon.Address) (device *BasicDevice, info DeviceInfo, err error) {
+func Open(mw MessageWriter, dst insteon.Address, filters ...Filter) (device *BasicDevice, info DeviceInfo, err error) {
+	for _, filter := range filters {
+		mw = filter.Filter(mw)
+	}
+
 	info.Address = dst
 	info.EngineVersion, err = GetEngineVersion(mw, dst)
 	if err == nil {
 		info.FirmwareVersion, info.DevCat, err = IDRequest(mw, dst)
 	}
 
-	if err == nil {
+	if err == nil || err == ErrNotLinked {
 		device = New(mw, info)
 	}
 	return

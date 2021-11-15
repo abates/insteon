@@ -19,26 +19,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/abates/insteon"
 	"github.com/abates/insteon/commands"
 )
-
-type addrSlice []insteon.Address
-
-func (a *addrSlice) Set(str []string) error {
-	for _, s := range str {
-		a := &insteon.Address{}
-		err := a.Set(s)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (a *addrSlice) String() string {
-	return fmt.Sprintf("%v", []insteon.Address(*a))
-}
 
 type dataVar []byte
 

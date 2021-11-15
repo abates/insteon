@@ -17,6 +17,7 @@ type marshalUnmarshal interface {
 }
 
 func TestMarshalUnmarshalBinary(t *testing.T) {
+	ctrlLink := insteon.ControllerLink(0x42, insteon.Address(0x040506))
 	tests := []struct {
 		desc    string
 		input   []byte
@@ -24,7 +25,7 @@ func TestMarshalUnmarshalBinary(t *testing.T) {
 		want    marshalUnmarshal
 		wantErr error
 	}{
-		{"manageRecordRequest", []byte{byte(LinkCmdFindFirst), byte(insteon.UnavailableController) | 0x02, 0x42, 4, 5, 6, 0, 0, 0}, &manageRecordRequest{}, &manageRecordRequest{LinkCmdFindFirst, insteon.ControllerLink(0x42, insteon.Address{4, 5, 6})}, nil},
+		{"manageRecordRequest", []byte{byte(LinkCmdFindFirst), byte(insteon.UnavailableController) | 0x02, 0x42, 4, 5, 6, 0, 0, 0}, &manageRecordRequest{}, &manageRecordRequest{LinkCmdFindFirst, &ctrlLink}, nil},
 		{"allLinkReq", []byte{0x42, 0x75}, &allLinkReq{}, &allLinkReq{0x42, 0x75}, nil},
 		{"allLinkReq", []byte{}, &allLinkReq{}, &allLinkReq{}, insteon.ErrBufferTooShort},
 	}
@@ -96,9 +97,9 @@ func (tlplm *testModem) WritePacket(packet *Packet) (ack *Packet, err error) {
 }
 
 func TestLinkDBRefresh(t *testing.T) {
-	pkt := func(cmd Command, marshaler encoding.BinaryMarshaler) *Packet {
+	pkt := func(cmd Command, link insteon.LinkRecord) *Packet {
 		packet := &Packet{Command: cmd}
-		packet.Payload, _ = marshaler.MarshalBinary()
+		packet.Payload, _ = link.MarshalBinary()
 		return packet
 	}
 
@@ -116,17 +117,17 @@ func TestLinkDBRefresh(t *testing.T) {
 	}{
 		{
 			name:      "Happy Path",
-			rx:        []*Packet{pkt(CmdAllLinkRecordResp, insteon.ControllerLink(42, insteon.Address{1, 2, 3}))},
+			rx:        []*Packet{pkt(CmdAllLinkRecordResp, insteon.ControllerLink(42, insteon.Address(0x010203)))},
 			ack:       []*Packet{{Command: CmdGetFirstAllLink, Ack: 0x06}, {Command: CmdGetNextAllLink, Ack: 0x15}},
 			wantTx:    []*Packet{{Command: CmdGetFirstAllLink}, {Command: CmdGetNextAllLink}},
-			wantLinks: []insteon.LinkRecord{*insteon.ControllerLink(42, insteon.Address{1, 2, 3})},
+			wantLinks: []insteon.LinkRecord{insteon.ControllerLink(42, insteon.Address(0x010203))},
 		},
 		{
 			name:      "Happy Path 1",
-			rx:        []*Packet{pkt(CmdAllLinkRecordResp, insteon.ControllerLink(42, insteon.Address{1, 2, 3})), pkt(CmdAllLinkRecordResp, insteon.ControllerLink(35, insteon.Address{4, 5, 6}))},
+			rx:        []*Packet{pkt(CmdAllLinkRecordResp, insteon.ControllerLink(42, insteon.Address(0x010203))), pkt(CmdAllLinkRecordResp, insteon.ControllerLink(35, insteon.Address(0x040506)))},
 			ack:       []*Packet{{Command: CmdGetFirstAllLink, Ack: 0x06}, {Command: CmdGetNextAllLink, Ack: 0x06}, {Command: CmdGetNextAllLink, Ack: 0x15}},
 			wantTx:    []*Packet{{Command: CmdGetFirstAllLink}, {Command: CmdGetNextAllLink}, {Command: CmdGetNextAllLink}},
-			wantLinks: []insteon.LinkRecord{*insteon.ControllerLink(42, insteon.Address{1, 2, 3}), *insteon.ControllerLink(35, insteon.Address{4, 5, 6})},
+			wantLinks: []insteon.LinkRecord{insteon.ControllerLink(42, insteon.Address(0x010203)), insteon.ControllerLink(35, insteon.Address(0x040506))},
 		},
 		{
 			name:      "New",

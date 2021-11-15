@@ -47,7 +47,7 @@ func init() {
 }
 
 func (sw *swtch) init(addr insteon.Address) error {
-	device, err := open(modem, addr)
+	device, err := open(modem, addr, true)
 	if err == nil {
 		d := devices.Lookup(device)
 		if s, ok := d.(*devices.Switch); ok {

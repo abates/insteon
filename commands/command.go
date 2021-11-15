@@ -33,6 +33,13 @@ type Commandable interface {
 // and two byte commands
 type Command int
 
+const (
+	StandardDirect = Command(0x000000)
+	ExtendedDirect = Command(0x010000)
+	Broadcast      = Command(0x080000)
+	AllLink        = Command(0x0c0000)
+)
+
 // SubCommand will return a new command where the subcommand byte is updated
 // to reflect command2 from the arguments
 func (cmd Command) SubCommand(command2 int) Command {
@@ -70,4 +77,28 @@ func (cmd Command) String() string {
 		return fmt.Sprintf("%s(%d)", str, cmd.Command2())
 	}
 	return fmt.Sprintf("Command(0x%02x, 0x%02x, 0x%02x)", cmd.Command0(), cmd.Command1(), cmd.Command2())
+}
+
+func From(flagsByte byte, cmd1Byte byte, cmd2Byte byte) Command {
+	// the lower 4 bits of insteon message flags are the
+	// message hop bits that we don't need for command lookup
+	// the 5th bit is the extended message bit
+	var flags Command
+	if flagsByte&0x10 == 0x10 {
+		flags = ExtendedDirect
+	} else if flagsByte > 0 {
+		flagsByte = flagsByte & 0xe0
+		switch {
+		case flagsByte == 0x00 || flagsByte == 0x20:
+			flags = StandardDirect
+		case flagsByte == 0x80:
+			flags = Broadcast
+		case flagsByte == 0x40 || flagsByte == 0x60 || flagsByte == 0xc0 || flagsByte == 0xe0:
+			flags = AllLink
+		}
+	}
+	cmd1 := Command(cmd1Byte) << 8
+	cmd2 := Command(cmd2Byte)
+
+	return flags | cmd1 | cmd2
 }

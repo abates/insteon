@@ -9,8 +9,8 @@ import (
 )
 
 func TestCacheReadWrite(t *testing.T) {
-	m1 := &insteon.Message{Src: insteon.Address{1, 2, 3}}
-	m2 := &insteon.Message{Src: insteon.Address{9, 8, 7}}
+	m1 := &insteon.Message{Src: insteon.Address(0x010203)}
+	m2 := &insteon.Message{Src: insteon.Address(0x090807)}
 	tw := &testWriter{
 		read: []*insteon.Message{m2},
 	}
@@ -34,10 +34,10 @@ func TestCacheReadWrite(t *testing.T) {
 }
 
 func TestCachePush(t *testing.T) {
-	a1 := insteon.Address{0, 0, 1}
-	a2 := insteon.Address{0, 0, 2}
-	a3 := insteon.Address{0, 0, 3}
-	a4 := insteon.Address{0, 0, 4}
+	a1 := insteon.Address(1)
+	a2 := insteon.Address(2)
+	a3 := insteon.Address(3)
+	a4 := insteon.Address(4)
 	c := NewCache(3, &insteon.Message{Src: a1}, &insteon.Message{Src: a2}, &insteon.Message{Src: a3})
 
 	c.push(&insteon.Message{Src: a4})
@@ -84,48 +84,48 @@ func TestCacheLookup(t *testing.T) {
 			name:    "empty cache",
 			inputI:  1,
 			input:   nil,
-			matcher: SrcMatcher(insteon.Address{1, 2, 3}),
+			matcher: SrcMatcher(insteon.Address(0x010203)),
 			want:    false,
 		},
 		{
 			name:   "found",
 			inputI: 1,
 			input: []*insteon.Message{
-				&insteon.Message{Src: insteon.Address{0, 1, 2}},
-				&insteon.Message{Src: insteon.Address{1, 2, 3}},
+				&insteon.Message{Src: insteon.Address(0x000102)},
+				&insteon.Message{Src: insteon.Address(0x010203)},
 			},
-			matcher: SrcMatcher(insteon.Address{1, 2, 3}),
+			matcher: SrcMatcher(insteon.Address(0x010203)),
 			want:    true,
 		},
 		{
 			name:   "not found",
 			inputI: 1,
 			input: []*insteon.Message{
-				&insteon.Message{Src: insteon.Address{0, 1, 2}},
-				&insteon.Message{Src: insteon.Address{1, 2, 3}},
+				&insteon.Message{Src: insteon.Address(0x000102)},
+				&insteon.Message{Src: insteon.Address(0x010203)},
 			},
-			matcher: SrcMatcher(insteon.Address{3, 4, 5}),
+			matcher: SrcMatcher(insteon.Address(0x030405)),
 			want:    false,
 		},
 		{
 			name:   "found",
 			inputI: 0,
 			input: []*insteon.Message{
-				&insteon.Message{Src: insteon.Address{0, 1, 2}},
-				&insteon.Message{Src: insteon.Address{1, 2, 3}},
-				&insteon.Message{Src: insteon.Address{4, 1, 2}},
-				&insteon.Message{Src: insteon.Address{3, 5, 7}},
+				&insteon.Message{Src: insteon.Address(0x000102)},
+				&insteon.Message{Src: insteon.Address(0x010203)},
+				&insteon.Message{Src: insteon.Address(0x040102)},
+				&insteon.Message{Src: insteon.Address(0x030507)},
 			},
-			matcher: SrcMatcher(insteon.Address{1, 2, 3}),
+			matcher: SrcMatcher(insteon.Address(0x010203)),
 			want:    true,
 		},
 		{
 			name:   "ack",
 			inputI: 0,
 			input: []*insteon.Message{
-				&insteon.Message{Dst: insteon.Address{0, 1, 2}, Command: commands.ReadWriteALDB, Flags: insteon.Flag(insteon.MsgTypeDirect, true, 2, 2), Payload: make([]byte, 14)},
+				&insteon.Message{Dst: insteon.Address(0x000102), Command: commands.ReadWriteALDB, Flags: insteon.Flag(insteon.MsgTypeDirect, true, 2, 2), Payload: make([]byte, 14)},
 			},
-			matcher: MatchAck(&insteon.Message{Src: insteon.Address{0, 1, 2}, Command: commands.ReadWriteALDB, Flags: insteon.Flag(insteon.MsgTypeDirectAck, false, 2, 2)}),
+			matcher: MatchAck(&insteon.Message{Src: insteon.Address(0x000102), Command: commands.ReadWriteALDB, Flags: insteon.Flag(insteon.MsgTypeDirectAck, false, 2, 2)}),
 			want:    true,
 		},
 	}
@@ -176,18 +176,18 @@ func TestFilterDuplicates(t *testing.T) {
 	}{
 		{
 			name:  "no duplicates",
-			input: []*insteon.Message{&insteon.Message{Src: insteon.Address{1, 2, 3}}, &insteon.Message{Src: insteon.Address{1, 2, 4}}, &insteon.Message{Src: insteon.Address{1, 2, 5}}},
-			want:  []*insteon.Message{&insteon.Message{Src: insteon.Address{1, 2, 3}}, &insteon.Message{Src: insteon.Address{1, 2, 4}}, &insteon.Message{Src: insteon.Address{1, 2, 5}}},
+			input: []*insteon.Message{&insteon.Message{Src: insteon.Address(0x010203)}, &insteon.Message{Src: insteon.Address(0x010204)}, &insteon.Message{Src: insteon.Address(0x010205)}},
+			want:  []*insteon.Message{&insteon.Message{Src: insteon.Address(0x010203)}, &insteon.Message{Src: insteon.Address(0x010204)}, &insteon.Message{Src: insteon.Address(0x010205)}},
 		},
 		{
 			name: "duplicates",
 			input: []*insteon.Message{
-				&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 3, 3), Src: insteon.Address{1, 2, 3}},
-				&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 2, 3), Src: insteon.Address{1, 2, 3}},
-				&insteon.Message{Src: insteon.Address{1, 2, 4}},
-				&insteon.Message{Src: insteon.Address{1, 2, 5}},
+				&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 3, 3), Src: insteon.Address(0x010203)},
+				&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 2, 3), Src: insteon.Address(0x010203)},
+				&insteon.Message{Src: insteon.Address(0x010204)},
+				&insteon.Message{Src: insteon.Address(0x010205)},
 			},
-			want: []*insteon.Message{&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 3, 3), Src: insteon.Address{1, 2, 3}}, &insteon.Message{Src: insteon.Address{1, 2, 4}}, &insteon.Message{Src: insteon.Address{1, 2, 5}}},
+			want: []*insteon.Message{&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 3, 3), Src: insteon.Address(0x010203)}, &insteon.Message{Src: insteon.Address(0x010204)}, &insteon.Message{Src: insteon.Address(0x010205)}},
 		},
 	}
 

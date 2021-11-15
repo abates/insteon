@@ -15,14 +15,11 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"io"
 	"log"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/abates/insteon"
@@ -42,43 +39,7 @@ var (
 	dbfile         string
 )
 
-func printDevInfo(device *devices.BasicDevice) {
-	err := util.PrintLinkDatabase(io.Discard, device)
-	if errors.Is(err, insteon.ErrReadTimeout) {
-		// try again
-		err = util.PrintLinkDatabase(io.Discard, device)
-	}
-
-	if err != nil {
-		log.Printf("Failed to retrieve links from %v: %v", device, err)
-	}
-}
-
-func dump(links []insteon.LinkRecord) {
-	read := make(map[insteon.Address]bool)
-	for _, link := range links {
-		if _, found := read[link.Address]; found {
-			continue
-		}
-		read[link.Address] = true
-		log.Printf("Querying ALDB from %s", link.Address)
-		device, err := util.Open(devices.TTL(ttlFlag).Filter(modem), link.Address, db, dbfile)
-		if errors.Is(err, insteon.ErrReadTimeout) {
-			// retry
-			device, err = util.Open(devices.TTL(ttlFlag).Filter(modem), link.Address, db, dbfile)
-		}
-
-		if err == nil {
-			util.SaveDB(dbfile, db)
-			printDevInfo(device)
-		} else {
-			log.Printf("Failed to open device %s: %v", link.Address, err)
-		}
-		time.Sleep(time.Millisecond * 100)
-	}
-}
-
-func init() {
+func main() {
 	dir := configdir.LocalConfig("go-insteon")
 	dbfile = filepath.Join(dir, "db.json")
 	err := configdir.MakePath(dir)
@@ -90,25 +51,11 @@ func init() {
 	flag.BoolVar(&debugFlag, "debug", false, "Debug logging")
 	flag.IntVar(&ttlFlag, "ttl", 3, "default ttl for sending Insteon messages")
 
-	db = util.NewMemDB()
-	err = util.LoadDB(dbfile, db)
+	db, err = util.NewFileDB(dbfile)
 	if err != nil {
 		log.Fatalf("Failed to load database: %v", err)
 	}
 
-	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		err := util.SaveDB(dbfile, db)
-		if err != nil {
-			log.Printf("Failed to save database: %v", err)
-		}
-		os.Exit(0)
-	}()
-}
-
-func main() {
 	flag.Parse()
 
 	if debugFlag {
@@ -128,11 +75,21 @@ func main() {
 	}
 
 	modem = plm.New(s, plm.Timeout(time.Second*5))
+	err = modem.IterateDevices(func(addr insteon.Address) {
+		log.Printf("Querying ALDB from %s", addr)
+		device, err := db.Open(modem, addr, devices.RetryFilter(3), devices.TTL(ttlFlag))
+		if err == nil {
+			err := util.PrintLinkDatabase(io.Discard, device)
+			if err != nil {
+				log.Printf("Failed to retrieve links from %v: %v", device, err)
+			}
+		} else {
+			log.Printf("Failed to open device %s: %v", addr, err)
+		}
+		time.Sleep(time.Millisecond * 100)
+	})
 
-	if links, err := modem.Links(); err == nil {
-		util.PrintLinks(os.Stdout, links)
-		dump(links)
-	} else {
+	if err != nil {
 		log.Fatalf("Failed to retrieve modem info: %v", err)
 	}
 }

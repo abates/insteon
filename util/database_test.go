@@ -12,7 +12,7 @@ import (
 func TestMemDB(t *testing.T) {
 	db := NewMemDB().(*memDB)
 
-	addr := insteon.Address{5, 6, 7}
+	addr := insteon.Address(0x050607)
 	want := devices.DeviceInfo{}
 	got, found := db.Get(addr)
 	if found {
