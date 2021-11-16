@@ -81,7 +81,7 @@ var domains = []*domain{
 func init() {
 	autogenCommands["devcats"] = autogenCommand{
 		templates: []autogenTemplate{
-			autogenTemplate{
+			{
 				input:  "internal/devcats.go.tmpl",
 				output: "devcats.go",
 				data:   data,

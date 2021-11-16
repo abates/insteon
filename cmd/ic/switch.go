@@ -35,12 +35,12 @@ func init() {
 		Description: "Interact with a specific switch",
 		Callback:    cli.Callback(sw.init, "<device id>"),
 		SubCommands: []*cli.Command{
-			&cli.Command{Name: "config", Description: "retrieve switch configuration information", Callback: cli.Callback(sw.switchConfigCmd)},
-			&cli.Command{Name: "status", Description: "get the switch status", Callback: cli.Callback(sw.switchStatusCmd)},
-			&cli.Command{Name: "on", Description: "turn light on", Callback: cli.Callback(sw.TurnOn)},
-			&cli.Command{Name: "off", Description: "turn light off", Callback: cli.Callback(sw.TurnOff)},
-			&cli.Command{Name: "backlight", Description: "turn backlight on/off", Callback: cli.Callback(sw.SetBacklight, "<true|false>")},
-			&cli.Command{Name: "loadsense", Description: "turn load sense on/off", Callback: cli.Callback(sw.SetLoadSense, "<true|false>")},
+			{Name: "config", Description: "retrieve switch configuration information", Callback: cli.Callback(sw.switchConfigCmd)},
+			{Name: "status", Description: "get the switch status", Callback: cli.Callback(sw.switchStatusCmd)},
+			{Name: "on", Description: "turn light on", Callback: cli.Callback(sw.TurnOn)},
+			{Name: "off", Description: "turn light off", Callback: cli.Callback(sw.TurnOff)},
+			{Name: "backlight", Description: "turn backlight on/off", Callback: cli.Callback(sw.SetBacklight, "<true|false>")},
+			{Name: "loadsense", Description: "turn load sense on/off", Callback: cli.Callback(sw.SetLoadSense, "<true|false>")},
 		},
 	}
 	app.SubCommands = append(app.SubCommands, swCmd)

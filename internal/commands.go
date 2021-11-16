@@ -194,12 +194,12 @@ var commands = []commandGroup{
 func init() {
 	autogenCommands["commands"] = autogenCommand{
 		templates: []autogenTemplate{
-			autogenTemplate{
+			{
 				input:  "internal/commands.go.tmpl",
 				output: "commands/commands.go",
 				data:   func() interface{} { return commands },
 			},
-			autogenTemplate{
+			{
 				input:  "internal/COMMANDS.md.tmpl",
 				output: "COMMANDS.md",
 				data:   func() interface{} { return commands },

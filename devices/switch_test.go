@@ -118,7 +118,7 @@ func TestSwitchedDeviceOperatingFlags(t *testing.T) {
 func TestSwitchStatus(t *testing.T) {
 	want := 43
 	tw := &testWriter{
-		acks: []*insteon.Message{&insteon.Message{Command: commands.LightStatusRequest.SubCommand(want)}},
+		acks: []*insteon.Message{{Command: commands.LightStatusRequest.SubCommand(want)}},
 	}
 	sw := &Switch{BasicDevice: &BasicDevice{MessageWriter: tw}}
 	got, _ := sw.Status()

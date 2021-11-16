@@ -203,7 +203,7 @@ func TestI1DeviceCommands(t *testing.T) {
 func TestI1DeviceExtendedGet(t *testing.T) {
 	wantPayload := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 	tw := &testWriter{
-		read: []*insteon.Message{&insteon.Message{Command: commands.ExtendedGetSet, Payload: wantPayload}},
+		read: []*insteon.Message{{Command: commands.ExtendedGetSet, Payload: wantPayload}},
 	}
 	d := New(tw, DeviceInfo{})
 	gotPayload, err := d.ExtendedGet(make([]byte, 14))

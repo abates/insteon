@@ -91,8 +91,8 @@ func TestCacheLookup(t *testing.T) {
 			name:   "found",
 			inputI: 1,
 			input: []*insteon.Message{
-				&insteon.Message{Src: insteon.Address(0x000102)},
-				&insteon.Message{Src: insteon.Address(0x010203)},
+				{Src: insteon.Address(0x000102)},
+				{Src: insteon.Address(0x010203)},
 			},
 			matcher: SrcMatcher(insteon.Address(0x010203)),
 			want:    true,
@@ -101,8 +101,8 @@ func TestCacheLookup(t *testing.T) {
 			name:   "not found",
 			inputI: 1,
 			input: []*insteon.Message{
-				&insteon.Message{Src: insteon.Address(0x000102)},
-				&insteon.Message{Src: insteon.Address(0x010203)},
+				{Src: insteon.Address(0x000102)},
+				{Src: insteon.Address(0x010203)},
 			},
 			matcher: SrcMatcher(insteon.Address(0x030405)),
 			want:    false,
@@ -111,10 +111,10 @@ func TestCacheLookup(t *testing.T) {
 			name:   "found",
 			inputI: 0,
 			input: []*insteon.Message{
-				&insteon.Message{Src: insteon.Address(0x000102)},
-				&insteon.Message{Src: insteon.Address(0x010203)},
-				&insteon.Message{Src: insteon.Address(0x040102)},
-				&insteon.Message{Src: insteon.Address(0x030507)},
+				{Src: insteon.Address(0x000102)},
+				{Src: insteon.Address(0x010203)},
+				{Src: insteon.Address(0x040102)},
+				{Src: insteon.Address(0x030507)},
 			},
 			matcher: SrcMatcher(insteon.Address(0x010203)),
 			want:    true,
@@ -123,7 +123,7 @@ func TestCacheLookup(t *testing.T) {
 			name:   "ack",
 			inputI: 0,
 			input: []*insteon.Message{
-				&insteon.Message{Dst: insteon.Address(0x000102), Command: commands.ReadWriteALDB, Flags: insteon.Flag(insteon.MsgTypeDirect, true, 2, 2), Payload: make([]byte, 14)},
+				{Dst: insteon.Address(0x000102), Command: commands.ReadWriteALDB, Flags: insteon.Flag(insteon.MsgTypeDirect, true, 2, 2), Payload: make([]byte, 14)},
 			},
 			matcher: MatchAck(&insteon.Message{Src: insteon.Address(0x000102), Command: commands.ReadWriteALDB, Flags: insteon.Flag(insteon.MsgTypeDirectAck, false, 2, 2)}),
 			want:    true,
@@ -176,18 +176,18 @@ func TestFilterDuplicates(t *testing.T) {
 	}{
 		{
 			name:  "no duplicates",
-			input: []*insteon.Message{&insteon.Message{Src: insteon.Address(0x010203)}, &insteon.Message{Src: insteon.Address(0x010204)}, &insteon.Message{Src: insteon.Address(0x010205)}},
-			want:  []*insteon.Message{&insteon.Message{Src: insteon.Address(0x010203)}, &insteon.Message{Src: insteon.Address(0x010204)}, &insteon.Message{Src: insteon.Address(0x010205)}},
+			input: []*insteon.Message{{Src: insteon.Address(0x010203)}, {Src: insteon.Address(0x010204)}, {Src: insteon.Address(0x010205)}},
+			want:  []*insteon.Message{{Src: insteon.Address(0x010203)}, {Src: insteon.Address(0x010204)}, {Src: insteon.Address(0x010205)}},
 		},
 		{
 			name: "duplicates",
 			input: []*insteon.Message{
-				&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 3, 3), Src: insteon.Address(0x010203)},
-				&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 2, 3), Src: insteon.Address(0x010203)},
-				&insteon.Message{Src: insteon.Address(0x010204)},
-				&insteon.Message{Src: insteon.Address(0x010205)},
+				{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 3, 3), Src: insteon.Address(0x010203)},
+				{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 2, 3), Src: insteon.Address(0x010203)},
+				{Src: insteon.Address(0x010204)},
+				{Src: insteon.Address(0x010205)},
 			},
-			want: []*insteon.Message{&insteon.Message{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 3, 3), Src: insteon.Address(0x010203)}, &insteon.Message{Src: insteon.Address(0x010204)}, &insteon.Message{Src: insteon.Address(0x010205)}},
+			want: []*insteon.Message{{Flags: insteon.Flag(insteon.MsgTypeDirect, false, 3, 3), Src: insteon.Address(0x010203)}, {Src: insteon.Address(0x010204)}, {Src: insteon.Address(0x010205)}},
 		},
 	}
 

@@ -37,8 +37,8 @@ func init() {
 		Description: "Interact with a thermostat",
 		Callback:    cli.Callback(therm.init, "<device id>"),
 		SubCommands: []*cli.Command{
-			&cli.Command{Name: "status", Description: "get the thermostat status", Callback: cli.Callback(therm.thermStatusCmd)},
-			&cli.Command{Name: "setStatus", Description: "enable/disable status reporting", Callback: cli.Callback(therm.SetStatusMessage, "<true|false>")},
+			{Name: "status", Description: "get the thermostat status", Callback: cli.Callback(therm.thermStatusCmd)},
+			{Name: "setStatus", Description: "enable/disable status reporting", Callback: cli.Callback(therm.SetStatusMessage, "<true|false>")},
 		},
 	}
 	app.SubCommands = append(app.SubCommands, thermCmd)
