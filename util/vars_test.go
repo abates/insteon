@@ -14,7 +14,7 @@ func TestAddresses(t *testing.T) {
 		want    Addresses
 		wantStr string
 	}{
-		{"one addres", []string{"01.02.03"}, Addresses{insteon.Address(0x010203)}, "01.02.03"},
+		{"one address", []string{"01.02.03"}, Addresses{insteon.Address(0x010203)}, "01.02.03"},
 	}
 
 	for _, test := range tests {

@@ -5,7 +5,7 @@ import (
 )
 
 // PropagationDelay attempts to calculate the amount of time an Insteon
-// message needs in order to completely propogate (including relays) throughout
+// message needs in order to completely propagate (including relays) throughout
 // the network.  This is based on the number of AC zero crossings, the
 // number of times a message can be repeated (ttl) and whether or not
 // the message is an extended message

@@ -179,7 +179,7 @@ func (db *memDB) Open(mw devices.MessageWriter, addr insteon.Address, filters ..
 	return device, err
 }
 
-// SaveDB will attemt to save the database to the named file.  If
+// SaveDB will attempt to save the database to the named file.  If
 // the database is not saveable (does not implement the Saveable
 // interface) then ErrNotSaveable is returned
 func SaveDB(filename string, db Database) (err error) {

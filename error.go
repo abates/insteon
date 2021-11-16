@@ -38,7 +38,7 @@ var (
 	ErrWriteTimeout = errors.New("Write Timeout")
 
 	// ErrNotSupported indicates some feature (namely an updateable All-Link database) is
-	// not supported by the underyling Insteon device
+	// not supported by the underlying Insteon device
 	ErrNotSupported = errors.New("Feature is not supported by the device")
 
 	// ErrNotImplemented indicates that a device function has not yet been implemented
