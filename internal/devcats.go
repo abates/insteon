@@ -37,7 +37,7 @@ func (c *category) ID() string {
 }
 
 func (c *category) DevCat() string {
-	return fmt.Sprintf("DevCat{0x%02x, 0x%02x}", c.domain.id, c.id)
+	return fmt.Sprintf("{0x%02x, 0x%02x}", c.domain.id, c.id)
 }
 
 type domain struct {
