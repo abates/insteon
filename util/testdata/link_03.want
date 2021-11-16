@@ -1,0 +1,5 @@
+controller WriteLink 0 AC 1 00.00.02 0x00 0x00 0x00
+controller EnterLinkingMode 1
+responder EnterLinkingMode 1
+controller ExitLinkingMode
+responder ExitLinkingMode

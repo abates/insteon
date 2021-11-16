@@ -148,6 +148,37 @@ func testFixCrosslinks(input []insteon.LinkRecord, meta []string, wantStr string
 	}
 }
 
+func TestForceLinkUnlink(t *testing.T) {
+	want := []string{
+		"controller EnterLinkingMode 2",
+		"responder EnterLinkingMode 2",
+		"controller ExitLinkingMode",
+		"responder ExitLinkingMode",
+		"controller EnterUnlinkingMode 2",
+		"responder EnterLinkingMode 2",
+		"controller ExitLinkingMode",
+		"responder ExitLinkingMode",
+	}
+
+	got := &cmdLogger{}
+	controller := &testLinkable{name: "controller", commands: got}
+	responder := &testLinkable{name: "responder", commands: got}
+	err := ForceLink(2, controller, responder)
+	if err == nil {
+		err = Unlink(2, controller, responder)
+	}
+
+	if err == nil {
+		wantStr := strings.Join(want, " ")
+		gotStr := strings.Join(got.commands, " ")
+		if wantStr != gotStr {
+			t.Errorf("Wanted commands %q got %q", wantStr, gotStr)
+		}
+	} else {
+		t.Errorf("unexpected error %v", err)
+	}
+}
+
 func TestLinksToText(t *testing.T) {
 	links := []insteon.LinkRecord{
 		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address(0x010203)},
@@ -201,6 +232,53 @@ UR        1 04.05.06   00 00 00
 	}
 }
 
+func getControllerResponder(input []insteon.LinkRecord, wantStr string) (*testWritableLinkable, *testWritableLinkable, []string, *cmdLogger) {
+	want := strings.Split(wantStr, "\n")
+	if want[len(want)-1] == "" {
+		want = want[0 : len(want)-1]
+	}
+
+	got := &cmdLogger{}
+	controllerLinks := []insteon.LinkRecord{}
+	responderLinks := []insteon.LinkRecord{}
+	if len(input) > 0 {
+		controllerLinks = input[0 : len(input)/2]
+		responderLinks = input[len(input)/2:]
+	}
+	controller := &testWritableLinkable{&testLinkable{address: insteon.Address(1), name: "controller", links: controllerLinks, commands: got}}
+	responder := &testWritableLinkable{&testLinkable{address: insteon.Address(2), name: "responder", links: responderLinks, commands: got}}
+
+	return controller, responder, want, got
+}
+
+func testUnlinkAll(input []insteon.LinkRecord, meta []string, wantStr string, t *testing.T) {
+	controller, responder, want, got := getControllerResponder(input, wantStr)
+	UnlinkAll(controller, responder)
+
+	if strings.Join(want, " ") != strings.Join(got.commands, " ") {
+		t.Errorf("Wanted commands %q got %q", strings.Join(want, " "), strings.Join(got.commands, " "))
+	}
+}
+
+func testLink(input []insteon.LinkRecord, meta []string, wantStr string, t *testing.T) {
+	controller, responder, want, got := getControllerResponder(input, wantStr)
+	group := insteon.Group(0)
+	if len(meta) > 0 {
+		err := group.Set(meta[0])
+		if err != nil {
+			t.Fatalf("Failed to set group %v", err)
+		}
+	} else {
+		t.Fatalf("Expected meta to have group id")
+	}
+
+	Link(group, controller, responder)
+
+	if strings.Join(want, " ") != strings.Join(got.commands, " ") {
+		t.Errorf("Wanted commands %q got %q", strings.Join(want, " "), strings.Join(got.commands, " "))
+	}
+}
+
 func TestLinkUtils(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -213,37 +291,41 @@ func TestLinkUtils(t *testing.T) {
 		{"Dump Links", "testdata/dumplinks", testDumpLinks},
 		{"Find Links", "testdata/findlinkrecord", testFindLinkRecord},
 		{"Anonymize", "testdata/anonymize", testAnonymize},
+		{"Link", "testdata/link_", testLink},
+		{"UnlinkAll", "testdata/unlinkall_", testUnlinkAll},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			inputs, _ := filepath.Glob(fmt.Sprintf("%s*.input", test.prefix))
 			for _, inputFile := range inputs {
-				inputBytes, err := ioutil.ReadFile(inputFile)
-				if err != nil {
-					t.Fatalf("Failed to read input file %v", err)
-				}
-
-				input, err := TextToLinks(string(inputBytes))
-				if err != nil {
-					t.Fatalf("Failed to convert %s to links %v", inputFile, err)
-				}
-
-				meta := []string{}
-				for _, line := range strings.Split(string(inputBytes), "\n") {
-					if strings.HasPrefix(line, "#") {
-						meta = append(meta, strings.TrimSpace(strings.TrimPrefix(line, "#")))
+				t.Run(filepath.Base(inputFile), func(t *testing.T) {
+					inputBytes, err := ioutil.ReadFile(inputFile)
+					if err != nil {
+						t.Fatalf("Failed to read input file %v", err)
 					}
-				}
 
-				ext := filepath.Ext(inputFile)
-				wantFile := inputFile[0:len(inputFile)-len(ext)] + ".want"
-				want, err := ioutil.ReadFile(wantFile)
-				if err != nil && !errors.Is(err, fs.ErrNotExist) {
-					t.Fatalf("Failed to read want file %v", err)
-				}
+					input, err := TextToLinks(string(inputBytes))
+					if err != nil {
+						t.Fatalf("Failed to convert %s to links %v", inputFile, err)
+					}
 
-				test.test(input, meta, string(want), t)
+					meta := []string{}
+					for _, line := range strings.Split(string(inputBytes), "\n") {
+						if strings.HasPrefix(line, "#") {
+							meta = append(meta, strings.TrimSpace(strings.TrimPrefix(line, "#")))
+						}
+					}
+
+					ext := filepath.Ext(inputFile)
+					wantFile := inputFile[0:len(inputFile)-len(ext)] + ".want"
+					want, err := ioutil.ReadFile(wantFile)
+					if err != nil && !errors.Is(err, fs.ErrNotExist) {
+						t.Fatalf("Failed to read want file %v", err)
+					}
+
+					test.test(input, meta, string(want), t)
+				})
 			}
 		})
 	}
@@ -263,28 +345,43 @@ func testPrintLinks(input []insteon.LinkRecord, meta []string, want string, t *t
 	}
 }
 
+type cmdLogger struct {
+	commands []string
+}
+
+func (c *cmdLogger) push(cmd string) {
+	c.commands = append(c.commands, cmd)
+}
+
 type testLinkable struct {
+	address  insteon.Address
 	links    []insteon.LinkRecord
 	name     string
-	commands chan<- string
+	commands *cmdLogger
+}
+
+func (tl *testLinkable) logCmd(cmd string) {
+	if tl.commands != nil {
+		tl.commands.push(cmd)
+	}
 }
 
 func (tl *testLinkable) Address() insteon.Address {
-	return insteon.Address(0x010203)
+	return tl.address
 }
 
-func (tl *testLinkable) EnterLinkingMode(insteon.Group) error {
-	tl.commands <- fmt.Sprintf("%s EnterLinkingMode", tl.name)
+func (tl *testLinkable) EnterLinkingMode(group insteon.Group) error {
+	tl.logCmd(fmt.Sprintf("%s EnterLinkingMode %d", tl.name, group))
 	return nil
 }
 
-func (tl *testLinkable) EnterUnlinkingMode(insteon.Group) error {
-	tl.commands <- fmt.Sprintf("%s EnterUnLinkingMode", tl.name)
+func (tl *testLinkable) EnterUnlinkingMode(group insteon.Group) error {
+	tl.logCmd(fmt.Sprintf("%s EnterUnlinkingMode %d", tl.name, group))
 	return nil
 }
 
 func (tl *testLinkable) ExitLinkingMode() error {
-	tl.commands <- fmt.Sprintf("%s ExitLinkingMode", tl.name)
+	tl.logCmd(fmt.Sprintf("%s ExitLinkingMode", tl.name))
 	return nil
 }
 
@@ -305,6 +402,7 @@ type testWritableLinkable struct {
 }
 
 func (twl *testWritableLinkable) WriteLink(i int, link insteon.LinkRecord) error {
+	twl.logCmd(fmt.Sprintf("%s WriteLink %d %s", twl.name, i, link))
 	if i < len(twl.links) {
 		twl.links[i] = link
 	} else if i == len(twl.links) {

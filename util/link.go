@@ -22,7 +22,6 @@ import (
 	"sort"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/abates/insteon"
 	"github.com/abates/insteon/devices"
@@ -208,33 +207,28 @@ func MissingCrosslinks(links []insteon.LinkRecord, forAddresses ...insteon.Addre
 func AddLinks(device devices.Linkable, addLinks ...insteon.LinkRecord) (err error) {
 	newLinks := []insteon.LinkRecord{}
 	existingLinks, err := device.Links()
-	if err == nil {
-		for i, existing := range existingLinks {
-			if wr, ok := device.(devices.WriteLink); ok {
-				if len(addLinks) > 0 && existing.Flags.Available() {
-					err = wr.WriteLink(i, addLinks[0])
-					if err != nil {
-						return err
-					}
-					addLinks = addLinks[1:]
-				}
+	for i := 0; i < len(existingLinks) && err == nil; i++ {
+		existing := existingLinks[i]
+		if wr, ok := device.(devices.WriteLink); ok {
+			if len(addLinks) > 0 && existing.Flags.Available() {
+				err = wr.WriteLink(i, addLinks[0])
+				addLinks = addLinks[1:]
+			}
+		} else {
+			if len(addLinks) > 0 && existing.Flags.Available() {
+				newLinks = append(newLinks, addLinks[0])
+				addLinks = addLinks[1:]
 			} else {
-				if len(addLinks) > 0 && existing.Flags.Available() {
-					newLinks = append(newLinks, addLinks[0])
-					addLinks = addLinks[1:]
-				} else {
-					newLinks = append(newLinks, existing)
-				}
+				newLinks = append(newLinks, existing)
 			}
 		}
+	}
 
+	if err == nil {
 		if len(addLinks) > 0 {
 			if wr, ok := device.(devices.WriteLink); ok {
 				for i, link := range addLinks {
 					err = wr.WriteLink(len(existingLinks)+i, link)
-					if err != nil {
-						return err
-					}
 				}
 			} else {
 				newLinks = append(newLinks, addLinks...)
@@ -289,9 +283,9 @@ func CrossLinkAll(group insteon.Group, devices ...devices.Linkable) (err error) 
 // will effectively create a 3-Way light switch configuration
 func CrossLink(group insteon.Group, d1, d2 devices.Linkable) error {
 	err := Link(group, d1, d2)
-	if err == nil || err == ErrAlreadyLinked {
+	if err == nil || errors.Is(err, ErrAlreadyLinked) {
 		err = Link(group, d2, d1)
-		if err == ErrAlreadyLinked {
+		if errors.Is(err, ErrAlreadyLinked) {
 			err = nil
 		}
 	}
@@ -331,6 +325,46 @@ func ForceLink(group insteon.Group, controller, responder devices.Linkable) erro
 	return err
 }
 
+// Link will add appropriate entries to the controller's and responder's All-Link
+// database. Each devices' ALDB will be searched for existing links, if both entries
+// exist (a controller link and a responder link) then nothing is done. If only one
+// entry exists than the other is deleted and new links are created. Once the link
+// check/cleanup has taken place the new links are created using ForceLink
+func Link(group insteon.Group, controller, responder devices.Linkable) (err error) {
+	devices.LogDebug.Printf("Looking for existing links")
+	var controllerLink, responderLink insteon.LinkRecord
+	controllerLink, err = FindLinkRecord(controller, true, responder.Address(), group)
+
+	if err == ErrLinkNotFound {
+		responderLink, err = FindLinkRecord(responder, false, controller.Address(), group)
+
+		if err == nil {
+			// the controller did not have a link to the responder, but
+			// the responder had a link to the controller so we want to
+			// remove it before re-linking the devices
+			devices.LogDebug.Printf("Responder link already exists, deleting it")
+			err = RemoveLinks(responder, responderLink)
+		}
+
+		if err == nil || err == ErrLinkNotFound {
+			err = ForceLink(group, controller, responder)
+		}
+	} else if err == nil {
+		_, err = FindLinkRecord(responder, false, controller.Address(), group)
+		if err == ErrLinkNotFound {
+			// The controller link exists, but no matching responder link
+			// exists, so we want to remove the controller link before
+			// re-linking
+			devices.LogDebug.Printf("Responder link already exists, deleting it")
+			err = RemoveLinks(controller, controllerLink)
+			if err == nil {
+				err = ForceLink(group, controller, responder)
+			}
+		}
+	}
+	return err
+}
+
 // UnlinkAll will unlink all groups between a controller and
 // a responder device
 func UnlinkAll(controller, responder devices.Linkable) error {
@@ -338,7 +372,11 @@ func UnlinkAll(controller, responder devices.Linkable) error {
 	if err == nil {
 		for _, link := range links {
 			if link.Address == responder.Address() {
-				err = Unlink(link.Group, responder, controller)
+				if link.Flags.Controller() {
+					err = Unlink(link.Group, controller, responder)
+				} else {
+					err = Unlink(link.Group, responder, controller)
+				}
 			}
 		}
 	}
@@ -358,8 +396,6 @@ func Unlink(group insteon.Group, controller, responder devices.Linkable) error {
 	if err == nil {
 		devices.LogDebug.Printf("Instructing responder %v to unlink", responder)
 		err = responder.EnterLinkingMode(group)
-		time.Sleep(2 * time.Second)
-
 		controller.ExitLinkingMode()
 		responder.ExitLinkingMode()
 	}
@@ -371,49 +407,22 @@ func RemoveLinks(device devices.Linkable, remove ...insteon.LinkRecord) error {
 	links, err := device.Links()
 	if err == nil {
 		removeLinks := []insteon.LinkRecord{}
-		for _, link := range links {
+		for i, link := range links {
 			for _, r := range remove {
 				if link.Equal(&r) {
 					link.Flags.SetAvailable()
-					removeLinks = append(removeLinks, link)
+					if wl, ok := device.(devices.WriteLink); ok {
+						wl.WriteLink(i, link)
+					} else {
+						removeLinks = append(removeLinks, link)
+					}
 					break
 				}
 			}
 		}
-		err = device.UpdateLinks(removeLinks...)
-	}
-	return err
-}
 
-// Link will add appropriate entries to the controller's and responder's All-Link
-// database. Each devices' ALDB will be searched for existing links, if both entries
-// exist (a controller link and a responder link) then nothing is done. If only one
-// entry exists than the other is deleted and new links are created. Once the link
-// check/cleanup has taken place the new links are created using ForceLink
-func Link(group insteon.Group, controller, responder devices.Linkable) (err error) {
-	devices.LogDebug.Printf("Looking for existing links")
-	var controllerLink, responderLink insteon.LinkRecord
-	controllerLink, err = FindLinkRecord(controller, true, controller.Address(), group)
-
-	if err == ErrLinkNotFound {
-		responderLink, err = FindLinkRecord(responder, false, responder.Address(), group)
-
-		if err == nil {
-			// found a responder link, but not a controller link
-			devices.LogDebug.Printf("Controller link already exists, deleting it")
-			err = RemoveLinks(responder, responderLink)
-		}
-
-		if err == nil || err == ErrLinkNotFound {
-			err = ForceLink(group, controller, responder)
-		}
-	} else if err == nil {
-		_, err = FindLinkRecord(responder, false, controller.Address(), group)
-		if err == ErrLinkNotFound {
-			// found a controller link, but not a responder link
-			devices.LogDebug.Printf("Responder link already exists, deleting it")
-			err = RemoveLinks(controller, controllerLink)
-			err = ForceLink(group, controller, responder)
+		if len(removeLinks) > 0 {
+			err = device.UpdateLinks(removeLinks...)
 		}
 	}
 	return err

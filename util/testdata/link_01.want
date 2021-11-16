@@ -1,0 +1,4 @@
+controller EnterLinkingMode 1
+responder EnterLinkingMode 1
+controller ExitLinkingMode
+responder ExitLinkingMode

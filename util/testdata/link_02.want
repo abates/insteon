@@ -1,0 +1,5 @@
+responder WriteLink 0 AR 1 00.00.01 0x00 0x00 0x00
+controller EnterLinkingMode 1
+responder EnterLinkingMode 1
+controller ExitLinkingMode
+responder ExitLinkingMode

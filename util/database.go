@@ -29,7 +29,7 @@ type Database interface {
 
 	// Put will store the DeviceInfo object in the Database overwriting
 	// any existing object
-	Put(info devices.DeviceInfo)
+	Put(info devices.DeviceInfo) error
 
 	// Filter will return a list of addresses that match the
 	// given device categories
@@ -75,9 +75,7 @@ type fileDB struct {
 
 func NewFileDB(filename string) (Database, error) {
 	db := &fileDB{
-		memDB: &memDB{
-			values: make(map[insteon.Address]devices.DeviceInfo),
-		},
+		memDB:    NewMemDB().(*memDB),
 		filename: filename,
 	}
 
@@ -89,11 +87,15 @@ func (db *fileDB) Open(mw devices.MessageWriter, addr insteon.Address, filters .
 	// a device that was not found and also not linked.  If
 	// the error returned is "ErrNotLinked" it definitely shouldn't
 	// be saved since we won't have correct devcat info
-	dev, found, err := db.open(mw, addr)
-	if err == nil && !found {
+	dev, err := db.Open(mw, addr)
+	return dev, db.save(err)
+}
+
+func (db *fileDB) save(err error) error {
+	if err == nil && db.dirty {
 		err = SaveDB(db.filename, db.memDB)
 	}
-	return dev, err
+	return err
 }
 
 type memDB struct {
@@ -115,11 +117,16 @@ func (db *memDB) Get(addr insteon.Address) (devices.DeviceInfo, bool) {
 	return info, found
 }
 
-func (db *memDB) Put(info devices.DeviceInfo) {
+func (db *fileDB) Put(info devices.DeviceInfo) (err error) {
+	return db.save(db.memDB.Put(info))
+}
+
+func (db *memDB) Put(info devices.DeviceInfo) error {
 	if old := db.values[info.Address]; old != info {
 		db.dirty = true
 		db.values[info.Address] = info
 	}
+	return nil
 }
 
 func (db *memDB) Load(reader io.Reader) error {
@@ -159,22 +166,17 @@ var (
 	ErrNotLoadable = errors.New("Database is not loadable")
 )
 
-func (db *memDB) open(mw devices.MessageWriter, addr insteon.Address, filters ...devices.Filter) (device *devices.BasicDevice, found bool, err error) {
+func (db *memDB) Open(mw devices.MessageWriter, addr insteon.Address, filters ...devices.Filter) (device *devices.BasicDevice, err error) {
 	info, found := db.Get(addr)
 	if found {
-		return devices.New(mw, info), found, err
+		return devices.New(mw, info), err
 	}
 
 	device, info, err = devices.Open(mw, addr, filters...)
 	if err == nil {
 		db.Put(info)
 	}
-	return device, found, err
-}
-
-func (db *memDB) Open(mw devices.MessageWriter, addr insteon.Address, filters ...devices.Filter) (*devices.BasicDevice, error) {
-	dev, _, err := db.open(mw, addr)
-	return dev, err
+	return device, err
 }
 
 // SaveDB will attemt to save the database to the named file.  If
@@ -200,13 +202,11 @@ func SaveDB(filename string, db Database) (err error) {
 // is done and ErrNotLoadable is returned
 func LoadDB(filename string, db Database) (err error) {
 	if loadable, ok := db.(Loadable); ok {
-		_, err := os.Stat(filename)
+		var file *os.File
+		file, err = os.Open(filename)
 		if err == nil {
-			file, err := os.Open(filename)
-			if err == nil {
-				err = loadable.Load(file)
-				file.Close()
-			}
+			err = loadable.Load(file)
+			file.Close()
 		}
 	} else {
 		err = ErrNotLoadable
