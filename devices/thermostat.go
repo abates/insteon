@@ -266,7 +266,7 @@ func (therm *Thermostat) GetAmbientTemp() (temp int, err error) {
 }
 
 func (therm *Thermostat) SetMode(mode ThermostatMode) error {
-	cmd := commands.Command(0x00)
+	var cmd commands.Command
 	switch mode {
 	case ThermostatOff:
 		cmd = commands.ThermOff
@@ -329,7 +329,7 @@ func (therm *Thermostat) GetFanSpeed() (FanSpeed, error) {
 }
 
 func (therm *Thermostat) SetFanSpeen(speed FanSpeed) error {
-	cmd := commands.Command(0x00)
+	var cmd commands.Command
 	switch speed {
 	case LowSpeed:
 		cmd = commands.SetFanOnLow

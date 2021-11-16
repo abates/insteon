@@ -396,7 +396,6 @@ func TestLinkdbUpdateLinks(t *testing.T) {
 				if want != got {
 					t.Errorf("Want link mem address %v got %v", want, got)
 				}
-				i++
 			}
 
 			if len(tw.written) < len(test.want) {

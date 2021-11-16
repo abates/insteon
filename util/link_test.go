@@ -21,7 +21,7 @@ func testAddLinks(input []insteon.LinkRecord, meta []string, wantStr string, t *
 	twl.links = make([]insteon.LinkRecord, len(tl.links))
 	copy(twl.links, tl.links)
 
-	want := []insteon.LinkRecord{}
+	var want []insteon.LinkRecord
 	addlinks := []insteon.LinkRecord{}
 	for i, m := range meta {
 		l := insteon.LinkRecord{}

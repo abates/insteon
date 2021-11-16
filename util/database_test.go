@@ -18,7 +18,7 @@ func TestDatabase(t *testing.T) {
 	f.Close()
 	// start with no file.  A missing file should not
 	// cause NewFileDB to error our
-	err = os.Remove(f.Name())
+	os.Remove(f.Name())
 
 	db, err := NewFileDB(f.Name())
 	if !errors.Is(err, fs.ErrNotExist) {
