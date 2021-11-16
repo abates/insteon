@@ -137,20 +137,26 @@ func FindLinkRecord(device devices.Linkable, controller bool, address insteon.Ad
 	return found, err
 }
 
-func FixCrosslink(forAddr insteon.Address, device devices.Linkable) error {
-	return nil
-}
-
 // Anonymize returns a copy of the links where each link
-// Address field has been randomized. Matching input addresses will
-// all use the same random address
-func Anonymize(links []insteon.LinkRecord) []insteon.LinkRecord {
+// Address field has been replaced, in order, by the given
+// replacement addresses.  If fewer replacement addresses are
+// supplied than required, a random address is generated using
+// rand.Int31()
+//
+// Links that have the same addresses in their Address field
+// will all have the same substituted Address
+func Anonymize(links []insteon.LinkRecord, replacements ...insteon.Address) []insteon.LinkRecord {
 	newLinks := []insteon.LinkRecord{}
 	index := make(map[insteon.Address]insteon.Address)
 	for _, link := range links {
 		newAddr, found := index[link.Address]
 		if !found {
-			newAddr = insteon.Address(0x00ffffff & rand.Int31())
+			if len(replacements) > 0 {
+				newAddr = replacements[0]
+				replacements = replacements[1:]
+			} else {
+				newAddr = insteon.Address(0x00ffffff & rand.Int31())
+			}
 			index[link.Address] = newAddr
 		}
 		link.Address = newAddr
