@@ -15,118 +15,6 @@ import (
 	"github.com/abates/insteon/devices"
 )
 
-type testLinkable struct {
-	links    []insteon.LinkRecord
-	name     string
-	commands chan<- string
-}
-
-type testWritableLinkable struct {
-	*testLinkable
-}
-
-func (twl *testWritableLinkable) WriteLink(i int, link insteon.LinkRecord) error {
-	if i < len(twl.links) {
-		twl.links[i] = link
-	} else if i == len(twl.links) {
-		twl.links = append(twl.links, link)
-	} else {
-		return fmt.Errorf("Index out of range have %d need <= %d", i, len(twl.links))
-	}
-	return nil
-}
-
-func (tl *testLinkable) Address() insteon.Address {
-	return insteon.Address(0x010203)
-}
-
-func (tl *testLinkable) Links() ([]insteon.LinkRecord, error) {
-	return tl.links, nil
-}
-
-func (tl *testLinkable) WriteLinks(links ...insteon.LinkRecord) error {
-	tl.links = make([]insteon.LinkRecord, len(links))
-	copy(tl.links, links)
-	return nil
-}
-
-func (tl *testLinkable) UpdateLinks(...insteon.LinkRecord) error { return nil }
-
-func (tl *testLinkable) EnterLinkingMode(insteon.Group) error {
-	tl.commands <- fmt.Sprintf("%s EnterLinkingMode", tl.name)
-	return nil
-}
-
-func (tl *testLinkable) EnterUnlinkingMode(insteon.Group) error {
-	tl.commands <- fmt.Sprintf("%s EnterUnLinkingMode", tl.name)
-	return nil
-}
-
-func (tl *testLinkable) ExitLinkingMode() error {
-	tl.commands <- fmt.Sprintf("%s ExitLinkingMode", tl.name)
-	return nil
-}
-
-func TestLinkUtils(t *testing.T) {
-	tests := []struct {
-		name   string
-		prefix string
-		test   func(input []insteon.LinkRecord, meta []string, want string, t *testing.T)
-	}{
-		{"Fix Cross Links", "testdata/fixcrosslink_", testFixCrosslinks},
-		{"Add Links", "testdata/addlinks_", testAddLinks},
-		{"Print Links", "testdata/printlinks", testPrintLinks},
-		{"Dump Links", "testdata/dumplinks", testDumpLinks},
-		{"Find Links", "testdata/findlinkrecord", testFindLinkRecord},
-		{"Anonymize", "testdata/anonymize", testAnonymize},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			inputs, _ := filepath.Glob(fmt.Sprintf("%s*.input", test.prefix))
-			for _, inputFile := range inputs {
-				inputBytes, err := ioutil.ReadFile(inputFile)
-				if err != nil {
-					t.Fatalf("Failed to read input file %v", err)
-				}
-
-				input, err := TextToLinks(string(inputBytes))
-				if err != nil {
-					t.Fatalf("Failed to convert %s to links %v", inputFile, err)
-				}
-
-				meta := []string{}
-				for _, line := range strings.Split(string(inputBytes), "\n") {
-					if strings.HasPrefix(line, "#") {
-						meta = append(meta, strings.TrimSpace(strings.TrimPrefix(line, "#")))
-					}
-				}
-
-				ext := filepath.Ext(inputFile)
-				wantFile := inputFile[0:len(inputFile)-len(ext)] + ".want"
-				want, err := ioutil.ReadFile(wantFile)
-				if err != nil && !errors.Is(err, fs.ErrNotExist) {
-					t.Fatalf("Failed to read want file %v", err)
-				}
-
-				test.test(input, meta, string(want), t)
-			}
-		})
-	}
-}
-
-func testFixCrosslinks(input []insteon.LinkRecord, meta []string, wantStr string, t *testing.T) {
-	tl := &testLinkable{links: input}
-	want, _ := TextToLinks(wantStr)
-	addresses := Addresses{}
-	addresses.Set(meta)
-
-	got := fixCrosslinks(tl.links, addresses...)
-	if !reflect.DeepEqual(want, got) {
-		t.Errorf("Wanted\n%s got\n%s", LinksToText(want, false), LinksToText(got, false))
-	}
-}
-
 func testAddLinks(input []insteon.LinkRecord, meta []string, wantStr string, t *testing.T) {
 	tl := &testLinkable{links: input}
 	twl := &testWritableLinkable{&testLinkable{}}
@@ -162,6 +50,34 @@ func testAddLinks(input []insteon.LinkRecord, meta []string, wantStr string, t *
 	}
 }
 
+func testAnonymize(input []insteon.LinkRecord, meta []string, wantStr string, t *testing.T) {
+	addresses := Addresses{}
+	addresses.Set(meta)
+	want, err := TextToLinks(wantStr)
+	if err == nil {
+		got := Anonymize(input, addresses...)
+		if !reflect.DeepEqual(want, got) {
+			t.Errorf("Wanted\n%v\ngot\n%v\n", LinksToText(want, false), LinksToText(got, false))
+		}
+	} else {
+		t.Errorf("Unexpected error %v", err)
+	}
+}
+
+func testDumpLinks(input []insteon.LinkRecord, meta []string, want string, t *testing.T) {
+	tl := &testLinkable{links: input}
+	out := &bytes.Buffer{}
+	err := DumpLinkDatabase(out, tl)
+	if err == nil {
+		got := string(out.Bytes())
+		if want != got {
+			t.Errorf("Wanted:%q\nGot:%q", want, got)
+		}
+	} else {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
 func TestFindDuplicateLinks(t *testing.T) {
 	links := []insteon.LinkRecord{
 		{Flags: insteon.UnavailableController, Group: 1, Address: insteon.Address(0x010203)},
@@ -187,6 +103,48 @@ func TestFindDuplicateLinks(t *testing.T) {
 
 	if !reflect.DeepEqual(want, got) {
 		t.Errorf("want duplicate links %v got %v", want, got)
+	}
+}
+
+func testFindLinkRecord(input []insteon.LinkRecord, meta []string, _ string, t *testing.T) {
+	tl := &testLinkable{links: input}
+	for i, str := range meta {
+		data := strings.Split(str, ":")
+		wantFound := true
+		if data[0] == "found" {
+			wantFound = true
+		} else if data[0] == "not_found" {
+			wantFound = false
+		} else {
+			t.Fatalf("Unknown operation %q", data[0])
+		}
+
+		want := insteon.LinkRecord{}
+		err := want.UnmarshalText([]byte(data[1]))
+		if err == nil {
+			got, err := FindLinkRecord(tl, want.Flags.Controller(), want.Address, want.Group)
+			if wantFound && err != nil {
+				t.Errorf("Wanted record to be found got %v", err)
+			} else if !wantFound && err == nil {
+				t.Errorf("Wanted record to not be found, but %v was found", got)
+			} else if err == nil && want != got {
+				t.Errorf("want link %v got %v", want, got)
+			}
+		} else {
+			t.Fatalf("Failed to unmarshal link record %d: %v", i, err)
+		}
+	}
+}
+
+func testFixCrosslinks(input []insteon.LinkRecord, meta []string, wantStr string, t *testing.T) {
+	tl := &testLinkable{links: input}
+	want, _ := TextToLinks(wantStr)
+	addresses := Addresses{}
+	addresses.Set(meta)
+
+	got := fixCrosslinks(tl.links, addresses...)
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("Wanted\n%s got\n%s", LinksToText(want, false), LinksToText(got, false))
 	}
 }
 
@@ -243,47 +201,51 @@ UR        1 04.05.06   00 00 00
 	}
 }
 
-func testAnonymize(input []insteon.LinkRecord, meta []string, wantStr string, t *testing.T) {
-	addresses := Addresses{}
-	addresses.Set(meta)
-	want, err := TextToLinks(wantStr)
-	if err == nil {
-		got := Anonymize(input, addresses...)
-		if !reflect.DeepEqual(want, got) {
-			t.Errorf("Wanted\n%v\ngot\n%v\n", LinksToText(want, false), LinksToText(got, false))
-		}
-	} else {
-		t.Errorf("Unexpected error %v", err)
+func TestLinkUtils(t *testing.T) {
+	tests := []struct {
+		name   string
+		prefix string
+		test   func(input []insteon.LinkRecord, meta []string, want string, t *testing.T)
+	}{
+		{"Fix Cross Links", "testdata/fixcrosslink_", testFixCrosslinks},
+		{"Add Links", "testdata/addlinks_", testAddLinks},
+		{"Print Links", "testdata/printlinks", testPrintLinks},
+		{"Dump Links", "testdata/dumplinks", testDumpLinks},
+		{"Find Links", "testdata/findlinkrecord", testFindLinkRecord},
+		{"Anonymize", "testdata/anonymize", testAnonymize},
 	}
-}
 
-func testFindLinkRecord(input []insteon.LinkRecord, meta []string, _ string, t *testing.T) {
-	tl := &testLinkable{links: input}
-	for i, str := range meta {
-		data := strings.Split(str, ":")
-		wantFound := true
-		if data[0] == "found" {
-			wantFound = true
-		} else if data[0] == "not_found" {
-			wantFound = false
-		} else {
-			t.Fatalf("Unknown operation %q", data[0])
-		}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			inputs, _ := filepath.Glob(fmt.Sprintf("%s*.input", test.prefix))
+			for _, inputFile := range inputs {
+				inputBytes, err := ioutil.ReadFile(inputFile)
+				if err != nil {
+					t.Fatalf("Failed to read input file %v", err)
+				}
 
-		want := insteon.LinkRecord{}
-		err := want.UnmarshalText([]byte(data[1]))
-		if err == nil {
-			got, err := FindLinkRecord(tl, want.Flags.Controller(), want.Address, want.Group)
-			if wantFound && err != nil {
-				t.Errorf("Wanted record to be found got %v", err)
-			} else if !wantFound && err == nil {
-				t.Errorf("Wanted record to not be found, but %v was found", got)
-			} else if err == nil && want != got {
-				t.Errorf("want link %v got %v", want, got)
+				input, err := TextToLinks(string(inputBytes))
+				if err != nil {
+					t.Fatalf("Failed to convert %s to links %v", inputFile, err)
+				}
+
+				meta := []string{}
+				for _, line := range strings.Split(string(inputBytes), "\n") {
+					if strings.HasPrefix(line, "#") {
+						meta = append(meta, strings.TrimSpace(strings.TrimPrefix(line, "#")))
+					}
+				}
+
+				ext := filepath.Ext(inputFile)
+				wantFile := inputFile[0:len(inputFile)-len(ext)] + ".want"
+				want, err := ioutil.ReadFile(wantFile)
+				if err != nil && !errors.Is(err, fs.ErrNotExist) {
+					t.Fatalf("Failed to read want file %v", err)
+				}
+
+				test.test(input, meta, string(want), t)
 			}
-		} else {
-			t.Fatalf("Failed to unmarshal link record %d: %v", i, err)
-		}
+		})
 	}
 }
 
@@ -301,16 +263,54 @@ func testPrintLinks(input []insteon.LinkRecord, meta []string, want string, t *t
 	}
 }
 
-func testDumpLinks(input []insteon.LinkRecord, meta []string, want string, t *testing.T) {
-	tl := &testLinkable{links: input}
-	out := &bytes.Buffer{}
-	err := DumpLinkDatabase(out, tl)
-	if err == nil {
-		got := string(out.Bytes())
-		if want != got {
-			t.Errorf("Wanted:%q\nGot:%q", want, got)
-		}
+type testLinkable struct {
+	links    []insteon.LinkRecord
+	name     string
+	commands chan<- string
+}
+
+func (tl *testLinkable) Address() insteon.Address {
+	return insteon.Address(0x010203)
+}
+
+func (tl *testLinkable) EnterLinkingMode(insteon.Group) error {
+	tl.commands <- fmt.Sprintf("%s EnterLinkingMode", tl.name)
+	return nil
+}
+
+func (tl *testLinkable) EnterUnlinkingMode(insteon.Group) error {
+	tl.commands <- fmt.Sprintf("%s EnterUnLinkingMode", tl.name)
+	return nil
+}
+
+func (tl *testLinkable) ExitLinkingMode() error {
+	tl.commands <- fmt.Sprintf("%s ExitLinkingMode", tl.name)
+	return nil
+}
+
+func (tl *testLinkable) Links() ([]insteon.LinkRecord, error) {
+	return tl.links, nil
+}
+
+func (tl *testLinkable) UpdateLinks(...insteon.LinkRecord) error { return nil }
+
+func (tl *testLinkable) WriteLinks(links ...insteon.LinkRecord) error {
+	tl.links = make([]insteon.LinkRecord, len(links))
+	copy(tl.links, links)
+	return nil
+}
+
+type testWritableLinkable struct {
+	*testLinkable
+}
+
+func (twl *testWritableLinkable) WriteLink(i int, link insteon.LinkRecord) error {
+	if i < len(twl.links) {
+		twl.links[i] = link
+	} else if i == len(twl.links) {
+		twl.links = append(twl.links, link)
 	} else {
-		t.Fatalf("Unexpected error: %v", err)
+		return fmt.Errorf("Index out of range have %d need <= %d", i, len(twl.links))
 	}
+	return nil
 }
