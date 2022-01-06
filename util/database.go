@@ -87,7 +87,7 @@ func (db *fileDB) Open(mw devices.MessageWriter, addr insteon.Address, filters .
 	// a device that was not found and also not linked.  If
 	// the error returned is "ErrNotLinked" it definitely shouldn't
 	// be saved since we won't have correct devcat info
-	dev, err := db.Open(mw, addr)
+	dev, err := db.memDB.Open(mw, addr)
 	return dev, db.save(err)
 }
 
