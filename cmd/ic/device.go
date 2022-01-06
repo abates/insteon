@@ -36,7 +36,7 @@ func init() {
 
 	cmd := &cli.Command{
 		Name:        "device",
-		Usage:       "<device id> <command>",
+		UsageStr:    "<device id> <command>",
 		Description: "Interact with a specific device",
 		Callback:    cli.Callback(d.init, "<device id>"),
 		SubCommands: []*cli.Command{

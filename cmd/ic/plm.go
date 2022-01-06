@@ -47,7 +47,7 @@ func init() {
 	linkCmd := func(name, desc string, cb interface{}) *cli.Command {
 		return &cli.Command{
 			Name:        name,
-			Usage:       "<group> <device id>...",
+			UsageStr:    "<group> <device id>...",
 			Description: desc,
 			Callback:    cli.Callback(cb, "<group id>", "<device id> <device id> ..."),
 		}
@@ -61,13 +61,13 @@ func init() {
 		SubCommands: []*cli.Command{
 			{
 				Name:        "setflag",
-				Usage:       "<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)",
+				UsageStr:    "<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)",
 				Description: "set a config flag on the PLM",
 				Callback:    cli.Callback(p.flagCmd(true), "[L|M|A|D]"),
 			},
 			{
 				Name:        "clearflag",
-				Usage:       "<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)",
+				UsageStr:    "<flag> (L - Auto Link, M - Monitor, A - Auto LED, D - Deadman mode)",
 				Description: "clear a config flag on the PLM",
 				Callback:    cli.Callback(p.flagCmd(false), "[L|M|A|D]"),
 			},
@@ -86,7 +86,7 @@ func init() {
 			linkCmd("unlink", "Unlink the PLM from one or more devices", p.unlinkCmd),
 			{
 				Name:        "alllink",
-				Usage:       "<group>",
+				UsageStr:    "<group>",
 				Description: "Put the PLM into linking mode for manual linking",
 				Callback:    cli.Callback(p.EnterLinkingMode, "<group id>"),
 			},

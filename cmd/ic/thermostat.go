@@ -33,7 +33,7 @@ func init() {
 
 	thermCmd := &cli.Command{
 		Name:        "thermostat",
-		Usage:       "<device id> <command>",
+		UsageStr:    "<device id> <command>",
 		Description: "Interact with a thermostat",
 		Callback:    cli.Callback(therm.init, "<device id>"),
 		SubCommands: []*cli.Command{

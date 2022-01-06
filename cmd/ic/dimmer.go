@@ -33,7 +33,7 @@ func init() {
 
 	dimCmd := &cli.Command{
 		Name:        "dimmer",
-		Usage:       "<device id> <command>",
+		UsageStr:    "<device id> <command>",
 		Description: "Interact with a specific dimmer",
 		Callback:    cli.Callback(dim.init, "<device id>"),
 		SubCommands: []*cli.Command{

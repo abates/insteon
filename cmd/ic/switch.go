@@ -31,7 +31,7 @@ func init() {
 
 	swCmd := &cli.Command{
 		Name:        "switch",
-		Usage:       "<device id> <command>",
+		UsageStr:    "<device id> <command>",
 		Description: "Interact with a specific switch",
 		Callback:    cli.Callback(sw.init, "<device id>"),
 		SubCommands: []*cli.Command{
